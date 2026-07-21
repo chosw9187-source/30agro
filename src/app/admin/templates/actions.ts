@@ -4,17 +4,22 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { stringifyGradeCriteria } from "@/lib/grade";
 
 export async function createTemplate(formData: FormData) {
   const session = await requireRole("ADMIN");
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
+  const kind = String(formData.get("kind") ?? "COMPETENCY") as
+    | "COMPETENCY"
+    | "PERFORMANCE";
   if (!title) return;
 
   const template = await prisma.evaluationTemplate.create({
     data: {
       title,
       description: description || null,
+      kind,
       createdById: session.user.id,
     },
   });
@@ -31,27 +36,66 @@ export async function deleteTemplate(templateId: string) {
 
 export async function addTemplateItem(templateId: string, formData: FormData) {
   await requireRole("ADMIN");
+  const template = await prisma.evaluationTemplate.findUniqueOrThrow({
+    where: { id: templateId },
+  });
+
   const category = String(formData.get("category") ?? "").trim();
   const label = String(formData.get("label") ?? "").trim();
-  const description = String(formData.get("description") ?? "").trim();
-  const type = String(formData.get("type") ?? "SCORE") as "SCORE" | "TEXT";
-  const maxScore = Number(formData.get("maxScore") ?? 5) || 5;
   const teamId = String(formData.get("teamId") ?? "").trim();
   if (!label) return;
 
   const count = await prisma.templateItem.count({ where: { templateId } });
-  await prisma.templateItem.create({
-    data: {
-      templateId,
-      category,
-      label,
-      description: description || null,
-      type,
-      maxScore,
-      order: count,
-      teamId: teamId || null,
-    },
-  });
+
+  if (template.kind === "PERFORMANCE") {
+    const description = String(formData.get("description") ?? "").trim();
+    const currentLevel = String(formData.get("currentLevel") ?? "").trim();
+    const targetLevel = String(formData.get("targetLevel") ?? "").trim();
+    const kpiFormula = String(formData.get("kpiFormula") ?? "").trim();
+    const weight = Number(formData.get("weight") ?? 0) || 0;
+    const gradeCriteria = stringifyGradeCriteria({
+      S: String(formData.get("gradeS") ?? "").trim(),
+      A: String(formData.get("gradeA") ?? "").trim(),
+      B: String(formData.get("gradeB") ?? "").trim(),
+      C: String(formData.get("gradeC") ?? "").trim(),
+      D: String(formData.get("gradeD") ?? "").trim(),
+    });
+
+    await prisma.templateItem.create({
+      data: {
+        templateId,
+        category,
+        label,
+        description: description || null,
+        type: "GRADE",
+        order: count,
+        teamId: teamId || null,
+        currentLevel: currentLevel || null,
+        targetLevel: targetLevel || null,
+        kpiFormula: kpiFormula || null,
+        weight,
+        gradeCriteria,
+      },
+    });
+  } else {
+    const description = String(formData.get("description") ?? "").trim();
+    const type = String(formData.get("type") ?? "SCORE") as "SCORE" | "TEXT";
+    const maxScore = Number(formData.get("maxScore") ?? 5) || 5;
+
+    await prisma.templateItem.create({
+      data: {
+        templateId,
+        category,
+        label,
+        description: description || null,
+        type,
+        maxScore,
+        order: count,
+        teamId: teamId || null,
+      },
+    });
+  }
+
   revalidatePath(`/admin/templates/${templateId}`);
 }
 

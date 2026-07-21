@@ -5,7 +5,9 @@ import { saveSelfAssessment, submitSelfAssessment } from "../actions";
 import { CommentThread } from "@/components/comment-thread";
 import { ScaleLegend } from "@/components/scale-legend";
 import { RadarChart } from "@/components/radar-chart";
+import { GradeField } from "@/components/grade-field";
 import { buildComparison } from "@/lib/evaluation-report";
+import { buildPerformanceComparison, compositeScore } from "@/lib/performance-report";
 import { itemsForTeam } from "@/lib/template-items";
 
 const evalStatusLabel: Record<string, string> = {
@@ -54,11 +56,18 @@ export default async function MyEvaluationDetailPage({
     evaluation.selfStatus !== "SUBMITTED" && evaluation.cycle.status === "OPEN";
   const showReport =
     evaluation.cycle.resultsReleased && evaluation.status === "SUBMITTED";
+  const isPerformance = evaluation.cycle.template.kind === "PERFORMANCE";
 
-  const comparison = showReport ? buildComparison(items, scoreByItem) : [];
+  const comparison =
+    showReport && !isPerformance ? buildComparison(items, scoreByItem) : [];
   const scoreComparison = comparison.filter((c) => c.type === "SCORE");
   const strengths = scoreComparison.filter((c) => c.classification === "강점");
   const weaknesses = scoreComparison.filter((c) => c.classification === "약점");
+
+  const perfComparison =
+    showReport && isPerformance ? buildPerformanceComparison(items, scoreByItem) : [];
+  const selfComposite = compositeScore(perfComparison, "self");
+  const managerComposite = compositeScore(perfComparison, "manager");
 
   return (
     <div className="flex flex-col gap-8">
@@ -73,7 +82,7 @@ export default async function MyEvaluationDetailPage({
       <section className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 text-lg font-medium">자기평가</h2>
 
-        {selfEditable && <ScaleLegend />}
+        {selfEditable && !isPerformance && <ScaleLegend />}
         {!selfEditable && evaluation.selfStatus !== "SUBMITTED" && (
           <p className="mb-4 rounded bg-amber-50 p-3 text-sm text-amber-700">
             사이클이 진행중 상태가 아니어서 자기평가를 작성할 수 없습니다.
@@ -102,6 +111,20 @@ export default async function MyEvaluationDetailPage({
                         disabled={!selfEditable}
                         className="w-32 rounded border border-slate-300 px-3 py-2 disabled:bg-slate-100"
                       />
+                    ) : item.type === "GRADE" ? (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex flex-wrap gap-4 text-sm text-slate-500">
+                          <span>현수준: {item.currentLevel || "-"}</span>
+                          <span>목표치: {item.targetLevel || "-"}</span>
+                          <span>가중치: {item.weight ?? 0}</span>
+                        </div>
+                        <GradeField
+                          name={`grade-${item.id}`}
+                          criteria={item.gradeCriteria}
+                          defaultValue={existing?.selfGrade}
+                          disabled={!selfEditable}
+                        />
+                      </div>
                     ) : (
                       <textarea
                         name={`text-${item.id}`}
@@ -138,7 +161,7 @@ export default async function MyEvaluationDetailPage({
         </form>
       </section>
 
-      {showReport && (
+      {showReport && !isPerformance && (
         <section className="rounded-lg border border-slate-200 bg-white p-6">
           <h2 className="mb-4 text-lg font-medium">평가 결과 리포트</h2>
 
@@ -218,6 +241,74 @@ export default async function MyEvaluationDetailPage({
                 </ul>
               )}
             </div>
+          </div>
+
+          {evaluation.managerComment && (
+            <div className="mt-6 border-t border-slate-200 pt-6">
+              <h3 className="mb-2 font-medium text-slate-700">팀장의 코멘트</h3>
+              <p className="whitespace-pre-wrap text-slate-600">
+                {evaluation.managerComment}
+              </p>
+            </div>
+          )}
+        </section>
+      )}
+
+      {showReport && isPerformance && (
+        <section className="rounded-lg border border-slate-200 bg-white p-6">
+          <h2 className="mb-4 text-lg font-medium">평가 결과 리포트</h2>
+
+          <div className="mb-6 flex gap-6">
+            <div className="rounded border border-slate-200 px-4 py-3">
+              <p className="text-xs text-slate-500">자기평가 종합점수</p>
+              <p className="text-xl font-semibold">{selfComposite ?? "-"}</p>
+            </div>
+            <div className="rounded border border-slate-200 px-4 py-3">
+              <p className="text-xs text-slate-500">팀장평가 종합점수</p>
+              <p className="text-xl font-semibold">{managerComposite ?? "-"}</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-slate-500">
+                <tr>
+                  <th className="py-2 pr-4 font-medium">목표</th>
+                  <th className="py-2 pr-4 font-medium">가중치</th>
+                  <th className="py-2 pr-4 font-medium">자기평가</th>
+                  <th className="py-2 pr-4 font-medium">팀장평가</th>
+                  <th className="py-2 pr-4 font-medium">자기 가중점수</th>
+                  <th className="py-2 font-medium">팀장 가중점수</th>
+                </tr>
+              </thead>
+              <tbody>
+                {perfComparison.map((row) => (
+                  <tr key={row.id} className="border-b border-slate-100 last:border-0">
+                    <td className="py-2 pr-4">
+                      <span className="text-xs text-slate-400">{row.category}</span>
+                      <br />
+                      {row.label}
+                      {row.description && (
+                        <p className="mt-1 text-xs text-slate-500">{row.description}</p>
+                      )}
+                    </td>
+                    <td className="py-2 pr-4">{row.weight}</td>
+                    <td className="py-2 pr-4">{row.selfGrade ?? "-"}</td>
+                    <td className="py-2 pr-4">{row.managerGrade ?? "-"}</td>
+                    <td className="py-2 pr-4">
+                      {row.selfPoints != null
+                        ? Math.round(row.weight * row.selfPoints * 10) / 10
+                        : "-"}
+                    </td>
+                    <td className="py-2">
+                      {row.managerPoints != null
+                        ? Math.round(row.weight * row.managerPoints * 10) / 10
+                        : "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           {evaluation.managerComment && (

@@ -19,6 +19,12 @@ enum Role {
 enum ItemType {
   SCORE
   TEXT
+  GRADE
+}
+
+enum TemplateKind {
+  COMPETENCY
+  PERFORMANCE
 }
 
 enum CycleStatus {
@@ -63,12 +69,13 @@ model Team {
 }
 
 model EvaluationTemplate {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   title       String
   description String?
+  kind        TemplateKind @default(COMPETENCY)
   createdById String
-  createdBy   User     @relation("TemplateCreator", fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
+  createdBy   User         @relation("TemplateCreator", fields: [createdById], references: [id])
+  createdAt   DateTime     @default(now())
 
   items  TemplateItem[]
   cycles EvaluationCycle[]
@@ -86,6 +93,13 @@ model TemplateItem {
   order       Int                @default(0)
   teamId      String?
   team        Team?              @relation(fields: [teamId], references: [id])
+
+  // performance (KPI/goal) fields
+  weight        Float?
+  currentLevel  String?
+  targetLevel   String?
+  kpiFormula    String?
+  gradeCriteria String?
 
   scores EvaluationScore[]
 }
@@ -135,6 +149,8 @@ model EvaluationScore {
   comment        String?
   selfScore      Int?
   selfComment    String?
+  grade          String?
+  selfGrade      String?
 
   @@unique([evaluationId, templateItemId])
 }

@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { saveEvaluation, submitEvaluation } from "../actions";
 import { CommentThread } from "@/components/comment-thread";
 import { ScaleLegend } from "@/components/scale-legend";
+import { GradeField } from "@/components/grade-field";
 import { itemsForTeam } from "@/lib/template-items";
 
 const evalStatusLabel: Record<string, string> = {
@@ -55,6 +56,7 @@ export default async function EvaluationFormPage({
 
   const editable =
     evaluation.status !== "SUBMITTED" && evaluation.cycle.status === "OPEN";
+  const isPerformance = evaluation.cycle.template.kind === "PERFORMANCE";
 
   return (
     <div className="flex flex-col gap-6">
@@ -66,7 +68,7 @@ export default async function EvaluationFormPage({
         </p>
       </div>
 
-      {editable && <ScaleLegend />}
+      {editable && !isPerformance && <ScaleLegend />}
       {!editable && evaluation.status !== "SUBMITTED" && (
         <p className="rounded bg-amber-50 p-3 text-sm text-amber-700">
           사이클이 진행중 상태가 아니어서 편집할 수 없습니다.
@@ -101,6 +103,23 @@ export default async function EvaluationFormPage({
                           자기평가: {existing.selfScore}점
                         </span>
                       )}
+                    </div>
+                  ) : item.type === "GRADE" ? (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex flex-wrap gap-4 text-sm text-slate-500">
+                        <span>현수준: {item.currentLevel || "-"}</span>
+                        <span>목표치: {item.targetLevel || "-"}</span>
+                        <span>가중치: {item.weight ?? 0}</span>
+                        {existing?.selfGrade && (
+                          <span>자기평가: {existing.selfGrade}등급</span>
+                        )}
+                      </div>
+                      <GradeField
+                        name={`grade-${item.id}`}
+                        criteria={item.gradeCriteria}
+                        defaultValue={existing?.grade}
+                        disabled={!editable}
+                      />
                     </div>
                   ) : (
                     <>

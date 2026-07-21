@@ -36,6 +36,15 @@ async function upsertSelfScoresFromForm(
         update: { selfScore: score },
         create: { evaluationId, templateItemId: item.id, selfScore: score },
       });
+    } else if (item.type === "GRADE") {
+      const grade = String(formData.get(`grade-${item.id}`) ?? "").trim();
+      await prisma.evaluationScore.upsert({
+        where: {
+          evaluationId_templateItemId: { evaluationId, templateItemId: item.id },
+        },
+        update: { selfGrade: grade || null },
+        create: { evaluationId, templateItemId: item.id, selfGrade: grade || null },
+      });
     } else {
       const comment = String(formData.get(`text-${item.id}`) ?? "").trim();
       await prisma.evaluationScore.upsert({
