@@ -1,0 +1,150 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum Role {
+  ADMIN
+  EVALUATOR
+  EMPLOYEE
+}
+
+enum ItemType {
+  SCORE
+  TEXT
+}
+
+enum CycleStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+enum EvaluationStatus {
+  PENDING
+  IN_PROGRESS
+  SUBMITTED
+}
+
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  employeeNumber String   @unique
+  passwordHash   String
+  role           Role
+  teamId         String?
+  team           Team?    @relation("TeamMember", fields: [teamId], references: [id])
+  createdAt      DateTime @default(now())
+
+  createdTemplates EvaluationTemplate[] @relation("TemplateCreator")
+  evaluationsGiven Evaluation[]         @relation("Evaluator")
+  evaluationsOwned Evaluation[]         @relation("Evaluatee")
+  comments         Comment[]
+  ledTeams         Team[]               @relation("TeamLeader")
+}
+
+model Team {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  leaderId  String?
+  leader    User?    @relation("TeamLeader", fields: [leaderId], references: [id])
+  createdAt DateTime @default(now())
+
+  members       User[]         @relation("TeamMember")
+  templateItems TemplateItem[]
+}
+
+model EvaluationTemplate {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  createdById String
+  createdBy   User     @relation("TemplateCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  items  TemplateItem[]
+  cycles EvaluationCycle[]
+}
+
+model TemplateItem {
+  id          String             @id @default(cuid())
+  templateId  String
+  template    EvaluationTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  category    String             @default("")
+  label       String
+  description String?
+  type        ItemType           @default(SCORE)
+  maxScore    Int                @default(5)
+  order       Int                @default(0)
+  teamId      String?
+  team        Team?              @relation(fields: [teamId], references: [id])
+
+  scores EvaluationScore[]
+}
+
+model EvaluationCycle {
+  id              String      @id @default(cuid())
+  name            String
+  templateId      String
+  template        EvaluationTemplate @relation(fields: [templateId], references: [id])
+  startDate       DateTime
+  endDate         DateTime
+  status          CycleStatus @default(DRAFT)
+  resultsReleased Boolean     @default(false)
+  createdAt       DateTime    @default(now())
+
+  evaluations Evaluation[]
+}
+
+model Evaluation {
+  id          String           @id @default(cuid())
+  cycleId     String
+  cycle       EvaluationCycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  evaluatorId String
+  evaluator   User             @relation("Evaluator", fields: [evaluatorId], references: [id])
+  evaluateeId String
+  evaluatee   User             @relation("Evaluatee", fields: [evaluateeId], references: [id])
+  status      EvaluationStatus @default(PENDING)
+  submittedAt DateTime?
+  managerComment String?
+  selfStatus     EvaluationStatus @default(PENDING)
+  selfSubmittedAt DateTime?
+  createdAt   DateTime         @default(now())
+
+  scores   EvaluationScore[]
+  comments Comment[]
+
+  @@unique([cycleId, evaluatorId, evaluateeId])
+}
+
+model EvaluationScore {
+  id             String       @id @default(cuid())
+  evaluationId   String
+  evaluation     Evaluation   @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  templateItemId String
+  templateItem   TemplateItem @relation(fields: [templateItemId], references: [id])
+  score          Int?
+  comment        String?
+  selfScore      Int?
+  selfComment    String?
+
+  @@unique([evaluationId, templateItemId])
+}
+
+model Comment {
+  id           String     @id @default(cuid())
+  evaluationId String
+  evaluation   Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  authorId     String
+  author       User       @relation(fields: [authorId], references: [id])
+  body         String
+  createdAt    DateTime   @default(now())
+}
