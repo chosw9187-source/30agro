@@ -70,7 +70,7 @@ export async function addTemplateItem(templateId: string, formData: FormData) {
         description: description || null,
         type: "GRADE",
         order: count,
-        teamId: assigneeId ? null : teamId || null,
+        teamId: teamId || null,
         assigneeId: assigneeId || null,
         currentLevel: currentLevel || null,
         targetLevel: targetLevel || null,

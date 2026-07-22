@@ -64,7 +64,9 @@ export async function importTemplateItemsFromExcel(
 
       let assigneeId: string | null = null;
       if (template.kind === "PERFORMANCE") {
-        const assigneeKey = String(row["담당자"] ?? "").trim();
+        const assigneeKey = String(
+          row["담당자"] ?? row["사번"] ?? row["담당사번"] ?? row["담당자사번"] ?? ""
+        ).trim();
         if (assigneeKey) {
           const assignee = await prisma.user.findFirst({
             where: {
@@ -76,7 +78,6 @@ export async function importTemplateItemsFromExcel(
             continue;
           }
           assigneeId = assignee.id;
-          teamId = null;
         }
       }
 

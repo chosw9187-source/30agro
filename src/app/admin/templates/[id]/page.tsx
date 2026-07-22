@@ -81,9 +81,20 @@ export default async function TemplateDetailPage({
       <section className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 text-lg font-medium">평가 항목</h2>
         <p className="mb-4 text-sm text-slate-500">
-          팀을 지정하지 않으면 모든 팀 공통 항목이 되고, 팀을 지정하면 해당 팀
-          소속 직원의 평가에만 표시됩니다. 담당자(개인)를 지정하면 그 사람의
-          평가에만 표시되며, 팀 지정보다 우선합니다.
+          {isPerformance ? (
+            <>
+              팀을 지정하면 그 팀 전체에게 목표로 보입니다. 담당자(개인)까지
+              지정하면 팀원 전체에게 목표는 보이되, 실제 점수 입력·평가는
+              담당자 본인만 받습니다(나머지 팀원에게는 읽기 전용으로 표시).
+              팀 없이 담당자만 지정하면 그 사람에게만 보이고 평가됩니다.
+            </>
+          ) : (
+            <>
+              팀을 지정하지 않으면 모든 팀 공통 항목이 되고, 팀을 지정하면
+              해당 팀 소속 직원의 평가에만 표시됩니다. 담당자(개인)를
+              지정하면 그 사람의 평가에만 표시되며, 팀 지정보다 우선합니다.
+            </>
+          )}
         </p>
         <div className="flex flex-col gap-6">
           {[...groups.entries()].map(([category, items]) => (
@@ -108,11 +119,13 @@ export default async function TemplateDetailPage({
                               : "서술형"}
                         </span>
                         <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                          {item.assignee
-                            ? `개인: ${item.assignee.name}`
-                            : item.team
-                              ? item.team.name
-                              : "공통"}
+                          {item.team && item.assignee
+                            ? `${item.team.name} · 담당 ${item.assignee.name}`
+                            : item.assignee
+                              ? `개인: ${item.assignee.name}`
+                              : item.team
+                                ? item.team.name
+                                : "공통"}
                         </span>
                         {item.description && (
                           <p className="mt-1 text-sm text-slate-500">
