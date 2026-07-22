@@ -63,6 +63,17 @@ model User {
   ledTeams         Team[]               @relation("TeamLeader")
   assignedItems    TemplateItem[]       @relation("AssignedItems")
   notifications    Notification[]       @relation("NotificationRecipient")
+  targetYears      UserTargetYear[]
+}
+
+model UserTargetYear {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  year      Int
+  createdAt DateTime @default(now())
+
+  @@unique([userId, year])
 }
 
 model Team {

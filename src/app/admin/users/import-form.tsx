@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { importUsersFromExcel } from "./import-actions";
 
-export function ImportUsersForm() {
+export function ImportUsersForm({ defaultYear }: { defaultYear: number }) {
   const [result, formAction, isPending] = useActionState(
     importUsersFromExcel,
     undefined
@@ -14,8 +14,18 @@ export function ImportUsersForm() {
       <p className="text-sm text-slate-500">
         엑셀 파일의 첫 행은 헤더로, <strong>이름 / 사번 / 이메일주소 / 팀명</strong> 열이
         있어야 합니다. 이메일이 이미 존재하면 정보를 갱신하고, 새 이메일이면 직원
-        권한으로 새로 등록합니다. 비밀번호는 사번으로 자동 설정됩니다.
+        권한으로 새로 등록합니다. 비밀번호는 사번으로 자동 설정됩니다. 아래
+        연도의 대상자로도 함께 등록됩니다.
       </p>
+      <div className="flex items-center gap-2">
+        <label className="text-sm text-slate-600">대상 연도</label>
+        <input
+          type="number"
+          name="year"
+          defaultValue={defaultYear}
+          className="w-24 rounded border border-slate-300 px-2 py-1 text-sm"
+        />
+      </div>
       <input
         type="file"
         name="file"

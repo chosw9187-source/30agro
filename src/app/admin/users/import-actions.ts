@@ -19,6 +19,7 @@ export async function importUsersFromExcel(
   await requireRole("ADMIN");
 
   const file = formData.get("file");
+  const year = Number(formData.get("year") ?? new Date().getFullYear());
   if (!(file instanceof File) || file.size === 0) {
     return { created: 0, updated: 0, errors: ["파일을 선택해주세요."] };
   }
@@ -57,16 +58,18 @@ export async function importUsersFromExcel(
       }
 
       const existing = await prisma.user.findUnique({ where: { email } });
+      let userId: string;
 
       if (existing) {
         await prisma.user.update({
           where: { email },
           data: { name, employeeNumber, teamId },
         });
+        userId = existing.id;
         updated++;
       } else {
         const passwordHash = await bcrypt.hash(employeeNumber, 10);
-        await prisma.user.create({
+        const newUser = await prisma.user.create({
           data: {
             name,
             email,
@@ -76,8 +79,15 @@ export async function importUsersFromExcel(
             teamId,
           },
         });
+        userId = newUser.id;
         created++;
       }
+
+      await prisma.userTargetYear.upsert({
+        where: { userId_year: { userId, year } },
+        update: {},
+        create: { userId, year },
+      });
     } catch {
       errors.push(`${rowNum}행: 저장 실패 (이메일 또는 사번이 다른 사용자와 중복될 수 있습니다).`);
     }
