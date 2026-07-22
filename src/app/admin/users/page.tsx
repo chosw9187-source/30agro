@@ -90,155 +90,128 @@ export default async function UsersPage({
   const skippedCount = Number(params.skipped ?? 0);
 
   return (
-    <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="text-2xl font-semibold">사용자 관리</h1>
-        <p className="mt-1 text-slate-600">
-          평가자와 직원 계정을 만들고 관리합니다. 로그인 아이디는 이메일이며,
-          최초 비밀번호는 사번입니다. 최초 로그인 시 비밀번호 변경이
-          강제됩니다.
-        </p>
-      </div>
+    <div className="flex flex-col gap-5">
+      <h1 className="text-2xl font-semibold">사용자 관리</h1>
 
       {(deletedCount > 0 || skippedCount > 0) && (
-        <p className="rounded bg-slate-50 p-3 text-sm text-slate-600">
+        <p className="text-sm text-slate-500">
           삭제 {deletedCount}건 완료
           {skippedCount > 0 &&
-            ` · 평가 기록이 있어 건너뜀 ${skippedCount}건 (평가 기록이 있는 계정은 삭제할 수 없습니다)`}
+            ` · 평가 기록이 있어 ${skippedCount}건은 건너뜀`}
         </p>
       )}
 
-      <section className="rounded-lg border border-slate-200 bg-white p-6">
-        <h2 className="mb-4 text-lg font-medium">연도별 대상자</h2>
-        <p className="mb-4 text-sm text-slate-500">
-          연도를 선택하면 아래 목록에서 그 해 평가 대상자 여부를 체크할 수
-          있습니다. 매년 인원이 바뀌어도 이전 연도 기록은 그대로 남습니다.
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          {availableYears.map((y) => (
-            <Link
-              key={y}
-              href={`/admin/users?year=${y}`}
-              className={`rounded px-3 py-1.5 text-sm ${
-                y === selectedYear
-                  ? "bg-brand-green text-white"
-                  : "border border-slate-300 text-slate-600 hover:bg-slate-100"
-              }`}
-            >
-              {y}년
-            </Link>
-          ))}
-          <form method="GET" className="flex items-center gap-1">
-            <input
-              type="number"
-              name="year"
-              placeholder="연도 입력"
-              className="w-24 rounded border border-slate-300 px-2 py-1 text-sm"
-            />
-            <button
-              type="submit"
-              className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
-            >
-              이동
-            </button>
-          </form>
+      <details className="group rounded-lg border border-slate-200 bg-white open:pb-5">
+        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-slate-600 hover:text-slate-900">
+          + 새 직원 등록 / 엑셀 일괄 업로드
+        </summary>
+        <div className="flex flex-col gap-6 border-t border-slate-100 px-4 pt-4">
+          <ImportUsersForm defaultYear={selectedYear} />
+
           <form
-            action={clearYearTargets.bind(null, selectedYear)}
-            className="ml-auto"
+            action={createUser}
+            className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2"
           >
+            <input type="hidden" name="year" value={selectedYear} />
+            <input
+              name="name"
+              required
+              placeholder="이름"
+              className="rounded border border-slate-300 px-3 py-2"
+            />
+            <input
+              name="email"
+              type="email"
+              required
+              placeholder="이메일 (로그인 아이디)"
+              className="rounded border border-slate-300 px-3 py-2"
+            />
+            <input
+              name="employeeNumber"
+              required
+              placeholder="사번 (비밀번호로 사용)"
+              className="rounded border border-slate-300 px-3 py-2"
+            />
+            <select name="teamId" className="rounded border border-slate-300 px-3 py-2">
+              <option value="">팀 미지정</option>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <select name="role" className="rounded border border-slate-300 px-3 py-2">
+              <option value="EVALUATOR">평가자</option>
+              <option value="EMPLOYEE">직원</option>
+              <option value="ADMIN">관리자</option>
+            </select>
             <button
               type="submit"
-              className="rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+              className="rounded bg-brand-green px-4 py-2 text-white hover:bg-brand-green-dark sm:col-span-2 sm:self-start"
             >
-              {selectedYear}년 대상자 전체 삭제
+              {selectedYear}년 대상자로 추가
             </button>
           </form>
         </div>
-      </section>
-
-      <section className="rounded-lg border border-slate-200 bg-white p-6">
-        <h2 className="mb-4 text-lg font-medium">엑셀로 일괄 등록</h2>
-        <ImportUsersForm defaultYear={selectedYear} />
-      </section>
-
-      <section className="rounded-lg border border-slate-200 bg-white p-6">
-        <h2 className="mb-4 text-lg font-medium">새 사용자 추가</h2>
-        <form
-          action={createUser}
-          className="grid grid-cols-1 gap-3 sm:grid-cols-2"
-        >
-          <input type="hidden" name="year" value={selectedYear} />
-          <input
-            name="name"
-            required
-            placeholder="이름"
-            className="rounded border border-slate-300 px-3 py-2"
-          />
-          <input
-            name="email"
-            type="email"
-            required
-            placeholder="이메일 (로그인 아이디)"
-            className="rounded border border-slate-300 px-3 py-2"
-          />
-          <input
-            name="employeeNumber"
-            required
-            placeholder="사번 (비밀번호로 사용)"
-            className="rounded border border-slate-300 px-3 py-2"
-          />
-          <select
-            name="teamId"
-            className="rounded border border-slate-300 px-3 py-2"
-          >
-            <option value="">팀 미지정</option>
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-          <select
-            name="role"
-            className="rounded border border-slate-300 px-3 py-2"
-          >
-            <option value="EVALUATOR">평가자</option>
-            <option value="EMPLOYEE">직원</option>
-            <option value="ADMIN">관리자</option>
-          </select>
-          <button
-            type="submit"
-            className="rounded bg-brand-green px-4 py-2 text-white hover:bg-brand-green-dark sm:col-span-2 sm:self-start"
-          >
-            추가 ({selectedYear}년 대상자로 등록)
-          </button>
-        </form>
-      </section>
+      </details>
 
       <form action={bulkDeleteUsers}>
         <input type="hidden" name="year" value={selectedYear} />
         <section className="rounded-lg border border-slate-200 bg-white">
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-            <p className="text-sm text-slate-500">
-              체크박스로 여러 명을 선택해 한번에 삭제할 수 있습니다. 평가
-              기록이 있는 계정은 삭제되지 않습니다.
-            </p>
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-4 py-2.5">
+            {availableYears.map((y) => (
+              <Link
+                key={y}
+                href={`/admin/users?year=${y}`}
+                className={`rounded px-2.5 py-1 text-sm ${
+                  y === selectedYear
+                    ? "bg-brand-green text-white"
+                    : "text-slate-500 hover:bg-slate-100"
+                }`}
+              >
+                {y}년
+              </Link>
+            ))}
+            <input
+              type="number"
+              form="go-to-year"
+              name="year"
+              placeholder="연도"
+              className="w-20 rounded border border-slate-200 px-2 py-1 text-sm text-slate-600"
+            />
             <button
               type="submit"
-              className="rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+              form="go-to-year"
+              className="text-sm text-slate-500 hover:underline"
             >
-              선택 삭제
+              이동
             </button>
+
+            <span className="ml-auto flex items-center gap-4 text-sm">
+              <button type="submit" className="text-red-600 hover:underline">
+                선택 삭제
+              </button>
+              <span className="text-slate-300">|</span>
+              <button
+                type="submit"
+                form="clear-year"
+                className="text-slate-400 hover:text-red-600 hover:underline"
+                title={`${selectedYear}년 대상자 기록만 삭제되며 계정은 유지됩니다`}
+              >
+                {selectedYear}년 대상자 전체 삭제
+              </button>
+            </span>
           </div>
+
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-200 text-slate-500">
+            <thead className="border-b border-slate-100 text-xs text-slate-400">
               <tr>
-                <th className="px-4 py-3"></th>
+                <th className="w-8 px-3 py-2"></th>
                 {columns.map((col) => (
-                  <th key={col.key} className="px-4 py-3 font-medium">
+                  <th key={col.key} className="px-3 py-2 font-medium">
                     <Link
                       href={sortHref(col.key)}
-                      className="flex items-center gap-1 hover:text-slate-900"
+                      className="flex items-center gap-1 hover:text-slate-700"
                     >
                       {col.label}
                       {sortKey === col.key && (
@@ -247,35 +220,35 @@ export default async function UsersPage({
                     </Link>
                   </th>
                 ))}
-                <th className="px-4 py-3">{selectedYear}년 대상자</th>
-                <th className="px-4 py-3"></th>
+                <th className="px-3 py-2 font-medium">{selectedYear}년 대상</th>
+                <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
               {users.map((u) => (
-                <tr key={u.id} className="border-b border-slate-100 last:border-0">
-                  <td className="px-4 py-3">
+                <tr key={u.id} className="border-b border-slate-50 last:border-0">
+                  <td className="px-3 py-2">
                     <input type="checkbox" name="userIds" value={u.id} />
                   </td>
-                  <td className="px-4 py-3">{u.name}</td>
-                  <td className="px-4 py-3 text-slate-500">{u.email}</td>
-                  <td className="px-4 py-3 text-slate-500">{u.employeeNumber}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2">{u.name}</td>
+                  <td className="px-3 py-2 text-slate-400">{u.email}</td>
+                  <td className="px-3 py-2 text-slate-400">{u.employeeNumber}</td>
+                  <td className="px-3 py-2">
                     {u.id === session?.user.id ? (
                       roleLabel[u.role]
                     ) : (
                       <RoleSelect userId={u.id} role={u.role} />
                     )}
                   </td>
-                  <td className="px-4 py-3 text-slate-500">{u.team?.name ?? "-"}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2 text-slate-400">{u.team?.name ?? "-"}</td>
+                  <td className="px-3 py-2">
                     <TargetYearToggle
                       userId={u.id}
                       year={selectedYear}
                       active={u.targetYears.length > 0}
                     />
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-3 py-2 text-right">
                     <UserRowActions userId={u.id} />
                   </td>
                 </tr>
@@ -284,6 +257,15 @@ export default async function UsersPage({
           </table>
         </section>
       </form>
+
+      {/* Standalone form for the year-clear action and the "이동" year jump, kept outside
+          the bulk-delete form so their submits don't trigger account deletion. */}
+      <form id="go-to-year" method="GET" className="hidden" />
+      <form
+        id="clear-year"
+        action={clearYearTargets.bind(null, selectedYear)}
+        className="hidden"
+      />
     </div>
   );
 }
