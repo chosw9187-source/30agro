@@ -51,7 +51,7 @@ export default async function TemplatesPage() {
           </div>
           <button
             type="submit"
-            className="self-start rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-700"
+            className="self-start rounded bg-brand-green px-4 py-2 text-white hover:bg-brand-green-dark"
           >
             만들기
           </button>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { signOut } from "@/auth";
+import { CompanyLogo } from "@/components/company-logo";
 
 const roleLabel: Record<string, string> = {
   ADMIN: "인사팀 관리자",
@@ -20,13 +21,19 @@ export function AppHeader({
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
         <div className="flex items-center gap-6">
-          <span className="text-lg font-semibold">{title}</span>
+          <div className="flex items-center gap-2">
+            <CompanyLogo className="h-7 w-auto" />
+            <span className="hidden text-sm text-slate-400 sm:inline">|</span>
+            <span className="hidden text-sm font-medium text-slate-600 sm:inline">
+              {title}
+            </span>
+          </div>
           <nav className="flex gap-4 text-sm text-slate-600">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="hover:text-slate-900 hover:underline"
+                className="hover:text-brand-green hover:underline"
               >
                 {link.label}
               </Link>
@@ -45,7 +52,7 @@ export function AppHeader({
           >
             <button
               type="submit"
-              className="rounded border border-slate-300 px-3 py-1 text-slate-700 hover:bg-slate-100"
+              className="rounded border border-slate-300 px-3 py-1 text-slate-700 hover:border-brand-green hover:text-brand-green"
             >
               로그아웃
             </button>

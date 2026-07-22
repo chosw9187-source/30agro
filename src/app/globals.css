@@ -10,6 +10,13 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* 한국삼공 SG CI 컬러 */
+  --color-brand-green: #1f9a44;
+  --color-brand-green-dark: #157a34;
+  --color-brand-green-light: #e8f5eb;
+  --color-brand-black: #000000;
+  --color-brand-gray: #666666;
 }
 
 @media (prefers-color-scheme: dark) {

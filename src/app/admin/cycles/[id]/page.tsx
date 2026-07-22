@@ -96,7 +96,7 @@ export default async function CycleDetailPage({
           <form action={toggleResultsReleased.bind(null, cycle.id)}>
             <button
               type="submit"
-              className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700"
+              className="rounded bg-brand-green px-3 py-1.5 text-sm text-white hover:bg-brand-green-dark"
             >
               {cycle.resultsReleased ? "결과 비공개로 전환" : "직원에게 결과 공개"}
             </button>
@@ -130,7 +130,7 @@ export default async function CycleDetailPage({
                 <button
                   type="submit"
                   disabled={!team.leaderId}
-                  className="rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="rounded bg-brand-green px-3 py-1.5 text-sm text-white hover:bg-brand-green-dark disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   이 팀 전체 배정
                 </button>
@@ -210,7 +210,7 @@ export default async function CycleDetailPage({
           </div>
           <button
             type="submit"
-            className="rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-700"
+            className="rounded bg-brand-green px-4 py-2 text-white hover:bg-brand-green-dark"
           >
             배정 추가
           </button>

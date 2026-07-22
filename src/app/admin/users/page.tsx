@@ -124,7 +124,7 @@ export default async function UsersPage({
           </select>
           <button
             type="submit"
-            className="rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-700 sm:col-span-2 sm:self-start"
+            className="rounded bg-brand-green px-4 py-2 text-white hover:bg-brand-green-dark sm:col-span-2 sm:self-start"
           >
             추가
           </button>

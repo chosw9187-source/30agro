@@ -57,7 +57,7 @@ export function CommentThread({
             <div
               key={c.id}
               className={`max-w-[80%] rounded px-3 py-2 text-sm ${
-                mine ? "self-end bg-slate-900 text-white" : "self-start bg-slate-100"
+                mine ? "self-end bg-brand-green text-white" : "self-start bg-slate-100"
               }`}
             >
               <p className="mb-1 text-xs opacity-70">{c.authorName}</p>
@@ -76,7 +76,7 @@ export function CommentThread({
         <button
           type="submit"
           disabled={sending}
-          className="rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-700 disabled:opacity-50"
+          className="rounded bg-brand-green px-4 py-2 text-white hover:bg-brand-green-dark disabled:opacity-50"
         >
           보내기
         </button>

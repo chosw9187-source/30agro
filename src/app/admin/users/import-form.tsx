@@ -26,7 +26,7 @@ export function ImportUsersForm() {
       <button
         type="submit"
         disabled={isPending}
-        className="self-start rounded bg-slate-900 px-4 py-2 text-white hover:bg-slate-700 disabled:opacity-50"
+        className="self-start rounded bg-brand-green px-4 py-2 text-white hover:bg-brand-green-dark disabled:opacity-50"
       >
         {isPending ? "업로드 중..." : "엑셀로 일괄 등록"}
       </button>

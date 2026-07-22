@@ -105,7 +105,7 @@ export function RadarChart({ items }: { items: RadarItem[] }) {
           자기평가
         </span>
         <span className="flex items-center gap-1">
-          <span className="inline-block h-2 w-2 rounded-full bg-slate-900" />
+          <span className="inline-block h-2 w-2 rounded-full bg-brand-green" />
           팀장평가
         </span>
       </div>
