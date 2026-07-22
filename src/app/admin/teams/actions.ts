@@ -21,7 +21,16 @@ export async function setTeamLeader(teamId: string, formData: FormData) {
     where: { id: teamId },
     data: { leaderId: leaderId || null },
   });
+
+  if (leaderId) {
+    await prisma.user.updateMany({
+      where: { id: leaderId, role: "EMPLOYEE" },
+      data: { role: "EVALUATOR" },
+    });
+  }
+
   revalidatePath("/admin/teams");
+  revalidatePath("/admin/users");
 }
 
 export async function deleteTeam(teamId: string) {

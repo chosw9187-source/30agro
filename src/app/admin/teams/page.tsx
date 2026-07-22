@@ -1,14 +1,19 @@
 import { prisma } from "@/lib/prisma";
 import { createTeam, setTeamLeader, deleteTeam } from "./actions";
 
+const roleLabel: Record<string, string> = {
+  EVALUATOR: "평가자",
+  EMPLOYEE: "직원",
+};
+
 export default async function TeamsPage() {
-  const [teams, evaluators] = await Promise.all([
+  const [teams, users] = await Promise.all([
     prisma.team.findMany({
       orderBy: { createdAt: "asc" },
       include: { leader: true, members: true },
     }),
     prisma.user.findMany({
-      where: { role: "EVALUATOR" },
+      where: { role: { not: "ADMIN" } },
       orderBy: { name: "asc" },
     }),
   ]);
@@ -19,6 +24,7 @@ export default async function TeamsPage() {
         <h1 className="text-2xl font-semibold">팀 관리</h1>
         <p className="mt-1 text-slate-600">
           팀별 팀장을 지정하면, 사이클 배정 시 팀 소속 직원의 평가자로 자동 지정됩니다.
+          직원을 팀장으로 지정하면 평가자 권한이 자동으로 부여됩니다.
         </p>
       </div>
 
@@ -68,16 +74,16 @@ export default async function TeamsPage() {
               action={setTeamLeader.bind(null, team.id)}
               className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3"
             >
-              <label className="text-sm text-slate-600">팀장(평가자) 지정</label>
+              <label className="text-sm text-slate-600">팀장 지정</label>
               <select
                 name="leaderId"
                 defaultValue={team.leaderId ?? ""}
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
               >
                 <option value="">미지정</option>
-                {evaluators.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({roleLabel[u.role] ?? u.role})
                   </option>
                 ))}
               </select>
