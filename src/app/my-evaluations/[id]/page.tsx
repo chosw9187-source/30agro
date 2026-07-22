@@ -8,7 +8,7 @@ import { RadarChart } from "@/components/radar-chart";
 import { GradeField } from "@/components/grade-field";
 import { buildComparison } from "@/lib/evaluation-report";
 import { buildPerformanceComparison, compositeScore } from "@/lib/performance-report";
-import { itemsForEvaluatee } from "@/lib/template-items";
+import { itemsForEvaluatee, isScorableFor } from "@/lib/template-items";
 
 const evalStatusLabel: Record<string, string> = {
   PENDING: "대기",
@@ -31,7 +31,11 @@ export default async function MyEvaluationDetailPage({
       evaluatee: true,
       cycle: {
         include: {
-          template: { include: { items: { orderBy: { order: "asc" } } } },
+          template: {
+            include: {
+              items: { orderBy: { order: "asc" }, include: { assignee: true } },
+            },
+          },
         },
       },
       scores: true,
@@ -43,7 +47,11 @@ export default async function MyEvaluationDetailPage({
   }
 
   const scoreByItem = new Map(evaluation.scores.map((s) => [s.templateItemId, s]));
-  const items = itemsForEvaluatee(evaluation.cycle.template.items, evaluation.evaluatee);
+  const items = itemsForEvaluatee(
+    evaluation.cycle.template.items,
+    evaluation.evaluatee,
+    evaluation.cycle.template.kind
+  );
 
   const groups = new Map<string, typeof items>();
   for (const item of items) {
@@ -118,12 +126,19 @@ export default async function MyEvaluationDetailPage({
                           <span>목표치: {item.targetLevel || "-"}</span>
                           <span>가중치: {item.weight ?? 0}</span>
                         </div>
-                        <GradeField
-                          name={`grade-${item.id}`}
-                          criteria={item.gradeCriteria}
-                          defaultValue={existing?.selfGrade}
-                          disabled={!selfEditable}
-                        />
+                        {isScorableFor(item, evaluation.evaluatee) ? (
+                          <GradeField
+                            name={`grade-${item.id}`}
+                            criteria={item.gradeCriteria}
+                            defaultValue={existing?.selfGrade}
+                            disabled={!selfEditable}
+                          />
+                        ) : (
+                          <p className="rounded bg-slate-100 px-3 py-2 text-sm text-slate-500">
+                            {item.assignee?.name ?? "다른 팀원"} 담당 목표입니다.
+                            평가 대상이 아닙니다.
+                          </p>
+                        )}
                       </div>
                     ) : (
                       <textarea

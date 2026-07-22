@@ -12,10 +12,12 @@ export function AppHeader({
   title,
   navLinks,
   user,
+  notificationCount = 0,
 }: {
   title: string;
   navLinks: { href: string; label: string }[];
   user: { name?: string | null; role: string };
+  notificationCount?: number;
 }) {
   return (
     <header className="border-b border-slate-200 bg-white">
@@ -33,9 +35,14 @@ export function AppHeader({
               <Link
                 key={link.href}
                 href={link.href}
-                className="hover:text-brand-green hover:underline"
+                className="relative hover:text-brand-green hover:underline"
               >
                 {link.label}
+                {link.href === "/notifications" && notificationCount > 0 && (
+                  <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white no-underline">
+                    {notificationCount}
+                  </span>
+                )}
               </Link>
             ))}
           </nav>

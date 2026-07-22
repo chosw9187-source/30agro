@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { itemsForEvaluatee } from "@/lib/template-items";
+import { itemsForEvaluatee, isScorableFor } from "@/lib/template-items";
+import { notifyUser } from "@/lib/notifications";
 
 async function getOwnedEvaluation(evaluationId: string, evaluateeId: string) {
   const evaluation = await prisma.evaluation.findUnique({
@@ -62,7 +63,11 @@ export async function saveSelfAssessment(evaluationId: string, formData: FormDat
   const session = await requireRole("EMPLOYEE");
   const evaluation = await getOwnedEvaluation(evaluationId, session.user.id);
 
-  const items = itemsForEvaluatee(evaluation.cycle.template.items, evaluation.evaluatee);
+  const items = itemsForEvaluatee(
+    evaluation.cycle.template.items,
+    evaluation.evaluatee,
+    evaluation.cycle.template.kind
+  ).filter((item) => isScorableFor(item, evaluation.evaluatee));
   await upsertSelfScoresFromForm(evaluationId, items, formData);
 
   if (evaluation.selfStatus === "PENDING") {
@@ -79,13 +84,24 @@ export async function submitSelfAssessment(evaluationId: string, formData: FormD
   const session = await requireRole("EMPLOYEE");
   const evaluation = await getOwnedEvaluation(evaluationId, session.user.id);
 
-  const items = itemsForEvaluatee(evaluation.cycle.template.items, evaluation.evaluatee);
+  const items = itemsForEvaluatee(
+    evaluation.cycle.template.items,
+    evaluation.evaluatee,
+    evaluation.cycle.template.kind
+  ).filter((item) => isScorableFor(item, evaluation.evaluatee));
   await upsertSelfScoresFromForm(evaluationId, items, formData);
 
   await prisma.evaluation.update({
     where: { id: evaluationId },
     data: { selfStatus: "SUBMITTED", selfSubmittedAt: new Date() },
   });
+
+  await notifyUser(
+    evaluation.evaluatorId,
+    "SELF_ASSESSMENT_SUBMITTED",
+    `${evaluation.evaluatee.name}님이 ${evaluation.cycle.name} 자기평가를 제출했습니다.`,
+    evaluationId
+  );
 
   revalidatePath(`/my-evaluations/${evaluationId}`);
   revalidatePath("/my-evaluations");

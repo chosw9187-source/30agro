@@ -7,6 +7,7 @@ const navLinks = [
   { href: "/admin/cycles", label: "평가 사이클" },
   { href: "/admin/teams", label: "팀 관리" },
   { href: "/admin/users", label: "사용자 관리" },
+  { href: "/admin/reports", label: "결과 다운로드" },
 ];
 
 export default async function AdminLayout({

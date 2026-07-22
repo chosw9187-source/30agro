@@ -31,6 +31,35 @@ type ScoreLike = {
   selfComment: string | null;
 };
 
+export function competencyOverallScores(
+  items: TemplateItemLike[],
+  scoreByItem: Map<string, ScoreLike>
+): { selfPercent: number | null; managerPercent: number | null } {
+  let selfSum = 0;
+  let selfMax = 0;
+  let managerSum = 0;
+  let managerMax = 0;
+
+  for (const item of items) {
+    if (item.type !== "SCORE") continue;
+    const s = scoreByItem.get(item.id);
+    if (s?.selfScore != null) {
+      selfSum += s.selfScore;
+      selfMax += item.maxScore;
+    }
+    if (s?.score != null) {
+      managerSum += s.score;
+      managerMax += item.maxScore;
+    }
+  }
+
+  return {
+    selfPercent: selfMax > 0 ? Math.round((selfSum / selfMax) * 1000) / 10 : null,
+    managerPercent:
+      managerMax > 0 ? Math.round((managerSum / managerMax) * 1000) / 10 : null,
+  };
+}
+
 export function buildComparison(
   items: TemplateItemLike[],
   scoreByItem: Map<string, ScoreLike>

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getAccessibleEvaluation } from "@/lib/evaluation-access";
+import { notifyUser } from "@/lib/notifications";
 
 export async function GET(
   _req: NextRequest,
@@ -60,6 +61,20 @@ export async function POST(
     data: { evaluationId: id, authorId: session.user.id, body: text },
     include: { author: true },
   });
+
+  const recipientIds = [evaluation.evaluatorId, evaluation.evaluateeId].filter(
+    (uid) => uid !== session.user.id
+  );
+  await Promise.all(
+    recipientIds.map((recipientId) =>
+      notifyUser(
+        recipientId,
+        "COMMENT_ADDED",
+        `${session.user.name}님이 코멘트를 남겼습니다: "${text.slice(0, 40)}${text.length > 40 ? "..." : ""}"`,
+        id
+      )
+    )
+  );
 
   return Response.json({
     comment: {

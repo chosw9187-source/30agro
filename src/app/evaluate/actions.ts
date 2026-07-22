@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { itemsForEvaluatee } from "@/lib/template-items";
+import { itemsForEvaluatee, isScorableFor } from "@/lib/template-items";
 
 async function getOwnedEvaluation(evaluationId: string, evaluatorId: string) {
   const evaluation = await prisma.evaluation.findUnique({
@@ -62,7 +62,11 @@ export async function saveEvaluation(evaluationId: string, formData: FormData) {
   const session = await requireRole("EVALUATOR");
   const evaluation = await getOwnedEvaluation(evaluationId, session.user.id);
 
-  const items = itemsForEvaluatee(evaluation.cycle.template.items, evaluation.evaluatee);
+  const items = itemsForEvaluatee(
+    evaluation.cycle.template.items,
+    evaluation.evaluatee,
+    evaluation.cycle.template.kind
+  ).filter((item) => isScorableFor(item, evaluation.evaluatee));
   await upsertScoresFromForm(evaluationId, items, formData);
   const managerComment = String(formData.get("managerComment") ?? "").trim();
 
@@ -81,7 +85,11 @@ export async function submitEvaluation(evaluationId: string, formData: FormData)
   const session = await requireRole("EVALUATOR");
   const evaluation = await getOwnedEvaluation(evaluationId, session.user.id);
 
-  const items = itemsForEvaluatee(evaluation.cycle.template.items, evaluation.evaluatee);
+  const items = itemsForEvaluatee(
+    evaluation.cycle.template.items,
+    evaluation.evaluatee,
+    evaluation.cycle.template.kind
+  ).filter((item) => isScorableFor(item, evaluation.evaluatee));
   await upsertScoresFromForm(evaluationId, items, formData);
   const managerComment = String(formData.get("managerComment") ?? "").trim();
 

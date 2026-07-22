@@ -25,7 +25,11 @@ export default async function EvaluateDashboard() {
   function resultSummary(e: (typeof evaluations)[number]): string | null {
     if (e.status !== "SUBMITTED") return null;
 
-    const items = itemsForEvaluatee(e.cycle.template.items, e.evaluatee);
+    const items = itemsForEvaluatee(
+      e.cycle.template.items,
+      e.evaluatee,
+      e.cycle.template.kind
+    );
     const scoreByItem = new Map(e.scores.map((s) => [s.templateItemId, s]));
 
     if (e.cycle.template.kind === "PERFORMANCE") {

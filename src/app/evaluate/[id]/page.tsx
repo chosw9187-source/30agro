@@ -6,7 +6,7 @@ import { CommentThread } from "@/components/comment-thread";
 import { ScaleLegend } from "@/components/scale-legend";
 import { GradeField } from "@/components/grade-field";
 import { RadarChart } from "@/components/radar-chart";
-import { itemsForEvaluatee } from "@/lib/template-items";
+import { itemsForEvaluatee, isScorableFor } from "@/lib/template-items";
 import { buildComparison } from "@/lib/evaluation-report";
 import { buildPerformanceComparison, compositeScore } from "@/lib/performance-report";
 
@@ -36,7 +36,11 @@ export default async function EvaluationFormPage({
       evaluatee: true,
       cycle: {
         include: {
-          template: { include: { items: { orderBy: { order: "asc" } } } },
+          template: {
+            include: {
+              items: { orderBy: { order: "asc" }, include: { assignee: true } },
+            },
+          },
         },
       },
       scores: true,
@@ -48,7 +52,11 @@ export default async function EvaluationFormPage({
   }
 
   const scoreByItem = new Map(evaluation.scores.map((s) => [s.templateItemId, s]));
-  const items = itemsForEvaluatee(evaluation.cycle.template.items, evaluation.evaluatee);
+  const items = itemsForEvaluatee(
+    evaluation.cycle.template.items,
+    evaluation.evaluatee,
+    evaluation.cycle.template.kind
+  );
 
   const groups = new Map<string, typeof items>();
   for (const item of items) {
@@ -58,7 +66,7 @@ export default async function EvaluationFormPage({
   }
 
   const editable =
-    evaluation.status !== "SUBMITTED" && evaluation.cycle.status === "OPEN";
+    !evaluation.cycle.resultsReleased && evaluation.cycle.status === "OPEN";
   const isPerformance = evaluation.cycle.template.kind === "PERFORMANCE";
   const showReport = evaluation.status === "SUBMITTED";
 
@@ -84,9 +92,17 @@ export default async function EvaluationFormPage({
       </div>
 
       {editable && !isPerformance && <ScaleLegend />}
-      {!editable && evaluation.status !== "SUBMITTED" && (
+      {!editable && (
         <p className="rounded bg-amber-50 p-3 text-sm text-amber-700">
-          사이클이 진행중 상태가 아니어서 편집할 수 없습니다.
+          {evaluation.cycle.resultsReleased
+            ? "결과가 공개되어 더 이상 수정할 수 없습니다."
+            : "사이클이 진행중 상태가 아니어서 편집할 수 없습니다."}
+        </p>
+      )}
+      {editable && evaluation.status === "SUBMITTED" && (
+        <p className="rounded bg-brand-green-light p-3 text-sm text-brand-green-dark">
+          이미 제출한 평가입니다. 결과가 공개되기 전까지 자유롭게 수정 후 다시
+          제출할 수 있습니다.
         </p>
       )}
 
@@ -129,12 +145,19 @@ export default async function EvaluationFormPage({
                           <span>자기평가: {existing.selfGrade}등급</span>
                         )}
                       </div>
-                      <GradeField
-                        name={`grade-${item.id}`}
-                        criteria={item.gradeCriteria}
-                        defaultValue={existing?.grade}
-                        disabled={!editable}
-                      />
+                      {isScorableFor(item, evaluation.evaluatee) ? (
+                        <GradeField
+                          name={`grade-${item.id}`}
+                          criteria={item.gradeCriteria}
+                          defaultValue={existing?.grade}
+                          disabled={!editable}
+                        />
+                      ) : (
+                        <p className="rounded bg-slate-100 px-3 py-2 text-sm text-slate-500">
+                          {item.assignee?.name ?? "다른 팀원"} 담당 목표입니다.
+                          평가 대상이 아닙니다.
+                        </p>
+                      )}
                     </div>
                   ) : (
                     <>
@@ -184,7 +207,7 @@ export default async function EvaluationFormPage({
               formAction={submitEvaluation.bind(null, evaluation.id)}
               className="rounded bg-brand-green px-4 py-2 text-white hover:bg-brand-green-dark"
             >
-              제출하기
+              {evaluation.status === "SUBMITTED" ? "다시 제출하기" : "제출하기"}
             </button>
           </div>
         )}

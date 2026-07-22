@@ -39,6 +39,11 @@ enum EvaluationStatus {
   SUBMITTED
 }
 
+enum NotificationType {
+  SELF_ASSESSMENT_SUBMITTED
+  COMMENT_ADDED
+}
+
 model User {
   id             String   @id @default(cuid())
   name           String
@@ -57,6 +62,7 @@ model User {
   comments         Comment[]
   ledTeams         Team[]               @relation("TeamLeader")
   assignedItems    TemplateItem[]       @relation("AssignedItems")
+  notifications    Notification[]       @relation("NotificationRecipient")
 }
 
 model Team {
@@ -167,4 +173,15 @@ model Comment {
   author       User       @relation(fields: [authorId], references: [id])
   body         String
   createdAt    DateTime   @default(now())
+}
+
+model Notification {
+  id           String           @id @default(cuid())
+  recipientId  String
+  recipient    User             @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  type         NotificationType
+  evaluationId String?
+  message      String
+  readAt       DateTime?
+  createdAt    DateTime         @default(now())
 }
