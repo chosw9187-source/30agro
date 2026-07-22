@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { createUser, deleteUser } from "./actions";
+import { createUser, deleteUser, resetUserPassword } from "./actions";
 import { ImportUsersForm } from "./import-form";
 import { RoleSelect } from "./role-select";
 
@@ -68,7 +68,8 @@ export default async function UsersPage({
         <h1 className="text-2xl font-semibold">사용자 관리</h1>
         <p className="mt-1 text-slate-600">
           평가자와 직원 계정을 만들고 관리합니다. 로그인 아이디는 이메일이며,
-          비밀번호는 사번입니다.
+          최초 비밀번호는 사번입니다. 최초 로그인 시 비밀번호 변경이
+          강제됩니다.
         </p>
       </div>
 
@@ -165,14 +166,25 @@ export default async function UsersPage({
                 </td>
                 <td className="px-4 py-3 text-slate-500">{u.team?.name ?? "-"}</td>
                 <td className="px-4 py-3 text-right">
-                  <form action={deleteUser.bind(null, u.id)}>
-                    <button
-                      type="submit"
-                      className="text-red-600 hover:underline"
-                    >
-                      삭제
-                    </button>
-                  </form>
+                  <div className="flex items-center justify-end gap-3">
+                    <form action={resetUserPassword.bind(null, u.id)}>
+                      <button
+                        type="submit"
+                        className="text-slate-500 hover:underline"
+                        title="비밀번호를 사번으로 초기화하고 다음 로그인 시 변경을 요구합니다"
+                      >
+                        비밀번호 초기화
+                      </button>
+                    </form>
+                    <form action={deleteUser.bind(null, u.id)}>
+                      <button
+                        type="submit"
+                        className="text-red-600 hover:underline"
+                      >
+                        삭제
+                      </button>
+                    </form>
+                  </div>
                 </td>
               </tr>
             ))}

@@ -45,6 +45,7 @@ model User {
   email          String   @unique
   employeeNumber String   @unique
   passwordHash   String
+  mustChangePassword Boolean @default(true)
   role           Role
   teamId         String?
   team           Team?    @relation("TeamMember", fields: [teamId], references: [id])

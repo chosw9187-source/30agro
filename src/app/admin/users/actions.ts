@@ -51,3 +51,17 @@ export async function updateUserRole(
   await prisma.user.update({ where: { id: userId }, data: { role } });
   revalidatePath("/admin/users");
 }
+
+export async function resetUserPassword(userId: string) {
+  await requireRole("ADMIN");
+
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const passwordHash = await bcrypt.hash(user.employeeNumber, 10);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash, mustChangePassword: true },
+  });
+
+  revalidatePath("/admin/users");
+}
