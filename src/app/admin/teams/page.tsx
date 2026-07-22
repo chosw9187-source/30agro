@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { createTeam, setTeamLeader, deleteTeam } from "./actions";
+import {
+  createTeam,
+  setTeamLeader,
+  deleteTeam,
+  addTeamMember,
+  removeTeamMember,
+} from "./actions";
 
 const roleLabel: Record<string, string> = {
   EVALUATOR: "평가자",
@@ -15,6 +21,7 @@ export default async function TeamsPage() {
     prisma.user.findMany({
       where: { role: { not: "ADMIN" } },
       orderBy: { name: "asc" },
+      include: { team: true },
     }),
   ]);
 
@@ -94,6 +101,58 @@ export default async function TeamsPage() {
                 저장
               </button>
             </form>
+
+            <div className="mt-3 border-t border-slate-100 pt-3">
+              <p className="mb-2 text-sm text-slate-600">구성원</p>
+              {team.members.length === 0 ? (
+                <p className="text-sm text-slate-400">아직 구성원이 없습니다.</p>
+              ) : (
+                <ul className="flex flex-col gap-1">
+                  {team.members.map((m) => (
+                    <li
+                      key={m.id}
+                      className="flex items-center justify-between text-sm"
+                    >
+                      <span>{m.name}</span>
+                      <form action={removeTeamMember.bind(null, team.id, m.id)}>
+                        <button
+                          type="submit"
+                          className="text-red-600 hover:underline"
+                        >
+                          제외
+                        </button>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <form
+                action={addTeamMember.bind(null, team.id)}
+                className="mt-3 flex items-center gap-2"
+              >
+                <select
+                  name="userId"
+                  required
+                  className="rounded border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value="">구성원 추가...</option>
+                  {users
+                    .filter((u) => u.teamId !== team.id)
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}
+                        {u.team ? ` (현재: ${u.team.name})` : ""}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  type="submit"
+                  className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
+                >
+                  추가
+                </button>
+              </form>
+            </div>
           </div>
         ))}
       </section>

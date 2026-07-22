@@ -38,3 +38,28 @@ export async function deleteTeam(teamId: string) {
   await prisma.team.delete({ where: { id: teamId } });
   revalidatePath("/admin/teams");
 }
+
+export async function addTeamMember(teamId: string, formData: FormData) {
+  await requireRole("ADMIN");
+  const userId = String(formData.get("userId") ?? "");
+  if (!userId) return;
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { teamId },
+  });
+
+  revalidatePath("/admin/teams");
+  revalidatePath("/admin/users");
+}
+
+export async function removeTeamMember(teamId: string, userId: string) {
+  await requireRole("ADMIN");
+  await prisma.user.updateMany({
+    where: { id: userId, teamId },
+    data: { teamId: null },
+  });
+
+  revalidatePath("/admin/teams");
+  revalidatePath("/admin/users");
+}
