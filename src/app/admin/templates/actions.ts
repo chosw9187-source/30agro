@@ -43,6 +43,7 @@ export async function addTemplateItem(templateId: string, formData: FormData) {
   const category = String(formData.get("category") ?? "").trim();
   const label = String(formData.get("label") ?? "").trim();
   const teamId = String(formData.get("teamId") ?? "").trim();
+  const assigneeId = String(formData.get("assigneeId") ?? "").trim();
   if (!label) return;
 
   const count = await prisma.templateItem.count({ where: { templateId } });
@@ -69,7 +70,8 @@ export async function addTemplateItem(templateId: string, formData: FormData) {
         description: description || null,
         type: "GRADE",
         order: count,
-        teamId: teamId || null,
+        teamId: assigneeId ? null : teamId || null,
+        assigneeId: assigneeId || null,
         currentLevel: currentLevel || null,
         targetLevel: targetLevel || null,
         kpiFormula: kpiFormula || null,

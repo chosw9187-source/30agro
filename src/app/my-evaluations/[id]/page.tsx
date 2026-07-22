@@ -8,7 +8,7 @@ import { RadarChart } from "@/components/radar-chart";
 import { GradeField } from "@/components/grade-field";
 import { buildComparison } from "@/lib/evaluation-report";
 import { buildPerformanceComparison, compositeScore } from "@/lib/performance-report";
-import { itemsForTeam } from "@/lib/template-items";
+import { itemsForEvaluatee } from "@/lib/template-items";
 
 const evalStatusLabel: Record<string, string> = {
   PENDING: "대기",
@@ -43,7 +43,7 @@ export default async function MyEvaluationDetailPage({
   }
 
   const scoreByItem = new Map(evaluation.scores.map((s) => [s.templateItemId, s]));
-  const items = itemsForTeam(evaluation.cycle.template.items, evaluation.evaluatee.teamId);
+  const items = itemsForEvaluatee(evaluation.cycle.template.items, evaluation.evaluatee);
 
   const groups = new Map<string, typeof items>();
   for (const item of items) {

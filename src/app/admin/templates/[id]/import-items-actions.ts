@@ -62,8 +62,26 @@ export async function importTemplateItemsFromExcel(
         teamId = team.id;
       }
 
+      let assigneeId: string | null = null;
+      if (template.kind === "PERFORMANCE") {
+        const assigneeKey = String(row["담당자"] ?? "").trim();
+        if (assigneeKey) {
+          const assignee = await prisma.user.findFirst({
+            where: {
+              OR: [{ email: assigneeKey }, { employeeNumber: assigneeKey }],
+            },
+          });
+          if (!assignee) {
+            errors.push(`${rowNum}행: 담당자를 찾을 수 없습니다 (${assigneeKey}).`);
+            continue;
+          }
+          assigneeId = assignee.id;
+          teamId = null;
+        }
+      }
+
       const existing = await prisma.templateItem.findFirst({
-        where: { templateId, label, teamId },
+        where: { templateId, label, teamId, assigneeId },
       });
 
       if (template.kind === "PERFORMANCE") {
@@ -86,6 +104,7 @@ export async function importTemplateItemsFromExcel(
           description: description || null,
           type: "GRADE" as const,
           teamId,
+          assigneeId,
           currentLevel: currentLevel || null,
           targetLevel: targetLevel || null,
           kpiFormula: kpiFormula || null,

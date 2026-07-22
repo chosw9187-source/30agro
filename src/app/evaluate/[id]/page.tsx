@@ -5,7 +5,10 @@ import { saveEvaluation, submitEvaluation } from "../actions";
 import { CommentThread } from "@/components/comment-thread";
 import { ScaleLegend } from "@/components/scale-legend";
 import { GradeField } from "@/components/grade-field";
-import { itemsForTeam } from "@/lib/template-items";
+import { RadarChart } from "@/components/radar-chart";
+import { itemsForEvaluatee } from "@/lib/template-items";
+import { buildComparison } from "@/lib/evaluation-report";
+import { buildPerformanceComparison, compositeScore } from "@/lib/performance-report";
 
 const evalStatusLabel: Record<string, string> = {
   PENDING: "대기",
@@ -45,7 +48,7 @@ export default async function EvaluationFormPage({
   }
 
   const scoreByItem = new Map(evaluation.scores.map((s) => [s.templateItemId, s]));
-  const items = itemsForTeam(evaluation.cycle.template.items, evaluation.evaluatee.teamId);
+  const items = itemsForEvaluatee(evaluation.cycle.template.items, evaluation.evaluatee);
 
   const groups = new Map<string, typeof items>();
   for (const item of items) {
@@ -57,6 +60,18 @@ export default async function EvaluationFormPage({
   const editable =
     evaluation.status !== "SUBMITTED" && evaluation.cycle.status === "OPEN";
   const isPerformance = evaluation.cycle.template.kind === "PERFORMANCE";
+  const showReport = evaluation.status === "SUBMITTED";
+
+  const comparison =
+    showReport && !isPerformance ? buildComparison(items, scoreByItem) : [];
+  const scoreComparison = comparison.filter((c) => c.type === "SCORE");
+  const strengths = scoreComparison.filter((c) => c.classification === "강점");
+  const weaknesses = scoreComparison.filter((c) => c.classification === "약점");
+
+  const perfComparison =
+    showReport && isPerformance ? buildPerformanceComparison(items, scoreByItem) : [];
+  const selfComposite = compositeScore(perfComparison, "self");
+  const managerComposite = compositeScore(perfComparison, "manager");
 
   return (
     <div className="flex flex-col gap-6">
@@ -174,6 +189,149 @@ export default async function EvaluationFormPage({
           </div>
         )}
       </form>
+
+      {showReport && !isPerformance && (
+        <section className="rounded-lg border border-slate-200 bg-white p-6">
+          <h2 className="mb-4 text-lg font-medium">평가 결과 리포트</h2>
+
+          <RadarChart
+            items={scoreComparison.map((c) => ({
+              label: c.label,
+              self: c.self,
+              manager: c.manager,
+              maxScore: c.maxScore,
+            }))}
+          />
+
+          <div className="mt-6 overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-slate-500">
+                <tr>
+                  <th className="py-2 pr-4 font-medium">영역</th>
+                  <th className="py-2 pr-4 font-medium">자기평가</th>
+                  <th className="py-2 pr-4 font-medium">팀장평가</th>
+                  <th className="py-2 pr-4 font-medium">평균</th>
+                  <th className="py-2 pr-4 font-medium">차이(팀장-자기)</th>
+                  <th className="py-2 pr-4 font-medium">분류</th>
+                  <th className="py-2 font-medium">피드백</th>
+                </tr>
+              </thead>
+              <tbody>
+                {comparison.map((c) => (
+                  <tr key={c.id} className="border-b border-slate-100 last:border-0">
+                    <td className="py-2 pr-4">
+                      <span className="text-xs text-slate-400">{c.category}</span>
+                      <br />
+                      {c.label}
+                    </td>
+                    {c.type === "SCORE" ? (
+                      <>
+                        <td className="py-2 pr-4">{c.self ?? "-"}</td>
+                        <td className="py-2 pr-4">{c.manager ?? "-"}</td>
+                        <td className="py-2 pr-4">{c.average ?? "-"}</td>
+                        <td className="py-2 pr-4">{c.diff ?? "-"}</td>
+                        <td className="py-2 pr-4">{c.classification ?? "-"}</td>
+                        <td className="py-2 text-amber-700">{c.feedbackFlag ?? ""}</td>
+                      </>
+                    ) : (
+                      <td className="py-2 pr-4 text-slate-600" colSpan={6}>
+                        <p>자기: {c.selfComment || "미입력"}</p>
+                        <p>평가자: {c.comment || "미입력"}</p>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 gap-4 border-t border-slate-200 pt-6 sm:grid-cols-2">
+            <div>
+              <h3 className="mb-2 font-medium text-slate-700">주요 강점 역량</h3>
+              {strengths.length === 0 ? (
+                <p className="text-sm text-slate-500">해당 없음</p>
+              ) : (
+                <ul className="list-inside list-disc text-sm text-slate-600">
+                  {strengths.map((s) => (
+                    <li key={s.id}>{s.label}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <h3 className="mb-2 font-medium text-slate-700">주요 약점 역량</h3>
+              {weaknesses.length === 0 ? (
+                <p className="text-sm text-slate-500">해당 없음</p>
+              ) : (
+                <ul className="list-inside list-disc text-sm text-slate-600">
+                  {weaknesses.map((w) => (
+                    <li key={w.id}>{w.label}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {showReport && isPerformance && (
+        <section className="rounded-lg border border-slate-200 bg-white p-6">
+          <h2 className="mb-4 text-lg font-medium">평가 결과 리포트</h2>
+
+          <div className="mb-6 flex gap-6">
+            <div className="rounded border border-slate-200 px-4 py-3">
+              <p className="text-xs text-slate-500">자기평가 종합점수</p>
+              <p className="text-xl font-semibold">{selfComposite ?? "-"}</p>
+            </div>
+            <div className="rounded border border-slate-200 px-4 py-3">
+              <p className="text-xs text-slate-500">팀장평가 종합점수</p>
+              <p className="text-xl font-semibold">{managerComposite ?? "-"}</p>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-slate-500">
+                <tr>
+                  <th className="py-2 pr-4 font-medium">목표</th>
+                  <th className="py-2 pr-4 font-medium">가중치</th>
+                  <th className="py-2 pr-4 font-medium">자기평가</th>
+                  <th className="py-2 pr-4 font-medium">팀장평가</th>
+                  <th className="py-2 pr-4 font-medium">자기 가중점수</th>
+                  <th className="py-2 font-medium">팀장 가중점수</th>
+                </tr>
+              </thead>
+              <tbody>
+                {perfComparison.map((row) => (
+                  <tr key={row.id} className="border-b border-slate-100 last:border-0">
+                    <td className="py-2 pr-4">
+                      <span className="text-xs text-slate-400">{row.category}</span>
+                      <br />
+                      {row.label}
+                      {row.description && (
+                        <p className="mt-1 text-xs text-slate-500">{row.description}</p>
+                      )}
+                    </td>
+                    <td className="py-2 pr-4">{row.weight}</td>
+                    <td className="py-2 pr-4">{row.selfGrade ?? "-"}</td>
+                    <td className="py-2 pr-4">{row.managerGrade ?? "-"}</td>
+                    <td className="py-2 pr-4">
+                      {row.selfPoints != null
+                        ? Math.round(row.weight * row.selfPoints * 10) / 10
+                        : "-"}
+                    </td>
+                    <td className="py-2">
+                      {row.managerPoints != null
+                        ? Math.round(row.weight * row.managerPoints * 10) / 10
+                        : "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <CommentThread evaluationId={evaluation.id} currentUserId={session!.user.id} />
     </div>

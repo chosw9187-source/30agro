@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { itemsForTeam } from "@/lib/template-items";
+import { itemsForEvaluatee } from "@/lib/template-items";
 
 async function getOwnedEvaluation(evaluationId: string, evaluateeId: string) {
   const evaluation = await prisma.evaluation.findUnique({
@@ -62,7 +62,7 @@ export async function saveSelfAssessment(evaluationId: string, formData: FormDat
   const session = await requireRole("EMPLOYEE");
   const evaluation = await getOwnedEvaluation(evaluationId, session.user.id);
 
-  const items = itemsForTeam(evaluation.cycle.template.items, evaluation.evaluatee.teamId);
+  const items = itemsForEvaluatee(evaluation.cycle.template.items, evaluation.evaluatee);
   await upsertSelfScoresFromForm(evaluationId, items, formData);
 
   if (evaluation.selfStatus === "PENDING") {
@@ -79,7 +79,7 @@ export async function submitSelfAssessment(evaluationId: string, formData: FormD
   const session = await requireRole("EMPLOYEE");
   const evaluation = await getOwnedEvaluation(evaluationId, session.user.id);
 
-  const items = itemsForTeam(evaluation.cycle.template.items, evaluation.evaluatee.teamId);
+  const items = itemsForEvaluatee(evaluation.cycle.template.items, evaluation.evaluatee);
   await upsertSelfScoresFromForm(evaluationId, items, formData);
 
   await prisma.evaluation.update({

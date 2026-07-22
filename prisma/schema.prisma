@@ -55,6 +55,7 @@ model User {
   evaluationsOwned Evaluation[]         @relation("Evaluatee")
   comments         Comment[]
   ledTeams         Team[]               @relation("TeamLeader")
+  assignedItems    TemplateItem[]       @relation("AssignedItems")
 }
 
 model Team {
@@ -93,6 +94,8 @@ model TemplateItem {
   order       Int                @default(0)
   teamId      String?
   team        Team?              @relation(fields: [teamId], references: [id])
+  assigneeId  String?
+  assignee    User?              @relation("AssignedItems", fields: [assigneeId], references: [id])
 
   // performance (KPI/goal) fields
   weight        Float?
@@ -144,7 +147,7 @@ model EvaluationScore {
   evaluationId   String
   evaluation     Evaluation   @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
   templateItemId String
-  templateItem   TemplateItem @relation(fields: [templateItemId], references: [id])
+  templateItem   TemplateItem @relation(fields: [templateItemId], references: [id], onDelete: Cascade)
   score          Int?
   comment        String?
   selfScore      Int?

@@ -5,7 +5,7 @@ import { importTemplateItemsFromExcel } from "./import-items-actions";
 
 const competencyColumns = "팀명 / 카테고리 / 항목명 / 설명 / 최대점수 / 유형(SCORE 또는 TEXT)";
 const performanceColumns =
-  "팀명 / 카테고리 / 항목명 / KPI / 현수준 / 목표치 / 가중치 / S기준 / A기준 / B기준 / C기준 / D기준 / 산출식";
+  "팀명 / 담당자(이메일 또는 사번, 개인 목표면 입력) / 카테고리 / 항목명 / KPI / 현수준 / 목표치 / 가중치 / S기준 / A기준 / B기준 / C기준 / D기준 / 산출식";
 
 export function ImportTemplateItemsForm({
   templateId,
@@ -24,7 +24,9 @@ export function ImportTemplateItemsForm({
       <p className="text-sm text-slate-500">
         엑셀 첫 행은 헤더로, 다음 열을 사용합니다: <strong>{columns}</strong>.
         팀명 칸이 비어있으면 공통 항목이 되고, 새 팀명이면 팀이 자동 생성됩니다.
-        같은 팀+항목명이 이미 있으면 내용을 갱신합니다.
+        {kind === "PERFORMANCE" &&
+          " 담당자를 적으면 그 사람만의 개인 목표가 되고 팀명은 무시됩니다."}{" "}
+        같은 조건(팀/담당자+항목명)이 이미 있으면 내용을 갱신합니다.
       </p>
       <input
         type="file"
