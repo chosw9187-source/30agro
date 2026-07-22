@@ -15,7 +15,9 @@ export default async function EvaluateDashboard() {
   const evaluations = await prisma.evaluation.findMany({
     where: { evaluatorId: session!.user.id },
     include: {
-      cycle: { include: { template: { include: { items: true } } } },
+      cycle: {
+        include: { template: { include: { items: { include: { team: true } } } } },
+      },
       evaluatee: true,
       scores: true,
     },

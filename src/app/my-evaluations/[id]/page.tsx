@@ -33,7 +33,10 @@ export default async function MyEvaluationDetailPage({
         include: {
           template: {
             include: {
-              items: { orderBy: { order: "asc" }, include: { assignee: true } },
+              items: {
+                orderBy: { order: "asc" },
+                include: { assignee: true, team: true },
+              },
             },
           },
         },
@@ -135,8 +138,9 @@ export default async function MyEvaluationDetailPage({
                           />
                         ) : (
                           <p className="rounded bg-slate-100 px-3 py-2 text-sm text-slate-500">
-                            {item.assignee?.name ?? "다른 팀원"} 담당 목표입니다.
-                            평가 대상이 아닙니다.
+                            {item.assigneeId
+                              ? `${item.assignee?.name ?? "다른 팀원"} 목표입니다. 평가 대상이 아닙니다.`
+                              : "팀목표입니다. 팀장만 평가 대상입니다."}
                           </p>
                         )}
                       </div>

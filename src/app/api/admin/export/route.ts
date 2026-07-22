@@ -21,7 +21,9 @@ export async function GET(req: NextRequest) {
     where: { cycleId: { in: cycleIds } },
     include: {
       evaluatee: { include: { team: true } },
-      cycle: { include: { template: { include: { items: true } } } },
+      cycle: {
+        include: { template: { include: { items: { include: { team: true } } } } },
+      },
       scores: true,
     },
   });

@@ -11,7 +11,9 @@ async function getOwnedEvaluation(evaluationId: string, evaluatorId: string) {
     where: { id: evaluationId },
     include: {
       evaluatee: true,
-      cycle: { include: { template: { include: { items: true } } } },
+      cycle: {
+        include: { template: { include: { items: { include: { team: true } } } } },
+      },
     },
   });
   if (!evaluation || evaluation.evaluatorId !== evaluatorId) {

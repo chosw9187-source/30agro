@@ -45,8 +45,9 @@ export default async function CycleDetailPage({
       orderBy: { name: "asc" },
     }),
     prisma.user.findMany({
-      where: { role: "EMPLOYEE" },
+      where: { OR: [{ role: "EMPLOYEE" }, { ledTeams: { some: {} } }] },
       orderBy: { name: "asc" },
+      include: { ledTeams: true },
     }),
     prisma.team.findMany({
       orderBy: { name: "asc" },
@@ -174,6 +175,11 @@ export default async function CycleDetailPage({
         <p className="mt-6 border-t border-slate-200 pt-6 text-sm font-medium text-slate-700">
           개별 수동 배정 (팀에 속하지 않았거나 예외적인 경우)
         </p>
+        <p className="mt-1 text-sm text-slate-500">
+          예: 팀장의 팀목표 성과평가는 임원이 평가하는 경우, 여기서 평가자로
+          임원을, 피평가자로 팀장을 선택해 배정하세요. 피평가자 목록에는 팀장도
+          포함됩니다.
+        </p>
         <form
           action={assignPair.bind(null, cycle.id)}
           className="mt-3 flex flex-wrap items-end gap-3"
@@ -204,6 +210,7 @@ export default async function CycleDetailPage({
               {employees.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.name}
+                  {u.ledTeams.length > 0 ? ` (팀장: ${u.ledTeams.map((t) => t.name).join(", ")})` : ""}
                 </option>
               ))}
             </select>

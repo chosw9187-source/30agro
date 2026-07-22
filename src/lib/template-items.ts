@@ -1,6 +1,7 @@
 type ScopedItem = {
   teamId: string | null;
   assigneeId: string | null;
+  team?: { leaderId: string | null } | null;
 };
 
 /**
@@ -18,7 +19,11 @@ export function itemsForEvaluatee<T extends ScopedItem>(
 ): T[] {
   if (kind === "PERFORMANCE") {
     return items.filter((item) => {
-      if (item.teamId) return item.teamId === evaluatee.teamId;
+      if (item.teamId) {
+        return (
+          item.teamId === evaluatee.teamId || item.team?.leaderId === evaluatee.id
+        );
+      }
       if (item.assigneeId) return item.assigneeId === evaluatee.id;
       return true;
     });
@@ -32,12 +37,16 @@ export function itemsForEvaluatee<T extends ScopedItem>(
 
 /**
  * Whether an evaluatee is actually scored on this item (vs. just seeing it
- * for context). An item assigned to a specific teammate is view-only for
- * everyone else on the team.
+ * for context, when itemsForEvaluatee() includes it for visibility).
+ * - An item with an individual assignee (개인목표) is scored only for that
+ *   person — everyone else on the team just sees it.
+ * - A team-wide item with no assignee (팀목표) is scored only for the
+ *   team's leader, who is accountable for the team-level outcome — regular
+ *   members see it but are not scored on it.
  */
-export function isScorableFor<T extends { assigneeId: string | null }>(
-  item: T,
-  evaluatee: { id: string }
-): boolean {
-  return !item.assigneeId || item.assigneeId === evaluatee.id;
+export function isScorableFor<
+  T extends { assigneeId: string | null; team?: { leaderId: string | null } | null }
+>(item: T, evaluatee: { id: string }): boolean {
+  if (item.assigneeId) return item.assigneeId === evaluatee.id;
+  return item.team?.leaderId === evaluatee.id;
 }
