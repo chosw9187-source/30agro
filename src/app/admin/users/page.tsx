@@ -7,6 +7,7 @@ import { ImportUsersForm } from "./import-form";
 import { RoleSelect } from "./role-select";
 import { UserRowActions } from "./user-row-actions";
 import { TargetYearToggle } from "./target-year-toggle";
+import { SelectAllCheckbox } from "./select-all-checkbox";
 
 const roleLabel: Record<string, string> = {
   ADMIN: "관리자",
@@ -206,7 +207,9 @@ export default async function UsersPage({
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-100 text-xs text-slate-400">
               <tr>
-                <th className="w-8 px-3 py-2"></th>
+                <th className="w-8 px-3 py-2">
+                  <SelectAllCheckbox />
+                </th>
                 {columns.map((col) => (
                   <th key={col.key} className="px-3 py-2 font-medium">
                     <Link
