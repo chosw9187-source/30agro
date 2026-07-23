@@ -58,13 +58,15 @@ export function compositeScore(
   rater: "self" | "manager"
 ): number | null {
   let total = 0;
-  let hasAny = false;
+  let totalWeight = 0;
   for (const row of rows) {
     const points = rater === "self" ? row.selfPoints : row.managerPoints;
     if (points != null) {
       total += row.weight * points;
-      hasAny = true;
+      totalWeight += row.weight;
     }
   }
-  return hasAny ? Math.round(total * 10) / 10 : null;
+  // Normalize by the actual weight sum so the result is a true 100-point-scale
+  // weighted average even if an item's weights don't add up to exactly 1.
+  return totalWeight > 0 ? Math.round((total / totalWeight) * 10) / 10 : null;
 }
