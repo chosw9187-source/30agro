@@ -7,18 +7,23 @@ export function BarChart({
 }) {
   const max = Math.max(1, ...bars.map((b) => b.count));
   const width = 280;
-  const height = 140;
+  const chartHeight = 140;
+  const topPadding = 18;
+  const bottomLabelHeight = 20;
   const barGap = 12;
   const barWidth = (width - barGap * (bars.length - 1)) / bars.length;
 
   return (
     <div className="flex flex-col items-center gap-1">
       <p className="text-xs text-slate-500">{title}</p>
-      <svg viewBox={`0 0 ${width} ${height + 20}`} className="w-full max-w-xs">
+      <svg
+        viewBox={`0 0 ${width} ${topPadding + chartHeight + bottomLabelHeight}`}
+        className="w-full max-w-xs"
+      >
         {bars.map((b, i) => {
-          const barHeight = (b.count / max) * height;
+          const barHeight = (b.count / max) * chartHeight;
           const x = i * (barWidth + barGap);
-          const y = height - barHeight;
+          const y = topPadding + (chartHeight - barHeight);
           return (
             <g key={b.label}>
               <rect
@@ -32,7 +37,7 @@ export function BarChart({
               />
               <text
                 x={x + barWidth / 2}
-                y={y - 4}
+                y={y - 5}
                 fontSize={11}
                 textAnchor="middle"
                 fill="#334155"
@@ -41,7 +46,7 @@ export function BarChart({
               </text>
               <text
                 x={x + barWidth / 2}
-                y={height + 14}
+                y={topPadding + chartHeight + 14}
                 fontSize={10}
                 textAnchor="middle"
                 fill="#64748b"

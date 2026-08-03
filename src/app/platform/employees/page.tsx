@@ -35,6 +35,10 @@ export default async function EmployeeDirectoryPage({
                     { name: { contains: q, mode: "insensitive" } },
                     { email: { contains: q, mode: "insensitive" } },
                     { employeeNumber: { contains: q } },
+                    { major: { contains: q, mode: "insensitive" } },
+                    { school: { contains: q, mode: "insensitive" } },
+                    { jobFamily: { contains: q, mode: "insensitive" } },
+                    { team: { name: { contains: q, mode: "insensitive" } } },
                   ],
                 }
               : {}),
@@ -50,7 +54,10 @@ export default async function EmployeeDirectoryPage({
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">직원정보 조회</h1>
-        <p className="mt-1 text-slate-600">이름, 사번, 이메일로 검색하거나 팀으로 필터링하세요.</p>
+        <p className="mt-1 text-slate-600">
+          이름 / 사번 / 이메일 / 팀 / 전공 / 학교 / 직군으로 검색하거나 팀으로
+          필터링하세요.
+        </p>
       </div>
 
       <form method="GET" className="flex flex-wrap gap-2">
@@ -58,7 +65,7 @@ export default async function EmployeeDirectoryPage({
           type="text"
           name="q"
           defaultValue={q}
-          placeholder="이름 / 사번 / 이메일 검색"
+          placeholder="이름 / 사번 / 이메일 / 팀 / 전공 / 학교 검색"
           className="w-64 rounded border border-slate-300 px-3 py-2 text-sm"
         />
         <select
@@ -113,6 +120,21 @@ export default async function EmployeeDirectoryPage({
                     <dt className="w-10 shrink-0 text-slate-400">팀</dt>
                     <dd>{e.team?.name ?? "미지정"}</dd>
                   </div>
+                  {e.jobFamily && (
+                    <div className="flex gap-2">
+                      <dt className="w-10 shrink-0 text-slate-400">직군</dt>
+                      <dd>{e.jobFamily}</dd>
+                    </div>
+                  )}
+                  {e.school && (
+                    <div className="flex gap-2">
+                      <dt className="w-10 shrink-0 text-slate-400">학교</dt>
+                      <dd>
+                        {e.school}
+                        {e.major ? ` · ${e.major}` : ""}
+                      </dd>
+                    </div>
+                  )}
                 </dl>
               </div>
             ))}

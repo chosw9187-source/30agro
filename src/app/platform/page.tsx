@@ -67,9 +67,22 @@ export default async function PlatformHomePage() {
 
   const activeUsers = allUsers.filter((u) => isActive(u));
 
-  const jobFamilyRows = computeJobFamilySummary(allUsers);
+  const CANONICAL_JOB_FAMILIES = ["영업직", "사무직", "생산직", "연구직"];
+  const jobFamilyRows = computeJobFamilySummary(allUsers).filter((r) =>
+    CANONICAL_JOB_FAMILIES.includes(r.name)
+  );
   const alerts = computeAttentionAlerts(jobFamilyRows);
-  const allPending = jobFamilyRows.every((r) => r.remark === "판정 보류");
+  const allPending =
+    jobFamilyRows.length > 0 && jobFamilyRows.every((r) => r.remark === "판정 보류");
+
+  const totalRecentHires = allUsers.filter(
+    (u) => u.hireDate && u.hireDate >= new Date(new Date().setFullYear(new Date().getFullYear() - 1))
+  ).length;
+  const totalRecentTerminations = allUsers.filter(
+    (u) =>
+      u.terminationDate &&
+      u.terminationDate >= new Date(new Date().setFullYear(new Date().getFullYear() - 1))
+  ).length;
 
   const ageDist = computeAgeDistribution(activeUsers);
   const tenureDist = computeTenureDistribution(activeUsers);
@@ -92,12 +105,6 @@ export default async function PlatformHomePage() {
   const maleCount = activeUsers.filter((u) => u.gender === "남").length;
   const femaleCount = activeUsers.filter((u) => u.gender === "여").length;
   const genderKnownTotal = maleCount + femaleCount;
-  const genderRatio =
-    genderKnownTotal > 0
-      ? `${Math.round((maleCount / genderKnownTotal) * 100)} : ${Math.round(
-          (femaleCount / genderKnownTotal) * 100
-        )}`
-      : "데이터 없음";
 
   return (
     <div className="flex flex-col gap-8">
@@ -138,10 +145,6 @@ export default async function PlatformHomePage() {
             <section className="rounded-lg border border-slate-200 bg-white">
               <div className="border-b border-slate-200 px-6 py-4">
                 <h2 className="text-lg font-medium">직군별 종합</h2>
-                <p className="text-sm text-slate-500">
-                  행 = 직군. 직군 미입력 인원은 &quot;미분류&quot;로 묶입니다. 인원 30명
-                  미만인 직군은 비율이 크게 흔들려 판정을 보류합니다.
-                </p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
@@ -160,7 +163,12 @@ export default async function PlatformHomePage() {
                   </thead>
                   <tbody>
                     {jobFamilyRows.map((r) => (
-                      <tr key={r.name} className="border-b border-slate-100 last:border-0">
+                      <tr
+                        key={r.name}
+                        className={`border-b border-slate-100 last:border-0 ${
+                          r.remark.startsWith("주의") ? "bg-red-50" : ""
+                        }`}
+                      >
                         <td className="px-4 py-3 font-medium">{r.name}</td>
                         <td className="px-4 py-3">{r.headcount}명</td>
                         <td className="px-4 py-3 text-slate-500">
@@ -215,10 +223,31 @@ export default async function PlatformHomePage() {
             </section>
 
             <section className="rounded-lg border border-slate-200 bg-white p-6">
-              <h2 className="text-lg font-medium">최근 12개월 입 · 퇴사</h2>
+              <h2 className="text-lg font-medium">입퇴사자 현황</h2>
               <p className="mb-4 text-sm text-slate-500">
-                {monthlyTrend[0]?.label} ~ {monthlyTrend[monthlyTrend.length - 1]?.label}
+                최근 1년 · {monthlyTrend[0]?.label} ~ {monthlyTrend[monthlyTrend.length - 1]?.label}
               </p>
+              <div className="mb-6 grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-2xl font-semibold text-brand-green-dark">
+                    {totalRecentHires}명
+                  </p>
+                  <p className="text-xs text-slate-500">입사</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold text-amber-600">
+                    {totalRecentTerminations}명
+                  </p>
+                  <p className="text-xs text-slate-500">퇴사</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-semibold text-slate-700">
+                    {totalRecentHires - totalRecentTerminations >= 0 ? "+" : ""}
+                    {totalRecentHires - totalRecentTerminations}명
+                  </p>
+                  <p className="text-xs text-slate-500">순증감</p>
+                </div>
+              </div>
               <TrendChart points={monthlyTrend} />
             </section>
           </div>
@@ -252,10 +281,6 @@ export default async function PlatformHomePage() {
                       </dd>
                     </div>
                     <div className="flex items-center justify-between">
-                      <dt className="text-slate-500">남 : 여</dt>
-                      <dd className="font-semibold">{genderRatio}</dd>
-                    </div>
-                    <div className="flex items-center justify-between">
                       <dt className="text-slate-500">팀</dt>
                       <dd className="font-semibold">{allTeams.length}개</dd>
                     </div>
@@ -268,6 +293,38 @@ export default async function PlatformHomePage() {
                       <dd className="font-semibold">{totalAssignments}</dd>
                     </div>
                   </dl>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-white p-4">
+                  <h3 className="mb-3 text-sm font-medium text-slate-700">남녀 성비 현황</h3>
+                  {genderKnownTotal === 0 ? (
+                    <p className="text-sm text-slate-500">데이터 없음</p>
+                  ) : (
+                    <>
+                      <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="bg-blue-500"
+                          style={{ width: `${(maleCount / genderKnownTotal) * 100}%` }}
+                        />
+                        <div
+                          className="bg-rose-400"
+                          style={{ width: `${(femaleCount / genderKnownTotal) * 100}%` }}
+                        />
+                      </div>
+                      <div className="mt-3 flex justify-between text-sm">
+                        <span className="flex items-center gap-1.5">
+                          <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
+                          남 {maleCount}명 (
+                          {Math.round((maleCount / genderKnownTotal) * 100)}%)
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="inline-block h-2 w-2 rounded-full bg-rose-400" />
+                          여 {femaleCount}명 (
+                          {Math.round((femaleCount / genderKnownTotal) * 100)}%)
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="rounded-lg border border-slate-200 bg-white p-4">

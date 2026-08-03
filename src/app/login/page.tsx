@@ -5,28 +5,25 @@ export default function LoginPage() {
   return (
     <div className="flex flex-1 items-center justify-center bg-slate-100 px-4 py-8">
       <div className="grid w-full max-w-3xl overflow-hidden rounded-lg shadow-sm md:grid-cols-2">
-        <div className="hidden flex-col justify-between bg-brand-black p-10 text-white md:flex">
-          <div className="w-fit rounded bg-white px-3 py-2">
-            <CompanyLogo />
-          </div>
+        <div className="hidden flex-col justify-between bg-brand-green-dark p-10 text-white md:flex">
           <div>
             <h1 className="text-3xl font-bold leading-snug">
               모든 인사 업무를
               <br />
               한곳에서
             </h1>
-            <p className="mt-4 text-sm text-white/70">
+            <p className="mt-4 text-sm text-white/80">
               직원 정보 · 조직도 · 직무관리 · 평가를 하나의
               <br />
               플랫폼에서 관리합니다.
             </p>
           </div>
-          <div className="h-0.5 w-8 bg-brand-green" />
+          <div className="h-0.5 w-8 bg-white" />
         </div>
 
         <div className="flex flex-col justify-center bg-white p-8 sm:p-10">
-          <div className="flex justify-end md:hidden">
-            <CompanyLogo />
+          <div className="mb-6 flex justify-center">
+            <CompanyLogo className="scale-125" />
           </div>
           <div className="mb-6">
             <div className="mb-2 h-0.5 w-6 bg-brand-green" />
