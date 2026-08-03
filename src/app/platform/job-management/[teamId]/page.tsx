@@ -169,6 +169,12 @@ export default async function JobDescriptionDetailPage({
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-3 text-lg font-medium">요약 정보</h2>
+        <p className="mb-4 text-sm text-slate-500">
+          PDF 첨부파일을 업로드하면 직무목적은 파일에서 자동으로 추출을
+          시도합니다(이미 입력되어 있으면 덮어쓰지 않습니다). 문서 구조상
+          완벽하지 않을 수 있으니 내용을 확인 후 필요하면 수정해주세요. 나머지
+          항목은 직접 입력해주세요.
+        </p>
         {isAdmin ? (
           <form action={saveJobDescription.bind(null, team.id)} className="flex flex-col gap-4">
             {fields}

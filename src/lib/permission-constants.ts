@@ -59,7 +59,7 @@ export const HOME_BLOCKS: HomeBlock[] = [
 ];
 
 export const HOME_BLOCK_LABEL: Record<HomeBlock, string> = {
-  TEAM_SUMMARY: "팀별 종합",
-  OVERALL_SUMMARY: "전체 요약",
+  TEAM_SUMMARY: "직군별 종합 · 조직 현황",
+  OVERALL_SUMMARY: "전체 요약 · 오늘 처리할 일",
   QUICK_LINKS: "바로가기",
 };

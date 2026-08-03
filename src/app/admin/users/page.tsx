@@ -18,6 +18,12 @@ const roleLabel: Record<string, string> = {
   EMPLOYEE: "직원",
 };
 
+const COMPANY_NAME = "한국삼공";
+
+function fmtDate(d: Date | null | undefined) {
+  return d ? d.toLocaleDateString("ko-KR") : "-";
+}
+
 type SortKey = "name" | "email" | "employeeNumber" | "role" | "team";
 type SortDir = "asc" | "desc";
 
@@ -87,7 +93,10 @@ export default async function UsersPage({
           : {}),
       },
       orderBy,
-      include: { team: true, targetYears: { where: { year: selectedYear } } },
+      include: {
+        team: { include: { operationsHead: true, senior: true } },
+        targetYears: { where: { year: selectedYear } },
+      },
     }),
     prisma.team.findMany({ orderBy: { name: "asc" } }),
     prisma.userTargetYear.findMany({
@@ -264,6 +273,7 @@ export default async function UsersPage({
             </span>
           </div>
 
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-100 text-xs text-slate-400">
               <tr>
@@ -271,7 +281,7 @@ export default async function UsersPage({
                   <SelectAllCheckbox />
                 </th>
                 {columns.map((col) => (
-                  <th key={col.key} className="px-3 py-2 font-medium">
+                  <th key={col.key} className="whitespace-nowrap px-3 py-2 font-medium">
                     <Link
                       href={sortHref(col.key)}
                       className="flex items-center gap-1 hover:text-slate-700"
@@ -283,8 +293,21 @@ export default async function UsersPage({
                     </Link>
                   </th>
                 ))}
-                <th className="px-3 py-2 font-medium">직책</th>
-                <th className="px-3 py-2 font-medium">{selectedYear}년 대상</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">사명</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">운영책임</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">책임</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">직책</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">생년월일</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">입사일</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">퇴사일</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">사원구분</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">직급</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">학력</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">학교</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">전공</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">학위</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">직군</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">{selectedYear}년 대상</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
@@ -294,41 +317,59 @@ export default async function UsersPage({
                   <td className="px-3 py-2">
                     <input type="checkbox" name="userIds" value={u.id} />
                   </td>
-                  <td className="px-3 py-2">{u.name}</td>
-                  <td className="px-3 py-2 text-slate-400">{u.email}</td>
-                  <td className="px-3 py-2 text-slate-400">{u.employeeNumber}</td>
-                  <td className="px-3 py-2">
+                  <td className="whitespace-nowrap px-3 py-2">{u.name}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.email}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.employeeNumber}</td>
+                  <td className="whitespace-nowrap px-3 py-2">
                     {u.id === session?.user.id ? (
                       roleLabel[u.role]
                     ) : (
                       <RoleSelect userId={u.id} role={u.role} />
                     )}
                   </td>
-                  <td className="px-3 py-2 text-slate-400">{u.team?.name ?? "-"}</td>
-                  <td className="px-3 py-2">
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.team?.name ?? "-"}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{COMPANY_NAME}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">
+                    {u.team?.operationsHead?.name ?? "-"}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">
+                    {u.team?.senior?.name ?? "-"}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2">
                     <PositionSelect userId={u.id} position={u.position} />
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{fmtDate(u.birthDate)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{fmtDate(u.hireDate)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{fmtDate(u.terminationDate)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.employmentType ?? "-"}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.jobGrade ?? "-"}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.educationLevel ?? "-"}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.school ?? "-"}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.major ?? "-"}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.degree ?? "-"}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.jobFamily ?? "-"}</td>
+                  <td className="whitespace-nowrap px-3 py-2">
                     <TargetYearToggle
                       userId={u.id}
                       year={selectedYear}
                       active={u.targetYears.length > 0}
                     />
                   </td>
-                  <td className="px-3 py-2 text-right">
+                  <td className="whitespace-nowrap px-3 py-2 text-right">
                     <UserRowActions userId={u.id} />
                   </td>
                 </tr>
               ))}
               {users.length === 0 && (
                 <tr>
-                  <td className="px-3 py-6 text-center text-slate-500" colSpan={9}>
+                  <td className="px-3 py-6 text-center text-slate-500" colSpan={20}>
                     검색 결과가 없습니다.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+          </div>
         </section>
       </form>
 

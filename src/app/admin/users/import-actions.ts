@@ -69,6 +69,13 @@ export async function importUsersFromExcel(
     const hireDate = parseExcelDate(row["입사일"]);
     const terminationDate = parseExcelDate(row["퇴사일"]);
     const position = parsePosition(row["직책"]);
+    const employmentType = String(row["사원구분"] ?? "").trim() || null;
+    const jobGrade = String(row["직급"] ?? "").trim() || null;
+    const educationLevel = String(row["학력"] ?? "").trim() || null;
+    const school = String(row["학교"] ?? "").trim() || null;
+    const major = String(row["전공"] ?? "").trim() || null;
+    const degree = String(row["학위"] ?? "").trim() || null;
+    const jobFamily = String(row["직군"] ?? "").trim() || null;
 
     if (!name || !employeeNumber || !email) {
       errors.push(`${rowNum}행: 이름/사번/이메일주소는 필수입니다.`);
@@ -99,6 +106,13 @@ export async function importUsersFromExcel(
             birthDate,
             hireDate,
             terminationDate,
+            employmentType,
+            jobGrade,
+            educationLevel,
+            school,
+            major,
+            degree,
+            jobFamily,
             ...(position ? { position } : {}),
           },
         });
@@ -116,6 +130,13 @@ export async function importUsersFromExcel(
             birthDate,
             hireDate,
             terminationDate,
+            employmentType,
+            jobGrade,
+            educationLevel,
+            school,
+            major,
+            degree,
+            jobFamily,
             ...(position ? { position } : {}),
             teamId,
           },

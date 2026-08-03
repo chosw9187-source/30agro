@@ -16,6 +16,13 @@ export async function GET() {
     "생년월일",
     "입사일",
     "퇴사일",
+    "사원구분",
+    "직급",
+    "학력",
+    "학교",
+    "전공",
+    "학위",
+    "직군",
   ];
   const example = [
     "홍길동",
@@ -26,6 +33,13 @@ export async function GET() {
     "1990-01-15",
     "2020-03-01",
     "",
+    "정규직",
+    "대리",
+    "학사",
+    "한국대학교",
+    "경영학",
+    "학사",
+    "관리직",
   ];
 
   const sheet = XLSX.utils.aoa_to_sheet([headers, example]);

@@ -5,6 +5,7 @@ import path from "path";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
+import { extractPurposeFromPdf } from "@/lib/job-description-extract";
 
 const SEED_DIR = path.join(process.cwd(), "prisma", "seed-data", "job-descriptions");
 
@@ -62,7 +63,16 @@ export async function seedJobDescriptionsFromDraft() {
         ? teams.filter((t) => t.name.endsWith("지점"))
         : teams.filter((t) => t.name === label);
 
+    if (matches.length === 0) continue;
+    const extractedPurpose = await extractPurposeFromPdf(buffer);
+
     for (const team of matches) {
+      const existing = await prisma.jobDescription.findUnique({
+        where: { teamId: team.id },
+        select: { purpose: true },
+      });
+      const purpose = existing?.purpose ? undefined : extractedPurpose ?? undefined;
+
       await prisma.jobDescription.upsert({
         where: { teamId: team.id },
         update: {
@@ -70,6 +80,7 @@ export async function seedJobDescriptionsFromDraft() {
           fileType: "application/pdf",
           fileData: buffer,
           fileUpdatedAt: new Date(),
+          ...(purpose !== undefined ? { purpose } : {}),
         },
         create: {
           teamId: team.id,
@@ -77,6 +88,7 @@ export async function seedJobDescriptionsFromDraft() {
           fileType: "application/pdf",
           fileData: buffer,
           fileUpdatedAt: new Date(),
+          purpose: extractedPurpose,
         },
       });
     }
@@ -92,6 +104,14 @@ export async function uploadJobDescriptionFile(teamId: string, formData: FormDat
   if (!(file instanceof File) || file.size === 0) return;
 
   const buffer = Buffer.from(await file.arrayBuffer());
+  const extractedPurpose =
+    file.type === "application/pdf" ? await extractPurposeFromPdf(buffer) : null;
+
+  const existing = await prisma.jobDescription.findUnique({
+    where: { teamId },
+    select: { purpose: true },
+  });
+  const purpose = existing?.purpose ? undefined : extractedPurpose ?? undefined;
 
   await prisma.jobDescription.upsert({
     where: { teamId },
@@ -100,6 +120,7 @@ export async function uploadJobDescriptionFile(teamId: string, formData: FormDat
       fileType: file.type || "application/octet-stream",
       fileData: buffer,
       fileUpdatedAt: new Date(),
+      ...(purpose !== undefined ? { purpose } : {}),
     },
     create: {
       teamId,
@@ -107,6 +128,7 @@ export async function uploadJobDescriptionFile(teamId: string, formData: FormDat
       fileType: file.type || "application/octet-stream",
       fileData: buffer,
       fileUpdatedAt: new Date(),
+      purpose: extractedPurpose,
     },
   });
 
