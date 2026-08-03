@@ -44,12 +44,12 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
       className={`flex items-center justify-between rounded px-3 py-2 text-sm transition-colors ${
         active
           ? "bg-white text-brand-green-dark font-medium"
-          : "text-white/85 hover:bg-white/10 hover:text-white"
+          : "text-white hover:bg-black/10"
       }`}
     >
       <span>{item.label}</span>
       {item.comingSoon && (
-        <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-medium text-white/80">
+        <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-semibold text-amber-950">
           개발 중
         </span>
       )}
@@ -68,7 +68,7 @@ export function PlatformSidebar() {
   return (
     <nav className="sticky top-0 flex h-screen w-60 shrink-0 flex-col gap-6 overflow-y-auto bg-brand-green px-3 py-6">
       <div className="px-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-white/70">
+        <p className="text-xs font-semibold uppercase tracking-wide text-amber-200">
           SG HR PLATFORM
         </p>
         <p className="text-lg font-bold text-white">한국삼공 HR</p>
@@ -81,21 +81,21 @@ export function PlatformSidebar() {
       </div>
 
       <div className="flex flex-col gap-1">
-        <p className="px-3 text-xs font-semibold text-white/70">평가</p>
+        <p className="px-3 text-xs font-semibold text-amber-200">평가</p>
         {evaluationItems.map((item) => (
           <NavLink key={item.href} item={item} active={isActive(item.href)} />
         ))}
       </div>
 
       <div className="flex flex-col gap-1">
-        <p className="px-3 text-xs font-semibold text-white/70">관리</p>
+        <p className="px-3 text-xs font-semibold text-amber-200">관리</p>
         {manageItems.map((item) => (
           <NavLink key={item.href} item={item} active={isActive(item.href)} />
         ))}
       </div>
 
       <div className="flex flex-col gap-1">
-        <p className="px-3 text-xs font-semibold text-white/70">지원</p>
+        <p className="px-3 text-xs font-semibold text-amber-200">지원</p>
         {supportItems.map((item) => (
           <NavLink key={item.href} item={item} active={isActive(item.href)} />
         ))}
