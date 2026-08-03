@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
+type Role = "ADMIN" | "EVALUATOR" | "EMPLOYEE";
 
 type NavItem = {
   href: string;
@@ -9,32 +12,52 @@ type NavItem = {
   comingSoon?: boolean;
 };
 
+type Section = {
+  key: string;
+  label: string;
+  items: NavItem[];
+};
+
 const mainItems: NavItem[] = [
-  { href: "/admin", label: "홈" },
-  { href: "/admin/hr-report", label: "HR REPORT", comingSoon: true },
-  { href: "/admin/org-chart", label: "조직도", comingSoon: true },
-  { href: "/admin/job-management", label: "직무관리", comingSoon: true },
-  { href: "/admin/task-management", label: "업무 관리", comingSoon: true },
-  { href: "/admin/employees", label: "직원정보 조회" },
-  { href: "/admin/legal-library", label: "AI 법률 라이브러리", comingSoon: true },
+  { href: "/platform", label: "홈" },
+  { href: "/platform/hr-report", label: "HR REPORT", comingSoon: true },
+  { href: "/platform/org-chart", label: "조직도", comingSoon: true },
+  { href: "/platform/job-management", label: "직무관리", comingSoon: true },
+  { href: "/platform/task-management", label: "업무 관리", comingSoon: true },
+  { href: "/platform/employees", label: "직원정보 조회" },
+  { href: "/platform/legal-library", label: "AI 법률 라이브러리", comingSoon: true },
 ];
 
-const evaluationItems: NavItem[] = [
-  { href: "/admin/evaluation", label: "평가 현황" },
-  { href: "/admin/templates", label: "평가 템플릿" },
-  { href: "/admin/cycles", label: "평가 사이클" },
-  { href: "/admin/teams", label: "팀 관리" },
-  { href: "/admin/reports", label: "결과 다운로드" },
-];
+function evaluationItems(role: Role): NavItem[] {
+  if (role === "ADMIN") {
+    return [
+      { href: "/admin/evaluation", label: "평가 현황" },
+      { href: "/admin/templates", label: "평가 템플릿" },
+      { href: "/admin/cycles", label: "평가 사이클" },
+      { href: "/admin/teams", label: "팀 관리" },
+      { href: "/admin/reports", label: "결과 다운로드" },
+    ];
+  }
+  if (role === "EVALUATOR") {
+    return [{ href: "/evaluate", label: "평가" }];
+  }
+  return [{ href: "/my-evaluations", label: "평가" }];
+}
 
-const manageItems: NavItem[] = [
-  { href: "/admin/users", label: "사용자 관리" },
-  { href: "/admin/data-upload", label: "데이터 업로드", comingSoon: true },
-  { href: "/admin/screen-config", label: "화면 구성", comingSoon: true },
-];
+function manageItems(role: Role): NavItem[] {
+  const items: NavItem[] = [];
+  if (role === "ADMIN") {
+    items.push({ href: "/admin/users", label: "사용자 관리" });
+  }
+  items.push(
+    { href: "/platform/data-upload", label: "데이터 업로드", comingSoon: true },
+    { href: "/platform/screen-config", label: "화면 구성", comingSoon: true }
+  );
+  return items;
+}
 
 const supportItems: NavItem[] = [
-  { href: "/admin/support", label: "문의 · 피드백", comingSoon: true },
+  { href: "/platform/support", label: "문의 · 피드백", comingSoon: true },
 ];
 
 function NavLink({ item, active }: { item: NavItem; active: boolean }) {
@@ -57,17 +80,41 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   );
 }
 
-export function PlatformSidebar() {
+export function PlatformSidebar({ role }: { role: Role }) {
   const pathname = usePathname();
 
   function isActive(href: string) {
-    if (href === "/admin") return pathname === "/admin";
+    if (href === "/platform") return pathname === "/platform";
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 
+  const sections: Section[] = [
+    { key: "eval", label: "평가", items: evaluationItems(role) },
+    { key: "manage", label: "관리", items: manageItems(role) },
+    { key: "support", label: "지원", items: supportItems },
+  ];
+
+  // Manual open/close overrides from clicks; sections not overridden default
+  // to open when the current path is inside them (computed at render time,
+  // no effect needed).
+  const [overrides, setOverrides] = useState<Map<string, boolean>>(new Map());
+
+  function isSectionOpen(section: Section) {
+    if (overrides.has(section.key)) return overrides.get(section.key)!;
+    return section.items.some((item) => isActive(item.href));
+  }
+
+  function toggleSection(section: Section) {
+    setOverrides((prev) => {
+      const next = new Map(prev);
+      next.set(section.key, !isSectionOpen(section));
+      return next;
+    });
+  }
+
   return (
-    <nav className="sticky top-0 flex h-screen w-60 shrink-0 flex-col gap-6 overflow-y-auto bg-brand-green px-3 py-6">
-      <div className="px-3">
+    <nav className="sticky top-0 flex h-screen w-60 shrink-0 flex-col gap-1 overflow-y-auto bg-brand-green px-3 py-6">
+      <div className="px-3 pb-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-amber-200">
           SG HR PLATFORM
         </p>
@@ -80,26 +127,42 @@ export function PlatformSidebar() {
         ))}
       </div>
 
-      <div className="flex flex-col gap-1">
-        <p className="px-3 text-xs font-semibold text-amber-200">평가</p>
-        {evaluationItems.map((item) => (
-          <NavLink key={item.href} item={item} active={isActive(item.href)} />
-        ))}
-      </div>
+      <div className="my-3 border-t border-white/20" />
 
-      <div className="flex flex-col gap-1">
-        <p className="px-3 text-xs font-semibold text-amber-200">관리</p>
-        {manageItems.map((item) => (
-          <NavLink key={item.href} item={item} active={isActive(item.href)} />
-        ))}
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <p className="px-3 text-xs font-semibold text-amber-200">지원</p>
-        {supportItems.map((item) => (
-          <NavLink key={item.href} item={item} active={isActive(item.href)} />
-        ))}
-      </div>
+      {sections.map((section) => {
+        if (section.items.length === 0) return null;
+        if (section.items.length === 1) {
+          return (
+            <NavLink
+              key={section.key}
+              item={{ ...section.items[0], label: section.label }}
+              active={isActive(section.items[0].href)}
+            />
+          );
+        }
+        const open = isSectionOpen(section);
+        return (
+          <div key={section.key} className="flex flex-col gap-1">
+            <button
+              type="button"
+              onClick={() => toggleSection(section)}
+              className="flex items-center justify-between rounded px-3 py-2 text-sm text-white hover:bg-black/10"
+            >
+              <span>{section.label}</span>
+              <span className={`transition-transform ${open ? "rotate-90" : ""}`}>
+                ›
+              </span>
+            </button>
+            {open && (
+              <div className="ml-2 flex flex-col gap-1 border-l border-white/20 pl-2">
+                {section.items.map((item) => (
+                  <NavLink key={item.href} item={item} active={isActive(item.href)} />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </nav>
   );
 }

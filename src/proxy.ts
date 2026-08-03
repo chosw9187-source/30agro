@@ -2,9 +2,9 @@ import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
 const roleHome: Record<string, string> = {
-  ADMIN: "/admin",
-  EVALUATOR: "/evaluate",
-  EMPLOYEE: "/my-evaluations",
+  ADMIN: "/platform",
+  EVALUATOR: "/platform",
+  EMPLOYEE: "/platform",
 };
 
 export default auth((req) => {
