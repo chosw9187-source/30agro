@@ -94,7 +94,7 @@ export default async function UsersPage({
       },
       orderBy,
       include: {
-        team: { include: { operationsHead: true, senior: true } },
+        team: true,
         targetYears: { where: { year: selectedYear } },
       },
     }),
@@ -331,10 +331,10 @@ export default async function UsersPage({
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.team?.name ?? "-"}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{COMPANY_NAME}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">
-                    {u.team?.operationsHead?.name ?? "-"}
+                    {u.team?.businessUnit ?? "-"}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">
-                    {u.team?.senior?.name ?? "-"}
+                    {u.team?.division ?? "-"}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">
                     <PositionSelect userId={u.id} position={u.position} />

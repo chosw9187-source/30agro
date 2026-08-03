@@ -19,7 +19,7 @@ export default async function TeamsPage() {
   const [teams, users] = await Promise.all([
     prisma.team.findMany({
       orderBy: { createdAt: "asc" },
-      include: { leader: true, members: true, operationsHead: true, senior: true },
+      include: { leader: true, members: true },
     }),
     prisma.user.findMany({
       where: { role: { not: "ADMIN" } },
@@ -27,6 +27,13 @@ export default async function TeamsPage() {
       include: { team: true },
     }),
   ]);
+
+  const businessUnits = Array.from(
+    new Set(teams.map((t) => t.businessUnit).filter((v): v is string => !!v))
+  ).sort();
+  const divisions = Array.from(
+    new Set(teams.map((t) => t.division).filter((v): v is string => !!v))
+  ).sort();
 
   return (
     <div className="flex flex-col gap-8">
@@ -40,6 +47,17 @@ export default async function TeamsPage() {
         </p>
       </div>
 
+      <datalist id="business-unit-options">
+        {businessUnits.map((v) => (
+          <option key={v} value={v} />
+        ))}
+      </datalist>
+      <datalist id="division-options">
+        {divisions.map((v) => (
+          <option key={v} value={v} />
+        ))}
+      </datalist>
+
       <section className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 text-lg font-medium">새 팀 만들기</h2>
         <form action={createTeam} className="flex flex-wrap gap-3">
@@ -49,30 +67,18 @@ export default async function TeamsPage() {
             placeholder="팀 이름 (예: 개발팀)"
             className="flex-1 rounded border border-slate-300 px-3 py-2"
           />
-          <select
-            name="operationsHeadId"
-            defaultValue=""
+          <input
+            name="businessUnit"
+            list="business-unit-options"
+            placeholder="사업단위 (예: 작물보호제사업)"
             className="rounded border border-slate-300 px-3 py-2 text-sm"
-          >
-            <option value="">사업단위 미지정</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name} (사업단위)
-              </option>
-            ))}
-          </select>
-          <select
-            name="seniorId"
-            defaultValue=""
+          />
+          <input
+            name="division"
+            list="division-options"
+            placeholder="본부 (예: 제품기획마케팅)"
             className="rounded border border-slate-300 px-3 py-2 text-sm"
-          >
-            <option value="">본부 미지정</option>
-            {users.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name} (본부)
-              </option>
-            ))}
-          </select>
+          />
           <button
             type="submit"
             className="rounded bg-brand-green px-4 py-2 text-white hover:bg-brand-green-dark"
@@ -93,14 +99,14 @@ export default async function TeamsPage() {
               <div>
                 <p className="font-medium">
                   {team.name}
-                  {team.operationsHead && (
+                  {team.businessUnit && (
                     <span className="ml-2 rounded bg-brand-green-light px-2 py-0.5 text-xs font-normal text-brand-green-dark">
-                      {team.operationsHead.name} 사업단위
+                      {team.businessUnit}
                     </span>
                   )}
-                  {team.senior && (
+                  {team.division && (
                     <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600">
-                      {team.senior.name} 본부
+                      {team.division}
                     </span>
                   )}
                 </p>
@@ -123,30 +129,20 @@ export default async function TeamsPage() {
               className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3"
             >
               <label className="text-sm text-slate-600">조직 위치</label>
-              <select
-                name="operationsHeadId"
-                defaultValue={team.operationsHeadId ?? ""}
+              <input
+                name="businessUnit"
+                list="business-unit-options"
+                defaultValue={team.businessUnit ?? ""}
+                placeholder="사업단위"
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="">사업단위 미지정</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} (사업단위)
-                  </option>
-                ))}
-              </select>
-              <select
-                name="seniorId"
-                defaultValue={team.seniorId ?? ""}
+              />
+              <input
+                name="division"
+                list="division-options"
+                defaultValue={team.division ?? ""}
+                placeholder="본부"
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="">본부 미지정</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} (본부)
-                  </option>
-                ))}
-              </select>
+              />
               <button
                 type="submit"
                 className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"

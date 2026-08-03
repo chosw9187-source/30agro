@@ -63,20 +63,18 @@ function GroupCard({
 export default async function OrgChartPage({
   searchParams,
 }: {
-  searchParams: Promise<{ opsHead?: string; senior?: string }>;
+  searchParams: Promise<{ unit?: string; division?: string }>;
 }) {
   if (!(await checkModuleAccess("ORG_CHART"))) {
     return <NoModuleAccess title="조직도" />;
   }
 
-  const { opsHead, senior } = await searchParams;
+  const { unit, division } = await searchParams;
 
   const teams = await prisma.team.findMany({
     orderBy: { name: "asc" },
     include: {
       leader: true,
-      operationsHead: true,
-      senior: true,
       _count: { select: { members: true } },
     },
   });
@@ -97,26 +95,24 @@ export default async function OrgChartPage({
     </div>
   );
 
-  // Level 3: opsHead + senior both set -> leaf team cards
-  if (opsHead && senior) {
-    const opsUser = teams.find((t) => t.operationsHeadId === opsHead)?.operationsHead;
-    const seniorUser = teams.find((t) => t.seniorId === senior)?.senior;
+  // Level 3: unit + division both set -> leaf team cards
+  if (unit && division) {
     const leafTeams = teams.filter(
-      (t) => t.operationsHeadId === opsHead && t.seniorId === senior
+      (t) => t.businessUnit === unit && t.division === division
     );
     const memberCount = leafTeams.reduce((s, t) => s + t._count.members, 0);
 
     return (
       <div className="flex flex-col gap-6">
         <Link
-          href={`/platform/org-chart?opsHead=${encodeURIComponent(opsHead)}`}
+          href={`/platform/org-chart?unit=${encodeURIComponent(unit)}`}
           className="text-sm text-slate-500 hover:underline"
         >
-          ← {opsUser?.name ?? "사업단위"} 사업단위
+          ← {unit} 사업단위
         </Link>
         {header(
-          `${seniorUser?.name ?? "본부"} 본부`,
-          `한국삼공 · ${opsUser?.name ?? "사업단위"} 사업단위 · ${seniorUser?.name ?? "본부"} 본부`,
+          `${division} 본부`,
+          `한국삼공 · ${unit} 사업단위 · ${division} 본부`,
           leafTeams.length,
           memberCount
         )}
@@ -130,57 +126,47 @@ export default async function OrgChartPage({
     );
   }
 
-  // Level 2a: only opsHead set -> senior groups + direct teams under this ops head
-  if (opsHead) {
-    const opsUser = teams.find((t) => t.operationsHeadId === opsHead)?.operationsHead;
-    const teamsUnderHead = teams.filter((t) => t.operationsHeadId === opsHead);
-    const seniorGroups = new Map<
+  // Level 2a: only unit set -> division groups + direct teams under this unit
+  if (unit) {
+    const teamsUnderUnit = teams.filter((t) => t.businessUnit === unit);
+    const divisionGroups = new Map<
       string,
-      { name: string; teamCount: number; memberCount: number }
+      { teamCount: number; memberCount: number }
     >();
     const directTeams = [];
-    for (const t of teamsUnderHead) {
-      if (t.seniorId && t.senior) {
-        const g = seniorGroups.get(t.seniorId) ?? {
-          name: t.senior.name,
-          teamCount: 0,
-          memberCount: 0,
-        };
+    for (const t of teamsUnderUnit) {
+      if (t.division) {
+        const g = divisionGroups.get(t.division) ?? { teamCount: 0, memberCount: 0 };
         g.teamCount += 1;
         g.memberCount += t._count.members;
-        seniorGroups.set(t.seniorId, g);
+        divisionGroups.set(t.division, g);
       } else {
         directTeams.push(t);
       }
     }
-    const memberCount = teamsUnderHead.reduce((s, t) => s + t._count.members, 0);
+    const memberCount = teamsUnderUnit.reduce((s, t) => s + t._count.members, 0);
 
     return (
       <div className="flex flex-col gap-6">
         <Link href="/platform/org-chart" className="text-sm text-slate-500 hover:underline">
           ← 조직도
         </Link>
-        {header(
-          `${opsUser?.name ?? "사업단위"} 사업단위`,
-          `한국삼공 · ${opsUser?.name ?? "사업단위"} 사업단위`,
-          teamsUnderHead.length,
-          memberCount
-        )}
+        {header(`${unit} 사업단위`, `한국삼공 · ${unit} 사업단위`, teamsUnderUnit.length, memberCount)}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from(seniorGroups.entries()).map(([id, g]) => (
+          {Array.from(divisionGroups.entries()).map(([name, g]) => (
             <GroupCard
-              key={id}
-              name={g.name}
+              key={name}
+              name={name}
               role="본부"
               teamCount={g.teamCount}
               memberCount={g.memberCount}
-              href={`/platform/org-chart?opsHead=${encodeURIComponent(opsHead)}&senior=${encodeURIComponent(id)}`}
+              href={`/platform/org-chart?unit=${encodeURIComponent(unit)}&division=${encodeURIComponent(name)}`}
             />
           ))}
           {directTeams.map((t) => (
             <TeamCard key={t.id} team={t} />
           ))}
-          {teamsUnderHead.length === 0 && (
+          {teamsUnderUnit.length === 0 && (
             <p className="text-slate-500">소속된 팀이 없습니다.</p>
           )}
         </div>
@@ -188,10 +174,9 @@ export default async function OrgChartPage({
     );
   }
 
-  // Level 2b: only senior set (본부 directly under 사명, no 사업단위) -> leaf team cards
-  if (senior) {
-    const seniorUser = teams.find((t) => t.seniorId === senior)?.senior;
-    const leafTeams = teams.filter((t) => !t.operationsHeadId && t.seniorId === senior);
+  // Level 2b: only division set (division directly under 사명, no business unit) -> leaf team cards
+  if (division) {
+    const leafTeams = teams.filter((t) => !t.businessUnit && t.division === division);
     const memberCount = leafTeams.reduce((s, t) => s + t._count.members, 0);
 
     return (
@@ -199,12 +184,7 @@ export default async function OrgChartPage({
         <Link href="/platform/org-chart" className="text-sm text-slate-500 hover:underline">
           ← 조직도
         </Link>
-        {header(
-          `${seniorUser?.name ?? "본부"} 본부`,
-          `한국삼공 · ${seniorUser?.name ?? "본부"} 본부`,
-          leafTeams.length,
-          memberCount
-        )}
+        {header(`${division} 본부`, `한국삼공 · ${division} 본부`, leafTeams.length, memberCount)}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {leafTeams.map((t) => (
             <TeamCard key={t.id} team={t} />
@@ -215,36 +195,22 @@ export default async function OrgChartPage({
     );
   }
 
-  // Root: 사업단위 groups + direct 본부 groups (no ops head) + direct teams (no ops head, no senior)
-  const opsGroups = new Map<
-    string,
-    { name: string; teamCount: number; memberCount: number }
-  >();
-  const directSeniorGroups = new Map<
-    string,
-    { name: string; teamCount: number; memberCount: number }
-  >();
+  // Root: business-unit groups + direct division groups (no unit) + direct teams (no unit, no division)
+  const unitGroups = new Map<string, { teamCount: number; memberCount: number }>();
+  const directDivisionGroups = new Map<string, { teamCount: number; memberCount: number }>();
   const rootTeams = [];
 
   for (const t of teams) {
-    if (t.operationsHeadId && t.operationsHead) {
-      const g = opsGroups.get(t.operationsHeadId) ?? {
-        name: t.operationsHead.name,
-        teamCount: 0,
-        memberCount: 0,
-      };
+    if (t.businessUnit) {
+      const g = unitGroups.get(t.businessUnit) ?? { teamCount: 0, memberCount: 0 };
       g.teamCount += 1;
       g.memberCount += t._count.members;
-      opsGroups.set(t.operationsHeadId, g);
-    } else if (t.seniorId && t.senior) {
-      const g = directSeniorGroups.get(t.seniorId) ?? {
-        name: t.senior.name,
-        teamCount: 0,
-        memberCount: 0,
-      };
+      unitGroups.set(t.businessUnit, g);
+    } else if (t.division) {
+      const g = directDivisionGroups.get(t.division) ?? { teamCount: 0, memberCount: 0 };
       g.teamCount += 1;
       g.memberCount += t._count.members;
-      directSeniorGroups.set(t.seniorId, g);
+      directDivisionGroups.set(t.division, g);
     } else {
       rootTeams.push(t);
     }
@@ -259,32 +225,27 @@ export default async function OrgChartPage({
         </p>
       </div>
 
-      {header(
-        "전체 조직",
-        "한국삼공",
-        teams.length,
-        totalEmployees
-      )}
+      {header("전체 조직", "한국삼공", teams.length, totalEmployees)}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from(opsGroups.entries()).map(([id, g]) => (
+        {Array.from(unitGroups.entries()).map(([name, g]) => (
           <GroupCard
-            key={id}
-            name={g.name}
+            key={name}
+            name={name}
             role="사업단위"
             teamCount={g.teamCount}
             memberCount={g.memberCount}
-            href={`/platform/org-chart?opsHead=${encodeURIComponent(id)}`}
+            href={`/platform/org-chart?unit=${encodeURIComponent(name)}`}
           />
         ))}
-        {Array.from(directSeniorGroups.entries()).map(([id, g]) => (
+        {Array.from(directDivisionGroups.entries()).map(([name, g]) => (
           <GroupCard
-            key={id}
-            name={g.name}
+            key={name}
+            name={name}
             role="본부"
             teamCount={g.teamCount}
             memberCount={g.memberCount}
-            href={`/platform/org-chart?senior=${encodeURIComponent(id)}`}
+            href={`/platform/org-chart?division=${encodeURIComponent(name)}`}
           />
         ))}
         {rootTeams.map((t) => (

@@ -26,8 +26,6 @@ export default async function TeamOrgDetailPage({
     where: { id: teamId },
     include: {
       leader: true,
-      operationsHead: true,
-      senior: true,
       members: { orderBy: { name: "asc" } },
     },
   });
@@ -35,15 +33,15 @@ export default async function TeamOrgDetailPage({
   if (!team) notFound();
 
   const params_ = new URLSearchParams();
-  if (team.operationsHeadId) params_.set("opsHead", team.operationsHeadId);
-  if (team.seniorId) params_.set("senior", team.seniorId);
+  if (team.businessUnit) params_.set("unit", team.businessUnit);
+  if (team.division) params_.set("division", team.division);
   const backHref = params_.toString()
     ? `/platform/org-chart?${params_.toString()}`
     : "/platform/org-chart";
-  const backLabel = team.senior
-    ? `${team.senior.name} 본부`
-    : team.operationsHead
-      ? `${team.operationsHead.name} 사업단위`
+  const backLabel = team.division
+    ? `${team.division} 본부`
+    : team.businessUnit
+      ? `${team.businessUnit} 사업단위`
       : "조직도";
 
   return (
@@ -54,8 +52,8 @@ export default async function TeamOrgDetailPage({
 
       <div className="rounded-lg border border-brand-green-dark bg-brand-green px-8 py-6 text-white">
         <p className="text-sm text-white/80">
-          {team.operationsHead ? `${team.operationsHead.name} 사업단위 · ` : ""}
-          {team.senior ? `${team.senior.name} 본부 · ` : ""}
+          {team.businessUnit ? `${team.businessUnit} 사업단위 · ` : ""}
+          {team.division ? `${team.division} 본부 · ` : ""}
           {team.name}
         </p>
         <p className="mt-1 text-2xl font-bold">

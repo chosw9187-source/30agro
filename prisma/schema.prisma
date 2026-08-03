@@ -84,8 +84,6 @@ model User {
   assignedItems    TemplateItem[]       @relation("AssignedItems")
   notifications    Notification[]       @relation("NotificationRecipient")
   targetYears      UserTargetYear[]
-  teamsAsOperationsHead Team[]          @relation("TeamOperationsHead")
-  teamsAsSenior         Team[]          @relation("TeamSenior")
 }
 
 model UserTargetYear {
@@ -104,10 +102,8 @@ model Team {
   leaderId  String?
   leader    User?    @relation("TeamLeader", fields: [leaderId], references: [id])
 
-  operationsHeadId String?
-  operationsHead   User?   @relation("TeamOperationsHead", fields: [operationsHeadId], references: [id])
-  seniorId         String?
-  senior           User?   @relation("TeamSenior", fields: [seniorId], references: [id])
+  businessUnit String?
+  division     String?
 
   createdAt DateTime @default(now())
 

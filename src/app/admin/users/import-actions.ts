@@ -65,6 +65,8 @@ export async function importUsersFromExcel(
     const employeeNumber = String(row["사번"] ?? "").trim();
     const email = String(row["이메일주소"] ?? "").trim();
     const teamName = String(row["팀명"] ?? "").trim();
+    const businessUnit = String(row["사업단위"] ?? "").trim() || null;
+    const division = String(row["본부"] ?? "").trim() || null;
     const birthDate = parseExcelDate(row["생년월일"]);
     const hireDate = parseExcelDate(row["입사일"]);
     const terminationDate = parseExcelDate(row["퇴사일"]);
@@ -88,8 +90,15 @@ export async function importUsersFromExcel(
       if (teamName) {
         const team = await prisma.team.upsert({
           where: { name: teamName },
-          update: {},
-          create: { name: teamName },
+          update: {
+            ...(businessUnit ? { businessUnit } : {}),
+            ...(division ? { division } : {}),
+          },
+          create: {
+            name: teamName,
+            businessUnit,
+            division,
+          },
         });
         teamId = team.id;
       }

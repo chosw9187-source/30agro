@@ -7,15 +7,15 @@ import { revalidatePath } from "next/cache";
 export async function createTeam(formData: FormData) {
   await requireRole("ADMIN");
   const name = String(formData.get("name") ?? "").trim();
-  const operationsHeadId = String(formData.get("operationsHeadId") ?? "").trim();
-  const seniorId = String(formData.get("seniorId") ?? "").trim();
+  const businessUnit = String(formData.get("businessUnit") ?? "").trim();
+  const division = String(formData.get("division") ?? "").trim();
   if (!name) return;
 
   await prisma.team.create({
     data: {
       name,
-      operationsHeadId: operationsHeadId || null,
-      seniorId: seniorId || null,
+      businessUnit: businessUnit || null,
+      division: division || null,
     },
   });
   revalidatePath("/admin/teams");
@@ -26,14 +26,14 @@ export async function createTeam(formData: FormData) {
 
 export async function updateTeamHierarchy(teamId: string, formData: FormData) {
   await requireRole("ADMIN");
-  const operationsHeadId = String(formData.get("operationsHeadId") ?? "").trim();
-  const seniorId = String(formData.get("seniorId") ?? "").trim();
+  const businessUnit = String(formData.get("businessUnit") ?? "").trim();
+  const division = String(formData.get("division") ?? "").trim();
 
   await prisma.team.update({
     where: { id: teamId },
     data: {
-      operationsHeadId: operationsHeadId || null,
-      seniorId: seniorId || null,
+      businessUnit: businessUnit || null,
+      division: division || null,
     },
   });
 
