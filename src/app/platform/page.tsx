@@ -52,6 +52,7 @@ export default async function PlatformHomePage() {
         hireDate: true,
         terminationDate: true,
         jobFamily: true,
+        gender: true,
       },
     }),
   ]);
@@ -87,6 +88,16 @@ export default async function PlatformHomePage() {
   const distinctJobFamilies = new Set(
     activeUsers.map((u) => u.jobFamily).filter((v): v is string => !!v)
   ).size;
+
+  const maleCount = activeUsers.filter((u) => u.gender === "남").length;
+  const femaleCount = activeUsers.filter((u) => u.gender === "여").length;
+  const genderKnownTotal = maleCount + femaleCount;
+  const genderRatio =
+    genderKnownTotal > 0
+      ? `${Math.round((maleCount / genderKnownTotal) * 100)} : ${Math.round(
+          (femaleCount / genderKnownTotal) * 100
+        )}`
+      : "데이터 없음";
 
   return (
     <div className="flex flex-col gap-8">
@@ -242,7 +253,7 @@ export default async function PlatformHomePage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <dt className="text-slate-500">남 : 여</dt>
-                      <dd className="font-semibold">데이터 없음</dd>
+                      <dd className="font-semibold">{genderRatio}</dd>
                     </div>
                     <div className="flex items-center justify-between">
                       <dt className="text-slate-500">팀</dt>

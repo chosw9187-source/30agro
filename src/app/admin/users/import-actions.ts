@@ -76,6 +76,7 @@ export async function importUsersFromExcel(
     const major = String(row["전공"] ?? "").trim() || null;
     const degree = String(row["학위"] ?? "").trim() || null;
     const jobFamily = String(row["직군"] ?? "").trim() || null;
+    const gender = String(row["성별"] ?? "").trim() || null;
 
     if (!name || !employeeNumber || !email) {
       errors.push(`${rowNum}행: 이름/사번/이메일주소는 필수입니다.`);
@@ -113,6 +114,7 @@ export async function importUsersFromExcel(
             major,
             degree,
             jobFamily,
+            gender,
             ...(position ? { position } : {}),
           },
         });
@@ -137,6 +139,7 @@ export async function importUsersFromExcel(
             major,
             degree,
             jobFamily,
+            gender,
             ...(position ? { position } : {}),
             teamId,
           },

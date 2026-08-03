@@ -297,6 +297,7 @@ export default async function UsersPage({
                 <th className="whitespace-nowrap px-3 py-2 font-medium">운영책임</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">책임</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">직책</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">성별</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">생년월일</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">입사일</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">퇴사일</th>
@@ -338,6 +339,7 @@ export default async function UsersPage({
                   <td className="whitespace-nowrap px-3 py-2">
                     <PositionSelect userId={u.id} position={u.position} />
                   </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.gender ?? "-"}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{fmtDate(u.birthDate)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{fmtDate(u.hireDate)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{fmtDate(u.terminationDate)}</td>
@@ -362,7 +364,7 @@ export default async function UsersPage({
               ))}
               {users.length === 0 && (
                 <tr>
-                  <td className="px-3 py-6 text-center text-slate-500" colSpan={20}>
+                  <td className="px-3 py-6 text-center text-slate-500" colSpan={21}>
                     검색 결과가 없습니다.
                   </td>
                 </tr>

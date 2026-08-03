@@ -14,7 +14,8 @@ export function ImportUsersForm({ defaultYear }: { defaultYear: number }) {
       <p className="text-sm text-slate-500">
         엑셀 파일의 첫 행은 헤더로, <strong>이름 / 사번 / 이메일주소 / 팀명</strong> 열이
         필수이고, <strong>직책</strong>(사장/운영책임/책임/팀장/담당),{" "}
-        <strong>생년월일 / 입사일 / 퇴사일</strong>(YYYY-MM-DD 형식 권장),{" "}
+        <strong>성별</strong>(남/여), <strong>생년월일 / 입사일 / 퇴사일</strong>
+        (YYYY-MM-DD 형식 권장),{" "}
         <strong>사원구분 / 직급 / 학력 / 학교 / 전공 / 학위 / 직군</strong> 열은
         있으면 함께 반영됩니다. 이메일이 이미 존재하면 정보를 갱신하고, 새
         이메일이면 직원 권한으로 새로 등록합니다. 비밀번호는 사번으로 자동
