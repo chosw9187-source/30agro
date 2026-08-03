@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { updateUserPosition } from "./actions";
-import { POSITIONS, POSITION_LABEL, type Position } from "@/lib/permissions";
+import { POSITIONS, POSITION_LABEL, type Position } from "@/lib/permission-constants";
 
 export function PositionSelect({
   userId,

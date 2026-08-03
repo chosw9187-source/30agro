@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { Module } from "@/lib/permissions";
+import type { Module } from "@/lib/permission-constants";
 
 type Role = "ADMIN" | "EVALUATOR" | "EMPLOYEE";
 
