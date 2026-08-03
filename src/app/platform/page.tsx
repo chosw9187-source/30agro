@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 
+export const dynamic = "force-dynamic";
+
 function greeting() {
   const hour = new Date().getHours();
   if (hour < 12) return "좋은 아침입니다";
@@ -9,14 +11,25 @@ function greeting() {
   return "좋은 저녁입니다";
 }
 
-export default async function PlatformHomePage() {
+export default async function PlatformHomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ teamIds?: string | string[] }>;
+}) {
   const session = await auth();
   const role = session!.user.role;
 
   const evalHref =
     role === "ADMIN" ? "/admin/evaluation" : role === "EVALUATOR" ? "/evaluate" : "/my-evaluations";
 
-  const [employeeCount, teams, openCycles, totalAssignments] = await Promise.all([
+  const params = await searchParams;
+  const selectedTeamIds = params.teamIds
+    ? Array.isArray(params.teamIds)
+      ? params.teamIds
+      : [params.teamIds]
+    : [];
+
+  const [employeeCount, allTeams, openCycles, totalAssignments] = await Promise.all([
     prisma.user.count(),
     prisma.team.findMany({
       orderBy: { name: "asc" },
@@ -25,6 +38,11 @@ export default async function PlatformHomePage() {
     prisma.evaluationCycle.count({ where: { status: "OPEN" } }),
     prisma.evaluation.count(),
   ]);
+
+  const teams =
+    selectedTeamIds.length > 0
+      ? allTeams.filter((t) => selectedTeamIds.includes(t.id))
+      : allTeams;
 
   return (
     <div className="flex flex-col gap-8">
@@ -41,6 +59,30 @@ export default async function PlatformHomePage() {
               행 = 팀. 근속·연령·입퇴사 등 항목은 관련 정보가 등록되면 추후
               업데이트됩니다.
             </p>
+            <form method="GET" className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+              {allTeams.map((t) => (
+                <label key={t.id} className="flex items-center gap-1.5 text-sm text-slate-600">
+                  <input
+                    type="checkbox"
+                    name="teamIds"
+                    value={t.id}
+                    defaultChecked={selectedTeamIds.includes(t.id)}
+                  />
+                  {t.name}
+                </label>
+              ))}
+              <button
+                type="submit"
+                className="rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-100"
+              >
+                선택 적용
+              </button>
+              {selectedTeamIds.length > 0 && (
+                <Link href="/platform" className="text-sm text-slate-500 hover:underline">
+                  전체 보기
+                </Link>
+              )}
+            </form>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -93,7 +135,7 @@ export default async function PlatformHomePage() {
               </div>
               <div className="flex items-center justify-between">
                 <dt className="text-slate-500">팀</dt>
-                <dd className="font-semibold">{teams.length}개</dd>
+                <dd className="font-semibold">{allTeams.length}개</dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="text-slate-500">진행중인 평가 사이클</dt>

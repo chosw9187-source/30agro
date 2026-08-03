@@ -35,6 +35,8 @@ export default async function UsersPage({
     year?: string;
     deleted?: string;
     skipped?: string;
+    q?: string;
+    teamId?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -42,6 +44,8 @@ export default async function UsersPage({
     ? (params.sort as SortKey)
     : "name";
   const sortDir: SortDir = params.dir === "desc" ? "desc" : "asc";
+  const q = (params.q ?? "").trim();
+  const filterTeamId = params.teamId ?? "";
 
   const thisYear = new Date().getFullYear();
   const selectedYear = Number(params.year) > 0 ? Number(params.year) : thisYear;
@@ -67,6 +71,18 @@ export default async function UsersPage({
   const session = await auth();
   const [users, teams, yearRows] = await Promise.all([
     prisma.user.findMany({
+      where: {
+        ...(filterTeamId ? { teamId: filterTeamId } : {}),
+        ...(q
+          ? {
+              OR: [
+                { name: { contains: q, mode: "insensitive" } },
+                { email: { contains: q, mode: "insensitive" } },
+                { employeeNumber: { contains: q } },
+              ],
+            }
+          : {}),
+      },
       orderBy,
       include: { team: true, targetYears: { where: { year: selectedYear } } },
     }),
@@ -82,9 +98,13 @@ export default async function UsersPage({
     new Set([thisYear, selectedYear, ...yearRows.map((r) => r.year)])
   ).sort((a, b) => b - a);
 
+  const filterQS = `${q ? `&q=${encodeURIComponent(q)}` : ""}${
+    filterTeamId ? `&teamId=${filterTeamId}` : ""
+  }`;
+
   function sortHref(key: SortKey) {
     const nextDir: SortDir = sortKey === key && sortDir === "asc" ? "desc" : "asc";
-    return `/admin/users?year=${selectedYear}&sort=${key}&dir=${nextDir}`;
+    return `/admin/users?year=${selectedYear}&sort=${key}&dir=${nextDir}${filterQS}`;
   }
 
   const deletedCount = Number(params.deleted ?? 0);
@@ -156,6 +176,43 @@ export default async function UsersPage({
         </div>
       </details>
 
+      <form method="GET" className="flex flex-wrap items-center gap-2">
+        <input type="hidden" name="year" value={selectedYear} />
+        <input
+          type="text"
+          name="q"
+          defaultValue={q}
+          placeholder="이름 / 사번 / 이메일 검색"
+          className="w-56 rounded border border-slate-300 px-3 py-1.5 text-sm"
+        />
+        <select
+          name="teamId"
+          defaultValue={filterTeamId}
+          className="rounded border border-slate-300 px-3 py-1.5 text-sm"
+        >
+          <option value="">전체 팀</option>
+          {teams.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          className="rounded bg-brand-green px-3 py-1.5 text-sm text-white hover:bg-brand-green-dark"
+        >
+          검색
+        </button>
+        {(q || filterTeamId) && (
+          <Link
+            href={`/admin/users?year=${selectedYear}`}
+            className="text-sm text-slate-500 hover:underline"
+          >
+            검색 초기화
+          </Link>
+        )}
+      </form>
+
       <form action={bulkDeleteUsers}>
         <input type="hidden" name="year" value={selectedYear} />
         <section className="rounded-lg border border-slate-200 bg-white">
@@ -163,7 +220,7 @@ export default async function UsersPage({
             {availableYears.map((y) => (
               <Link
                 key={y}
-                href={`/admin/users?year=${y}`}
+                href={`/admin/users?year=${y}${filterQS}`}
                 className={`rounded px-2.5 py-1 text-sm ${
                   y === selectedYear
                     ? "bg-brand-green text-white"
@@ -256,6 +313,13 @@ export default async function UsersPage({
                   </td>
                 </tr>
               ))}
+              {users.length === 0 && (
+                <tr>
+                  <td className="px-3 py-6 text-center text-slate-500" colSpan={8}>
+                    검색 결과가 없습니다.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </section>

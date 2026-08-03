@@ -11,6 +11,7 @@ export async function createTeam(formData: FormData) {
 
   await prisma.team.create({ data: { name } });
   revalidatePath("/admin/teams");
+  revalidatePath("/platform");
 }
 
 export async function setTeamLeader(teamId: string, formData: FormData) {
@@ -31,12 +32,14 @@ export async function setTeamLeader(teamId: string, formData: FormData) {
 
   revalidatePath("/admin/teams");
   revalidatePath("/admin/users");
+  revalidatePath("/platform");
 }
 
 export async function deleteTeam(teamId: string) {
   await requireRole("ADMIN");
   await prisma.team.delete({ where: { id: teamId } });
   revalidatePath("/admin/teams");
+  revalidatePath("/platform");
 }
 
 export async function addTeamMember(teamId: string, formData: FormData) {
@@ -51,6 +54,7 @@ export async function addTeamMember(teamId: string, formData: FormData) {
 
   revalidatePath("/admin/teams");
   revalidatePath("/admin/users");
+  revalidatePath("/platform");
 }
 
 export async function removeTeamMember(teamId: string, userId: string) {
@@ -62,4 +66,5 @@ export async function removeTeamMember(teamId: string, userId: string) {
 
   revalidatePath("/admin/teams");
   revalidatePath("/admin/users");
+  revalidatePath("/platform");
 }

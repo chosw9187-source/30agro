@@ -95,6 +95,8 @@ export async function importUsersFromExcel(
 
   revalidatePath("/admin/users");
   revalidatePath("/admin/teams");
+  revalidatePath("/platform");
+  revalidatePath("/platform/employees");
 
   return { created, updated, errors };
 }

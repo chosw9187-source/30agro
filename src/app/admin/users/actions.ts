@@ -41,12 +41,16 @@ export async function createUser(formData: FormData) {
   });
 
   revalidatePath("/admin/users");
+  revalidatePath("/platform");
+  revalidatePath("/platform/employees");
 }
 
 export async function deleteUser(userId: string) {
   await requireRole("ADMIN");
   await prisma.user.delete({ where: { id: userId } });
   revalidatePath("/admin/users");
+  revalidatePath("/platform");
+  revalidatePath("/platform/employees");
 }
 
 export async function bulkDeleteUsers(formData: FormData) {
@@ -66,6 +70,8 @@ export async function bulkDeleteUsers(formData: FormData) {
   }
 
   revalidatePath("/admin/users");
+  revalidatePath("/platform");
+  revalidatePath("/platform/employees");
   redirect(`/admin/users?year=${year}&deleted=${ok}&skipped=${skipped}`);
 }
 
@@ -78,6 +84,7 @@ export async function updateUserRole(
 
   await prisma.user.update({ where: { id: userId }, data: { role } });
   revalidatePath("/admin/users");
+  revalidatePath("/platform/employees");
 }
 
 export async function resetUserPassword(userId: string) {

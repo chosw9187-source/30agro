@@ -10,6 +10,7 @@ type NavItem = {
   href: string;
   label: string;
   comingSoon?: boolean;
+  badgeCount?: number;
 };
 
 type Section = {
@@ -18,15 +19,22 @@ type Section = {
   items: NavItem[];
 };
 
-const mainItems: NavItem[] = [
-  { href: "/platform", label: "홈" },
-  { href: "/platform/hr-report", label: "HR REPORT", comingSoon: true },
-  { href: "/platform/org-chart", label: "조직도", comingSoon: true },
-  { href: "/platform/job-management", label: "직무관리", comingSoon: true },
-  { href: "/platform/task-management", label: "업무 관리", comingSoon: true },
-  { href: "/platform/employees", label: "직원정보 조회" },
-  { href: "/platform/legal-library", label: "AI 법률 라이브러리", comingSoon: true },
-];
+function mainItems(notificationCount: number): NavItem[] {
+  return [
+    { href: "/platform", label: "홈" },
+    { href: "/platform/hr-report", label: "HR REPORT", comingSoon: true },
+    { href: "/platform/org-chart", label: "조직도", comingSoon: true },
+    { href: "/platform/job-management", label: "직무관리", comingSoon: true },
+    { href: "/platform/task-management", label: "업무 관리", comingSoon: true },
+    { href: "/platform/employees", label: "직원정보 조회" },
+    { href: "/platform/legal-library", label: "AI 법률 라이브러리", comingSoon: true },
+    {
+      href: "/notifications",
+      label: "알림",
+      badgeCount: notificationCount > 0 ? notificationCount : undefined,
+    },
+  ];
+}
 
 function evaluationItems(role: Role): NavItem[] {
   if (role === "ADMIN") {
@@ -60,6 +68,12 @@ const supportItems: NavItem[] = [
   { href: "/platform/support", label: "문의 · 피드백", comingSoon: true },
 ];
 
+const roleLabel: Record<Role, string> = {
+  ADMIN: "관리자",
+  EVALUATOR: "평가자",
+  EMPLOYEE: "직원",
+};
+
 function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   return (
     <Link
@@ -76,11 +90,26 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
           개발 중
         </span>
       )}
+      {!!item.badgeCount && (
+        <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+          {item.badgeCount}
+        </span>
+      )}
     </Link>
   );
 }
 
-export function PlatformSidebar({ role }: { role: Role }) {
+export function PlatformSidebar({
+  role,
+  user,
+  notificationCount = 0,
+  onLogout,
+}: {
+  role: Role;
+  user: { name?: string | null; role: Role };
+  notificationCount?: number;
+  onLogout: () => Promise<void>;
+}) {
   const pathname = usePathname();
 
   function isActive(href: string) {
@@ -122,7 +151,7 @@ export function PlatformSidebar({ role }: { role: Role }) {
       </div>
 
       <div className="flex flex-col gap-1">
-        {mainItems.map((item) => (
+        {mainItems(notificationCount).map((item) => (
           <NavLink key={item.href} item={item} active={isActive(item.href)} />
         ))}
       </div>
@@ -163,6 +192,36 @@ export function PlatformSidebar({ role }: { role: Role }) {
           </div>
         );
       })}
+
+      <div className="mt-auto flex flex-col gap-1 border-t border-white/20 pt-3">
+        <button
+          type="button"
+          disabled
+          title="다크 모드는 준비 중입니다"
+          className="flex items-center gap-2 rounded px-3 py-2 text-left text-sm text-white/50"
+        >
+          ☾ 다크 모드로
+        </button>
+        <div className="flex items-center justify-between rounded px-3 py-2">
+          <div className="flex items-center gap-2 overflow-hidden">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-semibold text-white">
+              {user.name?.[0] ?? "?"}
+            </span>
+            <div className="min-w-0 text-xs text-white">
+              <p className="truncate font-medium">{user.name}</p>
+              <p className="text-white/70">{roleLabel[user.role]}</p>
+            </div>
+          </div>
+          <form action={onLogout}>
+            <button
+              type="submit"
+              className="shrink-0 rounded border border-white/30 px-2 py-1 text-xs text-white hover:bg-white/10"
+            >
+              로그아웃
+            </button>
+          </form>
+        </div>
+      </div>
     </nav>
   );
 }
