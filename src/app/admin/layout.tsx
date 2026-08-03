@@ -1,14 +1,12 @@
 import { requireRole } from "@/lib/auth-helpers";
-import { AppHeader } from "@/components/app-header";
+import { signOut } from "@/auth";
+import { PlatformSidebar } from "@/components/platform-sidebar";
 
-const navLinks = [
-  { href: "/admin", label: "대시보드" },
-  { href: "/admin/templates", label: "평가 템플릿" },
-  { href: "/admin/cycles", label: "평가 사이클" },
-  { href: "/admin/teams", label: "팀 관리" },
-  { href: "/admin/users", label: "사용자 관리" },
-  { href: "/admin/reports", label: "결과 다운로드" },
-];
+const roleLabel: Record<string, string> = {
+  ADMIN: "관리자",
+  EVALUATOR: "평가자",
+  EMPLOYEE: "직원",
+};
 
 export default async function AdminLayout({
   children,
@@ -18,11 +16,29 @@ export default async function AdminLayout({
   const session = await requireRole("ADMIN");
 
   return (
-    <div className="flex flex-1 flex-col">
-      <AppHeader title="인사팀 관리자" navLinks={navLinks} user={session.user} />
-      <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-8">
-        {children}
-      </main>
+    <div className="flex flex-1">
+      <PlatformSidebar />
+      <div className="flex flex-1 flex-col">
+        <header className="flex items-center justify-end gap-3 border-b border-slate-200 bg-white px-8 py-3 text-sm">
+          <span className="text-slate-500">
+            {session.user.name} ({roleLabel[session.user.role] ?? session.user.role})
+          </span>
+          <form
+            action={async () => {
+              "use server";
+              await signOut({ redirectTo: "/login" });
+            }}
+          >
+            <button
+              type="submit"
+              className="rounded border border-slate-300 px-3 py-1 text-slate-700 hover:border-brand-green hover:text-brand-green"
+            >
+              로그아웃
+            </button>
+          </form>
+        </header>
+        <main className="flex-1 overflow-y-auto px-8 py-8">{children}</main>
+      </div>
     </div>
   );
 }
