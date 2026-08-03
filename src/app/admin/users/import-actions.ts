@@ -138,6 +138,10 @@ export async function importUsersFromExcel(
   revalidatePath("/admin/teams");
   revalidatePath("/platform");
   revalidatePath("/platform/employees");
+  revalidatePath("/platform/org-chart");
+  revalidatePath("/platform/org-chart/[teamId]", "page");
+  revalidatePath("/platform/job-management");
+  revalidatePath("/platform/job-management/[teamId]", "page");
 
   return { created, updated, errors };
 }

@@ -10,6 +10,8 @@ import { TargetYearToggle } from "./target-year-toggle";
 import { SelectAllCheckbox } from "./select-all-checkbox";
 import { PositionSelect } from "./position-select";
 
+export const dynamic = "force-dynamic";
+
 const roleLabel: Record<string, string> = {
   ADMIN: "관리자",
   EVALUATOR: "평가자",

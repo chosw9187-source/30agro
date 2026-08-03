@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 
+export const dynamic = "force-dynamic";
+
 const roleLabel: Record<string, string> = {
   ADMIN: "관리자",
   EVALUATOR: "평가자",

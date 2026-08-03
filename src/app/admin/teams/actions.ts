@@ -21,6 +21,7 @@ export async function createTeam(formData: FormData) {
   revalidatePath("/admin/teams");
   revalidatePath("/platform");
   revalidatePath("/platform/org-chart");
+  revalidatePath("/platform/org-chart/[teamId]", "page");
 }
 
 export async function updateTeamHierarchy(teamId: string, formData: FormData) {
@@ -38,6 +39,7 @@ export async function updateTeamHierarchy(teamId: string, formData: FormData) {
 
   revalidatePath("/admin/teams");
   revalidatePath("/platform/org-chart");
+  revalidatePath("/platform/org-chart/[teamId]", "page");
 }
 
 export async function setTeamLeader(teamId: string, formData: FormData) {
@@ -60,6 +62,7 @@ export async function setTeamLeader(teamId: string, formData: FormData) {
   revalidatePath("/admin/users");
   revalidatePath("/platform");
   revalidatePath("/platform/org-chart");
+  revalidatePath("/platform/org-chart/[teamId]", "page");
 }
 
 export async function deleteTeam(teamId: string) {
@@ -68,6 +71,7 @@ export async function deleteTeam(teamId: string) {
   revalidatePath("/admin/teams");
   revalidatePath("/platform");
   revalidatePath("/platform/org-chart");
+  revalidatePath("/platform/org-chart/[teamId]", "page");
 }
 
 export async function addTeamMember(teamId: string, formData: FormData) {
@@ -84,6 +88,7 @@ export async function addTeamMember(teamId: string, formData: FormData) {
   revalidatePath("/admin/users");
   revalidatePath("/platform");
   revalidatePath("/platform/org-chart");
+  revalidatePath("/platform/org-chart/[teamId]", "page");
 }
 
 export async function removeTeamMember(teamId: string, userId: string) {
@@ -97,4 +102,5 @@ export async function removeTeamMember(teamId: string, userId: string) {
   revalidatePath("/admin/users");
   revalidatePath("/platform");
   revalidatePath("/platform/org-chart");
+  revalidatePath("/platform/org-chart/[teamId]", "page");
 }

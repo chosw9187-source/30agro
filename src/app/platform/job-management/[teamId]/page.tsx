@@ -6,6 +6,8 @@ import { saveJobDescription, uploadJobDescriptionFile } from "../actions";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 
+export const dynamic = "force-dynamic";
+
 function Field({
   label,
   name,

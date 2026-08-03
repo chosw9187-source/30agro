@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 
+export const dynamic = "force-dynamic";
+
 function TeamCard({
   team,
 }: {

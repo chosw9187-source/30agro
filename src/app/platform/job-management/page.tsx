@@ -5,6 +5,8 @@ import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { seedJobDescriptionsFromDraft } from "./actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function JobManagementPage() {
   if (!(await checkModuleAccess("JOB_MANAGEMENT"))) {
     return <NoModuleAccess title="직무관리" />;

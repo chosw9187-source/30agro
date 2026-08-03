@@ -8,6 +8,8 @@ import {
   removeTeamMember,
 } from "./actions";
 
+export const dynamic = "force-dynamic";
+
 const roleLabel: Record<string, string> = {
   EVALUATOR: "평가자",
   EMPLOYEE: "직원",
