@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { TeamFilterSelect } from "./team-filter-select";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ function greeting() {
 export default async function PlatformHomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ teamIds?: string | string[] }>;
+  searchParams: Promise<{ teamId?: string }>;
 }) {
   const session = await auth();
   const role = session!.user.role;
@@ -23,11 +24,7 @@ export default async function PlatformHomePage({
     role === "ADMIN" ? "/admin/evaluation" : role === "EVALUATOR" ? "/evaluate" : "/my-evaluations";
 
   const params = await searchParams;
-  const selectedTeamIds = params.teamIds
-    ? Array.isArray(params.teamIds)
-      ? params.teamIds
-      : [params.teamIds]
-    : [];
+  const selectedTeamId = params.teamId ?? "";
 
   const [employeeCount, allTeams, openCycles, totalAssignments] = await Promise.all([
     prisma.user.count(),
@@ -39,10 +36,9 @@ export default async function PlatformHomePage({
     prisma.evaluation.count(),
   ]);
 
-  const teams =
-    selectedTeamIds.length > 0
-      ? allTeams.filter((t) => selectedTeamIds.includes(t.id))
-      : allTeams;
+  const teams = selectedTeamId
+    ? allTeams.filter((t) => t.id === selectedTeamId)
+    : allTeams;
 
   return (
     <div className="flex flex-col gap-8">
@@ -59,30 +55,13 @@ export default async function PlatformHomePage({
               행 = 팀. 근속·연령·입퇴사 등 항목은 관련 정보가 등록되면 추후
               업데이트됩니다.
             </p>
-            <form method="GET" className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-              {allTeams.map((t) => (
-                <label key={t.id} className="flex items-center gap-1.5 text-sm text-slate-600">
-                  <input
-                    type="checkbox"
-                    name="teamIds"
-                    value={t.id}
-                    defaultChecked={selectedTeamIds.includes(t.id)}
-                  />
-                  {t.name}
-                </label>
-              ))}
-              <button
-                type="submit"
-                className="rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-100"
-              >
-                선택 적용
-              </button>
-              {selectedTeamIds.length > 0 && (
-                <Link href="/platform" className="text-sm text-slate-500 hover:underline">
-                  전체 보기
-                </Link>
-              )}
-            </form>
+            <div className="mt-3 flex items-center gap-2">
+              <span className="text-sm text-slate-500">팀</span>
+              <TeamFilterSelect
+                teams={allTeams.map((t) => ({ id: t.id, name: t.name }))}
+                selected={selectedTeamId}
+              />
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">

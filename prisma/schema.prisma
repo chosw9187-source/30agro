@@ -85,6 +85,19 @@ model Team {
 
   members       User[]         @relation("TeamMember")
   templateItems TemplateItem[]
+  jobDescription JobDescription?
+}
+
+model JobDescription {
+  id                 String   @id @default(cuid())
+  teamId             String   @unique
+  team               Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  responsibilities   String?
+  purpose            String?
+  relatedDepartments String?
+  qualifications     String?
+  languages          String?
+  updatedAt          DateTime @updatedAt
 }
 
 model EvaluationTemplate {

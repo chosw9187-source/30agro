@@ -194,14 +194,6 @@ export function PlatformSidebar({
       })}
 
       <div className="mt-auto flex flex-col gap-1 border-t border-white/20 pt-3">
-        <button
-          type="button"
-          disabled
-          title="다크 모드는 준비 중입니다"
-          className="flex items-center gap-2 rounded px-3 py-2 text-left text-sm text-white/50"
-        >
-          ☾ 다크 모드로
-        </button>
         <div className="flex items-center justify-between rounded px-3 py-2">
           <div className="flex items-center gap-2 overflow-hidden">
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-semibold text-white">
