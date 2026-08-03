@@ -24,25 +24,36 @@ export default async function TeamOrgDetailPage({
     where: { id: teamId },
     include: {
       leader: true,
+      operationsHead: true,
+      senior: true,
       members: { orderBy: { name: "asc" } },
     },
   });
 
   if (!team) notFound();
 
-  const backHref = team.division
-    ? `/platform/org-chart?division=${encodeURIComponent(team.division)}`
+  const params_ = new URLSearchParams();
+  if (team.operationsHeadId) params_.set("opsHead", team.operationsHeadId);
+  if (team.seniorId) params_.set("senior", team.seniorId);
+  const backHref = params_.toString()
+    ? `/platform/org-chart?${params_.toString()}`
     : "/platform/org-chart";
+  const backLabel = team.senior
+    ? `${team.senior.name} 책임`
+    : team.operationsHead
+      ? `${team.operationsHead.name} 운영책임`
+      : "조직도";
 
   return (
     <div className="flex flex-col gap-6">
       <Link href={backHref} className="text-sm text-slate-500 hover:underline">
-        ← {team.division ?? "조직도"}
+        ← {backLabel}
       </Link>
 
       <div className="rounded-lg border border-brand-green-dark bg-brand-green px-8 py-6 text-white">
         <p className="text-sm text-white/80">
-          {team.division ? `${team.division} · ` : ""}
+          {team.operationsHead ? `${team.operationsHead.name} 운영책임 · ` : ""}
+          {team.senior ? `${team.senior.name} 책임 · ` : ""}
           {team.name}
         </p>
         <p className="mt-1 text-2xl font-bold">

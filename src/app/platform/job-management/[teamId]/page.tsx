@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { saveJobDescription } from "../actions";
+import { saveJobDescription, uploadJobDescriptionFile } from "../actions";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 
@@ -53,7 +53,21 @@ export default async function JobDescriptionDetailPage({
 
   const team = await prisma.team.findUnique({
     where: { id: teamId },
-    include: { leader: true, jobDescription: true },
+    include: {
+      leader: true,
+      jobDescription: {
+        select: {
+          responsibilities: true,
+          purpose: true,
+          relatedDepartments: true,
+          qualifications: true,
+          languages: true,
+          fileName: true,
+          fileType: true,
+          fileUpdatedAt: true,
+        },
+      },
+    },
   });
 
   if (!team) notFound();
@@ -109,6 +123,50 @@ export default async function JobDescriptionDetailPage({
       </div>
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-3 text-lg font-medium">직무기술서 첨부파일</h2>
+        {jd?.fileName ? (
+          <p className="text-sm text-slate-600">
+            📎{" "}
+            <a
+              href={`/api/job-description/${team.id}/file`}
+              className="text-brand-green hover:underline"
+            >
+              {jd.fileName}
+            </a>
+            {jd.fileUpdatedAt && (
+              <span className="ml-2 text-slate-400">
+                업데이트: {jd.fileUpdatedAt.toLocaleDateString("ko-KR")}
+              </span>
+            )}
+          </p>
+        ) : (
+          <p className="text-sm text-slate-500">아직 첨부된 파일이 없습니다.</p>
+        )}
+        {isAdmin && (
+          <form
+            action={uploadJobDescriptionFile.bind(null, team.id)}
+            encType="multipart/form-data"
+            className="mt-3 flex items-center gap-2"
+          >
+            <input
+              type="file"
+              name="file"
+              required
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx"
+              className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
+            />
+            <button
+              type="submit"
+              className="rounded bg-brand-green px-4 py-2 text-sm text-white hover:bg-brand-green-dark"
+            >
+              업로드 (덮어쓰기)
+            </button>
+          </form>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-3 text-lg font-medium">요약 정보</h2>
         {isAdmin ? (
           <form action={saveJobDescription.bind(null, team.id)} className="flex flex-col gap-4">
             {fields}

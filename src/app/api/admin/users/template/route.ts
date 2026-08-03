@@ -1,0 +1,43 @@
+import * as XLSX from "xlsx";
+import { auth } from "@/auth";
+
+export async function GET() {
+  const session = await auth();
+  if (!session?.user || session.user.role !== "ADMIN") {
+    return Response.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  const headers = [
+    "이름",
+    "사번",
+    "이메일주소",
+    "팀명",
+    "직책",
+    "생년월일",
+    "입사일",
+    "퇴사일",
+  ];
+  const example = [
+    "홍길동",
+    "20260001",
+    "hong@example.com",
+    "재경팀",
+    "담당",
+    "1990-01-15",
+    "2020-03-01",
+    "",
+  ];
+
+  const sheet = XLSX.utils.aoa_to_sheet([headers, example]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheet, "사용자");
+  const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+
+  return new Response(new Uint8Array(buffer), {
+    headers: {
+      "Content-Type":
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent("사용자관리_업로드양식.xlsx")}`,
+    },
+  });
+}

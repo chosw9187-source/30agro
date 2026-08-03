@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import {
   createTeam,
-  updateTeamDivision,
+  updateTeamHierarchy,
   setTeamLeader,
   deleteTeam,
   addTeamMember,
@@ -17,7 +17,7 @@ export default async function TeamsPage() {
   const [teams, users] = await Promise.all([
     prisma.team.findMany({
       orderBy: { createdAt: "asc" },
-      include: { leader: true, members: true },
+      include: { leader: true, members: true, operationsHead: true, senior: true },
     }),
     prisma.user.findMany({
       where: { role: { not: "ADMIN" } },
@@ -26,41 +26,51 @@ export default async function TeamsPage() {
     }),
   ]);
 
-  const divisions = Array.from(
-    new Set(teams.map((t) => t.division).filter((d): d is string => !!d))
-  ).sort();
-
   return (
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-2xl font-semibold">팀 관리</h1>
         <p className="mt-1 text-slate-600">
           팀별 팀장을 지정하면, 사이클 배정 시 팀 소속 직원의 평가자로 자동 지정됩니다.
-          직원을 팀장으로 지정하면 평가자 권한이 자동으로 부여됩니다.
+          직원을 팀장으로 지정하면 평가자 권한이 자동으로 부여됩니다. 조직도는
+          사명 → 운영책임 → 책임 → 팀 순으로 표시되며, 운영책임·책임을
+          지정하지 않으면 그 단계를 건너뛰고 바로 상위(또는 사명)에 표시됩니다.
         </p>
       </div>
 
-      <datalist id="division-options">
-        {divisions.map((d) => (
-          <option key={d} value={d} />
-        ))}
-      </datalist>
-
       <section className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 text-lg font-medium">새 팀 만들기</h2>
-        <form action={createTeam} className="flex gap-3">
+        <form action={createTeam} className="flex flex-wrap gap-3">
           <input
             name="name"
             required
             placeholder="팀 이름 (예: 개발팀)"
             className="flex-1 rounded border border-slate-300 px-3 py-2"
           />
-          <input
-            name="division"
-            list="division-options"
-            placeholder="본부 (예: 제품사업)"
-            className="flex-1 rounded border border-slate-300 px-3 py-2"
-          />
+          <select
+            name="operationsHeadId"
+            defaultValue=""
+            className="rounded border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">운영책임 미지정</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name} (운영책임)
+              </option>
+            ))}
+          </select>
+          <select
+            name="seniorId"
+            defaultValue=""
+            className="rounded border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="">책임 미지정</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name} (책임)
+              </option>
+            ))}
+          </select>
           <button
             type="submit"
             className="rounded bg-brand-green px-4 py-2 text-white hover:bg-brand-green-dark"
@@ -81,9 +91,14 @@ export default async function TeamsPage() {
               <div>
                 <p className="font-medium">
                   {team.name}
-                  {team.division && (
+                  {team.operationsHead && (
                     <span className="ml-2 rounded bg-brand-green-light px-2 py-0.5 text-xs font-normal text-brand-green-dark">
-                      {team.division}
+                      {team.operationsHead.name} 운영책임
+                    </span>
+                  )}
+                  {team.senior && (
+                    <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600">
+                      {team.senior.name} 책임
                     </span>
                   )}
                 </p>
@@ -102,17 +117,34 @@ export default async function TeamsPage() {
               </form>
             </div>
             <form
-              action={updateTeamDivision.bind(null, team.id)}
-              className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3"
+              action={updateTeamHierarchy.bind(null, team.id)}
+              className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3"
             >
-              <label className="text-sm text-slate-600">본부</label>
-              <input
-                name="division"
-                list="division-options"
-                defaultValue={team.division ?? ""}
-                placeholder="예: 제품사업"
+              <label className="text-sm text-slate-600">조직 위치</label>
+              <select
+                name="operationsHeadId"
+                defaultValue={team.operationsHeadId ?? ""}
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
-              />
+              >
+                <option value="">운영책임 미지정</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} (운영책임)
+                  </option>
+                ))}
+              </select>
+              <select
+                name="seniorId"
+                defaultValue={team.seniorId ?? ""}
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="">책임 미지정</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} (책임)
+                  </option>
+                ))}
+              </select>
               <button
                 type="submit"
                 className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"

@@ -76,6 +76,8 @@ model User {
   assignedItems    TemplateItem[]       @relation("AssignedItems")
   notifications    Notification[]       @relation("NotificationRecipient")
   targetYears      UserTargetYear[]
+  teamsAsOperationsHead Team[]          @relation("TeamOperationsHead")
+  teamsAsSenior         Team[]          @relation("TeamSenior")
 }
 
 model UserTargetYear {
@@ -91,9 +93,14 @@ model UserTargetYear {
 model Team {
   id        String   @id @default(cuid())
   name      String   @unique
-  division  String?
   leaderId  String?
   leader    User?    @relation("TeamLeader", fields: [leaderId], references: [id])
+
+  operationsHeadId String?
+  operationsHead   User?   @relation("TeamOperationsHead", fields: [operationsHeadId], references: [id])
+  seniorId         String?
+  senior           User?   @relation("TeamSenior", fields: [seniorId], references: [id])
+
   createdAt DateTime @default(now())
 
   members       User[]         @relation("TeamMember")
@@ -110,6 +117,10 @@ model JobDescription {
   relatedDepartments String?
   qualifications     String?
   languages          String?
+  fileName           String?
+  fileType           String?
+  fileData           Bytes?
+  fileUpdatedAt      DateTime?
   updatedAt          DateTime @updatedAt
 }
 
