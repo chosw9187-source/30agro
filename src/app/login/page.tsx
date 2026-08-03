@@ -8,7 +8,7 @@ export default function LoginPage() {
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
           <CompanyLogo className="scale-125" />
           <h1 className="text-lg font-semibold text-brand-black">
-            인사 평가 시스템
+            한국삼공 HR 플랫폼
           </h1>
           <p className="text-sm text-slate-500">로그인하여 계속하세요.</p>
         </div>

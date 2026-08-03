@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "인사 평가 시스템",
-  description: "실시간 인사 평가 및 협업 시스템",
+  title: "한국삼공 HR 플랫폼",
+  description: "한국삼공 HR 플랫폼",
 };
 
 export default function RootLayout({
