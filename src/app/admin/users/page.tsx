@@ -8,6 +8,7 @@ import { RoleSelect } from "./role-select";
 import { UserRowActions } from "./user-row-actions";
 import { TargetYearToggle } from "./target-year-toggle";
 import { SelectAllCheckbox } from "./select-all-checkbox";
+import { PositionSelect } from "./position-select";
 
 const roleLabel: Record<string, string> = {
   ADMIN: "관리자",
@@ -280,6 +281,7 @@ export default async function UsersPage({
                     </Link>
                   </th>
                 ))}
+                <th className="px-3 py-2 font-medium">직책</th>
                 <th className="px-3 py-2 font-medium">{selectedYear}년 대상</th>
                 <th className="px-3 py-2"></th>
               </tr>
@@ -302,6 +304,9 @@ export default async function UsersPage({
                   </td>
                   <td className="px-3 py-2 text-slate-400">{u.team?.name ?? "-"}</td>
                   <td className="px-3 py-2">
+                    <PositionSelect userId={u.id} position={u.position} />
+                  </td>
+                  <td className="px-3 py-2">
                     <TargetYearToggle
                       userId={u.id}
                       year={selectedYear}
@@ -315,7 +320,7 @@ export default async function UsersPage({
               ))}
               {users.length === 0 && (
                 <tr>
-                  <td className="px-3 py-6 text-center text-slate-500" colSpan={8}>
+                  <td className="px-3 py-6 text-center text-slate-500" colSpan={9}>
                     검색 결과가 없습니다.
                   </td>
                 </tr>

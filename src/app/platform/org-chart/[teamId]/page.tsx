@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { checkModuleAccess } from "@/lib/permissions";
+import { NoModuleAccess } from "@/components/no-module-access";
 
 const roleLabel: Record<string, string> = {
   ADMIN: "관리자",
@@ -13,6 +15,10 @@ export default async function TeamOrgDetailPage({
 }: {
   params: Promise<{ teamId: string }>;
 }) {
+  if (!(await checkModuleAccess("ORG_CHART"))) {
+    return <NoModuleAccess title="조직도" />;
+  }
+
   const { teamId } = await params;
   const team = await prisma.team.findUnique({
     where: { id: teamId },

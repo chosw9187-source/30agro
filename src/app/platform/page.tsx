@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { TeamFilterSelect } from "./team-filter-select";
+import { getVisibleHomeBlocks, type Position } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ export default async function PlatformHomePage({
   const params = await searchParams;
   const selectedTeamId = params.teamId ?? "";
 
-  const [employeeCount, allTeams, openCycles, totalAssignments] = await Promise.all([
+  const [employeeCount, allTeams, openCycles, totalAssignments, dbUser] = await Promise.all([
     prisma.user.count(),
     prisma.team.findMany({
       orderBy: { name: "asc" },
@@ -34,11 +35,20 @@ export default async function PlatformHomePage({
     }),
     prisma.evaluationCycle.count({ where: { status: "OPEN" } }),
     prisma.evaluation.count(),
+    prisma.user.findUnique({ where: { id: session!.user.id }, select: { position: true } }),
   ]);
+
+  const position = (dbUser?.position ?? "STAFF") as Position;
+  const visibleBlocks = await getVisibleHomeBlocks(role, position);
 
   const teams = selectedTeamId
     ? allTeams.filter((t) => t.id === selectedTeamId)
     : allTeams;
+
+  const showTeamSummary = visibleBlocks.has("TEAM_SUMMARY");
+  const showOverallSummary = visibleBlocks.has("OVERALL_SUMMARY");
+  const showQuickLinks = visibleBlocks.has("QUICK_LINKS");
+  const showSideColumn = showOverallSummary || showQuickLinks;
 
   return (
     <div className="flex flex-col gap-8">
@@ -47,7 +57,12 @@ export default async function PlatformHomePage({
         <h1 className="text-2xl font-semibold">{session?.user.name}님</h1>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_280px]">
+      <div
+        className={`grid grid-cols-1 gap-6 ${
+          showTeamSummary && showSideColumn ? "lg:grid-cols-[1fr_280px]" : ""
+        }`}
+      >
+        {showTeamSummary && (
         <section className="rounded-lg border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-6 py-4">
             <h2 className="text-lg font-medium">팀별 종합</h2>
@@ -103,8 +118,11 @@ export default async function PlatformHomePage({
             </table>
           </div>
         </section>
+        )}
 
+        {showSideColumn && (
         <section className="flex flex-col gap-4">
+          {showOverallSummary && (
           <div className="rounded-lg border border-slate-200 bg-white p-4">
             <h3 className="mb-3 text-sm font-medium text-slate-700">전체 요약</h3>
             <dl className="flex flex-col gap-2 text-sm">
@@ -126,7 +144,9 @@ export default async function PlatformHomePage({
               </div>
             </dl>
           </div>
+          )}
 
+          {showQuickLinks && (
           <div className="rounded-lg border border-slate-200 bg-white p-4">
             <h3 className="mb-3 text-sm font-medium text-slate-700">바로가기</h3>
             <div className="flex flex-col gap-2 text-sm">
@@ -152,7 +172,9 @@ export default async function PlatformHomePage({
               )}
             </div>
           </div>
+          )}
         </section>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,12 @@
 import { ComingSoon } from "@/components/coming-soon";
+import { checkModuleAccess } from "@/lib/permissions";
+import { NoModuleAccess } from "@/components/no-module-access";
 
-export default function HrReportPage() {
+export default async function HrReportPage() {
+  if (!(await checkModuleAccess("HR_REPORT"))) {
+    return <NoModuleAccess title="HR REPORT" />;
+  }
+
   return (
     <ComingSoon
       title="HR REPORT"

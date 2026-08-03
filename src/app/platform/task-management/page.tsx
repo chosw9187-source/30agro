@@ -1,6 +1,12 @@
 import { ComingSoon } from "@/components/coming-soon";
+import { checkModuleAccess } from "@/lib/permissions";
+import { NoModuleAccess } from "@/components/no-module-access";
 
-export default function TaskManagementPage() {
+export default async function TaskManagementPage() {
+  if (!(await checkModuleAccess("TASK_MANAGEMENT"))) {
+    return <NoModuleAccess title="업무 관리" />;
+  }
+
   return (
     <ComingSoon
       title="업무 관리"

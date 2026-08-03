@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { checkModuleAccess } from "@/lib/permissions";
+import { NoModuleAccess } from "@/components/no-module-access";
 
 const roleLabel: Record<string, string> = {
   ADMIN: "관리자",
@@ -11,6 +13,10 @@ export default async function EmployeeDirectoryPage({
 }: {
   searchParams: Promise<{ q?: string; teamId?: string }>;
 }) {
+  if (!(await checkModuleAccess("EMPLOYEES"))) {
+    return <NoModuleAccess title="직원정보 조회" />;
+  }
+
   const params = await searchParams;
   const q = (params.q ?? "").trim();
   const teamId = params.teamId ?? "";

@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { checkModuleAccess } from "@/lib/permissions";
+import { NoModuleAccess } from "@/components/no-module-access";
 
 export default async function OrgChartPage() {
+  if (!(await checkModuleAccess("ORG_CHART"))) {
+    return <NoModuleAccess title="조직도" />;
+  }
+
   const teams = await prisma.team.findMany({
     orderBy: { name: "asc" },
     include: { leader: true, _count: { select: { members: true } } },

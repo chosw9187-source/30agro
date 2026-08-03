@@ -13,9 +13,11 @@ export function ImportUsersForm({ defaultYear }: { defaultYear: number }) {
     <form action={formAction} className="flex flex-col gap-3">
       <p className="text-sm text-slate-500">
         엑셀 파일의 첫 행은 헤더로, <strong>이름 / 사번 / 이메일주소 / 팀명</strong> 열이
-        있어야 합니다. 이메일이 이미 존재하면 정보를 갱신하고, 새 이메일이면 직원
-        권한으로 새로 등록합니다. 비밀번호는 사번으로 자동 설정됩니다. 아래
-        연도의 대상자로도 함께 등록됩니다.
+        필수이고, <strong>생년월일 / 입사일 / 퇴사일 / 직책</strong>(사장·임원·부서장·팀장·팀원·인사팀·관리자)
+        열은 있으면 함께 반영됩니다(날짜는 YYYY-MM-DD 형식 권장). 이메일이 이미
+        존재하면 정보를 갱신하고, 새 이메일이면 직원 권한으로 새로 등록합니다.
+        비밀번호는 사번으로 자동 설정됩니다. 아래 연도의 대상자로도 함께
+        등록됩니다.
       </p>
       <div className="flex items-center gap-2">
         <label className="text-sm text-slate-600">대상 연도</label>

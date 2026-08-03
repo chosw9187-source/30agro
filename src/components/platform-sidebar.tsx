@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { Module } from "@/lib/permissions";
 
 type Role = "ADMIN" | "EVALUATOR" | "EMPLOYEE";
 
@@ -11,6 +12,7 @@ type NavItem = {
   label: string;
   comingSoon?: boolean;
   badgeCount?: number;
+  module?: Module;
 };
 
 type Section = {
@@ -22,12 +24,22 @@ type Section = {
 function mainItems(notificationCount: number): NavItem[] {
   return [
     { href: "/platform", label: "홈" },
-    { href: "/platform/hr-report", label: "HR REPORT", comingSoon: true },
-    { href: "/platform/org-chart", label: "조직도", comingSoon: true },
-    { href: "/platform/job-management", label: "직무관리", comingSoon: true },
-    { href: "/platform/task-management", label: "업무 관리", comingSoon: true },
-    { href: "/platform/employees", label: "직원정보 조회" },
-    { href: "/platform/legal-library", label: "AI 법률 라이브러리", comingSoon: true },
+    { href: "/platform/hr-report", label: "HR REPORT", comingSoon: true, module: "HR_REPORT" },
+    { href: "/platform/org-chart", label: "조직도", module: "ORG_CHART" },
+    { href: "/platform/job-management", label: "직무관리", module: "JOB_MANAGEMENT" },
+    {
+      href: "/platform/task-management",
+      label: "업무 관리",
+      comingSoon: true,
+      module: "TASK_MANAGEMENT",
+    },
+    { href: "/platform/employees", label: "직원정보 조회", module: "EMPLOYEES" },
+    {
+      href: "/platform/legal-library",
+      label: "AI 법률 라이브러리",
+      comingSoon: true,
+      module: "LEGAL_LIBRARY",
+    },
     {
       href: "/notifications",
       label: "알림",
@@ -53,15 +65,15 @@ function evaluationItems(role: Role): NavItem[] {
 }
 
 function manageItems(role: Role): NavItem[] {
-  const items: NavItem[] = [];
-  if (role === "ADMIN") {
-    items.push({ href: "/admin/users", label: "사용자 관리" });
+  if (role !== "ADMIN") {
+    return [{ href: "/platform/data-upload", label: "데이터 업로드", comingSoon: true }];
   }
-  items.push(
+  return [
+    { href: "/admin/users", label: "사용자 관리" },
     { href: "/platform/data-upload", label: "데이터 업로드", comingSoon: true },
-    { href: "/platform/screen-config", label: "화면 구성", comingSoon: true }
-  );
-  return items;
+    { href: "/admin/permission-matrix", label: "권한 매트릭스" },
+    { href: "/admin/screen-config", label: "화면 구성" },
+  ];
 }
 
 const supportItems: NavItem[] = [
@@ -104,24 +116,34 @@ export function PlatformSidebar({
   user,
   notificationCount = 0,
   onLogout,
+  visibleModules,
 }: {
   role: Role;
   user: { name?: string | null; role: Role };
   notificationCount?: number;
   onLogout: () => Promise<void>;
+  visibleModules: Module[];
 }) {
   const pathname = usePathname();
+  const visible = new Set(visibleModules);
 
   function isActive(href: string) {
     if (href === "/platform") return pathname === "/platform";
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 
+  const visibleMainItems = mainItems(notificationCount).filter(
+    (item) => !item.module || visible.has(item.module)
+  );
+
   const sections: Section[] = [
     { key: "eval", label: "평가", items: evaluationItems(role) },
     { key: "manage", label: "관리", items: manageItems(role) },
     { key: "support", label: "지원", items: supportItems },
   ];
+  if (!visible.has("EVALUATION")) {
+    sections[0] = { ...sections[0], items: [] };
+  }
 
   // Manual open/close overrides from clicks; sections not overridden default
   // to open when the current path is inside them (computed at render time,
@@ -151,7 +173,7 @@ export function PlatformSidebar({
       </div>
 
       <div className="flex flex-col gap-1">
-        {mainItems(notificationCount).map((item) => (
+        {visibleMainItems.map((item) => (
           <NavLink key={item.href} item={item} active={isActive(item.href)} />
         ))}
       </div>

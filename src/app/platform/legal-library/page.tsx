@@ -1,6 +1,12 @@
 import { ComingSoon } from "@/components/coming-soon";
+import { checkModuleAccess } from "@/lib/permissions";
+import { NoModuleAccess } from "@/components/no-module-access";
 
-export default function LegalLibraryPage() {
+export default async function LegalLibraryPage() {
+  if (!(await checkModuleAccess("LEGAL_LIBRARY"))) {
+    return <NoModuleAccess title="AI 법률 라이브러리" />;
+  }
+
   return (
     <ComingSoon
       title="AI 법률 라이브러리"

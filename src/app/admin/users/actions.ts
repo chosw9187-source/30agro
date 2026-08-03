@@ -87,6 +87,16 @@ export async function updateUserRole(
   revalidatePath("/platform/employees");
 }
 
+export async function updateUserPosition(
+  userId: string,
+  position: "CEO" | "OPERATIONS_HEAD" | "SENIOR_STAFF" | "TEAM_LEADER" | "STAFF"
+) {
+  await requireRole("ADMIN");
+  await prisma.user.update({ where: { id: userId }, data: { position } });
+  revalidatePath("/admin/users");
+  revalidatePath("/platform/employees");
+}
+
 export async function resetUserPassword(userId: string) {
   await requireRole("ADMIN");
 

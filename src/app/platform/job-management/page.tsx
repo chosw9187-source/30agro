@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { checkModuleAccess } from "@/lib/permissions";
+import { NoModuleAccess } from "@/components/no-module-access";
 
 export default async function JobManagementPage() {
+  if (!(await checkModuleAccess("JOB_MANAGEMENT"))) {
+    return <NoModuleAccess title="직무관리" />;
+  }
+
   const teams = await prisma.team.findMany({
     orderBy: { name: "asc" },
     include: { leader: true, jobDescription: true },

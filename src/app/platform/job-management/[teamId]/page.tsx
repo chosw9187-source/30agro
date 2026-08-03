@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { saveJobDescription } from "../actions";
+import { checkModuleAccess } from "@/lib/permissions";
+import { NoModuleAccess } from "@/components/no-module-access";
 
 function Field({
   label,
@@ -41,6 +43,10 @@ export default async function JobDescriptionDetailPage({
 }: {
   params: Promise<{ teamId: string }>;
 }) {
+  if (!(await checkModuleAccess("JOB_MANAGEMENT"))) {
+    return <NoModuleAccess title="직무관리" />;
+  }
+
   const { teamId } = await params;
   const session = await auth();
   const isAdmin = session?.user.role === "ADMIN";

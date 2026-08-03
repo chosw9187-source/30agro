@@ -5,12 +5,37 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
+import type { Position } from "@/lib/permissions";
 
 type ImportResult = {
   created: number;
   updated: number;
   errors: string[];
 };
+
+const POSITION_TEXT_MAP: Record<string, Position> = {
+  사장: "CEO",
+  대표: "CEO",
+  운영책임: "OPERATIONS_HEAD",
+  책임: "SENIOR_STAFF",
+  팀장: "TEAM_LEADER",
+  담당: "STAFF",
+};
+
+function parsePosition(value: unknown): Position | undefined {
+  const text = String(value ?? "").trim();
+  return POSITION_TEXT_MAP[text];
+}
+
+function parseExcelDate(value: unknown): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = new Date(value.trim());
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+}
 
 export async function importUsersFromExcel(
   _prevState: ImportResult | undefined,
@@ -25,7 +50,7 @@ export async function importUsersFromExcel(
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const workbook = XLSX.read(buffer, { type: "buffer" });
+  const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
 
@@ -40,6 +65,10 @@ export async function importUsersFromExcel(
     const employeeNumber = String(row["사번"] ?? "").trim();
     const email = String(row["이메일주소"] ?? "").trim();
     const teamName = String(row["팀명"] ?? "").trim();
+    const birthDate = parseExcelDate(row["생년월일"]);
+    const hireDate = parseExcelDate(row["입사일"]);
+    const terminationDate = parseExcelDate(row["퇴사일"]);
+    const position = parsePosition(row["직책"]);
 
     if (!name || !employeeNumber || !email) {
       errors.push(`${rowNum}행: 이름/사번/이메일주소는 필수입니다.`);
@@ -63,7 +92,15 @@ export async function importUsersFromExcel(
       if (existing) {
         await prisma.user.update({
           where: { email },
-          data: { name, employeeNumber, teamId },
+          data: {
+            name,
+            employeeNumber,
+            teamId,
+            birthDate,
+            hireDate,
+            terminationDate,
+            ...(position ? { position } : {}),
+          },
         });
         userId = existing.id;
         updated++;
@@ -76,6 +113,10 @@ export async function importUsersFromExcel(
             employeeNumber,
             passwordHash,
             role: "EMPLOYEE",
+            birthDate,
+            hireDate,
+            terminationDate,
+            ...(position ? { position } : {}),
             teamId,
           },
         });

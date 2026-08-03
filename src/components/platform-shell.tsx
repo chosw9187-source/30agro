@@ -2,6 +2,7 @@ import Link from "next/link";
 import { signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { PlatformSidebar } from "@/components/platform-sidebar";
+import { getVisibleModules, type Position } from "@/lib/permissions";
 
 export async function PlatformShell({
   user,
@@ -10,9 +11,12 @@ export async function PlatformShell({
   user: { id: string; name?: string | null; role: "ADMIN" | "EVALUATOR" | "EMPLOYEE" };
   children: React.ReactNode;
 }) {
-  const notificationCount = await prisma.notification.count({
-    where: { recipientId: user.id, readAt: null },
-  });
+  const [notificationCount, dbUser] = await Promise.all([
+    prisma.notification.count({ where: { recipientId: user.id, readAt: null } }),
+    prisma.user.findUnique({ where: { id: user.id }, select: { position: true } }),
+  ]);
+  const position = (dbUser?.position ?? "STAFF") as Position;
+  const visibleModules = await getVisibleModules(user.role, position);
 
   async function logout() {
     "use server";
@@ -26,6 +30,7 @@ export async function PlatformShell({
         user={user}
         notificationCount={notificationCount}
         onLogout={logout}
+        visibleModules={[...visibleModules]}
       />
       <div className="flex flex-1 flex-col">
         <header className="flex items-center justify-end border-b border-slate-200 bg-white px-8 py-3 text-sm">
