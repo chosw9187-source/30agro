@@ -41,9 +41,9 @@ export default async function TeamOrgDetailPage({
     ? `/platform/org-chart?${params_.toString()}`
     : "/platform/org-chart";
   const backLabel = team.senior
-    ? `${team.senior.name} 책임`
+    ? `${team.senior.name} 본부`
     : team.operationsHead
-      ? `${team.operationsHead.name} 운영책임`
+      ? `${team.operationsHead.name} 사업단위`
       : "조직도";
 
   return (
@@ -54,8 +54,8 @@ export default async function TeamOrgDetailPage({
 
       <div className="rounded-lg border border-brand-green-dark bg-brand-green px-8 py-6 text-white">
         <p className="text-sm text-white/80">
-          {team.operationsHead ? `${team.operationsHead.name} 운영책임 · ` : ""}
-          {team.senior ? `${team.senior.name} 책임 · ` : ""}
+          {team.operationsHead ? `${team.operationsHead.name} 사업단위 · ` : ""}
+          {team.senior ? `${team.senior.name} 본부 · ` : ""}
           {team.name}
         </p>
         <p className="mt-1 text-2xl font-bold">

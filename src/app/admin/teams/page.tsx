@@ -35,7 +35,7 @@ export default async function TeamsPage() {
         <p className="mt-1 text-slate-600">
           팀별 팀장을 지정하면, 사이클 배정 시 팀 소속 직원의 평가자로 자동 지정됩니다.
           직원을 팀장으로 지정하면 평가자 권한이 자동으로 부여됩니다. 조직도는
-          사명 → 운영책임 → 책임 → 팀 순으로 표시되며, 운영책임·책임을
+          사명 → 사업단위 → 본부 → 팀 순으로 표시되며, 사업단위·본부를
           지정하지 않으면 그 단계를 건너뛰고 바로 상위(또는 사명)에 표시됩니다.
         </p>
       </div>
@@ -54,10 +54,10 @@ export default async function TeamsPage() {
             defaultValue=""
             className="rounded border border-slate-300 px-3 py-2 text-sm"
           >
-            <option value="">운영책임 미지정</option>
+            <option value="">사업단위 미지정</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
-                {u.name} (운영책임)
+                {u.name} (사업단위)
               </option>
             ))}
           </select>
@@ -66,10 +66,10 @@ export default async function TeamsPage() {
             defaultValue=""
             className="rounded border border-slate-300 px-3 py-2 text-sm"
           >
-            <option value="">책임 미지정</option>
+            <option value="">본부 미지정</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
-                {u.name} (책임)
+                {u.name} (본부)
               </option>
             ))}
           </select>
@@ -95,12 +95,12 @@ export default async function TeamsPage() {
                   {team.name}
                   {team.operationsHead && (
                     <span className="ml-2 rounded bg-brand-green-light px-2 py-0.5 text-xs font-normal text-brand-green-dark">
-                      {team.operationsHead.name} 운영책임
+                      {team.operationsHead.name} 사업단위
                     </span>
                   )}
                   {team.senior && (
                     <span className="ml-2 rounded bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600">
-                      {team.senior.name} 책임
+                      {team.senior.name} 본부
                     </span>
                   )}
                 </p>
@@ -128,10 +128,10 @@ export default async function TeamsPage() {
                 defaultValue={team.operationsHeadId ?? ""}
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
               >
-                <option value="">운영책임 미지정</option>
+                <option value="">사업단위 미지정</option>
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.name} (운영책임)
+                    {u.name} (사업단위)
                   </option>
                 ))}
               </select>
@@ -140,10 +140,10 @@ export default async function TeamsPage() {
                 defaultValue={team.seniorId ?? ""}
                 className="rounded border border-slate-300 px-3 py-2 text-sm"
               >
-                <option value="">책임 미지정</option>
+                <option value="">본부 미지정</option>
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.name} (책임)
+                    {u.name} (본부)
                   </option>
                 ))}
               </select>

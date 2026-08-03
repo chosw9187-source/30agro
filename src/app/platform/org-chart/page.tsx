@@ -112,11 +112,11 @@ export default async function OrgChartPage({
           href={`/platform/org-chart?opsHead=${encodeURIComponent(opsHead)}`}
           className="text-sm text-slate-500 hover:underline"
         >
-          ← {opsUser?.name ?? "운영책임"} 운영책임
+          ← {opsUser?.name ?? "사업단위"} 사업단위
         </Link>
         {header(
-          `${seniorUser?.name ?? "책임"} 책임`,
-          `한국삼공 · ${opsUser?.name ?? "운영책임"} 운영책임 · ${seniorUser?.name ?? "책임"} 책임`,
+          `${seniorUser?.name ?? "본부"} 본부`,
+          `한국삼공 · ${opsUser?.name ?? "사업단위"} 사업단위 · ${seniorUser?.name ?? "본부"} 본부`,
           leafTeams.length,
           memberCount
         )}
@@ -161,8 +161,8 @@ export default async function OrgChartPage({
           ← 조직도
         </Link>
         {header(
-          `${opsUser?.name ?? "운영책임"} 운영책임`,
-          `한국삼공 · ${opsUser?.name ?? "운영책임"} 운영책임`,
+          `${opsUser?.name ?? "사업단위"} 사업단위`,
+          `한국삼공 · ${opsUser?.name ?? "사업단위"} 사업단위`,
           teamsUnderHead.length,
           memberCount
         )}
@@ -171,7 +171,7 @@ export default async function OrgChartPage({
             <GroupCard
               key={id}
               name={g.name}
-              role="책임"
+              role="본부"
               teamCount={g.teamCount}
               memberCount={g.memberCount}
               href={`/platform/org-chart?opsHead=${encodeURIComponent(opsHead)}&senior=${encodeURIComponent(id)}`}
@@ -188,7 +188,7 @@ export default async function OrgChartPage({
     );
   }
 
-  // Level 2b: only senior set (책임 directly under 사명, no 운영책임) -> leaf team cards
+  // Level 2b: only senior set (본부 directly under 사명, no 사업단위) -> leaf team cards
   if (senior) {
     const seniorUser = teams.find((t) => t.seniorId === senior)?.senior;
     const leafTeams = teams.filter((t) => !t.operationsHeadId && t.seniorId === senior);
@@ -200,8 +200,8 @@ export default async function OrgChartPage({
           ← 조직도
         </Link>
         {header(
-          `${seniorUser?.name ?? "책임"} 책임`,
-          `한국삼공 · ${seniorUser?.name ?? "책임"} 책임`,
+          `${seniorUser?.name ?? "본부"} 본부`,
+          `한국삼공 · ${seniorUser?.name ?? "본부"} 본부`,
           leafTeams.length,
           memberCount
         )}
@@ -215,7 +215,7 @@ export default async function OrgChartPage({
     );
   }
 
-  // Root: 운영책임 groups + direct 책임 groups (no ops head) + direct teams (no ops head, no senior)
+  // Root: 사업단위 groups + direct 본부 groups (no ops head) + direct teams (no ops head, no senior)
   const opsGroups = new Map<
     string,
     { name: string; teamCount: number; memberCount: number }
@@ -255,7 +255,7 @@ export default async function OrgChartPage({
       <div>
         <h1 className="text-2xl font-semibold">조직도</h1>
         <p className="mt-1 text-slate-600">
-          한국삼공의 조직 구성을 사명 → 운영책임 → 책임 → 팀 순으로 확인하세요.
+          한국삼공의 조직 구성을 사명 → 사업단위 → 본부 → 팀 순으로 확인하세요.
         </p>
       </div>
 
@@ -271,7 +271,7 @@ export default async function OrgChartPage({
           <GroupCard
             key={id}
             name={g.name}
-            role="운영책임"
+            role="사업단위"
             teamCount={g.teamCount}
             memberCount={g.memberCount}
             href={`/platform/org-chart?opsHead=${encodeURIComponent(id)}`}
@@ -281,7 +281,7 @@ export default async function OrgChartPage({
           <GroupCard
             key={id}
             name={g.name}
-            role="책임"
+            role="본부"
             teamCount={g.teamCount}
             memberCount={g.memberCount}
             href={`/platform/org-chart?senior=${encodeURIComponent(id)}`}

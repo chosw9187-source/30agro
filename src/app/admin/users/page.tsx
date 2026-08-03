@@ -294,8 +294,8 @@ export default async function UsersPage({
                   </th>
                 ))}
                 <th className="whitespace-nowrap px-3 py-2 font-medium">사명</th>
-                <th className="whitespace-nowrap px-3 py-2 font-medium">운영책임</th>
-                <th className="whitespace-nowrap px-3 py-2 font-medium">책임</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">사업단위</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">본부</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">직책</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">성별</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">생년월일</th>
