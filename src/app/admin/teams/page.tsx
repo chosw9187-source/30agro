@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import {
   createTeam,
+  updateTeamDivision,
   setTeamLeader,
   deleteTeam,
   addTeamMember,
@@ -25,6 +26,10 @@ export default async function TeamsPage() {
     }),
   ]);
 
+  const divisions = Array.from(
+    new Set(teams.map((t) => t.division).filter((d): d is string => !!d))
+  ).sort();
+
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -35,6 +40,12 @@ export default async function TeamsPage() {
         </p>
       </div>
 
+      <datalist id="division-options">
+        {divisions.map((d) => (
+          <option key={d} value={d} />
+        ))}
+      </datalist>
+
       <section className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 text-lg font-medium">새 팀 만들기</h2>
         <form action={createTeam} className="flex gap-3">
@@ -42,6 +53,12 @@ export default async function TeamsPage() {
             name="name"
             required
             placeholder="팀 이름 (예: 개발팀)"
+            className="flex-1 rounded border border-slate-300 px-3 py-2"
+          />
+          <input
+            name="division"
+            list="division-options"
+            placeholder="본부 (예: 제품사업)"
             className="flex-1 rounded border border-slate-300 px-3 py-2"
           />
           <button
@@ -62,7 +79,14 @@ export default async function TeamsPage() {
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">{team.name}</p>
+                <p className="font-medium">
+                  {team.name}
+                  {team.division && (
+                    <span className="ml-2 rounded bg-brand-green-light px-2 py-0.5 text-xs font-normal text-brand-green-dark">
+                      {team.division}
+                    </span>
+                  )}
+                </p>
                 <p className="text-sm text-slate-500">
                   구성원 {team.members.length}명 · 팀장:{" "}
                   {team.leader ? team.leader.name : "미지정"}
@@ -77,6 +101,25 @@ export default async function TeamsPage() {
                 </button>
               </form>
             </div>
+            <form
+              action={updateTeamDivision.bind(null, team.id)}
+              className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3"
+            >
+              <label className="text-sm text-slate-600">본부</label>
+              <input
+                name="division"
+                list="division-options"
+                defaultValue={team.division ?? ""}
+                placeholder="예: 제품사업"
+                className="rounded border border-slate-300 px-3 py-2 text-sm"
+              />
+              <button
+                type="submit"
+                className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
+              >
+                저장
+              </button>
+            </form>
             <form
               action={setTeamLeader.bind(null, team.id)}
               className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3"

@@ -91,6 +91,7 @@ model UserTargetYear {
 model Team {
   id        String   @id @default(cuid())
   name      String   @unique
+  division  String?
   leaderId  String?
   leader    User?    @relation("TeamLeader", fields: [leaderId], references: [id])
   createdAt DateTime @default(now())

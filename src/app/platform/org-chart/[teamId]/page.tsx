@@ -30,14 +30,21 @@ export default async function TeamOrgDetailPage({
 
   if (!team) notFound();
 
+  const backHref = team.division
+    ? `/platform/org-chart?division=${encodeURIComponent(team.division)}`
+    : "/platform/org-chart";
+
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/platform/org-chart" className="text-sm text-slate-500 hover:underline">
-        ← 조직도
+      <Link href={backHref} className="text-sm text-slate-500 hover:underline">
+        ← {team.division ?? "조직도"}
       </Link>
 
       <div className="rounded-lg border border-brand-green-dark bg-brand-green px-8 py-6 text-white">
-        <p className="text-sm text-white/80">{team.name}</p>
+        <p className="text-sm text-white/80">
+          {team.division ? `${team.division} · ` : ""}
+          {team.name}
+        </p>
         <p className="mt-1 text-2xl font-bold">
           {team.leader ? `${team.leader.name} 팀장` : "팀장 미지정"}
         </p>

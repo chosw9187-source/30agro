@@ -7,11 +7,26 @@ import { revalidatePath } from "next/cache";
 export async function createTeam(formData: FormData) {
   await requireRole("ADMIN");
   const name = String(formData.get("name") ?? "").trim();
+  const division = String(formData.get("division") ?? "").trim();
   if (!name) return;
 
-  await prisma.team.create({ data: { name } });
+  await prisma.team.create({ data: { name, division: division || null } });
   revalidatePath("/admin/teams");
   revalidatePath("/platform");
+  revalidatePath("/platform/org-chart");
+}
+
+export async function updateTeamDivision(teamId: string, formData: FormData) {
+  await requireRole("ADMIN");
+  const division = String(formData.get("division") ?? "").trim();
+
+  await prisma.team.update({
+    where: { id: teamId },
+    data: { division: division || null },
+  });
+
+  revalidatePath("/admin/teams");
+  revalidatePath("/platform/org-chart");
 }
 
 export async function setTeamLeader(teamId: string, formData: FormData) {
@@ -33,6 +48,7 @@ export async function setTeamLeader(teamId: string, formData: FormData) {
   revalidatePath("/admin/teams");
   revalidatePath("/admin/users");
   revalidatePath("/platform");
+  revalidatePath("/platform/org-chart");
 }
 
 export async function deleteTeam(teamId: string) {
@@ -40,6 +56,7 @@ export async function deleteTeam(teamId: string) {
   await prisma.team.delete({ where: { id: teamId } });
   revalidatePath("/admin/teams");
   revalidatePath("/platform");
+  revalidatePath("/platform/org-chart");
 }
 
 export async function addTeamMember(teamId: string, formData: FormData) {
@@ -55,6 +72,7 @@ export async function addTeamMember(teamId: string, formData: FormData) {
   revalidatePath("/admin/teams");
   revalidatePath("/admin/users");
   revalidatePath("/platform");
+  revalidatePath("/platform/org-chart");
 }
 
 export async function removeTeamMember(teamId: string, userId: string) {
@@ -67,4 +85,5 @@ export async function removeTeamMember(teamId: string, userId: string) {
   revalidatePath("/admin/teams");
   revalidatePath("/admin/users");
   revalidatePath("/platform");
+  revalidatePath("/platform/org-chart");
 }
