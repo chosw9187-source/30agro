@@ -75,6 +75,18 @@ export async function bulkDeleteUsers(formData: FormData) {
   redirect(`/admin/users?year=${year}&deleted=${ok}&skipped=${skipped}`);
 }
 
+export async function updateUserName(userId: string, name: string) {
+  await requireRole("ADMIN");
+  const trimmed = name.trim();
+  if (!trimmed) return;
+
+  await prisma.user.update({ where: { id: userId }, data: { name: trimmed } });
+  revalidatePath("/admin/users");
+  revalidatePath("/platform/employees");
+  revalidatePath("/platform/employees/[userId]", "page");
+  revalidatePath("/platform/org-chart");
+}
+
 export async function updateUserRole(
   userId: string,
   role: "ADMIN" | "EVALUATOR" | "EMPLOYEE"

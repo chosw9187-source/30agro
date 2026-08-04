@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { Module } from "@/lib/permission-constants";
+import { POSITION_LABEL, type Module, type Position } from "@/lib/permission-constants";
 
 type Role = "ADMIN" | "EVALUATOR" | "EMPLOYEE";
 
@@ -54,7 +54,6 @@ function evaluationItems(role: Role): NavItem[] {
       { href: "/admin/evaluation", label: "평가 현황" },
       { href: "/admin/templates", label: "평가 템플릿" },
       { href: "/admin/cycles", label: "평가 사이클" },
-      { href: "/admin/teams", label: "팀 관리" },
       { href: "/admin/reports", label: "결과 다운로드" },
     ];
   }
@@ -70,6 +69,7 @@ function manageItems(role: Role): NavItem[] {
   }
   return [
     { href: "/admin/users", label: "사용자 관리" },
+    { href: "/admin/teams", label: "팀 관리" },
     { href: "/platform/data-upload", label: "데이터 업로드" },
     { href: "/admin/permission-matrix", label: "권한 매트릭스" },
     { href: "/admin/screen-config", label: "화면 구성" },
@@ -119,7 +119,7 @@ export function PlatformSidebar({
   visibleModules,
 }: {
   role: Role;
-  user: { name?: string | null; role: Role };
+  user: { name?: string | null; role: Role; position?: Position };
   notificationCount?: number;
   onLogout: () => Promise<void>;
   visibleModules: Module[];
@@ -223,7 +223,13 @@ export function PlatformSidebar({
             </span>
             <div className="min-w-0 text-xs text-white">
               <p className="truncate font-medium">{user.name}</p>
-              <p className="text-white/70">{roleLabel[user.role]}</p>
+              <p className="text-white/70">
+                {user.role === "ADMIN"
+                  ? roleLabel.ADMIN
+                  : user.position
+                    ? POSITION_LABEL[user.position]
+                    : roleLabel[user.role]}
+              </p>
             </div>
           </div>
           <form action={onLogout}>

@@ -27,7 +27,7 @@ export async function PlatformShell({
     <div className="flex flex-1">
       <PlatformSidebar
         role={user.role}
-        user={user}
+        user={{ ...user, position }}
         notificationCount={notificationCount}
         onLogout={logout}
         visibleModules={[...visibleModules]}

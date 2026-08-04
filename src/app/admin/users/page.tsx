@@ -8,6 +8,7 @@ import { UserRowActions } from "./user-row-actions";
 import { TargetYearToggle } from "./target-year-toggle";
 import { SelectAllCheckbox } from "./select-all-checkbox";
 import { PositionSelect } from "./position-select";
+import { NameEditor } from "./name-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -323,7 +324,9 @@ export default async function UsersPage({
                   <td className="px-3 py-2">
                     <input type="checkbox" name="userIds" value={u.id} />
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2">{u.name}</td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    <NameEditor userId={u.id} name={u.name} />
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.email}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.employeeNumber}</td>
                   <td className="whitespace-nowrap px-3 py-2">
