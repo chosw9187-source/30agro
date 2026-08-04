@@ -12,12 +12,17 @@ export function ImportUsersForm({ defaultYear }: { defaultYear: number }) {
   return (
     <form action={formAction} className="flex flex-col gap-3">
       <p className="text-sm text-slate-500">
-        엑셀 파일의 첫 행은 헤더로, <strong>이름 / 사번 / 이메일주소 / 팀명</strong> 열이
-        필수이고, <strong>사업단위 / 본부</strong>(팀명이 이미 있는 팀이면 그
-        팀에 반영되고, 비워두면 기존 값을 유지합니다), <strong>직책</strong>
-        (사장/운영책임/책임/팀장/담당), <strong>성별</strong>(남/여),{" "}
+        엑셀 파일의 첫 행은 헤더로, <strong>이름 / 사번 / 이메일주소</strong>{" "}
+        열만 필수입니다. <strong>팀명</strong>이 있으면 해당 팀명에 사업단위
+        /본부가 함께 반영됩니다. <strong>팀명 없이 사업단위/본부만</strong>{" "}
+        입력하면(임원 등 특정 팀에 속하지 않는 경우) 조직도에 해당 사업단위
+        /본부의 리더로 표시됩니다. <strong>직책</strong>은 회장/부회장/사장
+        /대표→CEO, 운영책임/부사장→운영책임, 책임/이사/상무/전무→책임,
+        팀장→팀장, 그 외(부장~사원 등)→담당으로 자동 매핑됩니다. 실제
+        직급명(부사장, 이사, 부장 등)은 <strong>직급</strong> 열에 그대로
+        적어주세요. <strong>성별</strong>(남/여),{" "}
         <strong>생년월일 / 입사일 / 퇴사일</strong>(YYYY-MM-DD 형식 권장),{" "}
-        <strong>사원구분 / 직급 / 학력 / 학교 / 전공 / 학위 / 직군</strong> 열은
+        <strong>사원구분 / 학력 / 학교 / 전공 / 학위 / 직군</strong> 열도
         있으면 함께 반영됩니다. 이메일이 이미 존재하면 정보를 갱신하고, 새
         이메일이면 직원 권한으로 새로 등록합니다. 비밀번호는 사번으로 자동
         설정됩니다. 아래 연도의 대상자로도 함께 등록됩니다.

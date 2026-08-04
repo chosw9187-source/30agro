@@ -47,8 +47,28 @@ export async function GET() {
     "학사",
     "관리직",
   ];
+  const executiveExample = [
+    "손지명",
+    "20100001",
+    "son@example.com",
+    "제품사업",
+    "",
+    "",
+    "운영책임",
+    "남",
+    "1970-05-01",
+    "2010-01-01",
+    "",
+    "정규직",
+    "부사장",
+    "",
+    "",
+    "",
+    "",
+    "",
+  ];
 
-  const sheet = XLSX.utils.aoa_to_sheet([headers, example]);
+  const sheet = XLSX.utils.aoa_to_sheet([headers, example, executiveExample]);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, sheet, "사용자");
   const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
+import { ageInYears } from "@/lib/hr-analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,11 @@ const roleLabel: Record<string, string> = {
 
 function fmtDate(d: Date | null) {
   return d ? d.toLocaleDateString("ko-KR") : "-";
+}
+
+function fmtBirthDate(d: Date | null) {
+  if (!d) return "-";
+  return `${fmtDate(d)} (만 ${ageInYears(d)}세)`;
 }
 
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
@@ -84,7 +90,7 @@ export default async function EmployeeDetailPage({
               <Field label="사번" value={employee.employeeNumber} />
               <Field label="이메일" value={employee.email} />
               <Field label="성별" value={employee.gender} />
-              <Field label="생년월일" value={fmtDate(employee.birthDate)} />
+              <Field label="생년월일" value={fmtBirthDate(employee.birthDate)} />
               <Field label="입사일" value={fmtDate(employee.hireDate)} />
               <Field label="퇴사일" value={fmtDate(employee.terminationDate)} />
             </dl>
@@ -93,8 +99,11 @@ export default async function EmployeeDetailPage({
           <section>
             <h2 className="mb-3 text-sm font-semibold text-slate-700">조직 정보</h2>
             <dl className="grid grid-cols-2 gap-4">
-              <Field label="사업단위" value={employee.team?.businessUnit} />
-              <Field label="본부" value={employee.team?.division} />
+              <Field
+                label="사업단위"
+                value={employee.team?.businessUnit ?? employee.businessUnit}
+              />
+              <Field label="본부" value={employee.team?.division ?? employee.division} />
               <Field label="팀" value={employee.team?.name} />
               <Field
                 label="직책"

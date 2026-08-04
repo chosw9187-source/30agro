@@ -70,9 +70,15 @@ export default async function TeamOrgDetailPage({
         <h2 className="mb-3 text-lg font-medium">구성원 ({team.members.length}명)</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {team.members.map((m) => (
-            <div key={m.id} className="rounded-lg border border-slate-200 bg-white p-4">
+            <Link
+              key={m.id}
+              href={`/platform/employees/${m.id}`}
+              className="rounded-lg border border-slate-200 bg-white p-4 hover:border-brand-green"
+            >
               <div className="flex items-center justify-between">
-                <p className="font-medium">{m.name}</p>
+                <p className="font-medium text-brand-green-dark hover:underline">
+                  {m.name}
+                </p>
                 <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
                   {roleLabel[m.role] ?? m.role}
                 </span>
@@ -80,7 +86,7 @@ export default async function TeamOrgDetailPage({
               <p className="mt-1 text-sm text-slate-500">
                 {m.id === team.leaderId ? "팀장" : "팀원"} · 사번 {m.employeeNumber}
               </p>
-            </div>
+            </Link>
           ))}
           {team.members.length === 0 && (
             <p className="text-slate-500">아직 구성원이 없습니다.</p>

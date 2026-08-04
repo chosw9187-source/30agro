@@ -2,8 +2,16 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
+import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 
 export const dynamic = "force-dynamic";
+
+type Leader = { name: string; jobGrade: string | null; position: Position };
+
+function leaderLabel(leader?: Leader) {
+  if (!leader) return null;
+  return `${leader.name} ${leader.jobGrade || POSITION_LABEL[leader.position]}`;
+}
 
 function TeamCard({
   team,
@@ -35,12 +43,14 @@ function TeamCard({
 function GroupCard({
   name,
   role,
+  leader,
   teamCount,
   memberCount,
   href,
 }: {
   name: string;
   role: string;
+  leader?: Leader;
   teamCount: number;
   memberCount: number;
   href: string;
@@ -53,7 +63,10 @@ function GroupCard({
       <p className="text-lg font-semibold">
         {name} <span className="text-sm font-normal text-slate-500">{role}</span>
       </p>
-      <p className="mt-1 text-sm text-slate-500">{teamCount}개 팀</p>
+      <p className="mt-1 text-sm text-slate-500">
+        {leaderLabel(leader) ?? "리더 미지정"}
+      </p>
+      <p className="mt-3 text-sm text-slate-500">{teamCount}개 팀</p>
       <p className="mt-1 text-sm text-slate-500">{memberCount}명 재직</p>
       <span className="mt-4 text-sm text-brand-green">하위 조직 보기 ›</span>
     </Link>
@@ -71,18 +84,37 @@ export default async function OrgChartPage({
 
   const { unit, division } = await searchParams;
 
-  const teams = await prisma.team.findMany({
-    orderBy: { name: "asc" },
-    include: {
-      leader: true,
-      _count: { select: { members: true } },
-    },
-  });
-  const totalEmployees = await prisma.user.count();
-  const ceo = await prisma.user.findFirst({
-    where: { position: "CEO" },
-    select: { name: true },
-  });
+  const [teams, totalEmployees, ceo, leaders] = await Promise.all([
+    prisma.team.findMany({
+      orderBy: { name: "asc" },
+      include: {
+        leader: true,
+        _count: { select: { members: true } },
+      },
+    }),
+    prisma.user.count(),
+    prisma.user.findFirst({ where: { position: "CEO" }, select: { name: true } }),
+    prisma.user.findMany({
+      where: { position: { in: ["OPERATIONS_HEAD", "SENIOR_STAFF"] } },
+      select: { name: true, jobGrade: true, position: true, businessUnit: true, division: true },
+    }),
+  ]);
+
+  function findLeader(
+    role: "OPERATIONS_HEAD" | "SENIOR_STAFF",
+    matchUnit: string | null,
+    matchDivision: string | null
+  ): Leader | undefined {
+    const found = leaders.find(
+      (l) =>
+        l.position === role &&
+        (l.businessUnit ?? null) === matchUnit &&
+        (l.division ?? null) === matchDivision
+    );
+    return found
+      ? { name: found.name, jobGrade: found.jobGrade, position: found.position as Position }
+      : undefined;
+  }
 
   const header = (title: string, breadcrumb: string, teamCount: number, memberCount: number) => (
     <div className="rounded-lg border border-brand-green-dark bg-brand-green px-8 py-6 text-white">
@@ -105,6 +137,7 @@ export default async function OrgChartPage({
       (t) => t.businessUnit === unit && t.division === division
     );
     const memberCount = leafTeams.reduce((s, t) => s + t._count.members, 0);
+    const divisionLeader = findLeader("SENIOR_STAFF", unit, division);
 
     return (
       <div className="flex flex-col gap-6">
@@ -115,7 +148,7 @@ export default async function OrgChartPage({
           ← {unit} 사업단위
         </Link>
         {header(
-          `${division} 본부`,
+          `${division} 본부${divisionLeader ? ` (${leaderLabel(divisionLeader)})` : ""}`,
           `한국삼공 · ${unit} 사업단위 · ${division} 본부`,
           leafTeams.length,
           memberCount
@@ -148,20 +181,35 @@ export default async function OrgChartPage({
         directTeams.push(t);
       }
     }
+    // Divisions that only have an assigned leader so far (no teams yet) still show up.
+    for (const l of leaders) {
+      if (l.position === "SENIOR_STAFF" && l.businessUnit === unit && l.division) {
+        if (!divisionGroups.has(l.division)) {
+          divisionGroups.set(l.division, { teamCount: 0, memberCount: 0 });
+        }
+      }
+    }
     const memberCount = teamsUnderUnit.reduce((s, t) => s + t._count.members, 0);
+    const unitLeader = findLeader("OPERATIONS_HEAD", unit, null);
 
     return (
       <div className="flex flex-col gap-6">
         <Link href="/platform/org-chart" className="text-sm text-slate-500 hover:underline">
           ← 조직도
         </Link>
-        {header(`${unit} 사업단위`, `한국삼공 · ${unit} 사업단위`, teamsUnderUnit.length, memberCount)}
+        {header(
+          `${unit} 사업단위${unitLeader ? ` (${leaderLabel(unitLeader)})` : ""}`,
+          `한국삼공 · ${unit} 사업단위`,
+          teamsUnderUnit.length,
+          memberCount
+        )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from(divisionGroups.entries()).map(([name, g]) => (
             <GroupCard
               key={name}
               name={name}
               role="본부"
+              leader={findLeader("SENIOR_STAFF", unit, name)}
               teamCount={g.teamCount}
               memberCount={g.memberCount}
               href={`/platform/org-chart?unit=${encodeURIComponent(unit)}&division=${encodeURIComponent(name)}`}
@@ -170,7 +218,7 @@ export default async function OrgChartPage({
           {directTeams.map((t) => (
             <TeamCard key={t.id} team={t} />
           ))}
-          {teamsUnderUnit.length === 0 && (
+          {teamsUnderUnit.length === 0 && divisionGroups.size === 0 && (
             <p className="text-slate-500">소속된 팀이 없습니다.</p>
           )}
         </div>
@@ -182,13 +230,19 @@ export default async function OrgChartPage({
   if (division) {
     const leafTeams = teams.filter((t) => !t.businessUnit && t.division === division);
     const memberCount = leafTeams.reduce((s, t) => s + t._count.members, 0);
+    const divisionLeader = findLeader("SENIOR_STAFF", null, division);
 
     return (
       <div className="flex flex-col gap-6">
         <Link href="/platform/org-chart" className="text-sm text-slate-500 hover:underline">
           ← 조직도
         </Link>
-        {header(`${division} 본부`, `한국삼공 · ${division} 본부`, leafTeams.length, memberCount)}
+        {header(
+          `${division} 본부${divisionLeader ? ` (${leaderLabel(divisionLeader)})` : ""}`,
+          `한국삼공 · ${division} 본부`,
+          leafTeams.length,
+          memberCount
+        )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {leafTeams.map((t) => (
             <TeamCard key={t.id} team={t} />
@@ -219,6 +273,20 @@ export default async function OrgChartPage({
       rootTeams.push(t);
     }
   }
+  // Business units / standalone divisions that only have a leader assigned so far.
+  for (const l of leaders) {
+    if (l.position === "OPERATIONS_HEAD" && l.businessUnit && !unitGroups.has(l.businessUnit)) {
+      unitGroups.set(l.businessUnit, { teamCount: 0, memberCount: 0 });
+    }
+    if (
+      l.position === "SENIOR_STAFF" &&
+      !l.businessUnit &&
+      l.division &&
+      !directDivisionGroups.has(l.division)
+    ) {
+      directDivisionGroups.set(l.division, { teamCount: 0, memberCount: 0 });
+    }
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -242,6 +310,7 @@ export default async function OrgChartPage({
             key={name}
             name={name}
             role="사업단위"
+            leader={findLeader("OPERATIONS_HEAD", name, null)}
             teamCount={g.teamCount}
             memberCount={g.memberCount}
             href={`/platform/org-chart?unit=${encodeURIComponent(name)}`}
@@ -252,6 +321,7 @@ export default async function OrgChartPage({
             key={name}
             name={name}
             role="본부"
+            leader={findLeader("SENIOR_STAFF", null, name)}
             teamCount={g.teamCount}
             memberCount={g.memberCount}
             href={`/platform/org-chart?division=${encodeURIComponent(name)}`}
@@ -260,7 +330,9 @@ export default async function OrgChartPage({
         {rootTeams.map((t) => (
           <TeamCard key={t.id} team={t} />
         ))}
-        {teams.length === 0 && <p className="text-slate-500">아직 등록된 팀이 없습니다.</p>}
+        {teams.length === 0 && unitGroups.size === 0 && directDivisionGroups.size === 0 && (
+          <p className="text-slate-500">아직 등록된 팀이 없습니다.</p>
+        )}
       </div>
     </div>
   );

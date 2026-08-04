@@ -14,12 +14,25 @@ type ImportResult = {
 };
 
 const POSITION_TEXT_MAP: Record<string, Position> = {
+  회장: "CEO",
+  부회장: "CEO",
   사장: "CEO",
   대표: "CEO",
+  대표이사: "CEO",
   운영책임: "OPERATIONS_HEAD",
+  부사장: "OPERATIONS_HEAD",
   책임: "SENIOR_STAFF",
+  이사: "SENIOR_STAFF",
+  상무: "SENIOR_STAFF",
+  전무: "SENIOR_STAFF",
   팀장: "TEAM_LEADER",
   담당: "STAFF",
+  부장: "STAFF",
+  차장: "STAFF",
+  과장: "STAFF",
+  대리: "STAFF",
+  주임: "STAFF",
+  사원: "STAFF",
 };
 
 function parsePosition(value: unknown): Position | undefined {
@@ -124,6 +137,8 @@ export async function importUsersFromExcel(
             degree,
             jobFamily,
             gender,
+            businessUnit,
+            division,
             ...(position ? { position } : {}),
           },
         });
@@ -149,6 +164,8 @@ export async function importUsersFromExcel(
             degree,
             jobFamily,
             gender,
+            businessUnit,
+            division,
             ...(position ? { position } : {}),
             teamId,
           },
