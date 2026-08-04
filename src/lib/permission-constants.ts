@@ -76,6 +76,31 @@ export const PERMISSION_SCOPE_LABEL: Record<PermissionScope, string> = {
   NONE: "접근 불가",
 };
 
+/**
+ * Sidebar main-nav modules that support admin-configurable order and a
+ * "개발 중" badge. 홈/알림 aren't modules and are always first/last.
+ */
+export const SIDEBAR_MODULES: Module[] = [
+  "HR_REPORT",
+  "ORG_CHART",
+  "JOB_MANAGEMENT",
+  "TASK_MANAGEMENT",
+  "EMPLOYEES",
+  "LEGAL_LIBRARY",
+  "EVALUATION",
+];
+
+// Starting default until an admin explicitly overrides it: everything shows
+// "개발 중" except 조직도/직원정보조회, which are considered ready.
+export const DEFAULT_COMING_SOON_MODULES = new Set<Module>([
+  "HR_REPORT",
+  "JOB_MANAGEMENT",
+  "TASK_MANAGEMENT",
+  "LEGAL_LIBRARY",
+]);
+
+export type ModuleUiConfigEntry = { order: number; comingSoon: boolean };
+
 export type HomeBlock = "TEAM_SUMMARY" | "OVERALL_SUMMARY" | "QUICK_LINKS";
 
 export const HOME_BLOCKS: HomeBlock[] = [

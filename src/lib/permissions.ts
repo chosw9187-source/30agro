@@ -3,10 +3,13 @@ import { auth } from "@/auth";
 import {
   MODULES,
   HOME_BLOCKS,
+  SIDEBAR_MODULES,
+  DEFAULT_COMING_SOON_MODULES,
   type Position,
   type Module,
   type HomeBlock,
   type PermissionScope,
+  type ModuleUiConfigEntry,
 } from "@/lib/permission-constants";
 
 export {
@@ -18,10 +21,12 @@ export {
   HOME_BLOCK_LABEL,
   PERMISSION_SCOPES,
   PERMISSION_SCOPE_LABEL,
+  SIDEBAR_MODULES,
   type Position,
   type Module,
   type HomeBlock,
   type PermissionScope,
+  type ModuleUiConfigEntry,
 } from "@/lib/permission-constants";
 
 /**
@@ -172,28 +177,61 @@ export async function canViewEmployeeCard(targetUserId: string): Promise<boolean
 }
 
 /**
- * Sidebar main-nav modules that support admin-configurable order and a
- * "개발 중" badge. 홈/알림 aren't modules and are always first/last.
+ * Prisma `where` fragment restricting a User query to what the current
+ * viewer is allowed to see for the EMPLOYEES module scope — used by the
+ * 직원정보조회 list/search page, which (unlike the per-record
+ * canViewEmployeeCard check on the detail page) must filter results up
+ * front rather than just blocking navigation afterward. Returns `null` for
+ * "no restriction" (FULL scope, or admin/인사팀).
  */
-export const SIDEBAR_MODULES: Module[] = [
-  "HR_REPORT",
-  "ORG_CHART",
-  "JOB_MANAGEMENT",
-  "TASK_MANAGEMENT",
-  "EMPLOYEES",
-  "LEGAL_LIBRARY",
-];
+export async function getEmployeeListScopeFilter(): Promise<Record<string, unknown> | null> {
+  const BLOCK_ALL = { id: "__no_access__" };
 
-// Starting default until an admin explicitly overrides it: everything shows
-// "개발 중" except 조직도/직원정보조회, which are considered ready.
-const DEFAULT_COMING_SOON_MODULES = new Set<Module>([
-  "HR_REPORT",
-  "JOB_MANAGEMENT",
-  "TASK_MANAGEMENT",
-  "LEGAL_LIBRARY",
-]);
+  const session = await auth();
+  if (!session?.user) return BLOCK_ALL;
+  if (session.user.role === "ADMIN") return null;
 
-export type ModuleUiConfigEntry = { order: number; comingSoon: boolean };
+  const viewer = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true, position: true, team: { select: { name: true } } },
+  });
+  if (!viewer) return BLOCK_ALL;
+  if (viewer.team?.name === "인사팀") return null;
+
+  const scope = await getEffectiveModuleScope(
+    session.user.id,
+    session.user.role,
+    viewer.position as Position,
+    "EMPLOYEES"
+  );
+  if (scope === "FULL") return null;
+  if (scope === "NONE" || scope === "SELF") return { id: viewer.id };
+
+  const ctx = await loadViewerContext(viewer.id);
+  if (!ctx) return BLOCK_ALL;
+
+  if (scope === "TEAM") return ctx.teamId ? { teamId: ctx.teamId } : BLOCK_ALL;
+  if (scope === "DIVISION") {
+    if (!ctx.division) return BLOCK_ALL;
+    return {
+      OR: [
+        { team: { division: ctx.division } },
+        { AND: [{ teamId: null }, { division: ctx.division }] },
+      ],
+    };
+  }
+  if (scope === "BUSINESS_UNIT") {
+    if (!ctx.businessUnit) return BLOCK_ALL;
+    return {
+      OR: [
+        { team: { businessUnit: ctx.businessUnit } },
+        { AND: [{ teamId: null }, { businessUnit: ctx.businessUnit }] },
+      ],
+    };
+  }
+
+  return BLOCK_ALL;
+}
 
 export async function getModuleUiConfig(): Promise<Record<Module, ModuleUiConfigEntry>> {
   const rows = await prisma.moduleUiConfig.findMany();

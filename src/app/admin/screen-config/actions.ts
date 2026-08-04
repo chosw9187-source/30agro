@@ -5,7 +5,13 @@ import { requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { HOME_BLOCKS, SIDEBAR_MODULES, type Position } from "@/lib/permissions";
 
-export async function saveHomeLayout(position: Position, formData: FormData) {
+export type SaveResult = { savedAt: number };
+
+export async function saveHomeLayout(
+  position: Position,
+  _prevState: SaveResult | undefined,
+  formData: FormData
+): Promise<SaveResult> {
   await requireRole("ADMIN");
 
   const checked = new Set(formData.getAll("block").map(String));
@@ -24,9 +30,14 @@ export async function saveHomeLayout(position: Position, formData: FormData) {
 
   revalidatePath("/admin/screen-config");
   revalidatePath("/platform");
+
+  return { savedAt: Date.now() };
 }
 
-export async function saveSidebarConfig(formData: FormData) {
+export async function saveSidebarConfig(
+  _prevState: SaveResult | undefined,
+  formData: FormData
+): Promise<SaveResult> {
   await requireRole("ADMIN");
 
   for (const mod of SIDEBAR_MODULES) {
@@ -48,4 +59,6 @@ export async function saveSidebarConfig(formData: FormData) {
   revalidatePath("/platform/task-management");
   revalidatePath("/platform/legal-library");
   revalidatePath("/platform/hr-report");
+
+  return { savedAt: Date.now() };
 }

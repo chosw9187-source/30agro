@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { POSITION_LABEL, type Module, type Position } from "@/lib/permission-constants";
+import { POSITION_LABEL, SIDEBAR_MODULES, type Module, type Position } from "@/lib/permission-constants";
 
 type Role = "ADMIN" | "EVALUATOR" | "EMPLOYEE";
 
@@ -30,16 +30,14 @@ const MODULE_NAV: Record<string, { href: string; label: string }> = {
   LEGAL_LIBRARY: { href: "/platform/legal-library", label: "AI 법률 라이브러리" },
 };
 
-const SIDEBAR_MODULES = [
-  "HR_REPORT",
-  "ORG_CHART",
-  "JOB_MANAGEMENT",
-  "TASK_MANAGEMENT",
-  "EMPLOYEES",
-  "LEGAL_LIBRARY",
-] as const;
+function evaluationHref(role: Role): string {
+  if (role === "ADMIN") return "/admin/evaluation";
+  if (role === "EVALUATOR") return "/evaluate";
+  return "/my-evaluations";
+}
 
 function mainItems(
+  role: Role,
   notificationCount: number,
   moduleUiConfig: Record<string, { order: number; comingSoon: boolean }>
 ): NavItem[] {
@@ -47,8 +45,8 @@ function mainItems(
     (a, b) => (moduleUiConfig[a]?.order ?? 0) - (moduleUiConfig[b]?.order ?? 0)
   );
   const moduleItems: NavItem[] = orderedModules.map((m) => ({
-    href: MODULE_NAV[m].href,
-    label: MODULE_NAV[m].label,
+    href: m === "EVALUATION" ? evaluationHref(role) : MODULE_NAV[m].href,
+    label: MODULE_LABEL_FOR_NAV[m],
     module: m as Module,
     comingSoon: moduleUiConfig[m]?.comingSoon ?? false,
   }));
@@ -64,20 +62,10 @@ function mainItems(
   ];
 }
 
-function evaluationItems(role: Role): NavItem[] {
-  if (role === "ADMIN") {
-    return [
-      { href: "/admin/evaluation", label: "평가 현황" },
-      { href: "/admin/templates", label: "평가 템플릿" },
-      { href: "/admin/cycles", label: "평가 사이클" },
-      { href: "/admin/reports", label: "결과 다운로드" },
-    ];
-  }
-  if (role === "EVALUATOR") {
-    return [{ href: "/evaluate", label: "평가" }];
-  }
-  return [{ href: "/my-evaluations", label: "평가" }];
-}
+const MODULE_LABEL_FOR_NAV: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(MODULE_NAV).map(([k, v]) => [k, v.label])),
+  EVALUATION: "평가",
+};
 
 function manageItems(role: Role): NavItem[] {
   if (role !== "ADMIN") {
@@ -87,6 +75,9 @@ function manageItems(role: Role): NavItem[] {
     { href: "/admin/users", label: "사용자 관리" },
     { href: "/admin/teams", label: "팀 관리" },
     { href: "/platform/data-upload", label: "데이터 업로드" },
+    { href: "/admin/templates", label: "평가 템플릿" },
+    { href: "/admin/cycles", label: "평가 사이클" },
+    { href: "/admin/reports", label: "결과 다운로드" },
     { href: "/admin/permission-matrix", label: "권한 매트릭스" },
     { href: "/admin/screen-config", label: "화면 구성" },
   ];
@@ -150,18 +141,14 @@ export function PlatformSidebar({
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 
-  const visibleMainItems = mainItems(notificationCount, moduleUiConfig).filter(
+  const visibleMainItems = mainItems(role, notificationCount, moduleUiConfig).filter(
     (item) => !item.module || visible.has(item.module)
   );
 
   const sections: Section[] = [
-    { key: "eval", label: "평가", items: evaluationItems(role) },
     { key: "manage", label: "관리", items: manageItems(role) },
     { key: "support", label: "지원", items: supportItems },
   ];
-  if (!visible.has("EVALUATION")) {
-    sections[0] = { ...sections[0], items: [] };
-  }
 
   // Manual open/close overrides from clicks; sections not overridden default
   // to open when the current path is inside them (computed at render time,

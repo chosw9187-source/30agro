@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { checkModuleAccess, canViewEmployeeCard } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
-import { ageInYears } from "@/lib/hr-analytics";
+import { ageInYears, tenureInYears } from "@/lib/hr-analytics";
 import { BackLink } from "@/components/back-link";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +21,11 @@ function fmtDate(d: Date | null) {
 function fmtBirthDate(d: Date | null) {
   if (!d) return "-";
   return `${fmtDate(d)} (만 ${ageInYears(d)}세)`;
+}
+
+function fmtHireDate(d: Date | null) {
+  if (!d) return "-";
+  return `${fmtDate(d)} (근속 ${tenureInYears(d).toFixed(1)}년)`;
 }
 
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
@@ -111,7 +116,7 @@ export default async function EmployeeDetailPage({
               <Field label="이메일" value={employee.email} />
               <Field label="성별" value={employee.gender} />
               <Field label="생년월일" value={fmtBirthDate(employee.birthDate)} />
-              <Field label="입사일" value={fmtDate(employee.hireDate)} />
+              <Field label="입사일" value={fmtHireDate(employee.hireDate)} />
               <Field label="퇴사일" value={fmtDate(employee.terminationDate)} />
             </dl>
           </section>

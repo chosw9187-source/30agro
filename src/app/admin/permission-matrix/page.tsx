@@ -1,19 +1,11 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { savePermissionMatrix, saveUserPermissionOverrides, applyRecommendedEmployeeScope } from "./actions";
-import {
-  MODULES,
-  MODULE_LABEL,
-  POSITIONS,
-  POSITION_LABEL,
-  PERMISSION_SCOPES,
-  PERMISSION_SCOPE_LABEL,
-  type PermissionScope,
-} from "@/lib/permissions";
+import { MatrixForm } from "./matrix-form";
+import { UserOverrideForm } from "./user-override-form";
+import { RecommendedScopeButton } from "./recommended-scope-button";
+import { POSITION_LABEL, type PermissionScope } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
-
-const DEFAULT_SENTINEL = "DEFAULT";
 
 function TabLink({
   href,
@@ -40,7 +32,8 @@ function TabLink({
 
 async function MatrixTab() {
   const rows = await prisma.permissionMatrixEntry.findMany();
-  const scopeByKey = new Map(rows.map((r) => [`${r.module}:${r.position}`, r.scope as PermissionScope]));
+  const scopeByKey: Record<string, PermissionScope> = {};
+  for (const r of rows) scopeByKey[`${r.module}:${r.position}`] = r.scope as PermissionScope;
 
   return (
     <div className="flex flex-col gap-3">
@@ -49,71 +42,10 @@ async function MatrixTab() {
           직원정보조회 표준 설정: 사장=전체, 운영책임=사업단위, 책임=부문,
           팀장=팀, 담당=본인
         </p>
-        <form action={applyRecommendedEmployeeScope}>
-          <button
-            type="submit"
-            className="whitespace-nowrap rounded border border-brand-green px-3 py-1.5 text-sm text-brand-green-dark hover:bg-brand-green-light"
-          >
-            직원정보조회에 표준 설정 적용
-          </button>
-        </form>
+        <RecommendedScopeButton />
       </div>
 
-      <form action={savePermissionMatrix}>
-        <p className="mb-3 text-sm text-slate-600">
-          직책별로 각 메뉴에서 어디까지 볼 수 있는지 범위를 설정하세요:{" "}
-          <strong>전체</strong>(회사 전체) → <strong>사업단위</strong> →{" "}
-          <strong>부문</strong> → <strong>팀</strong> → <strong>본인</strong> →{" "}
-          <strong>접근 불가</strong>(사이드바와 해당 화면 모두 숨김). 관리자(역할)는
-          항상 전체 접근 가능합니다.
-        </p>
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 text-slate-500">
-            <tr>
-              <th className="px-4 py-3 font-medium">모듈 \ 직책</th>
-              {POSITIONS.map((p) => (
-                <th key={p} className="px-4 py-3 text-center font-medium">
-                  {POSITION_LABEL[p]}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {MODULES.map((m) => (
-              <tr key={m} className="border-b border-slate-100 last:border-0">
-                <td className="px-4 py-3 font-medium">{MODULE_LABEL[m]}</td>
-                {POSITIONS.map((p) => {
-                  const key = `${m}:${p}`;
-                  const current = scopeByKey.get(key) ?? "FULL";
-                  return (
-                    <td key={p} className="px-4 py-3 text-center">
-                      <select
-                        name={key}
-                        defaultValue={current}
-                        className="rounded border border-slate-300 px-2 py-1 text-xs"
-                      >
-                        {PERMISSION_SCOPES.map((s) => (
-                          <option key={s} value={s}>
-                            {PERMISSION_SCOPE_LABEL[s]}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-        <button
-          type="submit"
-          className="mt-4 rounded bg-brand-green px-4 py-2 text-white hover:bg-brand-green-dark"
-        >
-          저장
-        </button>
-      </form>
+      <MatrixForm scopeByKey={scopeByKey} />
     </div>
   );
 }
@@ -148,9 +80,12 @@ async function UserTab({ q, userId }: { q?: string; userId?: string }) {
       })
     : null;
 
-  const overrideByModule = new Map(
-    selected?.permissionOverrides.map((o) => [o.module as string, o.scope as PermissionScope]) ?? []
-  );
+  const overrideByModule: Record<string, PermissionScope> = {};
+  if (selected) {
+    for (const o of selected.permissionOverrides) {
+      overrideByModule[o.module] = o.scope as PermissionScope;
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -194,40 +129,12 @@ async function UserTab({ q, userId }: { q?: string; userId?: string }) {
       </div>
 
       {selected && (
-        <div className="rounded-lg border border-slate-200 bg-white p-4">
-          <h3 className="mb-1 text-sm font-medium text-slate-700">
-            {selected.name}님 개별 권한 설정
-          </h3>
-          <p className="mb-3 text-xs text-slate-500">
-            직책 기본값({POSITION_LABEL[selected.position]}의 권한 매트릭스 설정)을 그대로 쓰려면
-            &quot;직책 기본값&quot;을 선택하세요. 그 외 값을 선택하면 직책 기본값보다 우선 적용됩니다.
-          </p>
-          <form action={saveUserPermissionOverrides.bind(null, selected.id)} className="flex flex-col gap-2">
-            {MODULES.map((m) => (
-              <div key={m} className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-slate-700">{MODULE_LABEL[m]}</span>
-                <select
-                  name={m}
-                  defaultValue={overrideByModule.get(m) ?? DEFAULT_SENTINEL}
-                  className="rounded border border-slate-300 px-2 py-1 text-xs"
-                >
-                  <option value={DEFAULT_SENTINEL}>직책 기본값</option>
-                  {PERMISSION_SCOPES.map((s) => (
-                    <option key={s} value={s}>
-                      {PERMISSION_SCOPE_LABEL[s]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ))}
-            <button
-              type="submit"
-              className="mt-2 self-start rounded bg-brand-green px-4 py-2 text-sm text-white hover:bg-brand-green-dark"
-            >
-              저장
-            </button>
-          </form>
-        </div>
+        <UserOverrideForm
+          userId={selected.id}
+          userName={selected.name}
+          userPosition={selected.position}
+          overrideByModule={overrideByModule}
+        />
       )}
     </div>
   );

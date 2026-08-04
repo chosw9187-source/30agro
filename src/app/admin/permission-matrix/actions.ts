@@ -5,7 +5,12 @@ import { requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { MODULES, POSITIONS, PERMISSION_SCOPES, type PermissionScope } from "@/lib/permissions";
 
-export async function savePermissionMatrix(formData: FormData) {
+export type SaveResult = { savedAt: number };
+
+export async function savePermissionMatrix(
+  _prevState: SaveResult | undefined,
+  formData: FormData
+): Promise<SaveResult> {
   await requireRole("ADMIN");
 
   for (const position of POSITIONS) {
@@ -34,6 +39,8 @@ export async function savePermissionMatrix(formData: FormData) {
   revalidatePath("/platform");
   revalidatePath("/platform/employees");
   revalidatePath("/platform/employees/[userId]", "page");
+
+  return { savedAt: Date.now() };
 }
 
 /**
@@ -49,7 +56,10 @@ const RECOMMENDED_EMPLOYEES_SCOPE: Record<(typeof POSITIONS)[number], Permission
   STAFF: "SELF",
 };
 
-export async function applyRecommendedEmployeeScope() {
+export async function applyRecommendedEmployeeScope(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _prevState: SaveResult | undefined
+): Promise<SaveResult> {
   await requireRole("ADMIN");
 
   for (const position of POSITIONS) {
@@ -70,11 +80,17 @@ export async function applyRecommendedEmployeeScope() {
   revalidatePath("/admin/permission-matrix");
   revalidatePath("/platform/employees");
   revalidatePath("/platform/employees/[userId]", "page");
+
+  return { savedAt: Date.now() };
 }
 
 const DEFAULT_SENTINEL = "DEFAULT";
 
-export async function saveUserPermissionOverrides(userId: string, formData: FormData) {
+export async function saveUserPermissionOverrides(
+  userId: string,
+  _prevState: SaveResult | undefined,
+  formData: FormData
+): Promise<SaveResult> {
   await requireRole("ADMIN");
 
   for (const mod of MODULES) {
@@ -97,4 +113,6 @@ export async function saveUserPermissionOverrides(userId: string, formData: Form
   revalidatePath("/platform");
   revalidatePath("/platform/employees");
   revalidatePath("/platform/employees/[userId]", "page");
+
+  return { savedAt: Date.now() };
 }

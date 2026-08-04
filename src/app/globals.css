@@ -26,6 +26,13 @@
   }
 }
 
+html {
+  /* 전체 글자 크기를 살짝 키움 — rem 기반 Tailwind 텍스트 유틸리티가
+     이 값을 기준으로 스케일되므로 컴포넌트마다 손대지 않아도 전체적으로
+     반영됨. */
+  font-size: 18px;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

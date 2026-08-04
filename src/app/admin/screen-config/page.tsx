@@ -1,16 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { saveHomeLayout, saveSidebarConfig } from "./actions";
-import {
-  HOME_BLOCKS,
-  HOME_BLOCK_LABEL,
-  POSITIONS,
-  POSITION_LABEL,
-  SIDEBAR_MODULES,
-  MODULE_LABEL,
-  getModuleUiConfig,
-  type Position,
-} from "@/lib/permissions";
+import { HomeLayoutForm } from "./home-layout-form";
+import { SidebarConfigForm } from "./sidebar-config-form";
+import { POSITIONS, POSITION_LABEL, getModuleUiConfig, type Position } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +23,7 @@ async function HomeTab({ selected }: { selected: Position }) {
   const hiddenRows = await prisma.homeLayoutEntry.findMany({
     where: { position: selected, visible: false },
   });
-  const hidden = new Set(hiddenRows.map((r) => r.block));
+  const hidden = new Set(hiddenRows.map((r) => r.block as string));
 
   return (
     <div className="flex flex-col gap-4">
@@ -51,83 +43,14 @@ async function HomeTab({ selected }: { selected: Position }) {
         ))}
       </div>
 
-      <form
-        action={saveHomeLayout.bind(null, selected)}
-        className="rounded-lg border border-slate-200 bg-white p-6"
-      >
-        <p className="mb-4 text-sm font-medium text-slate-700">
-          {POSITION_LABEL[selected]}의 홈 화면 블록
-        </p>
-        <div className="flex flex-col gap-2">
-          {HOME_BLOCKS.map((b) => (
-            <label key={b} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="block" value={b} defaultChecked={!hidden.has(b)} />
-              {HOME_BLOCK_LABEL[b]}
-            </label>
-          ))}
-        </div>
-        <button
-          type="submit"
-          className="mt-4 rounded bg-brand-green px-4 py-2 text-white hover:bg-brand-green-dark"
-        >
-          저장
-        </button>
-      </form>
+      <HomeLayoutForm position={selected} hidden={hidden} />
     </div>
   );
 }
 
 async function SidebarTab() {
   const config = await getModuleUiConfig();
-  const orderedModules = [...SIDEBAR_MODULES].sort((a, b) => config[a].order - config[b].order);
-
-  return (
-    <form action={saveSidebarConfig} className="flex flex-col gap-4">
-      <p className="text-sm text-slate-600">
-        사이드바에 나오는 순서와 &quot;개발 중&quot; 배지 표시 여부를 항목별로
-        설정하세요. 홈/알림은 항상 맨 위·맨 아래 고정입니다.
-      </p>
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-slate-200 text-slate-500">
-            <tr>
-              <th className="px-4 py-3 font-medium">메뉴</th>
-              <th className="px-4 py-3 font-medium">순서</th>
-              <th className="px-4 py-3 font-medium">개발 중 배지</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orderedModules.map((m) => (
-              <tr key={m} className="border-b border-slate-100 last:border-0">
-                <td className="px-4 py-3 font-medium">{MODULE_LABEL[m]}</td>
-                <td className="px-4 py-3">
-                  <input
-                    type="number"
-                    name={`order:${m}`}
-                    defaultValue={config[m].order}
-                    className="w-16 rounded border border-slate-300 px-2 py-1 text-sm"
-                  />
-                </td>
-                <td className="px-4 py-3">
-                  <input
-                    type="checkbox"
-                    name={`comingSoon:${m}`}
-                    defaultChecked={config[m].comingSoon}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <button
-        type="submit"
-        className="self-start rounded bg-brand-green px-4 py-2 text-white hover:bg-brand-green-dark"
-      >
-        저장
-      </button>
-    </form>
-  );
+  return <SidebarConfigForm config={config} />;
 }
 
 export default async function ScreenConfigPage({

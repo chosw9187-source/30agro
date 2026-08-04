@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { checkModuleAccess } from "@/lib/permissions";
+import { checkModuleAccess, getEmployeeListScopeFilter } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
-import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
+import { POSITIONS, POSITION_LABEL, type Position } from "@/lib/permission-constants";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +20,16 @@ export default async function EmployeeDirectoryPage({
   const teamId = params.teamId ?? "";
   const hasQuery = q.length > 0 || teamId.length > 0;
 
+  const scopeFilter = await getEmployeeListScopeFilter();
+  const matchingPositions = q
+    ? POSITIONS.filter((p) => POSITION_LABEL[p].includes(q))
+    : [];
+
   const [employees, teams] = await Promise.all([
     hasQuery
       ? prisma.user.findMany({
           where: {
+            ...(scopeFilter ?? {}),
             ...(teamId ? { teamId } : {}),
             ...(q
               ? {
@@ -34,7 +40,19 @@ export default async function EmployeeDirectoryPage({
                     { major: { contains: q, mode: "insensitive" } },
                     { school: { contains: q, mode: "insensitive" } },
                     { jobFamily: { contains: q, mode: "insensitive" } },
+                    { gender: { contains: q, mode: "insensitive" } },
+                    { employmentType: { contains: q, mode: "insensitive" } },
+                    { jobGrade: { contains: q, mode: "insensitive" } },
+                    { educationLevel: { contains: q, mode: "insensitive" } },
+                    { degree: { contains: q, mode: "insensitive" } },
+                    { businessUnit: { contains: q, mode: "insensitive" } },
+                    { division: { contains: q, mode: "insensitive" } },
                     { team: { name: { contains: q, mode: "insensitive" } } },
+                    { team: { businessUnit: { contains: q, mode: "insensitive" } } },
+                    { team: { division: { contains: q, mode: "insensitive" } } },
+                    ...(matchingPositions.length > 0
+                      ? [{ position: { in: matchingPositions } }]
+                      : []),
                   ],
                 }
               : {}),
@@ -51,8 +69,8 @@ export default async function EmployeeDirectoryPage({
       <div>
         <h1 className="text-2xl font-semibold">직원정보 조회</h1>
         <p className="mt-1 text-slate-600">
-          이름 / 사번 / 이메일 / 팀 / 전공 / 학교 / 직군으로 검색하거나 팀으로
-          필터링하세요. 이름을 클릭하면 상세 정보를 볼 수 있습니다.
+          키워드로 검색하면 볼 수 있습니다. 이름을 클릭하면 상세 정보를 볼 수
+          있습니다.
         </p>
       </div>
 
@@ -61,7 +79,7 @@ export default async function EmployeeDirectoryPage({
           type="text"
           name="q"
           defaultValue={q}
-          placeholder="이름 / 사번 / 이메일 / 팀 / 전공 / 학교 검색"
+          placeholder="키워드 검색 (이름, 사번, 이메일, 팀, 직책, 직군 등)"
           className="w-64 rounded border border-slate-300 px-3 py-2 text-sm"
         />
         <select
@@ -86,7 +104,7 @@ export default async function EmployeeDirectoryPage({
 
       {!hasQuery ? (
         <p className="rounded-lg border border-dashed border-slate-300 bg-white py-10 text-center text-slate-500">
-          이름/사번/이메일을 검색하거나 팀을 선택하면 직원 정보가 표시됩니다.
+          키워드를 검색하거나 팀을 선택하면 직원 정보가 표시됩니다.
         </p>
       ) : (
         <>
