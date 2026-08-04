@@ -27,12 +27,25 @@ export function ImportUsersForm({ defaultYear }: { defaultYear: number }) {
         이메일이면 직원 권한으로 새로 등록합니다. 비밀번호는 사번으로 자동
         설정됩니다. 아래 연도의 대상자로도 함께 등록됩니다.
       </p>
-      <a
-        href="/api/admin/users/template"
-        className="self-start text-sm text-brand-green hover:underline"
-      >
-        업로드 양식 다운로드 (.xlsx)
-      </a>
+      <div className="flex gap-4">
+        <a
+          href="/api/admin/users/template"
+          className="self-start text-sm text-brand-green hover:underline"
+        >
+          업로드 양식 다운로드 (.xlsx)
+        </a>
+        <a
+          href="/api/admin/users/export"
+          className="self-start text-sm text-brand-green hover:underline"
+        >
+          현재 등록된 목록 내보내기 (.xlsx)
+        </a>
+      </div>
+      <p className="text-xs text-slate-400">
+        많은 인원의 성별·직급 등을 한 번에 채우려면, 위 &quot;현재 등록된
+        목록 내보내기&quot;로 받은 파일에 값을 채운 뒤 그대로 다시
+        업로드하세요. 이메일 기준으로 매칭되어 기존 정보가 갱신됩니다.
+      </p>
       <div className="flex items-center gap-2">
         <label className="text-sm text-slate-600">대상 연도</label>
         <input
