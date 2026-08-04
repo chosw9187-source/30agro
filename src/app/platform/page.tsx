@@ -13,7 +13,7 @@ import {
 } from "@/lib/hr-analytics";
 import { BarChart } from "@/components/bar-chart";
 import { TrendChart } from "@/components/trend-chart";
-import { DonutChart } from "@/components/donut-chart";
+import { GenderPictogram } from "@/components/gender-pictogram";
 
 export const dynamic = "force-dynamic";
 
@@ -233,10 +233,10 @@ export default async function PlatformHomePage() {
                   {genderKnownTotal === 0 ? (
                     <p className="text-sm text-slate-500">데이터 없음</p>
                   ) : (
-                    <DonutChart
+                    <GenderPictogram
                       segments={[
-                        { label: "남", value: maleCount, color: "#3b82f6" },
-                        { label: "여", value: femaleCount, color: "#fb7185" },
+                        { label: "남", value: maleCount, color: "#0d9488" },
+                        { label: "여", value: femaleCount, color: "#dc2626" },
                       ]}
                     />
                   )}
