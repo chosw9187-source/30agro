@@ -63,7 +63,8 @@ export async function extractJobDescriptionFieldsFromPdf(
       purpose: extractPurpose(result.text),
       responsibilities: extractResponsibilities(result.text),
     };
-  } catch {
+  } catch (err) {
+    console.error("[job-description-extract] PDF parse failed:", err);
     return { purpose: null, responsibilities: null };
   }
 }

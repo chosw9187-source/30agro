@@ -9,6 +9,10 @@ import { extractJobDescriptionFieldsFromPdf } from "@/lib/job-description-extrac
 
 const SEED_DIR = path.join(process.cwd(), "prisma", "seed-data", "job-descriptions");
 
+function isPdf(fileName: string, fileType: string): boolean {
+  return fileType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");
+}
+
 export async function saveJobDescription(teamId: string, formData: FormData) {
   await requireRole("ADMIN");
 
@@ -41,20 +45,38 @@ export async function saveJobDescription(teamId: string, formData: FormData) {
   revalidatePath("/platform/job-management");
 }
 
+export type SeedDraftResult = {
+  filesFound: number;
+  teamsMatched: number;
+  purposeFilled: number;
+  responsibilitiesFilled: number;
+  unmatchedFiles: string[];
+};
+
 /**
  * One-time bulk-load of the draft "직무기술서 종합" PDF (split per team,
  * bundled under prisma/seed-data/job-descriptions) as each team's baseline
  * attachment. Re-running overwrites with the same draft files — real
  * uploads via uploadJobDescriptionFile are untouched unless this is run again.
  */
-export async function seedJobDescriptionsFromDraft() {
+export async function seedJobDescriptionsFromDraft(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _prevState: SeedDraftResult | undefined
+): Promise<SeedDraftResult> {
   await requireRole("ADMIN");
 
   const teams = await prisma.team.findMany({ select: { id: true, name: true } });
-  const files = await fs.readdir(SEED_DIR);
+  const files = (await fs.readdir(SEED_DIR)).filter((f) => f.endsWith(".pdf"));
+
+  const result: SeedDraftResult = {
+    filesFound: files.length,
+    teamsMatched: 0,
+    purposeFilled: 0,
+    responsibilitiesFilled: 0,
+    unmatchedFiles: [],
+  };
 
   for (const file of files) {
-    if (!file.endsWith(".pdf")) continue;
     const label = file.replace(/\.pdf$/, "");
     const buffer = await fs.readFile(path.join(SEED_DIR, file));
 
@@ -63,10 +85,14 @@ export async function seedJobDescriptionsFromDraft() {
         ? teams.filter((t) => t.name.endsWith("지점"))
         : teams.filter((t) => t.name === label);
 
-    if (matches.length === 0) continue;
+    if (matches.length === 0) {
+      result.unmatchedFiles.push(file);
+      continue;
+    }
     const extracted = await extractJobDescriptionFieldsFromPdf(buffer);
 
     for (const team of matches) {
+      result.teamsMatched++;
       const existing = await prisma.jobDescription.findUnique({
         where: { teamId: team.id },
         select: { purpose: true, responsibilities: true },
@@ -75,6 +101,8 @@ export async function seedJobDescriptionsFromDraft() {
       const responsibilities = existing?.responsibilities
         ? undefined
         : extracted.responsibilities ?? undefined;
+      if (purpose) result.purposeFilled++;
+      if (responsibilities) result.responsibilitiesFilled++;
 
       await prisma.jobDescription.upsert({
         where: { teamId: team.id },
@@ -100,14 +128,22 @@ export async function seedJobDescriptionsFromDraft() {
   }
 
   revalidatePath("/platform/job-management");
+  revalidatePath("/platform/job-management/[teamId]", "page");
+
+  return result;
 }
 
-async function saveJobDescriptionFile(teamId: string, file: File) {
+export type FileUploadResult = {
+  fileName: string;
+  purposeExtracted: boolean;
+  responsibilitiesExtracted: boolean;
+};
+
+async function saveJobDescriptionFile(teamId: string, file: File): Promise<FileUploadResult> {
   const buffer = Buffer.from(await file.arrayBuffer());
-  const extracted =
-    file.type === "application/pdf"
-      ? await extractJobDescriptionFieldsFromPdf(buffer)
-      : { purpose: null, responsibilities: null };
+  const extracted = isPdf(file.name, file.type)
+    ? await extractJobDescriptionFieldsFromPdf(buffer)
+    : { purpose: null, responsibilities: null };
 
   const existing = await prisma.jobDescription.findUnique({
     where: { teamId },
@@ -141,15 +177,25 @@ async function saveJobDescriptionFile(teamId: string, file: File) {
 
   revalidatePath(`/platform/job-management/${teamId}`);
   revalidatePath("/platform/job-management");
+
+  return {
+    fileName: file.name,
+    purposeExtracted: !!purpose,
+    responsibilitiesExtracted: !!responsibilities,
+  };
 }
 
-export async function uploadJobDescriptionFile(teamId: string, formData: FormData) {
+export async function uploadJobDescriptionFile(
+  teamId: string,
+  _prevState: FileUploadResult | undefined,
+  formData: FormData
+): Promise<FileUploadResult | undefined> {
   await requireRole("ADMIN");
 
   const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) return;
+  if (!(file instanceof File) || file.size === 0) return undefined;
 
-  await saveJobDescriptionFile(teamId, file);
+  return saveJobDescriptionFile(teamId, file);
 }
 
 export async function uploadJobDescriptionFileForTeam(formData: FormData) {

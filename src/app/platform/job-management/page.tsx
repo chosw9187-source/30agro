@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
-import { seedJobDescriptionsFromDraft } from "./actions";
+import { SeedDraftForm } from "./seed-draft-form";
 
 export const dynamic = "force-dynamic";
 
@@ -33,16 +33,7 @@ export default async function JobManagementPage() {
             작성/수정은 관리자만 가능합니다.
           </p>
         </div>
-        {isAdmin && (
-          <form action={seedJobDescriptionsFromDraft}>
-            <button
-              type="submit"
-              className="whitespace-nowrap rounded border border-slate-300 px-3 py-2 text-sm hover:bg-slate-100"
-            >
-              초안 PDF로 기본값 불러오기
-            </button>
-          </form>
-        )}
+        {isAdmin && <SeedDraftForm />}
       </div>
 
       <div className="flex flex-col gap-2">

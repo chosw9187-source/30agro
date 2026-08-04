@@ -2,9 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { saveJobDescription, uploadJobDescriptionFile } from "../actions";
+import { saveJobDescription } from "../actions";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
+import { JobFileUploadForm } from "../job-file-upload-form";
 
 export const dynamic = "force-dynamic";
 
@@ -144,27 +145,7 @@ export default async function JobDescriptionDetailPage({
         ) : (
           <p className="text-sm text-slate-500">아직 첨부된 파일이 없습니다.</p>
         )}
-        {isAdmin && (
-          <form
-            action={uploadJobDescriptionFile.bind(null, team.id)}
-            encType="multipart/form-data"
-            className="mt-3 flex items-center gap-2"
-          >
-            <input
-              type="file"
-              name="file"
-              required
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.hwp,.hwpx"
-              className="flex-1 rounded border border-slate-300 px-3 py-2 text-sm"
-            />
-            <button
-              type="submit"
-              className="rounded bg-brand-green px-4 py-2 text-sm text-white hover:bg-brand-green-dark"
-            >
-              업로드 (덮어쓰기)
-            </button>
-          </form>
-        )}
+        {isAdmin && <JobFileUploadForm teamId={team.id} />}
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">
