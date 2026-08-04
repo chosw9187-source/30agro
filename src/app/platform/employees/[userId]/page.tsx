@@ -8,12 +8,6 @@ import { BackLink } from "@/components/back-link";
 
 export const dynamic = "force-dynamic";
 
-const roleLabel: Record<string, string> = {
-  ADMIN: "관리자",
-  EVALUATOR: "평가자",
-  EMPLOYEE: "직원",
-};
-
 function fmtDate(d: Date | null) {
   return d ? d.toLocaleDateString("ko-KR") : "-";
 }
@@ -103,9 +97,6 @@ export default async function EmployeeDetailPage({
               {POSITION_LABEL[employee.position as Position]}
             </p>
           </div>
-          <span className="ml-auto rounded bg-white px-2.5 py-1 text-xs font-medium text-slate-600">
-            {roleLabel[employee.role] ?? employee.role}
-          </span>
         </div>
 
         <div className="grid grid-cols-1 gap-8 p-6 sm:grid-cols-2">

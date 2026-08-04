@@ -135,16 +135,23 @@ async function loadViewerContext(userId: string): Promise<ViewerContext | null> 
 
 /**
  * 인사카드(개인 인사정보) 열람 권한: 본인·관리자·인사팀 소속은 항상 전체
- * 열람 가능. 그 외에는 권한 매트릭스에서 설정한 EMPLOYEES 모듈 범위(전체
- * /사업단위/부문/팀/본인/접근 불가)를 따르며, 사용자별로 개별 지정된 값이
- * 있으면 직책 기본값보다 우선한다(예: 특정 HR 임원은 부문장이라도 전체
- * 열람 가능하도록 개별 설정).
+ * 열람 가능. 회장/부회장/사장(Position.CEO)의 인사카드는 본인·관리자
+ * 외에는 인사팀을 포함해 누구에게도 보이지 않는다. 그 외에는 권한
+ * 매트릭스에서 설정한 EMPLOYEES 모듈 범위(전체/사업단위/부문/팀/본인/
+ * 접근 불가)를 따르며, 사용자별로 개별 지정된 값이 있으면 직책 기본값보다
+ * 우선한다(예: 특정 HR 임원은 부문장이라도 전체 열람 가능하도록 개별 설정).
  */
 export async function canViewEmployeeCard(targetUserId: string): Promise<boolean> {
   const session = await auth();
   if (!session?.user) return false;
   if (session.user.id === targetUserId) return true;
   if (session.user.role === "ADMIN") return true;
+
+  const target = await prisma.user.findUnique({
+    where: { id: targetUserId },
+    select: { position: true },
+  });
+  if (target?.position === "CEO") return false;
 
   const viewer = await prisma.user.findUnique({
     where: { id: session.user.id },
@@ -182,7 +189,9 @@ export async function canViewEmployeeCard(targetUserId: string): Promise<boolean
  * 직원정보조회 list/search page, which (unlike the per-record
  * canViewEmployeeCard check on the detail page) must filter results up
  * front rather than just blocking navigation afterward. Returns `null` for
- * "no restriction" (FULL scope, or admin/인사팀).
+ * "no restriction" (FULL scope, or admin). Non-admin viewers never see
+ * CEO(회장/부회장/사장) records — those are hidden even from 인사팀 — except
+ * a CEO viewing their own row.
  */
 export async function getEmployeeListScopeFilter(): Promise<Record<string, unknown> | null> {
   const BLOCK_ALL = { id: "__no_access__" };
@@ -196,7 +205,10 @@ export async function getEmployeeListScopeFilter(): Promise<Record<string, unkno
     select: { id: true, position: true, team: { select: { name: true } } },
   });
   if (!viewer) return BLOCK_ALL;
-  if (viewer.team?.name === "인사팀") return null;
+
+  const hideCeo = { OR: [{ id: viewer.id }, { NOT: { position: "CEO" } }] };
+
+  if (viewer.team?.name === "인사팀") return hideCeo;
 
   const scope = await getEffectiveModuleScope(
     session.user.id,
@@ -204,28 +216,40 @@ export async function getEmployeeListScopeFilter(): Promise<Record<string, unkno
     viewer.position as Position,
     "EMPLOYEES"
   );
-  if (scope === "FULL") return null;
+  if (scope === "FULL") return hideCeo;
   if (scope === "NONE" || scope === "SELF") return { id: viewer.id };
 
   const ctx = await loadViewerContext(viewer.id);
   if (!ctx) return BLOCK_ALL;
 
-  if (scope === "TEAM") return ctx.teamId ? { teamId: ctx.teamId } : BLOCK_ALL;
+  if (scope === "TEAM") {
+    return ctx.teamId ? { AND: [{ teamId: ctx.teamId }, hideCeo] } : BLOCK_ALL;
+  }
   if (scope === "DIVISION") {
     if (!ctx.division) return BLOCK_ALL;
     return {
-      OR: [
-        { team: { division: ctx.division } },
-        { AND: [{ teamId: null }, { division: ctx.division }] },
+      AND: [
+        {
+          OR: [
+            { team: { division: ctx.division } },
+            { AND: [{ teamId: null }, { division: ctx.division }] },
+          ],
+        },
+        hideCeo,
       ],
     };
   }
   if (scope === "BUSINESS_UNIT") {
     if (!ctx.businessUnit) return BLOCK_ALL;
     return {
-      OR: [
-        { team: { businessUnit: ctx.businessUnit } },
-        { AND: [{ teamId: null }, { businessUnit: ctx.businessUnit }] },
+      AND: [
+        {
+          OR: [
+            { team: { businessUnit: ctx.businessUnit } },
+            { AND: [{ teamId: null }, { businessUnit: ctx.businessUnit }] },
+          ],
+        },
+        hideCeo,
       ],
     };
   }
