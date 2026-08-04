@@ -192,50 +192,52 @@ export default async function PlatformHomePage() {
               </div>
             </section>
 
-            <section className="rounded-lg border border-slate-200 bg-white p-6">
-              <h2 className="text-lg font-medium">연령 · 근속 구성</h2>
-              <p className="mb-4 text-sm text-slate-500">
-                재직 {activeUsers.length}명
-                {ageDist.missing > 0 && ` · 생년월일 미입력 ${ageDist.missing}명 제외`}
-              </p>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="flex items-center justify-center rounded border border-slate-100 p-4">
-                  <BarChart title="연령" bars={ageDist.buckets} showPercent color="#3b82f6" />
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <section className="rounded-lg border border-slate-200 bg-white p-6">
+                <h2 className="text-lg font-medium">연령 · 근속 구성</h2>
+                <p className="mb-4 text-sm text-slate-500">
+                  재직 {activeUsers.length}명
+                  {ageDist.missing > 0 && ` · 생년월일 미입력 ${ageDist.missing}명 제외`}
+                </p>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="flex items-center justify-center rounded border border-slate-100 p-4">
+                    <BarChart title="연령" bars={ageDist.buckets} showPercent color="#3b82f6" />
+                  </div>
+                  <div className="flex items-center justify-center rounded border border-slate-100 p-4">
+                    <BarChart title="근속" bars={tenureDist.buckets} showPercent color="#1f9a44" />
+                  </div>
                 </div>
-                <div className="flex items-center justify-center rounded border border-slate-100 p-4">
-                  <BarChart title="근속" bars={tenureDist.buckets} showPercent color="#1f9a44" />
-                </div>
-              </div>
-            </section>
+              </section>
 
-            <section className="rounded-lg border border-slate-200 bg-white p-6">
-              <h2 className="text-lg font-medium">최근 12개월 입퇴사 현황</h2>
-              <p className="mb-4 text-sm text-slate-500">
-                {monthlyTrend[0]?.label} ~ {monthlyTrend[monthlyTrend.length - 1]?.label}
-              </p>
-              <div className="mb-4 grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <p className="text-xl font-semibold text-brand-green-dark">
-                    {totalRecentHires}명
-                  </p>
-                  <p className="text-xs text-slate-500">입사</p>
+              <section className="rounded-lg border border-slate-200 bg-white p-6">
+                <h2 className="text-lg font-medium">최근 12개월 입퇴사 현황</h2>
+                <p className="mb-4 text-sm text-slate-500">
+                  {monthlyTrend[0]?.label} ~ {monthlyTrend[monthlyTrend.length - 1]?.label}
+                </p>
+                <div className="mb-4 grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <p className="text-xl font-semibold text-brand-green-dark">
+                      {totalRecentHires}명
+                    </p>
+                    <p className="text-xs text-slate-500">입사</p>
+                  </div>
+                  <div>
+                    <p className="text-xl font-semibold text-amber-600">
+                      {totalRecentTerminations}명
+                    </p>
+                    <p className="text-xs text-slate-500">퇴사</p>
+                  </div>
+                  <div>
+                    <p className="text-xl font-semibold text-slate-700">
+                      {totalRecentHires - totalRecentTerminations >= 0 ? "+" : ""}
+                      {totalRecentHires - totalRecentTerminations}명
+                    </p>
+                    <p className="text-xs text-slate-500">순증감</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xl font-semibold text-amber-600">
-                    {totalRecentTerminations}명
-                  </p>
-                  <p className="text-xs text-slate-500">퇴사</p>
-                </div>
-                <div>
-                  <p className="text-xl font-semibold text-slate-700">
-                    {totalRecentHires - totalRecentTerminations >= 0 ? "+" : ""}
-                    {totalRecentHires - totalRecentTerminations}명
-                  </p>
-                  <p className="text-xs text-slate-500">순증감</p>
-                </div>
-              </div>
-              <TrendChart points={monthlyTrend} />
-            </section>
+                <TrendChart points={monthlyTrend} />
+              </section>
+            </div>
           </div>
         )}
 

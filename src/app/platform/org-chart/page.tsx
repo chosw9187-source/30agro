@@ -241,6 +241,7 @@ function ConnectorRow({ count, minWidth, children }: { count: number; minWidth: 
 function LeaderBanner({
   eyebrow,
   title,
+  leaderId,
   leaderName,
   headcount,
   subCount,
@@ -248,6 +249,7 @@ function LeaderBanner({
 }: {
   eyebrow: string;
   title: string;
+  leaderId?: string | null;
   leaderName?: string | null;
   headcount: number;
   subCount: number;
@@ -258,7 +260,7 @@ function LeaderBanner({
       <p className="text-sm text-white/80">{eyebrow}</p>
       <p className="mt-1 text-2xl font-bold">{title}</p>
       {leaderName && <p className="mt-1 text-white/90">{leaderName}</p>}
-      <div className="mt-4 flex gap-8 text-sm">
+      <div className="mt-4 flex items-center gap-8 text-sm">
         <span>
           <strong className="text-lg">{headcount}</strong>명 재직
         </span>
@@ -266,6 +268,14 @@ function LeaderBanner({
           <strong className="text-lg">{subCount}</strong>
           {subLabel}
         </span>
+        {leaderId && (
+          <Link
+            href={`/platform/employees/${leaderId}`}
+            className="rounded border border-white/40 px-3 py-1.5 hover:bg-white/10"
+          >
+            상세보기 ›
+          </Link>
+        )}
       </div>
     </div>
   );
@@ -439,6 +449,7 @@ export default async function OrgChartPage({
         <LeaderBanner
           eyebrow={unitParam ? `${unitParam} · ${division.name}` : division.name}
           title={division.leader ? `${division.leader.name} ${division.leader.jobGrade || ""}`.trim() : division.name}
+          leaderId={division.leader?.id}
           headcount={divisionHeadcount(division)}
           subCount={division.teams.length}
           subLabel="개 팀"
@@ -476,6 +487,7 @@ export default async function OrgChartPage({
         <LeaderBanner
           eyebrow="사업단위"
           title={unit.leader ? `${unit.leader.name} ${unit.leader.jobGrade || ""}`.trim() : unit.name}
+          leaderId={unit.leader?.id}
           headcount={unitHeadcount(unit)}
           subCount={unitChildCount}
           subLabel="개 하위 조직"

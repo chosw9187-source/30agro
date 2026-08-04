@@ -97,7 +97,7 @@ export default async function TeamOrgDetailPage({
               href={`/platform/employees/${team.leader.id}`}
               className="rounded border border-white/40 px-3 py-1.5 hover:bg-white/10"
             >
-              팀장 상세보기 ›
+              상세보기 ›
             </Link>
           )}
         </div>
