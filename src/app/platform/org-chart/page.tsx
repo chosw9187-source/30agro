@@ -76,7 +76,7 @@ function DivisionBlock({ division }: { division: DivisionNode }) {
   return (
     <div className="overflow-hidden rounded border border-brand-green-dark/20">
       <div className="bg-brand-green px-3 py-2 text-white">
-        <p className="text-sm font-semibold">{division.name} 본부</p>
+        <p className="text-sm font-semibold">{division.name}</p>
         <LeaderTag leader={division.leader} fallback="리더 미지정" />
       </div>
       <div className="flex flex-col gap-1.5 bg-brand-green-light/40 p-2">
@@ -95,7 +95,7 @@ function UnitColumn({ unit, shade }: { unit: UnitNode; shade: string }) {
   return (
     <div className="flex flex-1 flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3">
       <div className={`rounded px-4 py-3 text-white ${shade}`}>
-        <p className="font-semibold">{unit.name} 사업단위</p>
+        <p className="font-semibold">{unit.name}</p>
         <LeaderTag leader={unit.leader} fallback="리더 미지정" />
       </div>
       <div className="flex flex-col gap-2">
@@ -205,7 +205,14 @@ export default async function OrgChartPage() {
     }
   }
 
-  const units = unitOrder.map((n) => unitMap.get(n)!);
+  const UNIT_PRIORITY: Record<string, number> = {
+    제품사업: 0,
+    연구생산: 1,
+    재무경영관리: 2,
+  };
+  const units = unitOrder
+    .map((n) => unitMap.get(n)!)
+    .sort((a, b) => (UNIT_PRIORITY[a.name] ?? 9) - (UNIT_PRIORITY[b.name] ?? 9));
   const standaloneDivisions = standaloneDivisionOrder.map((n) => standaloneDivisionMap.get(n)!);
   const unitShades = ["bg-brand-green-dark", "bg-emerald-700", "bg-teal-700", "bg-brand-green-dark"];
 

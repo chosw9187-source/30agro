@@ -67,8 +67,9 @@ export async function uploadEmployeePhotos(
 }
 
 /**
- * 발령사항(인사발령 이력) 업로드. 행마다 새 이력을 하나씩 추가합니다(누적,
- * 덮어쓰기 아님) — 같은 사번을 여러 번 올려도 매번 새 기록으로 쌓입니다.
+ * 발령사항(인사발령 이력) 업로드. (사번, 발령일) 기준으로 upsert — 같은
+ * 사번+발령일을 다시 올리면 그 기록이 갱신되고, 발령일이 다르면 새 이력으로
+ * 누적됩니다.
  * 컬럼: 사번, 발령일, 발령구분, 발령명, 부서(또는 근무부서), 직위(또는 직책),
  * 직급, 발령내역.
  */
@@ -108,16 +109,25 @@ export async function uploadAppointmentRecords(
       continue;
     }
 
-    await prisma.appointmentRecord.create({
-      data: {
+    const type = str(row["발령구분"]);
+    const title = str(row["발령명"]);
+    const department = str(row["근무부서"]) ?? str(row["부서"]);
+    const positionTitle = str(row["직책"]) ?? str(row["직위"]);
+    const jobGrade = str(row["직급"]);
+    const note = str(row["발령내역"]);
+
+    await prisma.appointmentRecord.upsert({
+      where: { userId_date: { userId: user.id, date } },
+      update: { type, title, department, positionTitle, jobGrade, note },
+      create: {
         userId: user.id,
         date,
-        type: str(row["발령구분"]),
-        title: str(row["발령명"]),
-        department: str(row["근무부서"]) ?? str(row["부서"]),
-        positionTitle: str(row["직책"]) ?? str(row["직위"]),
-        jobGrade: str(row["직급"]),
-        note: str(row["발령내역"]),
+        type,
+        title,
+        department,
+        positionTitle,
+        jobGrade,
+        note,
       },
     });
     applied++;

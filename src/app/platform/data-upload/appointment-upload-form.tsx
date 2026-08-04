@@ -14,8 +14,8 @@ export function AppointmentUploadForm() {
       <p className="text-sm text-slate-500">
         엑셀 컬럼: <strong>사번 / 발령일</strong>은 필수, <strong>발령구분 /
         발령명 / 부서(또는 근무부서) / 직위(또는 직책) / 직급 / 발령내역</strong>은
-        있으면 함께 반영됩니다. 매 행이 새 이력으로 누적되며(덮어쓰지 않음),
-        같은 사번을 여러 번 올려도 각각 별도 기록으로 쌓입니다.
+        있으면 함께 반영됩니다. <strong>같은 사번+발령일</strong>을 다시
+        올리면 그 기록이 갱신되고, 발령일이 다르면 새 이력으로 누적됩니다.
       </p>
       <a
         href="/api/admin/appointment-records/template"
