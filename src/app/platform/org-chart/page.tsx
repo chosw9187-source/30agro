@@ -6,12 +6,14 @@ import { Avatar } from "@/components/avatar";
 
 export const dynamic = "force-dynamic";
 
-type Exec = { id: string; name: string; jobGrade: string | null };
-type CeoExec = Exec & { hasPhoto: boolean };
+type Exec = { id: string; name: string; jobGrade: string | null; hasPhoto: boolean };
+type CeoExec = Exec;
 type TeamLite = {
   id: string;
   name: string;
+  leaderId: string | null;
   leaderName: string | null;
+  leaderHasPhoto: boolean;
   memberCount: number;
 };
 type DivisionNode = { name: string; leader?: Exec; teams: TeamLite[] };
@@ -57,8 +59,9 @@ function CeoBanner({
   unitCount: number;
 }) {
   return (
-    <div className="w-full overflow-hidden rounded-lg border border-brand-black bg-brand-black text-white">
-      <div className="flex flex-wrap items-center gap-6 px-8 py-6">
+    <div className="flex w-full overflow-hidden rounded-lg border border-brand-black shadow-sm">
+      <div className="w-2 shrink-0 bg-brand-green" />
+      <div className="flex flex-1 flex-wrap items-center gap-6 bg-brand-black px-8 py-6 text-white">
         <div className="flex -space-x-3">
           {ceos.map((c) => (
             <Avatar
@@ -97,16 +100,81 @@ function CeoBanner({
   );
 }
 
+function CardShell({
+  href,
+  avatarNode,
+  title,
+  subtitle,
+  headcount,
+  subCount,
+  subLabel,
+}: {
+  href: string;
+  avatarNode: React.ReactNode;
+  title: string;
+  subtitle: string;
+  headcount: number;
+  subCount: number;
+  subLabel: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex flex-col items-center rounded-lg border border-slate-200 bg-white p-4 text-center hover:border-brand-green hover:shadow-sm"
+    >
+      {avatarNode}
+      <p className="mt-2 font-semibold text-slate-800">{title}</p>
+      <p className="text-xs text-slate-500">{subtitle}</p>
+      <div className="mt-2 flex gap-3 text-xs text-slate-500">
+        <span>
+          <strong className="text-brand-green-dark">{headcount}</strong>명
+        </span>
+        <span>
+          <strong className="text-brand-green-dark">{subCount}</strong>
+          {subLabel}
+        </span>
+      </div>
+      <span className="mt-3 w-full border-t border-slate-100 pt-2 text-xs text-brand-green">
+        상세보기 ›
+      </span>
+    </Link>
+  );
+}
+
+function LeaderAvatarOrInitial({ leader, fallbackText }: { leader?: Exec; fallbackText: string }) {
+  if (leader) {
+    return (
+      <Avatar userId={leader.id} name={leader.name} hasPhoto={leader.hasPhoto} className="h-12 w-12 text-base" />
+    );
+  }
+  return (
+    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-green-light text-sm font-semibold text-brand-green-dark">
+      {fallbackText.slice(0, 1)}
+    </span>
+  );
+}
+
 function TeamChip({ team }: { team: TeamLite }) {
   return (
     <Link
       href={`/platform/org-chart/${team.id}`}
-      className="rounded border border-slate-200 bg-white px-3 py-2 text-sm hover:border-brand-green hover:bg-brand-green-light"
+      className="flex flex-col items-center rounded-lg border border-slate-200 bg-white p-4 text-center hover:border-brand-green hover:shadow-sm"
     >
-      <p className="font-medium text-slate-800">{team.name}</p>
+      {team.leaderId ? (
+        <Avatar
+          userId={team.leaderId}
+          name={team.leaderName ?? team.name}
+          hasPhoto={team.leaderHasPhoto}
+          className="h-10 w-10 text-sm"
+        />
+      ) : (
+        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-green-light text-sm font-semibold text-brand-green-dark">
+          {team.name.slice(0, 1)}
+        </span>
+      )}
+      <p className="mt-2 text-sm font-medium text-slate-800">{team.name}</p>
       <p className="text-xs text-slate-500">
-        {team.leaderName ? `${team.leaderName} 팀장` : "팀장 미지정"} ·{" "}
-        {team.memberCount}명
+        {team.leaderName ? `${team.leaderName} 팀장` : "팀장 미지정"} · {team.memberCount}명
       </p>
     </Link>
   );
@@ -115,38 +183,65 @@ function TeamChip({ team }: { team: TeamLite }) {
 function DrillCard({
   href,
   title,
-  leaderName,
+  leader,
   headcount,
   subCount,
   subLabel,
 }: {
   href: string;
   title: string;
-  leaderName?: string | null;
+  leader?: Exec;
   headcount: number;
   subCount: number;
   subLabel: string;
 }) {
   return (
-    <Link
+    <CardShell
       href={href}
-      className="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-4 hover:border-brand-green"
-    >
-      <div>
-        <p className="font-semibold text-slate-800">{title}</p>
-        <p className="text-sm text-slate-500">{leaderName || "리더 미지정"}</p>
-        <div className="mt-3 flex gap-4 text-sm text-slate-500">
-          <span>
-            <strong className="text-brand-green-dark">{headcount}</strong>명 재직
-          </span>
-          <span>
-            <strong className="text-brand-green-dark">{subCount}</strong>
-            {subLabel}
-          </span>
+      avatarNode={<LeaderAvatarOrInitial leader={leader} fallbackText={title} />}
+      title={title}
+      subtitle={leader ? `${leader.name}${leader.jobGrade ? ` ${leader.jobGrade}` : ""}` : "리더 미지정"}
+      headcount={headcount}
+      subCount={subCount}
+      subLabel={subLabel}
+    />
+  );
+}
+
+/**
+ * Tree connector: a stem down from the parent banner, a horizontal branch
+ * spanning the first-to-last card center, and a vertical drop to each card.
+ * The row below must use the same fixed N-column grid (no responsive
+ * breakpoint reflow) so the drop points line up with card centers.
+ */
+function ConnectorRow({ count, minWidth, children }: { count: number; minWidth: number; children: React.ReactNode }) {
+  if (count === 0) return null;
+  const points = Array.from({ length: count }, (_, i) => ((i + 0.5) / count) * 100);
+
+  return (
+    <div className="w-full overflow-x-auto">
+      <div style={{ minWidth }}>
+        <div className="relative h-6 w-full">
+          <div className="absolute left-1/2 top-0 h-1/2 w-0.5 -translate-x-1/2 bg-slate-300" />
+          {count > 1 && (
+            <div
+              className="absolute top-1/2 h-0.5 -translate-y-1/2 bg-slate-300"
+              style={{ left: `${points[0]}%`, right: `${100 - points[count - 1]}%` }}
+            />
+          )}
+          {points.map((p, i) => (
+            <div
+              key={i}
+              className="absolute bottom-0 h-1/2 w-0.5 bg-slate-300"
+              style={{ left: `${p}%`, transform: "translateX(-50%)" }}
+            />
+          ))}
+        </div>
+        <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(${count}, 1fr)` }}>
+          {children}
         </div>
       </div>
-      <span className="mt-3 self-start text-sm text-brand-green">상세보기 ›</span>
-    </Link>
+    </div>
   );
 }
 
@@ -229,11 +324,11 @@ export default async function OrgChartPage({
     }),
     prisma.user.findMany({
       where: { position: "OPERATIONS_HEAD" },
-      select: { id: true, name: true, jobGrade: true, businessUnit: true, division: true },
+      select: { id: true, name: true, jobGrade: true, businessUnit: true, division: true, photo: true },
     }),
     prisma.user.findMany({
       where: { position: "SENIOR_STAFF" },
-      select: { id: true, name: true, jobGrade: true, businessUnit: true, division: true },
+      select: { id: true, name: true, jobGrade: true, businessUnit: true, division: true, photo: true },
     }),
   ]);
 
@@ -248,7 +343,9 @@ export default async function OrgChartPage({
   const toTeamLite = (t: (typeof teams)[number]): TeamLite => ({
     id: t.id,
     name: t.name,
+    leaderId: t.leader?.id ?? null,
     leaderName: t.leader?.name ?? null,
+    leaderHasPhoto: !!t.leader?.photo,
     memberCount: t._count.members,
   });
 
@@ -298,11 +395,11 @@ export default async function OrgChartPage({
   }
 
   for (const l of opsHeads) {
-    const leader: Exec = { id: l.id, name: l.name, jobGrade: l.jobGrade };
+    const leader: Exec = { id: l.id, name: l.name, jobGrade: l.jobGrade, hasPhoto: !!l.photo };
     if (l.businessUnit) ensureUnit(l.businessUnit).leader = leader;
   }
   for (const l of seniors) {
-    const leader: Exec = { id: l.id, name: l.name, jobGrade: l.jobGrade };
+    const leader: Exec = { id: l.id, name: l.name, jobGrade: l.jobGrade, hasPhoto: !!l.photo };
     if (l.businessUnit && l.division) {
       ensureDivisionIn(ensureUnit(l.businessUnit), l.division).leader = leader;
     } else if (l.division) {
@@ -355,12 +452,12 @@ export default async function OrgChartPage({
         />
         <div>
           <h2 className="mb-3 text-lg font-medium">소속 팀</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ConnectorRow count={division.teams.length} minWidth={division.teams.length * 200}>
             {division.teams.map((t) => (
               <TeamChip key={t.id} team={t} />
             ))}
-            {division.teams.length === 0 && <p className="text-slate-500">소속 팀이 없습니다.</p>}
-          </div>
+          </ConnectorRow>
+          {division.teams.length === 0 && <p className="text-slate-500">소속 팀이 없습니다.</p>}
         </div>
       </div>
     );
@@ -378,6 +475,8 @@ export default async function OrgChartPage({
       );
     }
 
+    const unitChildCount = unit.divisions.length + unit.directTeams.length;
+
     return (
       <div className="flex flex-col gap-6">
         <Breadcrumb items={[{ label: "전체", href: "/platform/org-chart" }, { label: unit.name }]} />
@@ -385,18 +484,18 @@ export default async function OrgChartPage({
           eyebrow="사업단위"
           title={unit.leader ? `${unit.leader.name} ${unit.leader.jobGrade || ""}`.trim() : unit.name}
           headcount={unitHeadcount(unit)}
-          subCount={unit.divisions.length + unit.directTeams.length}
+          subCount={unitChildCount}
           subLabel="개 하위 조직"
         />
         <div>
           <h2 className="mb-3 text-lg font-medium">하위 조직</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ConnectorRow count={unitChildCount} minWidth={unitChildCount * 200}>
             {unit.divisions.map((d) => (
               <DrillCard
                 key={d.name}
                 href={`/platform/org-chart?unit=${encodeURIComponent(unit.name)}&division=${encodeURIComponent(d.name)}`}
                 title={d.name}
-                leaderName={d.leader ? `${d.leader.name} ${d.leader.jobGrade || ""}`.trim() : null}
+                leader={d.leader}
                 headcount={divisionHeadcount(d)}
                 subCount={d.teams.length}
                 subLabel="개 팀"
@@ -405,16 +504,16 @@ export default async function OrgChartPage({
             {unit.directTeams.map((t) => (
               <TeamChip key={t.id} team={t} />
             ))}
-            {unit.divisions.length === 0 && unit.directTeams.length === 0 && (
-              <p className="text-slate-500">소속 조직이 없습니다.</p>
-            )}
-          </div>
+          </ConnectorRow>
+          {unitChildCount === 0 && <p className="text-slate-500">소속 조직이 없습니다.</p>}
         </div>
       </div>
     );
   }
 
   // ROOT VIEW
+  const rootChildCount = units.length + standaloneDivisions.length;
+
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -442,26 +541,15 @@ export default async function OrgChartPage({
         />
       )}
 
-      <div className="flex flex-col items-center gap-6">
-        {rootTeams.length > 0 && (
-          <div className="w-full">
-            <p className="mb-2 text-center text-xs font-medium text-slate-400">직속</p>
-            <div className="flex flex-wrap justify-center gap-2">
-              {rootTeams.map((t) => (
-                <TeamChip key={t.id} team={t} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {(units.length > 0 || standaloneDivisions.length > 0) && (
-          <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="flex flex-col items-center gap-8">
+        {rootChildCount > 0 && (
+          <ConnectorRow count={rootChildCount} minWidth={rootChildCount * 200}>
             {units.map((u) => (
               <DrillCard
                 key={u.name}
                 href={`/platform/org-chart?unit=${encodeURIComponent(u.name)}`}
                 title={u.name}
-                leaderName={u.leader ? `${u.leader.name} ${u.leader.jobGrade || ""}`.trim() : null}
+                leader={u.leader}
                 headcount={unitHeadcount(u)}
                 subCount={u.divisions.length + u.directTeams.length}
                 subLabel="개 하위 조직"
@@ -472,12 +560,23 @@ export default async function OrgChartPage({
                 key={d.name}
                 href={`/platform/org-chart?division=${encodeURIComponent(d.name)}`}
                 title={d.name}
-                leaderName={d.leader ? `${d.leader.name} ${d.leader.jobGrade || ""}`.trim() : null}
+                leader={d.leader}
                 headcount={divisionHeadcount(d)}
                 subCount={d.teams.length}
                 subLabel="개 팀"
               />
             ))}
+          </ConnectorRow>
+        )}
+
+        {rootTeams.length > 0 && (
+          <div className="w-full">
+            <p className="mb-2 text-center text-xs font-medium text-slate-400">직속</p>
+            <ConnectorRow count={rootTeams.length} minWidth={rootTeams.length * 180}>
+              {rootTeams.map((t) => (
+                <TeamChip key={t.id} team={t} />
+              ))}
+            </ConnectorRow>
           </div>
         )}
 
