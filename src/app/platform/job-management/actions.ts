@@ -5,7 +5,7 @@ import path from "path";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
-import { extractPurposeFromPdf } from "@/lib/job-description-extract";
+import { extractJobDescriptionFieldsFromPdf } from "@/lib/job-description-extract";
 
 const SEED_DIR = path.join(process.cwd(), "prisma", "seed-data", "job-descriptions");
 
@@ -64,14 +64,17 @@ export async function seedJobDescriptionsFromDraft() {
         : teams.filter((t) => t.name === label);
 
     if (matches.length === 0) continue;
-    const extractedPurpose = await extractPurposeFromPdf(buffer);
+    const extracted = await extractJobDescriptionFieldsFromPdf(buffer);
 
     for (const team of matches) {
       const existing = await prisma.jobDescription.findUnique({
         where: { teamId: team.id },
-        select: { purpose: true },
+        select: { purpose: true, responsibilities: true },
       });
-      const purpose = existing?.purpose ? undefined : extractedPurpose ?? undefined;
+      const purpose = existing?.purpose ? undefined : extracted.purpose ?? undefined;
+      const responsibilities = existing?.responsibilities
+        ? undefined
+        : extracted.responsibilities ?? undefined;
 
       await prisma.jobDescription.upsert({
         where: { teamId: team.id },
@@ -81,6 +84,7 @@ export async function seedJobDescriptionsFromDraft() {
           fileData: buffer,
           fileUpdatedAt: new Date(),
           ...(purpose !== undefined ? { purpose } : {}),
+          ...(responsibilities !== undefined ? { responsibilities } : {}),
         },
         create: {
           teamId: team.id,
@@ -88,7 +92,8 @@ export async function seedJobDescriptionsFromDraft() {
           fileType: "application/pdf",
           fileData: buffer,
           fileUpdatedAt: new Date(),
-          purpose: extractedPurpose,
+          purpose: extracted.purpose,
+          responsibilities: extracted.responsibilities,
         },
       });
     }
@@ -99,14 +104,19 @@ export async function seedJobDescriptionsFromDraft() {
 
 async function saveJobDescriptionFile(teamId: string, file: File) {
   const buffer = Buffer.from(await file.arrayBuffer());
-  const extractedPurpose =
-    file.type === "application/pdf" ? await extractPurposeFromPdf(buffer) : null;
+  const extracted =
+    file.type === "application/pdf"
+      ? await extractJobDescriptionFieldsFromPdf(buffer)
+      : { purpose: null, responsibilities: null };
 
   const existing = await prisma.jobDescription.findUnique({
     where: { teamId },
-    select: { purpose: true },
+    select: { purpose: true, responsibilities: true },
   });
-  const purpose = existing?.purpose ? undefined : extractedPurpose ?? undefined;
+  const purpose = existing?.purpose ? undefined : extracted.purpose ?? undefined;
+  const responsibilities = existing?.responsibilities
+    ? undefined
+    : extracted.responsibilities ?? undefined;
 
   await prisma.jobDescription.upsert({
     where: { teamId },
@@ -116,6 +126,7 @@ async function saveJobDescriptionFile(teamId: string, file: File) {
       fileData: buffer,
       fileUpdatedAt: new Date(),
       ...(purpose !== undefined ? { purpose } : {}),
+      ...(responsibilities !== undefined ? { responsibilities } : {}),
     },
     create: {
       teamId,
@@ -123,7 +134,8 @@ async function saveJobDescriptionFile(teamId: string, file: File) {
       fileType: file.type || "application/octet-stream",
       fileData: buffer,
       fileUpdatedAt: new Date(),
-      purpose: extractedPurpose,
+      purpose: extracted.purpose,
+      responsibilities: extracted.responsibilities,
     },
   });
 
