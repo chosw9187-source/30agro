@@ -2,6 +2,7 @@ import Link from "next/link";
 import { signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { PlatformSidebar } from "@/components/platform-sidebar";
+import { CompanyLogo } from "@/components/company-logo";
 import { getVisibleModules, getModuleUiConfig, type Position } from "@/lib/permissions";
 
 export async function PlatformShell({
@@ -37,7 +38,8 @@ export async function PlatformShell({
         moduleUiConfig={moduleUiConfig}
       />
       <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-end border-b border-slate-200 bg-white px-8 py-3 text-sm">
+        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-8 py-3 text-sm">
+          <CompanyLogo className="h-9" />
           <Link
             href="/platform/support"
             className="rounded border border-slate-300 px-3 py-1.5 text-slate-700 hover:border-brand-green hover:text-brand-green"
