@@ -87,6 +87,26 @@ export async function updateUserName(userId: string, name: string) {
   revalidatePath("/platform/org-chart");
 }
 
+export async function updateUserJobGrade(userId: string, jobGrade: string) {
+  await requireRole("ADMIN");
+  const trimmed = jobGrade.trim();
+
+  await prisma.user.update({ where: { id: userId }, data: { jobGrade: trimmed || null } });
+  revalidatePath("/admin/users");
+  revalidatePath("/platform/employees");
+  revalidatePath("/platform/employees/[userId]", "page");
+  revalidatePath("/platform/org-chart");
+}
+
+export async function updateUserGender(userId: string, gender: string) {
+  await requireRole("ADMIN");
+  await prisma.user.update({ where: { id: userId }, data: { gender: gender || null } });
+  revalidatePath("/admin/users");
+  revalidatePath("/platform");
+  revalidatePath("/platform/employees");
+  revalidatePath("/platform/employees/[userId]", "page");
+}
+
 export async function updateUserRole(
   userId: string,
   role: "ADMIN" | "EVALUATOR" | "EMPLOYEE"

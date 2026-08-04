@@ -9,6 +9,8 @@ import { TargetYearToggle } from "./target-year-toggle";
 import { SelectAllCheckbox } from "./select-all-checkbox";
 import { PositionSelect } from "./position-select";
 import { NameEditor } from "./name-editor";
+import { JobGradeEditor } from "./job-grade-editor";
+import { GenderSelect } from "./gender-select";
 
 export const dynamic = "force-dynamic";
 
@@ -347,12 +349,16 @@ export default async function UsersPage({
                   <td className="whitespace-nowrap px-3 py-2">
                     <PositionSelect userId={u.id} position={u.position} />
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.gender ?? "-"}</td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    <GenderSelect userId={u.id} gender={u.gender} />
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{fmtDate(u.birthDate)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{fmtDate(u.hireDate)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{fmtDate(u.terminationDate)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.employmentType ?? "-"}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.jobGrade ?? "-"}</td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    <JobGradeEditor userId={u.id} jobGrade={u.jobGrade} />
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.educationLevel ?? "-"}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.school ?? "-"}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.major ?? "-"}</td>
