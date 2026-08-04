@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { checkModuleAccess, canViewEmployeeCard } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import { ageInYears } from "@/lib/hr-analytics";
+import { BackLink } from "@/components/back-link";
 
 export const dynamic = "force-dynamic";
 
@@ -46,9 +46,7 @@ export default async function EmployeeDetailPage({
   if (!(await canViewEmployeeCard(userId))) {
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/platform/employees" className="text-sm text-slate-500 hover:underline">
-          ← 직원정보 조회
-        </Link>
+        <BackLink fallbackHref="/platform/employees" label="목록으로" />
         <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white text-center">
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
             접근 권한 없음
@@ -76,9 +74,7 @@ export default async function EmployeeDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/platform/employees" className="text-sm text-slate-500 hover:underline">
-        ← 직원정보 조회
-      </Link>
+      <BackLink fallbackHref="/platform/employees" label="목록으로" />
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         <div className="flex items-center gap-5 border-b border-slate-100 bg-brand-green-light p-6">

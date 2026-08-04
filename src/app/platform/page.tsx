@@ -7,7 +7,6 @@ import {
   computeTenureDistribution,
   computeMonthlyHiresTerminations,
   computeJobFamilySummary,
-  computeAttentionAlerts,
   isActive,
   ageInYears,
   tenureInYears,
@@ -36,10 +35,8 @@ export default async function PlatformHomePage() {
   const evalHref =
     role === "ADMIN" ? "/admin/evaluation" : role === "EVALUATOR" ? "/evaluate" : "/my-evaluations";
 
-  const [allTeams, openCycles, totalAssignments, dbUser, allUsers] = await Promise.all([
+  const [allTeams, dbUser, allUsers] = await Promise.all([
     prisma.team.findMany({ select: { id: true } }),
-    prisma.evaluationCycle.count({ where: { status: "OPEN" } }),
-    prisma.evaluation.count(),
     prisma.user.findUnique({ where: { id: session!.user.id }, select: { position: true } }),
     prisma.user.findMany({
       where: { employmentType: "정규직" },
@@ -69,10 +66,6 @@ export default async function PlatformHomePage() {
   const jobFamilyRows = computeJobFamilySummary(allUsers).filter((r) =>
     CANONICAL_JOB_FAMILIES.includes(r.name)
   );
-  const alerts = computeAttentionAlerts(jobFamilyRows);
-  const allPending =
-    jobFamilyRows.length > 0 && jobFamilyRows.every((r) => r.remark === "판정 보류");
-
   const totalRecentHires = allUsers.filter(
     (u) => u.hireDate && u.hireDate >= new Date(new Date().setFullYear(new Date().getFullYear() - 1))
   ).length;
@@ -96,10 +89,6 @@ export default async function PlatformHomePage() {
     withTenure.length > 0
       ? withTenure.reduce((s, u) => s + tenureInYears(u.hireDate!), 0) / withTenure.length
       : null;
-  const distinctJobFamilies = new Set(
-    activeUsers.map((u) => u.jobFamily).filter((v): v is string => !!v)
-  ).size;
-
   const maleCount = activeUsers.filter((u) => u.gender === "남").length;
   const femaleCount = activeUsers.filter((u) => u.gender === "여").length;
   const genderKnownTotal = maleCount + femaleCount;
@@ -118,26 +107,13 @@ export default async function PlatformHomePage() {
       >
         {showTeamSummary && (
           <div className="flex flex-col gap-6">
-            <section className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <section className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-4">
               <p className="text-sm font-medium text-amber-800">
                 지금 관심이 필요한 것 <span className="font-normal text-amber-600">· 직군 기준 · 예외만 표시</span>
               </p>
-              {allPending ? (
-                <p className="mt-2 text-sm text-amber-700">
-                  데이터 없음 — 직군별 인원이 30명 미만이라 판정을 보류합니다.
-                </p>
-              ) : alerts.length === 0 ? (
-                <p className="mt-2 text-sm text-amber-700">현재 특이사항이 없습니다.</p>
-              ) : (
-                <ul className="mt-2 flex flex-col gap-2">
-                  {alerts.slice(0, 2).map((a, i) => (
-                    <li key={i} className="text-sm text-amber-800">
-                      <p className="font-medium">{a.title}</p>
-                      <p className="text-amber-600">{a.detail}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-semibold text-amber-950">
+                개발 중
+              </span>
             </section>
 
             <section className="rounded-lg border border-slate-200 bg-white">
@@ -218,10 +194,10 @@ export default async function PlatformHomePage() {
               </p>
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <div className="flex items-center justify-center rounded border border-slate-100 p-4">
-                  <BarChart title="연령" bars={ageDist.buckets} showPercent />
+                  <BarChart title="연령" bars={ageDist.buckets} showPercent color="#3b82f6" />
                 </div>
                 <div className="flex items-center justify-center rounded border border-slate-100 p-4">
-                  <BarChart title="근속" bars={tenureDist.buckets} showPercent />
+                  <BarChart title="근속" bars={tenureDist.buckets} showPercent color="#1f9a44" />
                 </div>
                 <div className="rounded border border-slate-100 p-4">
                   <h3 className="text-sm font-medium text-slate-700">입퇴사자 현황</h3>
@@ -280,16 +256,6 @@ export default async function PlatformHomePage() {
                   </h3>
                   <dl className="flex flex-col gap-2 text-sm">
                     <div className="flex items-center justify-between">
-                      <dt className="text-slate-500">재직 인원</dt>
-                      <dd className="font-semibold">{activeUsers.length}명</dd>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <dt className="text-slate-500">직군</dt>
-                      <dd className="font-semibold">
-                        {distinctJobFamilies > 0 ? `${distinctJobFamilies}개` : "데이터 없음"}
-                      </dd>
-                    </div>
-                    <div className="flex items-center justify-between">
                       <dt className="text-slate-500">평균 연령</dt>
                       <dd className="font-semibold">
                         {avgAge === null ? "데이터 없음" : `${avgAge.toFixed(1)}세`}
@@ -304,14 +270,6 @@ export default async function PlatformHomePage() {
                     <div className="flex items-center justify-between">
                       <dt className="text-slate-500">팀</dt>
                       <dd className="font-semibold">{allTeams.length}개</dd>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <dt className="text-slate-500">진행중인 평가 사이클</dt>
-                      <dd className="font-semibold">{openCycles}</dd>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <dt className="text-slate-500">전체 평가 배정 건수</dt>
-                      <dd className="font-semibold">{totalAssignments}</dd>
                     </div>
                   </dl>
                 </div>

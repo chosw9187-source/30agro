@@ -2,10 +2,12 @@ export function BarChart({
   title,
   bars,
   showPercent = false,
+  color = "#3b82f6",
 }: {
   title: string;
   bars: { label: string; count: number }[];
   showPercent?: boolean;
+  color?: string;
 }) {
   const max = Math.max(1, ...bars.map((b) => b.count));
   const total = bars.reduce((s, b) => s + b.count, 0);
@@ -36,7 +38,7 @@ export function BarChart({
                 width={barWidth}
                 height={barHeight}
                 rx={3}
-                fill="#3b82f6"
+                fill={color}
                 fillOpacity={0.75}
               />
               {showPercent && (

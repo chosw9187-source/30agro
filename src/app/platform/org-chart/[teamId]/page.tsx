@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
+import { ageInYears, tenureInYears } from "@/lib/hr-analytics";
+import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 
 export const dynamic = "force-dynamic";
 
@@ -96,7 +98,13 @@ export default async function TeamOrgDetailPage({
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-slate-500">
-                      팀원 · 사번 {m.employeeNumber}
+                      {POSITION_LABEL[m.position as Position]}
+                      {m.birthDate && ` · 만 ${ageInYears(m.birthDate)}세`}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      {m.hireDate
+                        ? `입사 ${m.hireDate.toLocaleDateString("ko-KR")} · 근속 ${tenureInYears(m.hireDate).toFixed(1)}년`
+                        : "입사일 미입력"}
                     </p>
                   </Link>
                 ))}
