@@ -283,11 +283,20 @@ enum Module {
   EVALUATION
 }
 
+enum PermissionScope {
+  NONE
+  SELF
+  TEAM
+  DIVISION
+  BUSINESS_UNIT
+  FULL
+}
+
 model PermissionMatrixEntry {
-  id       String   @id @default(cuid())
+  id       String          @id @default(cuid())
   position Position
   module   Module
-  visible  Boolean  @default(true)
+  scope    PermissionScope @default(FULL)
 
   @@unique([position, module])
 }

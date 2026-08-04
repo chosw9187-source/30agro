@@ -3,25 +3,28 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
-import { MODULES, POSITIONS } from "@/lib/permissions";
+import { MODULES, POSITIONS, PERMISSION_SCOPES, type PermissionScope } from "@/lib/permissions";
 
 export async function savePermissionMatrix(formData: FormData) {
   await requireRole("ADMIN");
 
-  const checked = new Set(formData.getAll("cell").map(String));
-
   for (const position of POSITIONS) {
     for (const mod of MODULES) {
       const key = `${mod}:${position}`;
-      if (checked.has(key)) {
+      const raw = formData.get(key);
+      const scope: PermissionScope = PERMISSION_SCOPES.includes(raw as PermissionScope)
+        ? (raw as PermissionScope)
+        : "FULL";
+
+      if (scope === "FULL") {
         await prisma.permissionMatrixEntry.deleteMany({
           where: { position, module: mod },
         });
       } else {
         await prisma.permissionMatrixEntry.upsert({
           where: { position_module: { position, module: mod } },
-          update: { visible: false },
-          create: { position, module: mod, visible: false },
+          update: { scope },
+          create: { position, module: mod, scope },
         });
       }
     }
@@ -29,4 +32,6 @@ export async function savePermissionMatrix(formData: FormData) {
 
   revalidatePath("/admin/permission-matrix");
   revalidatePath("/platform");
+  revalidatePath("/platform/employees");
+  revalidatePath("/platform/employees/[userId]", "page");
 }

@@ -50,6 +50,32 @@ export const MODULE_LABEL: Record<Module, string> = {
   EVALUATION: "평가",
 };
 
+export type PermissionScope =
+  | "NONE"
+  | "SELF"
+  | "TEAM"
+  | "DIVISION"
+  | "BUSINESS_UNIT"
+  | "FULL";
+
+export const PERMISSION_SCOPES: PermissionScope[] = [
+  "FULL",
+  "BUSINESS_UNIT",
+  "DIVISION",
+  "TEAM",
+  "SELF",
+  "NONE",
+];
+
+export const PERMISSION_SCOPE_LABEL: Record<PermissionScope, string> = {
+  FULL: "전체",
+  BUSINESS_UNIT: "사업단위",
+  DIVISION: "부문",
+  TEAM: "팀",
+  SELF: "본인",
+  NONE: "접근 불가",
+};
+
 export type HomeBlock = "TEAM_SUMMARY" | "OVERALL_SUMMARY" | "QUICK_LINKS";
 
 export const HOME_BLOCKS: HomeBlock[] = [
