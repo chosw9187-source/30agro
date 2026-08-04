@@ -105,7 +105,7 @@ model AppointmentRecord {
   note          String?
   createdAt     DateTime @default(now())
 
-  @@unique([userId, date])
+  @@index([userId, date])
 }
 
 model PerformanceHistory {

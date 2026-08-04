@@ -116,20 +116,29 @@ export async function uploadAppointmentRecords(
     const jobGrade = str(row["직급"]);
     const note = str(row["발령내역"]);
 
-    await prisma.appointmentRecord.upsert({
-      where: { userId_date: { userId: user.id, date } },
-      update: { type, title, department, positionTitle, jobGrade, note },
-      create: {
-        userId: user.id,
-        date,
-        type,
-        title,
-        department,
-        positionTitle,
-        jobGrade,
-        note,
-      },
+    const existing = await prisma.appointmentRecord.findFirst({
+      where: { userId: user.id, date },
+      select: { id: true },
     });
+    if (existing) {
+      await prisma.appointmentRecord.update({
+        where: { id: existing.id },
+        data: { type, title, department, positionTitle, jobGrade, note },
+      });
+    } else {
+      await prisma.appointmentRecord.create({
+        data: {
+          userId: user.id,
+          date,
+          type,
+          title,
+          department,
+          positionTitle,
+          jobGrade,
+          note,
+        },
+      });
+    }
     applied++;
   }
 
