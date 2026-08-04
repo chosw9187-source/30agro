@@ -2,11 +2,12 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
-import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
+import { Avatar } from "@/components/avatar";
 
 export const dynamic = "force-dynamic";
 
 type Exec = { id: string; name: string; jobGrade: string | null };
+type CeoExec = Exec & { hasPhoto: boolean };
 type TeamLite = {
   id: string;
   name: string;
@@ -44,15 +45,55 @@ function divisionHeadcount(division: DivisionNode) {
   return division.teams.reduce((s, t) => s + t.memberCount, 0);
 }
 
-function ExecBox({ exec, fallbackLabel }: { exec: Exec; fallbackLabel: string }) {
+function CeoBanner({
+  ceos,
+  totalEmployees,
+  teamCount,
+  unitCount,
+}: {
+  ceos: CeoExec[];
+  totalEmployees: number;
+  teamCount: number;
+  unitCount: number;
+}) {
   return (
-    <Link
-      href={`/platform/employees/${exec.id}`}
-      className="rounded-lg bg-brand-black px-6 py-3 text-center text-white shadow-sm hover:bg-brand-black/90"
-    >
-      <p className="text-xs text-white/70">{exec.jobGrade || fallbackLabel}</p>
-      <p className="font-semibold">{exec.name}</p>
-    </Link>
+    <div className="w-full overflow-hidden rounded-lg border border-brand-black bg-brand-black text-white">
+      <div className="flex flex-wrap items-center gap-6 px-8 py-6">
+        <div className="flex -space-x-3">
+          {ceos.map((c) => (
+            <Avatar
+              key={c.id}
+              userId={c.id}
+              name={c.name}
+              hasPhoto={c.hasPhoto}
+              className="h-16 w-16 border-2 border-brand-black text-lg"
+            />
+          ))}
+        </div>
+        <div className="min-w-[200px] flex-1">
+          <p className="text-xs uppercase tracking-wide text-white/50">한국삼공 · CEO</p>
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-5 gap-y-1">
+            {ceos.map((c) => (
+              <Link key={c.id} href={`/platform/employees/${c.id}`} className="hover:underline">
+                <span className="text-xl font-bold">{c.name}</span>{" "}
+                <span className="text-sm text-white/60">{c.jobGrade || "CEO"}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+        <div className="flex gap-8 text-sm">
+          <span>
+            <strong className="text-lg">{totalEmployees}</strong>명 재직
+          </span>
+          <span>
+            <strong className="text-lg">{unitCount}</strong>개 사업단위
+          </span>
+          <span>
+            <strong className="text-lg">{teamCount}</strong>개 팀
+          </span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -184,7 +225,7 @@ export default async function OrgChartPage({
     prisma.user.count(),
     prisma.user.findMany({
       where: { position: "CEO" },
-      select: { id: true, name: true, jobGrade: true },
+      select: { id: true, name: true, jobGrade: true, photo: true },
     }),
     prisma.user.findMany({
       where: { position: "OPERATIONS_HEAD" },
@@ -197,6 +238,12 @@ export default async function OrgChartPage({
   ]);
 
   ceos.sort((a, b) => execSortKey(a.jobGrade) - execSortKey(b.jobGrade));
+  const ceoExecs: CeoExec[] = ceos.map((c) => ({
+    id: c.id,
+    name: c.name,
+    jobGrade: c.jobGrade,
+    hasPhoto: !!c.photo,
+  }));
 
   const toTeamLite = (t: (typeof teams)[number]): TeamLite => ({
     id: t.id,
@@ -378,23 +425,24 @@ export default async function OrgChartPage({
         </p>
       </div>
 
-      <LeaderBanner
-        eyebrow="한국삼공"
-        title="전체 조직"
-        headcount={totalEmployees}
-        subCount={teams.length}
-        subLabel="개 팀"
-      />
+      {ceoExecs.length > 0 ? (
+        <CeoBanner
+          ceos={ceoExecs}
+          totalEmployees={totalEmployees}
+          teamCount={teams.length}
+          unitCount={units.length}
+        />
+      ) : (
+        <LeaderBanner
+          eyebrow="한국삼공"
+          title="전체 조직"
+          headcount={totalEmployees}
+          subCount={teams.length}
+          subLabel="개 팀"
+        />
+      )}
 
       <div className="flex flex-col items-center gap-6">
-        {ceos.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-3">
-            {ceos.map((c) => (
-              <ExecBox key={c.id} exec={c} fallbackLabel={POSITION_LABEL.CEO as Position} />
-            ))}
-          </div>
-        )}
-
         {rootTeams.length > 0 && (
           <div className="w-full">
             <p className="mb-2 text-center text-xs font-medium text-slate-400">직속</p>
