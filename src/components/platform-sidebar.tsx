@@ -66,11 +66,11 @@ function evaluationItems(role: Role): NavItem[] {
 
 function manageItems(role: Role): NavItem[] {
   if (role !== "ADMIN") {
-    return [{ href: "/platform/data-upload", label: "데이터 업로드", comingSoon: true }];
+    return [];
   }
   return [
     { href: "/admin/users", label: "사용자 관리" },
-    { href: "/platform/data-upload", label: "데이터 업로드", comingSoon: true },
+    { href: "/platform/data-upload", label: "데이터 업로드" },
     { href: "/admin/permission-matrix", label: "권한 매트릭스" },
     { href: "/admin/screen-config", label: "화면 구성" },
   ];

@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { createUser, bulkDeleteUsers } from "./actions";
 import { clearYearTargets } from "./target-year-actions";
-import { ImportUsersForm } from "./import-form";
 import { RoleSelect } from "./role-select";
 import { UserRowActions } from "./user-row-actions";
 import { TargetYearToggle } from "./target-year-toggle";
@@ -134,16 +133,22 @@ export default async function UsersPage({
         </p>
       )}
 
+      <p className="text-sm text-slate-500">
+        엑셀 일괄 업로드는{" "}
+        <Link href="/platform/data-upload" className="text-brand-green hover:underline">
+          데이터 업로드
+        </Link>{" "}
+        화면으로 옮겨졌습니다.
+      </p>
+
       <details className="group rounded-lg border border-slate-200 bg-white open:pb-5">
         <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-slate-600 hover:text-slate-900">
-          + 새 직원 등록 / 엑셀 일괄 업로드
+          + 새 직원 등록
         </summary>
         <div className="flex flex-col gap-6 border-t border-slate-100 px-4 pt-4">
-          <ImportUsersForm defaultYear={selectedYear} />
-
           <form
             action={createUser}
-            className="grid grid-cols-1 gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2"
+            className="grid grid-cols-1 gap-3 pt-4 sm:grid-cols-2"
           >
             <input type="hidden" name="year" value={selectedYear} />
             <input

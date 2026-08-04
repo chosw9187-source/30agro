@@ -97,12 +97,7 @@ export async function seedJobDescriptionsFromDraft() {
   revalidatePath("/platform/job-management");
 }
 
-export async function uploadJobDescriptionFile(teamId: string, formData: FormData) {
-  await requireRole("ADMIN");
-
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) return;
-
+async function saveJobDescriptionFile(teamId: string, file: File) {
   const buffer = Buffer.from(await file.arrayBuffer());
   const extractedPurpose =
     file.type === "application/pdf" ? await extractPurposeFromPdf(buffer) : null;
@@ -134,4 +129,23 @@ export async function uploadJobDescriptionFile(teamId: string, formData: FormDat
 
   revalidatePath(`/platform/job-management/${teamId}`);
   revalidatePath("/platform/job-management");
+}
+
+export async function uploadJobDescriptionFile(teamId: string, formData: FormData) {
+  await requireRole("ADMIN");
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return;
+
+  await saveJobDescriptionFile(teamId, file);
+}
+
+export async function uploadJobDescriptionFileForTeam(formData: FormData) {
+  await requireRole("ADMIN");
+
+  const teamId = String(formData.get("teamId") ?? "").trim();
+  const file = formData.get("file");
+  if (!teamId || !(file instanceof File) || file.size === 0) return;
+
+  await saveJobDescriptionFile(teamId, file);
 }
