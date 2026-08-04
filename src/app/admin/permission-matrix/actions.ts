@@ -36,6 +36,42 @@ export async function savePermissionMatrix(formData: FormData) {
   revalidatePath("/platform/employees/[userId]", "page");
 }
 
+/**
+ * 사장→전 직원, 운영책임→해당 사업단위만, 책임→본인 부문만, 팀장→본인
+ * 팀만, 담당→본인만: 직원정보조회(EMPLOYEES)에 대해 자주 쓰이는 표준
+ * 직책별 조회 범위를 한 번에 적용.
+ */
+const RECOMMENDED_EMPLOYEES_SCOPE: Record<(typeof POSITIONS)[number], PermissionScope> = {
+  CEO: "FULL",
+  OPERATIONS_HEAD: "BUSINESS_UNIT",
+  SENIOR_STAFF: "DIVISION",
+  TEAM_LEADER: "TEAM",
+  STAFF: "SELF",
+};
+
+export async function applyRecommendedEmployeeScope() {
+  await requireRole("ADMIN");
+
+  for (const position of POSITIONS) {
+    const scope = RECOMMENDED_EMPLOYEES_SCOPE[position];
+    if (scope === "FULL") {
+      await prisma.permissionMatrixEntry.deleteMany({
+        where: { position, module: "EMPLOYEES" },
+      });
+    } else {
+      await prisma.permissionMatrixEntry.upsert({
+        where: { position_module: { position, module: "EMPLOYEES" } },
+        update: { scope },
+        create: { position, module: "EMPLOYEES", scope },
+      });
+    }
+  }
+
+  revalidatePath("/admin/permission-matrix");
+  revalidatePath("/platform/employees");
+  revalidatePath("/platform/employees/[userId]", "page");
+}
+
 const DEFAULT_SENTINEL = "DEFAULT";
 
 export async function saveUserPermissionOverrides(userId: string, formData: FormData) {

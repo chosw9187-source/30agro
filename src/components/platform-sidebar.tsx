@@ -21,25 +21,41 @@ type Section = {
   items: NavItem[];
 };
 
-function mainItems(notificationCount: number): NavItem[] {
+const MODULE_NAV: Record<string, { href: string; label: string }> = {
+  HR_REPORT: { href: "/platform/hr-report", label: "HR REPORT" },
+  ORG_CHART: { href: "/platform/org-chart", label: "조직도" },
+  JOB_MANAGEMENT: { href: "/platform/job-management", label: "직무관리" },
+  TASK_MANAGEMENT: { href: "/platform/task-management", label: "업무 관리" },
+  EMPLOYEES: { href: "/platform/employees", label: "직원정보 조회" },
+  LEGAL_LIBRARY: { href: "/platform/legal-library", label: "AI 법률 라이브러리" },
+};
+
+const SIDEBAR_MODULES = [
+  "HR_REPORT",
+  "ORG_CHART",
+  "JOB_MANAGEMENT",
+  "TASK_MANAGEMENT",
+  "EMPLOYEES",
+  "LEGAL_LIBRARY",
+] as const;
+
+function mainItems(
+  notificationCount: number,
+  moduleUiConfig: Record<string, { order: number; comingSoon: boolean }>
+): NavItem[] {
+  const orderedModules = [...SIDEBAR_MODULES].sort(
+    (a, b) => (moduleUiConfig[a]?.order ?? 0) - (moduleUiConfig[b]?.order ?? 0)
+  );
+  const moduleItems: NavItem[] = orderedModules.map((m) => ({
+    href: MODULE_NAV[m].href,
+    label: MODULE_NAV[m].label,
+    module: m as Module,
+    comingSoon: moduleUiConfig[m]?.comingSoon ?? false,
+  }));
+
   return [
     { href: "/platform", label: "홈" },
-    { href: "/platform/hr-report", label: "HR REPORT", comingSoon: true, module: "HR_REPORT" },
-    { href: "/platform/org-chart", label: "조직도", module: "ORG_CHART" },
-    { href: "/platform/job-management", label: "직무관리", module: "JOB_MANAGEMENT" },
-    {
-      href: "/platform/task-management",
-      label: "업무 관리",
-      comingSoon: true,
-      module: "TASK_MANAGEMENT",
-    },
-    { href: "/platform/employees", label: "직원정보 조회", module: "EMPLOYEES" },
-    {
-      href: "/platform/legal-library",
-      label: "AI 법률 라이브러리",
-      comingSoon: true,
-      module: "LEGAL_LIBRARY",
-    },
+    ...moduleItems,
     {
       href: "/notifications",
       label: "알림",
@@ -117,12 +133,14 @@ export function PlatformSidebar({
   notificationCount = 0,
   onLogout,
   visibleModules,
+  moduleUiConfig,
 }: {
   role: Role;
   user: { name?: string | null; role: Role; position?: Position };
   notificationCount?: number;
   onLogout: () => Promise<void>;
   visibleModules: Module[];
+  moduleUiConfig: Record<string, { order: number; comingSoon: boolean }>;
 }) {
   const pathname = usePathname();
   const visible = new Set(visibleModules);
@@ -132,7 +150,7 @@ export function PlatformSidebar({
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 
-  const visibleMainItems = mainItems(notificationCount).filter(
+  const visibleMainItems = mainItems(notificationCount, moduleUiConfig).filter(
     (item) => !item.module || visible.has(item.module)
   );
 

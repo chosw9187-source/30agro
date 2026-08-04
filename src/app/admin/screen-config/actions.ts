@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
-import { HOME_BLOCKS, type Position } from "@/lib/permissions";
+import { HOME_BLOCKS, SIDEBAR_MODULES, type Position } from "@/lib/permissions";
 
 export async function saveHomeLayout(position: Position, formData: FormData) {
   await requireRole("ADMIN");
@@ -24,4 +24,28 @@ export async function saveHomeLayout(position: Position, formData: FormData) {
 
   revalidatePath("/admin/screen-config");
   revalidatePath("/platform");
+}
+
+export async function saveSidebarConfig(formData: FormData) {
+  await requireRole("ADMIN");
+
+  for (const mod of SIDEBAR_MODULES) {
+    const order = Number(formData.get(`order:${mod}`) ?? 0);
+    const comingSoon = formData.get(`comingSoon:${mod}`) === "on";
+
+    await prisma.moduleUiConfig.upsert({
+      where: { module: mod },
+      update: { order, comingSoon },
+      create: { module: mod, order, comingSoon },
+    });
+  }
+
+  revalidatePath("/admin/screen-config");
+  revalidatePath("/platform");
+  revalidatePath("/platform/employees");
+  revalidatePath("/platform/org-chart");
+  revalidatePath("/platform/job-management");
+  revalidatePath("/platform/task-management");
+  revalidatePath("/platform/legal-library");
+  revalidatePath("/platform/hr-report");
 }

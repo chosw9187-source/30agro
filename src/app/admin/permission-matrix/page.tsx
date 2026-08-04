@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { savePermissionMatrix, saveUserPermissionOverrides } from "./actions";
+import { savePermissionMatrix, saveUserPermissionOverrides, applyRecommendedEmployeeScope } from "./actions";
 import {
   MODULES,
   MODULE_LABEL,
@@ -43,15 +43,31 @@ async function MatrixTab() {
   const scopeByKey = new Map(rows.map((r) => [`${r.module}:${r.position}`, r.scope as PermissionScope]));
 
   return (
-    <form action={savePermissionMatrix}>
-      <p className="mb-3 text-sm text-slate-600">
-        직책별로 각 메뉴에서 어디까지 볼 수 있는지 범위를 설정하세요:{" "}
-        <strong>전체</strong>(회사 전체) → <strong>사업단위</strong> →{" "}
-        <strong>부문</strong> → <strong>팀</strong> → <strong>본인</strong> →{" "}
-        <strong>접근 불가</strong>(사이드바와 해당 화면 모두 숨김). 관리자(역할)는
-        항상 전체 접근 가능합니다.
-      </p>
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+        <p className="text-sm text-slate-600">
+          직원정보조회 표준 설정: 사장=전체, 운영책임=사업단위, 책임=부문,
+          팀장=팀, 담당=본인
+        </p>
+        <form action={applyRecommendedEmployeeScope}>
+          <button
+            type="submit"
+            className="whitespace-nowrap rounded border border-brand-green px-3 py-1.5 text-sm text-brand-green-dark hover:bg-brand-green-light"
+          >
+            직원정보조회에 표준 설정 적용
+          </button>
+        </form>
+      </div>
+
+      <form action={savePermissionMatrix}>
+        <p className="mb-3 text-sm text-slate-600">
+          직책별로 각 메뉴에서 어디까지 볼 수 있는지 범위를 설정하세요:{" "}
+          <strong>전체</strong>(회사 전체) → <strong>사업단위</strong> →{" "}
+          <strong>부문</strong> → <strong>팀</strong> → <strong>본인</strong> →{" "}
+          <strong>접근 불가</strong>(사이드바와 해당 화면 모두 숨김). 관리자(역할)는
+          항상 전체 접근 가능합니다.
+        </p>
+        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-slate-200 text-slate-500">
             <tr>
@@ -90,14 +106,15 @@ async function MatrixTab() {
             ))}
           </tbody>
         </table>
-      </div>
-      <button
-        type="submit"
-        className="mt-4 rounded bg-brand-green px-4 py-2 text-white hover:bg-brand-green-dark"
-      >
-        저장
-      </button>
-    </form>
+        </div>
+        <button
+          type="submit"
+          className="mt-4 rounded bg-brand-green px-4 py-2 text-white hover:bg-brand-green-dark"
+        >
+          저장
+        </button>
+      </form>
+    </div>
   );
 }
 

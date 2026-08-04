@@ -332,3 +332,15 @@ model HomeLayoutEntry {
 
   @@unique([position, block])
 }
+
+/**
+ * Global (not per-position) sidebar display config for the main nav
+ * module list: display order and whether it shows a "개발 중" badge.
+ * Absence of a row falls back to declaration order and comingSoon=false.
+ */
+model ModuleUiConfig {
+  id         String  @id @default(cuid())
+  module     Module  @unique
+  order      Int     @default(0)
+  comingSoon Boolean @default(false)
+}

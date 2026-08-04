@@ -171,6 +171,45 @@ export async function canViewEmployeeCard(targetUserId: string): Promise<boolean
   return false;
 }
 
+/**
+ * Sidebar main-nav modules that support admin-configurable order and a
+ * "개발 중" badge. 홈/알림 aren't modules and are always first/last.
+ */
+export const SIDEBAR_MODULES: Module[] = [
+  "HR_REPORT",
+  "ORG_CHART",
+  "JOB_MANAGEMENT",
+  "TASK_MANAGEMENT",
+  "EMPLOYEES",
+  "LEGAL_LIBRARY",
+];
+
+// Starting default until an admin explicitly overrides it: everything shows
+// "개발 중" except 조직도/직원정보조회, which are considered ready.
+const DEFAULT_COMING_SOON_MODULES = new Set<Module>([
+  "HR_REPORT",
+  "JOB_MANAGEMENT",
+  "TASK_MANAGEMENT",
+  "LEGAL_LIBRARY",
+]);
+
+export type ModuleUiConfigEntry = { order: number; comingSoon: boolean };
+
+export async function getModuleUiConfig(): Promise<Record<Module, ModuleUiConfigEntry>> {
+  const rows = await prisma.moduleUiConfig.findMany();
+  const rowByModule = new Map(rows.map((r) => [r.module as Module, r]));
+
+  const result = {} as Record<Module, ModuleUiConfigEntry>;
+  SIDEBAR_MODULES.forEach((m, i) => {
+    const row = rowByModule.get(m);
+    result[m] = {
+      order: row?.order ?? i,
+      comingSoon: row ? row.comingSoon : DEFAULT_COMING_SOON_MODULES.has(m),
+    };
+  });
+  return result;
+}
+
 export async function getVisibleHomeBlocks(
   role: string,
   position: Position
