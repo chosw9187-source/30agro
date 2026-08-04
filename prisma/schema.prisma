@@ -88,6 +88,37 @@ model User {
   assignedItems    TemplateItem[]       @relation("AssignedItems")
   notifications    Notification[]       @relation("NotificationRecipient")
   targetYears      UserTargetYear[]
+  appointmentRecords AppointmentRecord[]
+  performanceHistory PerformanceHistory[]
+}
+
+model AppointmentRecord {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date          DateTime
+  type          String?
+  title         String?
+  department    String?
+  positionTitle String?
+  jobGrade      String?
+  note          String?
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+}
+
+model PerformanceHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  year      Int
+  grade     String?
+  score     Float?
+  note      String?
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, year])
 }
 
 model UserTargetYear {

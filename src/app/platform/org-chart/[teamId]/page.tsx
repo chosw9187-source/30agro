@@ -59,39 +59,54 @@ export default async function TeamOrgDetailPage({
         <p className="mt-1 text-2xl font-bold">
           {team.leader ? `${team.leader.name} 팀장` : "팀장 미지정"}
         </p>
-        <div className="mt-4 flex gap-8 text-sm">
+        <div className="mt-4 flex items-center gap-8 text-sm">
           <span>
             <strong className="text-lg">{team.members.length}</strong>명 재직
           </span>
+          {team.leader && (
+            <Link
+              href={`/platform/employees/${team.leader.id}`}
+              className="rounded border border-white/40 px-3 py-1.5 hover:bg-white/10"
+            >
+              팀장 상세보기 ›
+            </Link>
+          )}
         </div>
       </div>
 
       <div>
-        <h2 className="mb-3 text-lg font-medium">구성원 ({team.members.length}명)</h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {team.members.map((m) => (
-            <Link
-              key={m.id}
-              href={`/platform/employees/${m.id}`}
-              className="rounded-lg border border-slate-200 bg-white p-4 hover:border-brand-green"
-            >
-              <div className="flex items-center justify-between">
-                <p className="font-medium text-brand-green-dark hover:underline">
-                  {m.name}
-                </p>
-                <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                  {roleLabel[m.role] ?? m.role}
-                </span>
+        {(() => {
+          const memberList = team.members.filter((m) => m.id !== team.leaderId);
+          return (
+            <>
+              <h2 className="mb-3 text-lg font-medium">구성원 ({memberList.length}명)</h2>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {memberList.map((m) => (
+                  <Link
+                    key={m.id}
+                    href={`/platform/employees/${m.id}`}
+                    className="rounded-lg border border-slate-200 bg-white p-4 hover:border-brand-green"
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium text-brand-green-dark hover:underline">
+                        {m.name}
+                      </p>
+                      <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                        {roleLabel[m.role] ?? m.role}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-500">
+                      팀원 · 사번 {m.employeeNumber}
+                    </p>
+                  </Link>
+                ))}
+                {memberList.length === 0 && (
+                  <p className="text-slate-500">아직 구성원이 없습니다.</p>
+                )}
               </div>
-              <p className="mt-1 text-sm text-slate-500">
-                {m.id === team.leaderId ? "팀장" : "팀원"} · 사번 {m.employeeNumber}
-              </p>
-            </Link>
-          ))}
-          {team.members.length === 0 && (
-            <p className="text-slate-500">아직 구성원이 없습니다.</p>
-          )}
-        </div>
+            </>
+          );
+        })()}
       </div>
     </div>
   );

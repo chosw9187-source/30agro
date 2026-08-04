@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { checkModuleAccess } from "@/lib/permissions";
+import { checkModuleAccess, canViewEmployeeCard } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import { ageInYears } from "@/lib/hr-analytics";
@@ -42,9 +42,33 @@ export default async function EmployeeDetailPage({
   }
 
   const { userId } = await params;
+
+  if (!(await canViewEmployeeCard(userId))) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Link href="/platform/employees" className="text-sm text-slate-500 hover:underline">
+          ← 직원정보 조회
+        </Link>
+        <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white text-center">
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+            접근 권한 없음
+          </span>
+          <p className="text-slate-500">
+            이 직원의 상세 정보는 본인, 임원급, 인사팀, 또는 같은 팀의
+            팀장만 볼 수 있습니다.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const employee = await prisma.user.findUnique({
     where: { id: userId },
-    include: { team: true },
+    include: {
+      team: true,
+      appointmentRecords: { orderBy: { date: "desc" } },
+      performanceHistory: { orderBy: { year: "desc" } },
+    },
   });
 
   if (!employee) notFound();
@@ -110,7 +134,6 @@ export default async function EmployeeDetailPage({
                 value={POSITION_LABEL[employee.position as Position]}
               />
               <Field label="사원구분" value={employee.employmentType} />
-              <Field label="직급" value={employee.jobGrade} />
               <Field label="직군" value={employee.jobFamily} />
             </dl>
           </section>
@@ -125,6 +148,72 @@ export default async function EmployeeDetailPage({
             </dl>
           </section>
         </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-3 text-lg font-medium">발령 이력</h2>
+        {employee.appointmentRecords.length === 0 ? (
+          <p className="text-sm text-slate-500">등록된 발령 이력이 없습니다.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 font-medium">발령일</th>
+                  <th className="px-3 py-2 font-medium">구분</th>
+                  <th className="px-3 py-2 font-medium">발령명</th>
+                  <th className="px-3 py-2 font-medium">부서</th>
+                  <th className="px-3 py-2 font-medium">직책</th>
+                  <th className="px-3 py-2 font-medium">직급</th>
+                  <th className="px-3 py-2 font-medium">비고</th>
+                </tr>
+              </thead>
+              <tbody>
+                {employee.appointmentRecords.map((r) => (
+                  <tr key={r.id} className="border-b border-slate-100 last:border-0">
+                    <td className="px-3 py-2 text-slate-500">{fmtDate(r.date)}</td>
+                    <td className="px-3 py-2">{r.type ?? "-"}</td>
+                    <td className="px-3 py-2">{r.title ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.department ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.positionTitle ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.jobGrade ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.note ?? "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-3 text-lg font-medium">인사평가 이력</h2>
+        {employee.performanceHistory.length === 0 ? (
+          <p className="text-sm text-slate-500">등록된 인사평가 이력이 없습니다.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 font-medium">연도</th>
+                  <th className="px-3 py-2 font-medium">등급</th>
+                  <th className="px-3 py-2 font-medium">점수</th>
+                  <th className="px-3 py-2 font-medium">비고</th>
+                </tr>
+              </thead>
+              <tbody>
+                {employee.performanceHistory.map((r) => (
+                  <tr key={r.id} className="border-b border-slate-100 last:border-0">
+                    <td className="px-3 py-2 font-medium">{r.year}년</td>
+                    <td className="px-3 py-2">{r.grade ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.score ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.note ?? "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

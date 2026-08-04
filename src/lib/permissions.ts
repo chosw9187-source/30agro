@@ -66,6 +66,38 @@ export async function checkModuleAccess(module: Module): Promise<boolean> {
   return canAccessModule(session.user.role, position, module);
 }
 
+const EXECUTIVE_POSITIONS: Position[] = ["CEO", "OPERATIONS_HEAD", "SENIOR_STAFF"];
+
+/**
+ * 인사카드(개인 인사정보) 열람 권한: 본인, 관리자, 임원급(사장/운영책임/책임),
+ * 인사팀 소속은 전체 열람 가능. 팀장은 본인 팀 소속만 열람 가능. 그 외
+ * 일반 직원은 본인만 열람 가능.
+ */
+export async function canViewEmployeeCard(targetUserId: string): Promise<boolean> {
+  const session = await auth();
+  if (!session?.user) return false;
+  if (session.user.id === targetUserId) return true;
+  if (session.user.role === "ADMIN") return true;
+
+  const viewer = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { position: true, team: { select: { name: true } } },
+  });
+  if (!viewer) return false;
+  if (EXECUTIVE_POSITIONS.includes(viewer.position as Position)) return true;
+  if (viewer.team?.name === "인사팀") return true;
+
+  if (viewer.position === "TEAM_LEADER") {
+    const [viewerRow, target] = await Promise.all([
+      prisma.user.findUnique({ where: { id: session.user.id }, select: { teamId: true } }),
+      prisma.user.findUnique({ where: { id: targetUserId }, select: { teamId: true } }),
+    ]);
+    return !!viewerRow?.teamId && viewerRow.teamId === target?.teamId;
+  }
+
+  return false;
+}
+
 export async function getVisibleHomeBlocks(
   role: string,
   position: Position

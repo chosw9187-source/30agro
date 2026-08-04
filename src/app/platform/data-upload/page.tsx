@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { ImportUsersForm } from "@/app/admin/users/import-form";
 import { PhotoUploadForm } from "./photo-upload-form";
+import { AppointmentUploadForm } from "./appointment-upload-form";
+import { PerformanceHistoryUploadForm } from "./performance-history-upload-form";
 import { uploadJobDescriptionFileForTeam } from "@/app/platform/job-management/actions";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +23,8 @@ export default async function DataUploadPage() {
       <div>
         <h1 className="text-2xl font-semibold">데이터 업로드</h1>
         <p className="mt-1 text-slate-600">
-          사원명부, 직원 사진, 직무기술서를 이 화면에서 한 번에 업로드하세요.
+          사원명부, 직원 사진, 직무기술서, 발령사항, 인사평가 이력을 이
+          화면에서 한 번에 업로드하세요.
         </p>
       </div>
 
@@ -67,6 +70,16 @@ export default async function DataUploadPage() {
             업로드
           </button>
         </form>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-3 text-lg font-medium">발령사항 업로드</h2>
+        <AppointmentUploadForm />
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-3 text-lg font-medium">인사평가 이력 업로드</h2>
+        <PerformanceHistoryUploadForm />
       </section>
     </div>
   );
