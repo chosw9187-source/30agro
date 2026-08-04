@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { Avatar } from "@/components/avatar";
+import { CompanyLogo } from "@/components/company-logo";
 
 export const dynamic = "force-dynamic";
 
@@ -62,16 +63,8 @@ function CeoBanner({
     <div className="flex w-full overflow-hidden rounded-lg border border-brand-black shadow-sm">
       <div className="w-2 shrink-0 bg-brand-green" />
       <div className="flex flex-1 flex-wrap items-center gap-6 bg-brand-black px-8 py-6 text-white">
-        <div className="flex -space-x-3">
-          {ceos.map((c) => (
-            <Avatar
-              key={c.id}
-              userId={c.id}
-              name={c.name}
-              hasPhoto={c.hasPhoto}
-              className="h-16 w-16 border-2 border-brand-black text-lg"
-            />
-          ))}
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white p-2">
+          <CompanyLogo className="h-full w-full" />
         </div>
         <div className="min-w-[200px] flex-1">
           <p className="text-xs uppercase tracking-wide text-white/50">한국삼공 · CEO</p>
@@ -134,7 +127,7 @@ function CardShell({
           {subLabel}
         </span>
       </div>
-      <span className="mt-3 w-full border-t border-slate-100 pt-2 text-xs text-brand-green">
+      <span className="mt-3 w-full rounded bg-brand-green-light py-1.5 text-xs font-medium text-brand-green-dark">
         상세보기 ›
       </span>
     </Link>
@@ -519,8 +512,7 @@ export default async function OrgChartPage({
       <div>
         <h1 className="text-2xl font-semibold">조직도</h1>
         <p className="mt-1 text-slate-600">
-          한국삼공의 조직 구성입니다. 사업단위를 클릭하면 하위 조직을, 팀을
-          클릭하면 구성원을 볼 수 있습니다.
+          한국삼공의 조직 구성입니다. 클릭하면 세부구성을 볼 수 있습니다.
         </p>
       </div>
 

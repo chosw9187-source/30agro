@@ -63,9 +63,15 @@ export default async function PlatformHomePage() {
   const activeUsers = allUsers.filter((u) => isActive(u));
 
   const CANONICAL_JOB_FAMILIES = ["영업직", "사무직", "생산직", "연구직"];
-  const jobFamilyRows = computeJobFamilySummary(allUsers).filter((r) =>
-    CANONICAL_JOB_FAMILIES.includes(r.name)
-  );
+  const WORKPLACE_LABEL: Record<string, string> = {
+    영업직: "지점",
+    사무직: "본사",
+    생산직: "공장",
+    연구직: "연구소",
+  };
+  const jobFamilyRows = computeJobFamilySummary(allUsers)
+    .filter((r) => CANONICAL_JOB_FAMILIES.includes(r.name))
+    .map((r) => ({ ...r, name: WORKPLACE_LABEL[r.name] ?? r.name }));
   const totalRecentHires = allUsers.filter(
     (u) => u.hireDate && u.hireDate >= new Date(new Date().setFullYear(new Date().getFullYear() - 1))
   ).length;
@@ -109,7 +115,7 @@ export default async function PlatformHomePage() {
           <div className="flex flex-col gap-6">
             <section className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-4">
               <p className="text-sm font-medium text-amber-800">
-                지금 관심이 필요한 것 <span className="font-normal text-amber-600">· 직군 기준 · 예외만 표시</span>
+                지금 관심이 필요한 것 <span className="font-normal text-amber-600">· 근무지 기준 · 예외만 표시</span>
               </p>
               <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-semibold text-amber-950">
                 개발 중
@@ -119,14 +125,14 @@ export default async function PlatformHomePage() {
             <section className="rounded-lg border border-slate-200 bg-white">
               <div className="border-b border-slate-200 px-6 py-4">
                 <h2 className="text-lg font-medium">
-                  직군별 종합 <span className="text-sm font-normal text-slate-400">· 정규직 기준</span>
+                  근무지별 종합 <span className="text-sm font-normal text-slate-400">· 정규직 기준</span>
                 </h2>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="border-b border-slate-200 text-slate-500">
                     <tr>
-                      <th className="px-4 py-3 font-medium">직군</th>
+                      <th className="px-4 py-3 font-medium">근무지</th>
                       <th className="px-4 py-3 font-medium">인원</th>
                       <th className="px-4 py-3 font-medium">팀당 인원</th>
                       <th className="px-4 py-3 font-medium">평균 근속</th>
@@ -187,61 +193,48 @@ export default async function PlatformHomePage() {
             </section>
 
             <section className="rounded-lg border border-slate-200 bg-white p-6">
-              <h2 className="text-lg font-medium">인력 현황</h2>
+              <h2 className="text-lg font-medium">연령 · 근속 구성</h2>
               <p className="mb-4 text-sm text-slate-500">
                 재직 {activeUsers.length}명
                 {ageDist.missing > 0 && ` · 생년월일 미입력 ${ageDist.missing}명 제외`}
               </p>
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="flex items-center justify-center rounded border border-slate-100 p-4">
                   <BarChart title="연령" bars={ageDist.buckets} showPercent color="#3b82f6" />
                 </div>
                 <div className="flex items-center justify-center rounded border border-slate-100 p-4">
                   <BarChart title="근속" bars={tenureDist.buckets} showPercent color="#1f9a44" />
                 </div>
-                <div className="rounded border border-slate-100 p-4">
-                  <h3 className="text-sm font-medium text-slate-700">입퇴사자 현황</h3>
-                  <p className="mb-3 text-xs text-slate-500">
-                    최근 1년 · {monthlyTrend[0]?.label} ~{" "}
-                    {monthlyTrend[monthlyTrend.length - 1]?.label}
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-slate-200 bg-white p-6">
+              <h2 className="text-lg font-medium">최근 12개월 입퇴사 현황</h2>
+              <p className="mb-4 text-sm text-slate-500">
+                {monthlyTrend[0]?.label} ~ {monthlyTrend[monthlyTrend.length - 1]?.label}
+              </p>
+              <div className="mb-4 grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <p className="text-xl font-semibold text-brand-green-dark">
+                    {totalRecentHires}명
                   </p>
-                  <div className="mb-4 grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <p className="text-xl font-semibold text-brand-green-dark">
-                        {totalRecentHires}명
-                      </p>
-                      <p className="text-xs text-slate-500">입사</p>
-                    </div>
-                    <div>
-                      <p className="text-xl font-semibold text-amber-600">
-                        {totalRecentTerminations}명
-                      </p>
-                      <p className="text-xs text-slate-500">퇴사</p>
-                    </div>
-                    <div>
-                      <p className="text-xl font-semibold text-slate-700">
-                        {totalRecentHires - totalRecentTerminations >= 0 ? "+" : ""}
-                        {totalRecentHires - totalRecentTerminations}명
-                      </p>
-                      <p className="text-xs text-slate-500">순증감</p>
-                    </div>
-                  </div>
-                  <TrendChart points={monthlyTrend} />
+                  <p className="text-xs text-slate-500">입사</p>
                 </div>
-                <div className="flex flex-col justify-center rounded border border-slate-100 p-4">
-                  <h3 className="mb-3 text-sm font-medium text-slate-700">남녀 성비</h3>
-                  {genderKnownTotal === 0 ? (
-                    <p className="text-sm text-slate-500">데이터 없음</p>
-                  ) : (
-                    <GenderPictogram
-                      segments={[
-                        { label: "남", value: maleCount, color: "#0d9488" },
-                        { label: "여", value: femaleCount, color: "#dc2626" },
-                      ]}
-                    />
-                  )}
+                <div>
+                  <p className="text-xl font-semibold text-amber-600">
+                    {totalRecentTerminations}명
+                  </p>
+                  <p className="text-xs text-slate-500">퇴사</p>
+                </div>
+                <div>
+                  <p className="text-xl font-semibold text-slate-700">
+                    {totalRecentHires - totalRecentTerminations >= 0 ? "+" : ""}
+                    {totalRecentHires - totalRecentTerminations}명
+                  </p>
+                  <p className="text-xs text-slate-500">순증감</p>
                 </div>
               </div>
+              <TrendChart points={monthlyTrend} />
             </section>
           </div>
         )}
@@ -272,6 +265,20 @@ export default async function PlatformHomePage() {
                       <dd className="font-semibold">{allTeams.length}개</dd>
                     </div>
                   </dl>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-white p-4">
+                  <h3 className="mb-3 text-sm font-medium text-slate-700">남녀 성비</h3>
+                  {genderKnownTotal === 0 ? (
+                    <p className="text-sm text-slate-500">데이터 없음</p>
+                  ) : (
+                    <GenderPictogram
+                      segments={[
+                        { label: "남", value: maleCount, color: "#0d9488" },
+                        { label: "여", value: femaleCount, color: "#dc2626" },
+                      ]}
+                    />
+                  )}
                 </div>
 
                 <div className="rounded-lg border border-slate-200 bg-white p-4">
