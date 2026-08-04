@@ -29,14 +29,15 @@ export function JobFileUploadForm({ teamId }: { teamId: string }) {
       </div>
       {result && (
         <p className="text-xs text-slate-500">
-          {result.fileName} 업로드 완료 ·{" "}
-          {result.purposeExtracted
-            ? "직무목적 자동 추출됨"
-            : "직무목적 자동 추출 안 됨(문서 형식 확인 필요, 직접 입력해주세요)"}{" "}
-          ·{" "}
-          {result.responsibilitiesExtracted
-            ? "담당업무 자동 추출됨"
-            : "담당업무 자동 추출 안 됨(문서 형식 확인 필요, 직접 입력해주세요)"}
+          {result.fileName} 업로드 완료 · 직무목적 {result.purposeExtracted ? "추출됨" : "추출 안 됨"} ·
+          담당업무 {result.responsibilitiesExtracted ? "추출됨" : "추출 안 됨"} · 자격사항{" "}
+          {result.qualificationsExtracted ? "추출됨" : "추출 안 됨"} · 외국어{" "}
+          {result.languagesExtracted ? "추출됨" : "추출 안 됨"}
+          {(!result.purposeExtracted ||
+            !result.responsibilitiesExtracted ||
+            !result.qualificationsExtracted ||
+            !result.languagesExtracted) &&
+            " (추출 안 된 항목은 문서 형식 확인 후 직접 입력해주세요)"}
         </p>
       )}
     </form>

@@ -87,7 +87,7 @@ export default async function JobDescriptionDetailPage({
       />
       <Field label="직무목적" name="purpose" value={jd?.purpose} editable={isAdmin} />
       <Field
-        label="유관부서"
+        label="직무역량"
         name="relatedDepartments"
         value={jd?.relatedDepartments}
         editable={isAdmin}
@@ -151,11 +151,11 @@ export default async function JobDescriptionDetailPage({
       <section className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-3 text-lg font-medium">요약 정보</h2>
         <p className="mb-4 text-sm text-slate-500">
-          PDF 첨부파일을 업로드하면 직무목적·담당업무는 파일에서 자동으로
-          추출을 시도합니다(이미 입력되어 있으면 덮어쓰지 않습니다). 문서
-          구조상 완벽하지 않을 수 있으니 내용을 확인 후 필요하면
-          수정해주세요. 유관부서·자격사항·외국어는 원본 문서에 정형화된
-          항목이 없어 자동 추출이 되지 않으니 직접 입력해주세요.
+          PDF 첨부파일을 업로드하면 직무목적·담당업무·자격사항·외국어는
+          파일에서 자동으로 추출을 시도합니다(이미 입력되어 있으면 덮어쓰지
+          않습니다). 문서 구조상 완벽하지 않을 수 있으니 내용을 확인 후
+          필요하면 수정해주세요. 직무역량은 원본 문서에 정형화된 값이 없어
+          자동 추출이 되지 않으니 직접 입력해주세요.
         </p>
         {isAdmin ? (
           <form action={saveJobDescription.bind(null, team.id)} className="flex flex-col gap-4">

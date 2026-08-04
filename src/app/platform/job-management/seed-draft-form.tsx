@@ -22,8 +22,9 @@ export function SeedDraftForm() {
         <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
           <p>
             초안 파일 {result.filesFound}개 중 {result.teamsMatched}개 팀에 매칭 ·
-            직무목적 {result.purposeFilled}건 · 담당업무 {result.responsibilitiesFilled}건
-            새로 채움
+            직무목적 {result.purposeFilled}건 · 담당업무 {result.responsibilitiesFilled}건 ·
+            자격사항 {result.qualificationsFilled}건 · 외국어 {result.languagesFilled}건 새로
+            채움
           </p>
           {result.unmatchedFiles.length > 0 && (
             <p className="mt-1 text-amber-600">

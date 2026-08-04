@@ -87,25 +87,35 @@ export default async function TeamOrgDetailPage({
                   <Link
                     key={m.id}
                     href={`/platform/employees/${m.id}`}
-                    className="rounded-lg border border-slate-200 bg-white p-4 hover:border-brand-green"
+                    className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-4 hover:border-brand-green"
                   >
-                    <div className="flex items-center justify-between">
-                      <p className="font-medium text-brand-green-dark hover:underline">
-                        {m.name}
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-green-light text-sm font-semibold text-brand-green-dark">
+                      {m.name.slice(0, 2)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate font-medium text-brand-green-dark">{m.name}</p>
+                        <span className="shrink-0 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                          {roleLabel[m.role] ?? m.role}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-xs font-medium text-brand-green-dark">
+                          {POSITION_LABEL[m.position as Position]}
+                        </span>
+                        {m.birthDate && (
+                          <span className="text-xs text-slate-500">만 {ageInYears(m.birthDate)}세</span>
+                        )}
+                        {m.hireDate && (
+                          <span className="text-xs text-slate-500">
+                            · 근속 {tenureInYears(m.hireDate).toFixed(1)}년
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {m.hireDate ? `입사 ${m.hireDate.toLocaleDateString("ko-KR")}` : "입사일 미입력"}
                       </p>
-                      <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                        {roleLabel[m.role] ?? m.role}
-                      </span>
                     </div>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {POSITION_LABEL[m.position as Position]}
-                      {m.birthDate && ` · 만 ${ageInYears(m.birthDate)}세`}
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-400">
-                      {m.hireDate
-                        ? `입사 ${m.hireDate.toLocaleDateString("ko-KR")} · 근속 ${tenureInYears(m.hireDate).toFixed(1)}년`
-                        : "입사일 미입력"}
-                    </p>
                   </Link>
                 ))}
                 {memberList.length === 0 && (
