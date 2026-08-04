@@ -148,6 +148,42 @@ export async function uploadAppointmentRecords(
 }
 
 /**
+ * 이전(수정 전) 업로드 로직이 매번 새로 만들던 시절에 쌓인 중복 발령 이력을
+ * 정리합니다. 같은 (사번, 발령일) 조합 중 가장 최근에 만들어진 것만 남기고
+ * 나머지는 삭제합니다.
+ */
+export async function dedupeAppointmentRecords(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _prevState: { removed: number } | undefined
+): Promise<{ removed: number }> {
+  await requireRole("ADMIN");
+
+  const all = await prisma.appointmentRecord.findMany({
+    orderBy: { createdAt: "desc" },
+    select: { id: true, userId: true, date: true },
+  });
+
+  const seen = new Set<string>();
+  const toDelete: string[] = [];
+  for (const r of all) {
+    const key = `${r.userId}|${r.date.toISOString()}`;
+    if (seen.has(key)) {
+      toDelete.push(r.id);
+    } else {
+      seen.add(key);
+    }
+  }
+
+  if (toDelete.length > 0) {
+    await prisma.appointmentRecord.deleteMany({ where: { id: { in: toDelete } } });
+  }
+
+  revalidatePath("/platform/employees/[userId]", "page");
+
+  return { removed: toDelete.length };
+}
+
+/**
  * 인사평가 이력 업로드. (사번, 연도) 기준으로 upsert — 같은 연도를 다시
  * 올리면 갱신되고, 새 연도는 누적됩니다.
  * 컬럼: 사번, 연도, 등급, 점수(선택), 비고(선택).

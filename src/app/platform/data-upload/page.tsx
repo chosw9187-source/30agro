@@ -4,6 +4,7 @@ import { NoModuleAccess } from "@/components/no-module-access";
 import { ImportUsersForm } from "@/app/admin/users/import-form";
 import { PhotoUploadForm } from "./photo-upload-form";
 import { AppointmentUploadForm } from "./appointment-upload-form";
+import { DedupeAppointmentForm } from "./dedupe-appointment-form";
 import { PerformanceHistoryUploadForm } from "./performance-history-upload-form";
 import { uploadJobDescriptionFileForTeam } from "@/app/platform/job-management/actions";
 
@@ -75,6 +76,9 @@ export default async function DataUploadPage() {
       <section className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-3 text-lg font-medium">발령사항 업로드</h2>
         <AppointmentUploadForm />
+        <div className="mt-6 border-t border-slate-100 pt-6">
+          <DedupeAppointmentForm />
+        </div>
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">
