@@ -14,6 +14,7 @@ import {
 } from "@/lib/hr-analytics";
 import { BarChart } from "@/components/bar-chart";
 import { TrendChart } from "@/components/trend-chart";
+import { DonutChart } from "@/components/donut-chart";
 
 export const dynamic = "force-dynamic";
 
@@ -26,10 +27,6 @@ function greeting() {
 
 function fmtPct(v: number | null) {
   return v === null ? "데이터 없음" : `${v.toFixed(1)}%`;
-}
-
-function fmtCount(v: number | null) {
-  return v === null ? "데이터 없음" : `${v.toFixed(1)}명`;
 }
 
 export default async function PlatformHomePage() {
@@ -214,44 +211,61 @@ export default async function PlatformHomePage() {
             </section>
 
             <section className="rounded-lg border border-slate-200 bg-white p-6">
-              <h2 className="text-lg font-medium">연령 · 근속 구성</h2>
+              <h2 className="text-lg font-medium">인력 현황</h2>
               <p className="mb-4 text-sm text-slate-500">
                 재직 {activeUsers.length}명
                 {ageDist.missing > 0 && ` · 생년월일 미입력 ${ageDist.missing}명 제외`}
               </p>
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                <BarChart title="연령" bars={ageDist.buckets} />
-                <BarChart title="근속" bars={tenureDist.buckets} />
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="flex items-center justify-center rounded border border-slate-100 p-4">
+                  <BarChart title="연령" bars={ageDist.buckets} showPercent />
+                </div>
+                <div className="flex items-center justify-center rounded border border-slate-100 p-4">
+                  <BarChart title="근속" bars={tenureDist.buckets} showPercent />
+                </div>
+                <div className="rounded border border-slate-100 p-4">
+                  <h3 className="text-sm font-medium text-slate-700">입퇴사자 현황</h3>
+                  <p className="mb-3 text-xs text-slate-500">
+                    최근 1년 · {monthlyTrend[0]?.label} ~{" "}
+                    {monthlyTrend[monthlyTrend.length - 1]?.label}
+                  </p>
+                  <div className="mb-4 grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <p className="text-xl font-semibold text-brand-green-dark">
+                        {totalRecentHires}명
+                      </p>
+                      <p className="text-xs text-slate-500">입사</p>
+                    </div>
+                    <div>
+                      <p className="text-xl font-semibold text-amber-600">
+                        {totalRecentTerminations}명
+                      </p>
+                      <p className="text-xs text-slate-500">퇴사</p>
+                    </div>
+                    <div>
+                      <p className="text-xl font-semibold text-slate-700">
+                        {totalRecentHires - totalRecentTerminations >= 0 ? "+" : ""}
+                        {totalRecentHires - totalRecentTerminations}명
+                      </p>
+                      <p className="text-xs text-slate-500">순증감</p>
+                    </div>
+                  </div>
+                  <TrendChart points={monthlyTrend} />
+                </div>
+                <div className="flex flex-col justify-center rounded border border-slate-100 p-4">
+                  <h3 className="mb-3 text-sm font-medium text-slate-700">남녀 성비</h3>
+                  {genderKnownTotal === 0 ? (
+                    <p className="text-sm text-slate-500">데이터 없음</p>
+                  ) : (
+                    <DonutChart
+                      segments={[
+                        { label: "남", value: maleCount, color: "#3b82f6" },
+                        { label: "여", value: femaleCount, color: "#fb7185" },
+                      ]}
+                    />
+                  )}
+                </div>
               </div>
-            </section>
-
-            <section className="rounded-lg border border-slate-200 bg-white p-6">
-              <h2 className="text-lg font-medium">입퇴사자 현황</h2>
-              <p className="mb-4 text-sm text-slate-500">
-                최근 1년 · {monthlyTrend[0]?.label} ~ {monthlyTrend[monthlyTrend.length - 1]?.label}
-              </p>
-              <div className="mb-6 grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-2xl font-semibold text-brand-green-dark">
-                    {totalRecentHires}명
-                  </p>
-                  <p className="text-xs text-slate-500">입사</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold text-amber-600">
-                    {totalRecentTerminations}명
-                  </p>
-                  <p className="text-xs text-slate-500">퇴사</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-semibold text-slate-700">
-                    {totalRecentHires - totalRecentTerminations >= 0 ? "+" : ""}
-                    {totalRecentHires - totalRecentTerminations}명
-                  </p>
-                  <p className="text-xs text-slate-500">순증감</p>
-                </div>
-              </div>
-              <TrendChart points={monthlyTrend} />
             </section>
           </div>
         )}
@@ -277,7 +291,9 @@ export default async function PlatformHomePage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <dt className="text-slate-500">평균 연령</dt>
-                      <dd className="font-semibold">{fmtCount(avgAge)}</dd>
+                      <dd className="font-semibold">
+                        {avgAge === null ? "데이터 없음" : `${avgAge.toFixed(1)}세`}
+                      </dd>
                     </div>
                     <div className="flex items-center justify-between">
                       <dt className="text-slate-500">평균 근속</dt>
@@ -298,38 +314,6 @@ export default async function PlatformHomePage() {
                       <dd className="font-semibold">{totalAssignments}</dd>
                     </div>
                   </dl>
-                </div>
-
-                <div className="rounded-lg border border-slate-200 bg-white p-4">
-                  <h3 className="mb-3 text-sm font-medium text-slate-700">남녀 성비 현황</h3>
-                  {genderKnownTotal === 0 ? (
-                    <p className="text-sm text-slate-500">데이터 없음</p>
-                  ) : (
-                    <>
-                      <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className="bg-blue-500"
-                          style={{ width: `${(maleCount / genderKnownTotal) * 100}%` }}
-                        />
-                        <div
-                          className="bg-rose-400"
-                          style={{ width: `${(femaleCount / genderKnownTotal) * 100}%` }}
-                        />
-                      </div>
-                      <div className="mt-3 flex justify-between text-sm">
-                        <span className="flex items-center gap-1.5">
-                          <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
-                          남 {maleCount}명 (
-                          {Math.round((maleCount / genderKnownTotal) * 100)}%)
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <span className="inline-block h-2 w-2 rounded-full bg-rose-400" />
-                          여 {femaleCount}명 (
-                          {Math.round((femaleCount / genderKnownTotal) * 100)}%)
-                        </span>
-                      </div>
-                    </>
-                  )}
                 </div>
 
                 <div className="rounded-lg border border-slate-200 bg-white p-4">
