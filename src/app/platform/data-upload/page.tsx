@@ -6,6 +6,7 @@ import { PhotoUploadForm } from "./photo-upload-form";
 import { AppointmentUploadForm } from "./appointment-upload-form";
 import { DedupeAppointmentForm } from "./dedupe-appointment-form";
 import { PerformanceHistoryUploadForm } from "./performance-history-upload-form";
+import { EducationUploadForm } from "./education-upload-form";
 import { uploadJobDescriptionFileForTeam } from "@/app/platform/job-management/actions";
 
 export const dynamic = "force-dynamic";
@@ -84,6 +85,11 @@ export default async function DataUploadPage() {
       <section className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-3 text-lg font-medium">인사평가 이력 업로드</h2>
         <PerformanceHistoryUploadForm />
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-3 text-lg font-medium">학력 업로드</h2>
+        <EducationUploadForm />
       </section>
     </div>
   );

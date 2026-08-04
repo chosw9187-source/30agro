@@ -65,11 +65,13 @@ export default async function EmployeeDetailPage({
       team: true,
       appointmentRecords: { orderBy: { date: "desc" } },
       performanceHistory: { orderBy: { year: "desc" } },
+      educationRecords: { orderBy: { order: "asc" } },
     },
   });
 
   if (!employee) notFound();
   const hasPhoto = !!employee.photo;
+  const isCeo = employee.position === "CEO";
 
   return (
     <div className="flex flex-col gap-6">
@@ -93,8 +95,11 @@ export default async function EmployeeDetailPage({
             {!hasPhoto && <p className="text-xs text-slate-500">사진 미등록</p>}
             <h1 className="text-2xl font-semibold text-brand-black">{employee.name}</h1>
             <p className="mt-1 text-slate-600">
-              {employee.team?.name ?? "팀 미지정"} ·{" "}
-              {POSITION_LABEL[employee.position as Position]}
+              {isCeo ? employee.jobGrade || "CEO" : (
+                <>
+                  {employee.team?.name ?? "팀 미지정"} · {POSITION_LABEL[employee.position as Position]}
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -112,34 +117,64 @@ export default async function EmployeeDetailPage({
             </dl>
           </section>
 
-          <section>
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">조직 정보</h2>
-            <dl className="grid grid-cols-2 gap-4">
-              <Field
-                label="사업단위"
-                value={employee.team?.businessUnit ?? employee.businessUnit}
-              />
-              <Field label="본부" value={employee.team?.division ?? employee.division} />
-              <Field label="팀" value={employee.team?.name} />
-              <Field
-                label="직책"
-                value={POSITION_LABEL[employee.position as Position]}
-              />
-              <Field label="사원구분" value={employee.employmentType} />
-              <Field label="직군" value={employee.jobFamily} />
-            </dl>
-          </section>
+          {!isCeo && (
+            <section>
+              <h2 className="mb-3 text-sm font-semibold text-slate-700">조직 정보</h2>
+              <dl className="grid grid-cols-2 gap-4">
+                <Field
+                  label="사업단위"
+                  value={employee.team?.businessUnit ?? employee.businessUnit}
+                />
+                <Field label="본부" value={employee.team?.division ?? employee.division} />
+                <Field label="팀" value={employee.team?.name} />
+                <Field
+                  label="직책"
+                  value={POSITION_LABEL[employee.position as Position]}
+                />
+                <Field label="사원구분" value={employee.employmentType} />
+                <Field label="직군" value={employee.jobFamily} />
+              </dl>
+            </section>
+          )}
 
-          <section>
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">학력 정보</h2>
-            <dl className="grid grid-cols-2 gap-4">
-              <Field label="학력" value={employee.educationLevel} />
-              <Field label="학교" value={employee.school} />
-              <Field label="전공" value={employee.major} />
-              <Field label="학위" value={employee.degree} />
-            </dl>
-          </section>
         </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-3 text-lg font-medium">학력 정보</h2>
+        {employee.educationRecords.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 font-medium">학력구분</th>
+                  <th className="px-3 py-2 font-medium">학교명</th>
+                  <th className="px-3 py-2 font-medium">전공</th>
+                  <th className="px-3 py-2 font-medium">학위</th>
+                </tr>
+              </thead>
+              <tbody>
+                {employee.educationRecords.map((r) => (
+                  <tr key={r.id} className="border-b border-slate-100 last:border-0">
+                    <td className="px-3 py-2 font-medium">{r.level}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.school ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.major ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.degree ?? "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : employee.educationLevel || employee.school || employee.major || employee.degree ? (
+          <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Field label="학력" value={employee.educationLevel} />
+            <Field label="학교" value={employee.school} />
+            <Field label="전공" value={employee.major} />
+            <Field label="학위" value={employee.degree} />
+          </dl>
+        ) : (
+          <p className="text-sm text-slate-500">등록된 학력 정보가 없습니다.</p>
+        )}
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-6">

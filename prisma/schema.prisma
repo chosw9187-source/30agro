@@ -90,6 +90,7 @@ model User {
   targetYears      UserTargetYear[]
   appointmentRecords AppointmentRecord[]
   performanceHistory PerformanceHistory[]
+  educationRecords EducationRecord[]
   permissionOverrides UserPermissionOverride[]
 }
 
@@ -120,6 +121,19 @@ model PerformanceHistory {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, year])
+}
+
+model EducationRecord {
+  id     String  @id @default(cuid())
+  userId String
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level  String // 고등학교 | 대학교 | 대학원(석사) | 대학원(박사)
+  school String?
+  major  String?
+  degree String?
+  order  Int     @default(0)
+
+  @@unique([userId, level])
 }
 
 model UserTargetYear {

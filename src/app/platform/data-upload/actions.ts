@@ -183,6 +183,73 @@ export async function dedupeAppointmentRecords(
   return { removed: toDelete.length };
 }
 
+const EDUCATION_LEVEL_ORDER: Record<string, number> = {
+  고등학교: 0,
+  대학교: 1,
+  "대학원(석사)": 2,
+  "대학원(박사)": 3,
+};
+
+/**
+ * 학력 이력 업로드. (사번, 학력구분) 기준으로 upsert — 같은 학력구분을
+ * 다시 올리면 갱신되고, 새 학력구분은 누적됩니다.
+ * 컬럼: 사번, 학력구분(고등학교/대학교/대학원(석사)/대학원(박사)), 학교명,
+ * 전공(선택), 학위(선택).
+ */
+export async function uploadEducationRecords(
+  _prevState: RowUploadResult | undefined,
+  formData: FormData
+): Promise<RowUploadResult> {
+  await requireRole("ADMIN");
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { applied: 0, errors: ["파일을 선택해주세요."] };
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
+
+  let applied = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNum = i + 2;
+    const employeeNumber = str(row["사번"]);
+    const level = str(row["학력구분"]);
+
+    if (!employeeNumber || !level) {
+      errors.push(`${rowNum}행: 사번/학력구분은 필수입니다.`);
+      continue;
+    }
+
+    const user = await prisma.user.findUnique({ where: { employeeNumber } });
+    if (!user) {
+      errors.push(`${rowNum}행: 사번 ${employeeNumber}에 해당하는 직원이 없습니다.`);
+      continue;
+    }
+
+    const school = str(row["학교명"]) ?? str(row["학교"]);
+    const major = str(row["전공"]);
+    const degree = str(row["학위"]);
+    const order = EDUCATION_LEVEL_ORDER[level] ?? 9;
+
+    await prisma.educationRecord.upsert({
+      where: { userId_level: { userId: user.id, level } },
+      update: { school, major, degree, order },
+      create: { userId: user.id, level, school, major, degree, order },
+    });
+    applied++;
+  }
+
+  revalidatePath("/platform/employees/[userId]", "page");
+
+  return { applied, errors };
+}
+
 /**
  * 인사평가 이력 업로드. (사번, 연도) 기준으로 upsert — 같은 연도를 다시
  * 올리면 갱신되고, 새 연도는 누적됩니다.
