@@ -79,6 +79,10 @@ export default async function OrgChartPage({
     },
   });
   const totalEmployees = await prisma.user.count();
+  const ceo = await prisma.user.findFirst({
+    where: { position: "CEO" },
+    select: { name: true },
+  });
 
   const header = (title: string, breadcrumb: string, teamCount: number, memberCount: number) => (
     <div className="rounded-lg border border-brand-green-dark bg-brand-green px-8 py-6 text-white">
@@ -225,7 +229,12 @@ export default async function OrgChartPage({
         </p>
       </div>
 
-      {header("전체 조직", "한국삼공", teams.length, totalEmployees)}
+      {header(
+        ceo ? `CEO ${ceo.name}` : "전체 조직",
+        "한국삼공",
+        teams.length,
+        totalEmployees
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from(unitGroups.entries()).map(([name, g]) => (

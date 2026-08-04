@@ -1,14 +1,10 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
+import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 
 export const dynamic = "force-dynamic";
-
-const roleLabel: Record<string, string> = {
-  ADMIN: "관리자",
-  EVALUATOR: "평가자",
-  EMPLOYEE: "직원",
-};
 
 export default async function EmployeeDirectoryPage({
   searchParams,
@@ -56,7 +52,7 @@ export default async function EmployeeDirectoryPage({
         <h1 className="text-2xl font-semibold">직원정보 조회</h1>
         <p className="mt-1 text-slate-600">
           이름 / 사번 / 이메일 / 팀 / 전공 / 학교 / 직군으로 검색하거나 팀으로
-          필터링하세요.
+          필터링하세요. 이름을 클릭하면 상세 정보를 볼 수 있습니다.
         </p>
       </div>
 
@@ -97,46 +93,22 @@ export default async function EmployeeDirectoryPage({
           <p className="text-sm text-slate-500">총 {employees.length}명</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {employees.map((e) => (
-              <div
+              <Link
                 key={e.id}
-                className="rounded-lg border border-slate-200 bg-white p-4"
+                href={`/platform/employees/${e.id}`}
+                className="rounded-lg border border-slate-200 bg-white p-4 hover:border-brand-green"
               >
                 <div className="flex items-center justify-between">
-                  <p className="font-medium">{e.name}</p>
+                  <p className="font-medium text-brand-green-dark hover:underline">
+                    {e.name}
+                  </p>
                   <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                    {roleLabel[e.role] ?? e.role}
+                    {POSITION_LABEL[e.position as Position]}
                   </span>
                 </div>
-                <dl className="mt-2 flex flex-col gap-1 text-sm text-slate-500">
-                  <div className="flex gap-2">
-                    <dt className="w-10 shrink-0 text-slate-400">사번</dt>
-                    <dd>{e.employeeNumber}</dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="w-10 shrink-0 text-slate-400">이메일</dt>
-                    <dd className="truncate">{e.email}</dd>
-                  </div>
-                  <div className="flex gap-2">
-                    <dt className="w-10 shrink-0 text-slate-400">팀</dt>
-                    <dd>{e.team?.name ?? "미지정"}</dd>
-                  </div>
-                  {e.jobFamily && (
-                    <div className="flex gap-2">
-                      <dt className="w-10 shrink-0 text-slate-400">직군</dt>
-                      <dd>{e.jobFamily}</dd>
-                    </div>
-                  )}
-                  {e.school && (
-                    <div className="flex gap-2">
-                      <dt className="w-10 shrink-0 text-slate-400">학교</dt>
-                      <dd>
-                        {e.school}
-                        {e.major ? ` · ${e.major}` : ""}
-                      </dd>
-                    </div>
-                  )}
-                </dl>
-              </div>
+                <p className="mt-1 text-sm text-slate-500">사번 {e.employeeNumber}</p>
+                <p className="text-sm text-slate-500">{e.team?.name ?? "팀 미지정"}</p>
+              </Link>
             ))}
             {employees.length === 0 && (
               <p className="text-slate-500">검색 결과가 없습니다.</p>

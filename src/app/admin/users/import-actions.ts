@@ -162,6 +162,14 @@ export async function importUsersFromExcel(
         update: {},
         create: { userId, year },
       });
+
+      if (position === "TEAM_LEADER" && teamId) {
+        await prisma.team.update({ where: { id: teamId }, data: { leaderId: userId } });
+        await prisma.user.updateMany({
+          where: { id: userId, role: "EMPLOYEE" },
+          data: { role: "EVALUATOR" },
+        });
+      }
     } catch {
       errors.push(`${rowNum}행: 저장 실패 (이메일 또는 사번이 다른 사용자와 중복될 수 있습니다).`);
     }

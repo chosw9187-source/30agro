@@ -92,7 +92,22 @@ export async function updateUserPosition(
   position: "CEO" | "OPERATIONS_HEAD" | "SENIOR_STAFF" | "TEAM_LEADER" | "STAFF"
 ) {
   await requireRole("ADMIN");
-  await prisma.user.update({ where: { id: userId }, data: { position } });
+  const user = await prisma.user.update({ where: { id: userId }, data: { position } });
+
+  if (position === "TEAM_LEADER" && user.teamId) {
+    await prisma.team.update({
+      where: { id: user.teamId },
+      data: { leaderId: userId },
+    });
+    await prisma.user.updateMany({
+      where: { id: userId, role: "EMPLOYEE" },
+      data: { role: "EVALUATOR" },
+    });
+    revalidatePath("/admin/teams");
+    revalidatePath("/platform/org-chart");
+    revalidatePath("/platform/org-chart/[teamId]", "page");
+  }
+
   revalidatePath("/admin/users");
   revalidatePath("/platform/employees");
 }

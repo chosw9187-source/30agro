@@ -45,6 +45,7 @@ export default async function PlatformHomePage() {
     prisma.evaluation.count(),
     prisma.user.findUnique({ where: { id: session!.user.id }, select: { position: true } }),
     prisma.user.findMany({
+      where: { employmentType: "정규직" },
       select: {
         id: true,
         teamId: true,
@@ -144,7 +145,9 @@ export default async function PlatformHomePage() {
 
             <section className="rounded-lg border border-slate-200 bg-white">
               <div className="border-b border-slate-200 px-6 py-4">
-                <h2 className="text-lg font-medium">직군별 종합</h2>
+                <h2 className="text-lg font-medium">
+                  직군별 종합 <span className="text-sm font-normal text-slate-400">· 정규직 기준</span>
+                </h2>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
@@ -258,7 +261,9 @@ export default async function PlatformHomePage() {
             {showOverallSummary && (
               <>
                 <div className="rounded-lg border border-slate-200 bg-white p-4">
-                  <h3 className="mb-3 text-sm font-medium text-slate-700">전체 요약</h3>
+                  <h3 className="mb-3 text-sm font-medium text-slate-700">
+                    전체 요약 <span className="font-normal text-slate-400">· 정규직 기준</span>
+                  </h3>
                   <dl className="flex flex-col gap-2 text-sm">
                     <div className="flex items-center justify-between">
                       <dt className="text-slate-500">재직 인원</dt>
