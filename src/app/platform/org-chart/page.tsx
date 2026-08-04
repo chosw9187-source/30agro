@@ -33,6 +33,17 @@ function execSortKey(jobGrade: string | null) {
   return EXEC_RANK[jobGrade ?? ""] ?? 9;
 }
 
+function unitHeadcount(unit: UnitNode) {
+  return (
+    unit.directTeams.reduce((s, t) => s + t.memberCount, 0) +
+    unit.divisions.reduce((s, d) => s + d.teams.reduce((s2, t) => s2 + t.memberCount, 0), 0)
+  );
+}
+
+function divisionHeadcount(division: DivisionNode) {
+  return division.teams.reduce((s, t) => s + t.memberCount, 0);
+}
+
 function ExecBox({ exec, fallbackLabel }: { exec: Exec; fallbackLabel: string }) {
   return (
     <Link
@@ -60,63 +71,110 @@ function TeamChip({ team }: { team: TeamLite }) {
   );
 }
 
-function LeaderTag({ leader, fallback }: { leader?: Exec; fallback: string }) {
-  if (!leader) return <p className="text-xs text-white/70">{fallback}</p>;
+function DrillCard({
+  href,
+  title,
+  leaderName,
+  headcount,
+  subCount,
+  subLabel,
+}: {
+  href: string;
+  title: string;
+  leaderName?: string | null;
+  headcount: number;
+  subCount: number;
+  subLabel: string;
+}) {
   return (
     <Link
-      href={`/platform/employees/${leader.id}`}
-      className="text-xs text-white/90 underline decoration-white/40 hover:decoration-white"
+      href={href}
+      className="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-4 hover:border-brand-green"
     >
-      {leader.name} {leader.jobGrade || ""}
+      <div>
+        <p className="font-semibold text-slate-800">{title}</p>
+        <p className="text-sm text-slate-500">{leaderName || "리더 미지정"}</p>
+        <div className="mt-3 flex gap-4 text-sm text-slate-500">
+          <span>
+            <strong className="text-brand-green-dark">{headcount}</strong>명 재직
+          </span>
+          <span>
+            <strong className="text-brand-green-dark">{subCount}</strong>
+            {subLabel}
+          </span>
+        </div>
+      </div>
+      <span className="mt-3 self-start text-sm text-brand-green">상세보기 ›</span>
     </Link>
   );
 }
 
-function DivisionBlock({ division }: { division: DivisionNode }) {
+function LeaderBanner({
+  eyebrow,
+  title,
+  leaderName,
+  headcount,
+  subCount,
+  subLabel,
+}: {
+  eyebrow: string;
+  title: string;
+  leaderName?: string | null;
+  headcount: number;
+  subCount: number;
+  subLabel: string;
+}) {
   return (
-    <div className="overflow-hidden rounded border border-brand-green-dark/20">
-      <div className="bg-brand-green px-3 py-2 text-white">
-        <p className="text-sm font-semibold">{division.name}</p>
-        <LeaderTag leader={division.leader} fallback="리더 미지정" />
-      </div>
-      <div className="flex flex-col gap-1.5 bg-brand-green-light/40 p-2">
-        {division.teams.map((t) => (
-          <TeamChip key={t.id} team={t} />
-        ))}
-        {division.teams.length === 0 && (
-          <p className="px-1 py-1 text-xs text-slate-400">소속 팀 없음</p>
-        )}
+    <div className="rounded-lg border border-brand-green-dark bg-brand-green px-8 py-6 text-white">
+      <p className="text-sm text-white/80">{eyebrow}</p>
+      <p className="mt-1 text-2xl font-bold">{title}</p>
+      {leaderName && <p className="mt-1 text-white/90">{leaderName}</p>}
+      <div className="mt-4 flex gap-8 text-sm">
+        <span>
+          <strong className="text-lg">{headcount}</strong>명 재직
+        </span>
+        <span>
+          <strong className="text-lg">{subCount}</strong>
+          {subLabel}
+        </span>
       </div>
     </div>
   );
 }
 
-function UnitColumn({ unit, shade }: { unit: UnitNode; shade: string }) {
+function Breadcrumb({
+  items,
+}: {
+  items: { label: string; href?: string }[];
+}) {
   return (
-    <div className="flex flex-1 flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3">
-      <div className={`rounded px-4 py-3 text-white ${shade}`}>
-        <p className="font-semibold">{unit.name}</p>
-        <LeaderTag leader={unit.leader} fallback="리더 미지정" />
-      </div>
-      <div className="flex flex-col gap-2">
-        {unit.divisions.map((d) => (
-          <DivisionBlock key={d.name} division={d} />
-        ))}
-        {unit.directTeams.map((t) => (
-          <TeamChip key={t.id} team={t} />
-        ))}
-        {unit.divisions.length === 0 && unit.directTeams.length === 0 && (
-          <p className="px-1 py-1 text-xs text-slate-400">소속 조직 없음</p>
-        )}
-      </div>
+    <div className="flex flex-wrap items-center gap-1 text-sm text-slate-500">
+      {items.map((item, i) => (
+        <span key={i} className="flex items-center gap-1">
+          {i > 0 && <span className="text-slate-300">›</span>}
+          {item.href ? (
+            <Link href={item.href} className="hover:text-brand-green hover:underline">
+              {item.label}
+            </Link>
+          ) : (
+            <span className="font-medium text-slate-700">{item.label}</span>
+          )}
+        </span>
+      ))}
     </div>
   );
 }
 
-export default async function OrgChartPage() {
+export default async function OrgChartPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ unit?: string; division?: string }>;
+}) {
   if (!(await checkModuleAccess("ORG_CHART"))) {
     return <NoModuleAccess title="조직도" />;
   }
+
+  const { unit: unitParam, division: divisionParam } = await searchParams;
 
   const [teams, totalEmployees, ceos, opsHeads, seniors] = await Promise.all([
     prisma.team.findMany({
@@ -214,69 +272,168 @@ export default async function OrgChartPage() {
     .map((n) => unitMap.get(n)!)
     .sort((a, b) => (UNIT_PRIORITY[a.name] ?? 9) - (UNIT_PRIORITY[b.name] ?? 9));
   const standaloneDivisions = standaloneDivisionOrder.map((n) => standaloneDivisionMap.get(n)!);
-  const unitShades = ["bg-brand-green-dark", "bg-emerald-700", "bg-teal-700", "bg-brand-green-dark"];
 
+  // DIVISION VIEW — unit+division, or a standalone division with no unit.
+  if (divisionParam) {
+    const division = unitParam
+      ? unitMap.get(unitParam)?.divisions.find((d) => d.name === divisionParam)
+      : standaloneDivisionMap.get(divisionParam);
+
+    if (!division) {
+      return (
+        <div className="flex flex-col gap-4">
+          <Breadcrumb items={[{ label: "전체", href: "/platform/org-chart" }, { label: "찾을 수 없음" }]} />
+          <p className="text-slate-500">해당 본부를 찾을 수 없습니다.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col gap-6">
+        <Breadcrumb
+          items={[
+            { label: "전체", href: "/platform/org-chart" },
+            ...(unitParam
+              ? [{ label: unitParam, href: `/platform/org-chart?unit=${encodeURIComponent(unitParam)}` }]
+              : []),
+            { label: division.name },
+          ]}
+        />
+        <LeaderBanner
+          eyebrow={unitParam ? `${unitParam} · ${division.name}` : division.name}
+          title={division.leader ? `${division.leader.name} ${division.leader.jobGrade || ""}`.trim() : division.name}
+          headcount={divisionHeadcount(division)}
+          subCount={division.teams.length}
+          subLabel="개 팀"
+        />
+        <div>
+          <h2 className="mb-3 text-lg font-medium">소속 팀</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {division.teams.map((t) => (
+              <TeamChip key={t.id} team={t} />
+            ))}
+            {division.teams.length === 0 && <p className="text-slate-500">소속 팀이 없습니다.</p>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // UNIT VIEW
+  if (unitParam) {
+    const unit = unitMap.get(unitParam);
+    if (!unit) {
+      return (
+        <div className="flex flex-col gap-4">
+          <Breadcrumb items={[{ label: "전체", href: "/platform/org-chart" }, { label: "찾을 수 없음" }]} />
+          <p className="text-slate-500">해당 사업단위를 찾을 수 없습니다.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col gap-6">
+        <Breadcrumb items={[{ label: "전체", href: "/platform/org-chart" }, { label: unit.name }]} />
+        <LeaderBanner
+          eyebrow="사업단위"
+          title={unit.leader ? `${unit.leader.name} ${unit.leader.jobGrade || ""}`.trim() : unit.name}
+          headcount={unitHeadcount(unit)}
+          subCount={unit.divisions.length + unit.directTeams.length}
+          subLabel="개 하위 조직"
+        />
+        <div>
+          <h2 className="mb-3 text-lg font-medium">하위 조직</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {unit.divisions.map((d) => (
+              <DrillCard
+                key={d.name}
+                href={`/platform/org-chart?unit=${encodeURIComponent(unit.name)}&division=${encodeURIComponent(d.name)}`}
+                title={d.name}
+                leaderName={d.leader ? `${d.leader.name} ${d.leader.jobGrade || ""}`.trim() : null}
+                headcount={divisionHeadcount(d)}
+                subCount={d.teams.length}
+                subLabel="개 팀"
+              />
+            ))}
+            {unit.directTeams.map((t) => (
+              <TeamChip key={t.id} team={t} />
+            ))}
+            {unit.divisions.length === 0 && unit.directTeams.length === 0 && (
+              <p className="text-slate-500">소속 조직이 없습니다.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ROOT VIEW
   return (
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-2xl font-semibold">조직도</h1>
         <p className="mt-1 text-slate-600">
-          한국삼공의 조직 구성입니다. 이름을 클릭하면 인사카드를, 팀을 클릭하면
-          구성원을 볼 수 있습니다.
+          한국삼공의 조직 구성입니다. 사업단위를 클릭하면 하위 조직을, 팀을
+          클릭하면 구성원을 볼 수 있습니다.
         </p>
       </div>
 
-      <div className="rounded-lg border border-brand-green-dark bg-brand-green px-8 py-6 text-white">
-        <p className="text-sm text-white/80">한국삼공</p>
-        <p className="mt-1 text-2xl font-bold">전체 조직</p>
-        <div className="mt-4 flex gap-8 text-sm">
-          <span>
-            <strong className="text-lg">{totalEmployees}</strong>명 재직
-          </span>
-          <span>
-            <strong className="text-lg">{teams.length}</strong>개 팀
-          </span>
-        </div>
-      </div>
+      <LeaderBanner
+        eyebrow="한국삼공"
+        title="전체 조직"
+        headcount={totalEmployees}
+        subCount={teams.length}
+        subLabel="개 팀"
+      />
 
-      <div className="overflow-x-auto">
-        <div className="flex min-w-max flex-col items-center gap-6 pb-2">
-          {ceos.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-3">
-              {ceos.map((c) => (
-                <ExecBox key={c.id} exec={c} fallbackLabel={POSITION_LABEL.CEO as Position} />
-              ))}
-            </div>
-          )}
+      <div className="flex flex-col items-center gap-6">
+        {ceos.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-3">
+            {ceos.map((c) => (
+              <ExecBox key={c.id} exec={c} fallbackLabel={POSITION_LABEL.CEO as Position} />
+            ))}
+          </div>
+        )}
 
-          {rootTeams.length > 0 && (
+        {rootTeams.length > 0 && (
+          <div className="w-full">
+            <p className="mb-2 text-center text-xs font-medium text-slate-400">직속</p>
             <div className="flex flex-wrap justify-center gap-2">
               {rootTeams.map((t) => (
                 <TeamChip key={t.id} team={t} />
               ))}
             </div>
-          )}
+          </div>
+        )}
 
-          {units.length > 0 && (
-            <div className="flex w-full flex-col gap-4 sm:flex-row">
-              {units.map((u, i) => (
-                <UnitColumn key={u.name} unit={u} shade={unitShades[i % unitShades.length]} />
-              ))}
-            </div>
-          )}
+        {(units.length > 0 || standaloneDivisions.length > 0) && (
+          <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {units.map((u) => (
+              <DrillCard
+                key={u.name}
+                href={`/platform/org-chart?unit=${encodeURIComponent(u.name)}`}
+                title={u.name}
+                leaderName={u.leader ? `${u.leader.name} ${u.leader.jobGrade || ""}`.trim() : null}
+                headcount={unitHeadcount(u)}
+                subCount={u.divisions.length + u.directTeams.length}
+                subLabel="개 하위 조직"
+              />
+            ))}
+            {standaloneDivisions.map((d) => (
+              <DrillCard
+                key={d.name}
+                href={`/platform/org-chart?division=${encodeURIComponent(d.name)}`}
+                title={d.name}
+                leaderName={d.leader ? `${d.leader.name} ${d.leader.jobGrade || ""}`.trim() : null}
+                headcount={divisionHeadcount(d)}
+                subCount={d.teams.length}
+                subLabel="개 팀"
+              />
+            ))}
+          </div>
+        )}
 
-          {standaloneDivisions.length > 0 && (
-            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {standaloneDivisions.map((d) => (
-                <DivisionBlock key={d.name} division={d} />
-              ))}
-            </div>
-          )}
-
-          {teams.length === 0 && (
-            <p className="text-slate-500">아직 등록된 팀이 없습니다.</p>
-          )}
-        </div>
+        {teams.length === 0 && <p className="text-slate-500">아직 등록된 팀이 없습니다.</p>}
       </div>
     </div>
   );
