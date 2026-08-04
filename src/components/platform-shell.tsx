@@ -16,7 +16,7 @@ export async function PlatformShell({
     prisma.user.findUnique({ where: { id: user.id }, select: { position: true } }),
   ]);
   const position = (dbUser?.position ?? "STAFF") as Position;
-  const visibleModules = await getVisibleModules(user.role, position);
+  const visibleModules = await getVisibleModules(user.id, user.role, position);
 
   async function logout() {
     "use server";

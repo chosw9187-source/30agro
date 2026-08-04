@@ -5,6 +5,7 @@ import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { ageInYears, tenureInYears } from "@/lib/hr-analytics";
 import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
+import { Avatar } from "@/components/avatar";
 
 export const dynamic = "force-dynamic";
 
@@ -58,9 +59,35 @@ export default async function TeamOrgDetailPage({
           {team.division ? `${team.division} 본부 · ` : ""}
           {team.name}
         </p>
-        <p className="mt-1 text-2xl font-bold">
-          {team.leader ? `${team.leader.name} 팀장` : "팀장 미지정"}
-        </p>
+        {team.leader ? (
+          <div className="mt-3 flex items-center gap-4">
+            <Avatar
+              userId={team.leader.id}
+              name={team.leader.name}
+              hasPhoto={!!team.leader.photo}
+              className="h-14 w-14 border-2 border-white/50 text-lg"
+            />
+            <div>
+              <p className="text-2xl font-bold">{team.leader.name} 팀장</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/90">
+                <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium">
+                  {POSITION_LABEL[team.leader.position as Position]}
+                </span>
+                {team.leader.birthDate && <span>만 {ageInYears(team.leader.birthDate)}세</span>}
+                {team.leader.hireDate && (
+                  <span>· 근속 {tenureInYears(team.leader.hireDate).toFixed(1)}년</span>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-white/70">
+                {team.leader.hireDate
+                  ? `입사 ${team.leader.hireDate.toLocaleDateString("ko-KR")}`
+                  : "입사일 미입력"}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-1 text-2xl font-bold">팀장 미지정</p>
+        )}
         <div className="mt-4 flex items-center gap-8 text-sm">
           <span>
             <strong className="text-lg">{team.members.length}</strong>명 재직
@@ -89,9 +116,7 @@ export default async function TeamOrgDetailPage({
                     href={`/platform/employees/${m.id}`}
                     className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-4 hover:border-brand-green"
                   >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-green-light text-sm font-semibold text-brand-green-dark">
-                      {m.name.slice(0, 2)}
-                    </span>
+                    <Avatar userId={m.id} name={m.name} hasPhoto={!!m.photo} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
                         <p className="truncate font-medium text-brand-green-dark">{m.name}</p>

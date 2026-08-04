@@ -27,17 +27,12 @@ export {
 /**
  * Per-module access scope for a position: how much data that position can
  * see within a module, from 전체(FULL) down to 본인(SELF) or 접근
- * 불가(NONE). Admins always get FULL. Absence of a configured row also
- * means FULL (matches the "저장 안 하면 지금 그대로" default from the
- * reference platform — nothing is restricted until an admin sets it).
+ * 불가(NONE). Absence of a configured row means FULL (matches the "저장
+ * 안 하면 지금 그대로" default from the reference platform — nothing is
+ * restricted until an admin sets it). This is the position-level default;
+ * see getEffectiveModuleScope for the per-user-override-aware version.
  */
-export async function getModuleScope(
-  role: string,
-  position: Position,
-  module: Module
-): Promise<PermissionScope> {
-  if (role === "ADMIN") return "FULL";
-
+async function getPositionModuleScope(position: Position, module: Module): Promise<PermissionScope> {
   const entry = await prisma.permissionMatrixEntry.findUnique({
     where: { position_module: { position, module } },
     select: { scope: true },
@@ -45,33 +40,55 @@ export async function getModuleScope(
   return (entry?.scope as PermissionScope) ?? "FULL";
 }
 
+/**
+ * Effective scope for a specific user in a module: a per-user override (set
+ * in 권한 매트릭스 > 사용자별) wins if present, otherwise falls back to the
+ * position's row in the matrix. Admins always get FULL.
+ */
+export async function getEffectiveModuleScope(
+  userId: string,
+  role: string,
+  position: Position,
+  module: Module
+): Promise<PermissionScope> {
+  if (role === "ADMIN") return "FULL";
+
+  const override = await prisma.userPermissionOverride.findUnique({
+    where: { userId_module: { userId, module } },
+    select: { scope: true },
+  });
+  if (override) return override.scope as PermissionScope;
+
+  return getPositionModuleScope(position, module);
+}
+
 export async function getVisibleModules(
+  userId: string,
   role: string,
   position: Position
 ): Promise<Set<Module>> {
   if (role === "ADMIN") return new Set(MODULES);
 
-  const entries = await prisma.permissionMatrixEntry.findMany({
-    where: { position, module: { in: MODULES } },
-    select: { module: true, scope: true },
-  });
+  const [entries, overrides] = await Promise.all([
+    prisma.permissionMatrixEntry.findMany({
+      where: { position, module: { in: MODULES } },
+      select: { module: true, scope: true },
+    }),
+    prisma.userPermissionOverride.findMany({
+      where: { userId, module: { in: MODULES } },
+      select: { module: true, scope: true },
+    }),
+  ]);
   const scopeByModule = new Map(entries.map((e) => [e.module as Module, e.scope as PermissionScope]));
-  return new Set(MODULES.filter((m) => (scopeByModule.get(m) ?? "FULL") !== "NONE"));
-}
+  for (const o of overrides) scopeByModule.set(o.module as Module, o.scope as PermissionScope);
 
-export async function canAccessModule(
-  role: string,
-  position: Position,
-  module: Module
-): Promise<boolean> {
-  const visible = await getVisibleModules(role, position);
-  return visible.has(module);
+  return new Set(MODULES.filter((m) => (scopeByModule.get(m) ?? "FULL") !== "NONE"));
 }
 
 /**
  * For use at the top of a /platform/* page to check whether the current
- * user's position is allowed to see this module, independent of whether
- * the sidebar link is shown (direct-URL access must be blocked too).
+ * user is allowed to see this module, independent of whether the sidebar
+ * link is shown (direct-URL access must be blocked too).
  */
 export async function checkModuleAccess(module: Module): Promise<boolean> {
   const session = await auth();
@@ -83,7 +100,8 @@ export async function checkModuleAccess(module: Module): Promise<boolean> {
     select: { position: true },
   });
   const position = (dbUser?.position ?? "STAFF") as Position;
-  return canAccessModule(session.user.role, position, module);
+  const scope = await getEffectiveModuleScope(session.user.id, session.user.role, position, module);
+  return scope !== "NONE";
 }
 
 type ViewerContext = {
@@ -112,8 +130,10 @@ async function loadViewerContext(userId: string): Promise<ViewerContext | null> 
 
 /**
  * 인사카드(개인 인사정보) 열람 권한: 본인·관리자·인사팀 소속은 항상 전체
- * 열람 가능. 그 외에는 사용자 관리 > 권한 매트릭스에서 직책별로 설정한
- * EMPLOYEES 모듈 범위(전체/사업단위/부문/팀/본인/접근 불가)를 따른다.
+ * 열람 가능. 그 외에는 권한 매트릭스에서 설정한 EMPLOYEES 모듈 범위(전체
+ * /사업단위/부문/팀/본인/접근 불가)를 따르며, 사용자별로 개별 지정된 값이
+ * 있으면 직책 기본값보다 우선한다(예: 특정 HR 임원은 부문장이라도 전체
+ * 열람 가능하도록 개별 설정).
  */
 export async function canViewEmployeeCard(targetUserId: string): Promise<boolean> {
   const session = await auth();
@@ -128,7 +148,12 @@ export async function canViewEmployeeCard(targetUserId: string): Promise<boolean
   if (!viewer) return false;
   if (viewer.team?.name === "인사팀") return true;
 
-  const scope = await getModuleScope(session.user.role, viewer.position as Position, "EMPLOYEES");
+  const scope = await getEffectiveModuleScope(
+    session.user.id,
+    session.user.role,
+    viewer.position as Position,
+    "EMPLOYEES"
+  );
   if (scope === "NONE" || scope === "SELF") return false;
   if (scope === "FULL") return true;
 

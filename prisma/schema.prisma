@@ -90,6 +90,7 @@ model User {
   targetYears      UserTargetYear[]
   appointmentRecords AppointmentRecord[]
   performanceHistory PerformanceHistory[]
+  permissionOverrides UserPermissionOverride[]
 }
 
 model AppointmentRecord {
@@ -299,6 +300,22 @@ model PermissionMatrixEntry {
   scope    PermissionScope @default(FULL)
 
   @@unique([position, module])
+}
+
+/**
+ * Per-user override of the position-based PermissionMatrixEntry — e.g. an
+ * HR 본부장 whose position would normally cap them at DIVISION scope, but
+ * who should individually see FULL for the EMPLOYEES module. When present
+ * for a (userId, module) pair, this wins over the position's matrix entry.
+ */
+model UserPermissionOverride {
+  id     String          @id @default(cuid())
+  userId String
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module Module
+  scope  PermissionScope
+
+  @@unique([userId, module])
 }
 
 enum HomeBlock {
