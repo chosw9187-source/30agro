@@ -197,8 +197,6 @@ export default async function EmployeeDetailPage({
                 <tr>
                   <th className="px-3 py-2 font-medium">연도</th>
                   <th className="px-3 py-2 font-medium">등급</th>
-                  <th className="px-3 py-2 font-medium">점수</th>
-                  <th className="px-3 py-2 font-medium">비고</th>
                 </tr>
               </thead>
               <tbody>
@@ -206,8 +204,6 @@ export default async function EmployeeDetailPage({
                   <tr key={r.id} className="border-b border-slate-100 last:border-0">
                     <td className="px-3 py-2 font-medium">{r.year}년</td>
                     <td className="px-3 py-2">{r.grade ?? "-"}</td>
-                    <td className="px-3 py-2 text-slate-500">{r.score ?? "-"}</td>
-                    <td className="px-3 py-2 text-slate-500">{r.note ?? "-"}</td>
                   </tr>
                 ))}
               </tbody>
