@@ -107,6 +107,75 @@ export async function updateUserGender(userId: string, gender: string) {
   revalidatePath("/platform/employees/[userId]", "page");
 }
 
+function parseDateInput(value: string): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+export async function updateUserBirthDate(userId: string, value: string) {
+  await requireRole("ADMIN");
+  await prisma.user.update({ where: { id: userId }, data: { birthDate: parseDateInput(value) } });
+  revalidatePath("/admin/users");
+  revalidatePath("/platform");
+  revalidatePath("/platform/employees");
+  revalidatePath("/platform/employees/[userId]", "page");
+}
+
+export async function updateUserHireDate(userId: string, value: string) {
+  await requireRole("ADMIN");
+  await prisma.user.update({ where: { id: userId }, data: { hireDate: parseDateInput(value) } });
+  revalidatePath("/admin/users");
+  revalidatePath("/platform");
+  revalidatePath("/platform/employees");
+  revalidatePath("/platform/employees/[userId]", "page");
+  revalidatePath("/platform/org-chart");
+  revalidatePath("/platform/org-chart/[teamId]", "page");
+}
+
+export async function updateUserTerminationDate(userId: string, value: string) {
+  await requireRole("ADMIN");
+  await prisma.user.update({ where: { id: userId }, data: { terminationDate: parseDateInput(value) } });
+  revalidatePath("/admin/users");
+  revalidatePath("/platform");
+  revalidatePath("/platform/employees");
+  revalidatePath("/platform/employees/[userId]", "page");
+  revalidatePath("/platform/org-chart");
+  revalidatePath("/platform/org-chart/[teamId]", "page");
+}
+
+export async function updateUserEmploymentType(userId: string, value: string) {
+  await requireRole("ADMIN");
+  await prisma.user.update({ where: { id: userId }, data: { employmentType: value.trim() || null } });
+  revalidatePath("/admin/users");
+  revalidatePath("/platform");
+}
+
+export async function updateUserJobFamily(userId: string, value: string) {
+  await requireRole("ADMIN");
+  await prisma.user.update({ where: { id: userId }, data: { jobFamily: value.trim() || null } });
+  revalidatePath("/admin/users");
+  revalidatePath("/platform");
+}
+
+export async function updateUserBusinessUnit(userId: string, value: string) {
+  await requireRole("ADMIN");
+  await prisma.user.update({ where: { id: userId }, data: { businessUnit: value.trim() || null } });
+  revalidatePath("/admin/users");
+  revalidatePath("/platform/employees");
+  revalidatePath("/platform/employees/[userId]", "page");
+  revalidatePath("/platform/org-chart");
+}
+
+export async function updateUserDivision(userId: string, value: string) {
+  await requireRole("ADMIN");
+  await prisma.user.update({ where: { id: userId }, data: { division: value.trim() || null } });
+  revalidatePath("/admin/users");
+  revalidatePath("/platform/employees");
+  revalidatePath("/platform/employees/[userId]", "page");
+  revalidatePath("/platform/org-chart");
+}
+
 export async function updateUserRole(
   userId: string,
   role: "ADMIN" | "EVALUATOR" | "EMPLOYEE"

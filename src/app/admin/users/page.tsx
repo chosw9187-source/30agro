@@ -1,7 +1,17 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { createUser, bulkDeleteUsers } from "./actions";
+import {
+  createUser,
+  bulkDeleteUsers,
+  updateUserBirthDate,
+  updateUserHireDate,
+  updateUserTerminationDate,
+  updateUserEmploymentType,
+  updateUserJobFamily,
+  updateUserBusinessUnit,
+  updateUserDivision,
+} from "./actions";
 import { clearYearTargets } from "./target-year-actions";
 import { RoleSelect } from "./role-select";
 import { UserRowActions } from "./user-row-actions";
@@ -11,6 +21,8 @@ import { PositionSelect } from "./position-select";
 import { NameEditor } from "./name-editor";
 import { JobGradeEditor } from "./job-grade-editor";
 import { GenderSelect } from "./gender-select";
+import { TextFieldEditor } from "./text-field-editor";
+import { DateFieldEditor } from "./date-field-editor";
 import { isActive } from "@/lib/hr-analytics";
 
 export const dynamic = "force-dynamic";
@@ -22,10 +34,6 @@ const roleLabel: Record<string, string> = {
 };
 
 const COMPANY_NAME = "한국삼공";
-
-function fmtDate(d: Date | null | undefined) {
-  return d ? d.toLocaleDateString("ko-KR") : "-";
-}
 
 type SortKey = "name" | "email" | "employeeNumber" | "role" | "team";
 type SortDir = "asc" | "desc";
@@ -112,6 +120,15 @@ export default async function UsersPage({
   const availableYears = Array.from(
     new Set([thisYear, selectedYear, ...yearRows.map((r) => r.year)])
   ).sort((a, b) => b - a);
+
+  const businessUnitOptions = Array.from(
+    new Set(teams.map((t) => t.businessUnit).filter((v): v is string => !!v))
+  ).sort();
+  const divisionOptions = Array.from(
+    new Set(teams.map((t) => t.division).filter((v): v is string => !!v))
+  ).sort();
+  const EMPLOYMENT_TYPE_OPTIONS = ["정규직", "계약직", "파견직", "인턴"];
+  const JOB_FAMILY_OPTIONS = ["영업직", "사무직", "생산직", "연구직"];
 
   const filterQS = `${q ? `&q=${encodeURIComponent(q)}` : ""}${
     filterTeamId ? `&teamId=${filterTeamId}` : ""
@@ -282,6 +299,27 @@ export default async function UsersPage({
             </span>
           </div>
 
+          <datalist id="user-business-unit-options">
+            {businessUnitOptions.map((v) => (
+              <option key={v} value={v} />
+            ))}
+          </datalist>
+          <datalist id="user-division-options">
+            {divisionOptions.map((v) => (
+              <option key={v} value={v} />
+            ))}
+          </datalist>
+          <datalist id="user-employment-type-options">
+            {EMPLOYMENT_TYPE_OPTIONS.map((v) => (
+              <option key={v} value={v} />
+            ))}
+          </datalist>
+          <datalist id="user-job-family-options">
+            {JOB_FAMILY_OPTIONS.map((v) => (
+              <option key={v} value={v} />
+            ))}
+          </datalist>
+
           <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-100 text-xs text-slate-400">
@@ -343,10 +381,30 @@ export default async function UsersPage({
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.team?.name ?? "-"}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{COMPANY_NAME}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">
-                    {u.team?.businessUnit ?? u.businessUnit ?? "-"}
+                    {u.team ? (
+                      u.team.businessUnit ?? "-"
+                    ) : (
+                      <TextFieldEditor
+                        userId={u.id}
+                        value={u.businessUnit}
+                        action={updateUserBusinessUnit}
+                        listId="user-business-unit-options"
+                        width="w-24"
+                      />
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">
-                    {u.team?.division ?? u.division ?? "-"}
+                    {u.team ? (
+                      u.team.division ?? "-"
+                    ) : (
+                      <TextFieldEditor
+                        userId={u.id}
+                        value={u.division}
+                        action={updateUserDivision}
+                        listId="user-division-options"
+                        width="w-24"
+                      />
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">
                     <PositionSelect userId={u.id} position={u.position} />
@@ -354,9 +412,15 @@ export default async function UsersPage({
                   <td className="whitespace-nowrap px-3 py-2">
                     <GenderSelect userId={u.id} gender={u.gender} />
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{fmtDate(u.birthDate)}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{fmtDate(u.hireDate)}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{fmtDate(u.terminationDate)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">
+                    <DateFieldEditor userId={u.id} value={u.birthDate} action={updateUserBirthDate} />
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">
+                    <DateFieldEditor userId={u.id} value={u.hireDate} action={updateUserHireDate} />
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">
+                    <DateFieldEditor userId={u.id} value={u.terminationDate} action={updateUserTerminationDate} />
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2">
                     {isActive(u) ? (
                       <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-xs font-medium text-brand-green-dark">
@@ -368,7 +432,15 @@ export default async function UsersPage({
                       </span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.employmentType ?? "-"}</td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    <TextFieldEditor
+                      userId={u.id}
+                      value={u.employmentType}
+                      action={updateUserEmploymentType}
+                      listId="user-employment-type-options"
+                      width="w-20"
+                    />
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2">
                     <JobGradeEditor userId={u.id} jobGrade={u.jobGrade} />
                   </td>
@@ -376,7 +448,15 @@ export default async function UsersPage({
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.school ?? "-"}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.major ?? "-"}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.degree ?? "-"}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.jobFamily ?? "-"}</td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    <TextFieldEditor
+                      userId={u.id}
+                      value={u.jobFamily}
+                      action={updateUserJobFamily}
+                      listId="user-job-family-options"
+                      width="w-20"
+                    />
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2">
                     <TargetYearToggle
                       userId={u.id}
