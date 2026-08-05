@@ -114,7 +114,8 @@ export function computeJobFamilySummary(
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
 
   const rows: JobFamilyRow[] = [];
-  for (const [name, members] of groups.entries()) {
+  for (const [name, allMembers] of groups.entries()) {
+    const members = allMembers.filter((m) => isActive(m, at));
     const headcount = members.length;
     const teamCount = new Set(members.map((m) => m.teamId).filter(Boolean)).size;
     const avgTeamSize = teamCount > 0 ? headcount / teamCount : null;
@@ -131,8 +132,8 @@ export function computeJobFamilySummary(
         ? (withAge.filter((m) => ageInYears(m.birthDate!, at) >= 55).length / withAge.length) * 100
         : null;
 
-    const recentHires = members.filter((m) => m.hireDate && m.hireDate >= oneYearAgo).length;
-    const recentTerminations = members.filter(
+    const recentHires = allMembers.filter((m) => m.hireDate && m.hireDate >= oneYearAgo).length;
+    const recentTerminations = allMembers.filter(
       (m) => m.terminationDate && m.terminationDate >= oneYearAgo
     ).length;
     const turnoverRate = headcount > 0 ? (recentTerminations / headcount) * 100 : null;
