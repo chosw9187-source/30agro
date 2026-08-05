@@ -334,40 +334,45 @@ function LeaderBanner({
   parts: CompositionPart[];
 }) {
   return (
-    <div className="rounded-lg border border-brand-green-dark bg-brand-green px-8 py-6 text-white">
-      <p className="text-sm text-white/80">{eyebrow}</p>
-      <div className="mt-2 flex items-center gap-4">
-        {leaderId && (
+    <div className="flex w-full overflow-hidden rounded-lg border border-brand-black shadow-sm">
+      <div className="w-2 shrink-0 bg-brand-green" />
+      <div className="flex flex-1 flex-wrap items-center gap-6 bg-brand-black px-8 py-6 text-white">
+        {leaderId ? (
           <Avatar
             userId={leaderId}
             name={leaderName ?? title}
             hasPhoto={!!leaderHasPhoto}
-            className="h-14 w-14 border-2 border-white/50 text-lg"
+            className="h-16 w-16 shrink-0 border-2 border-white/50 text-lg"
           />
+        ) : (
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white p-2">
+            <CompanyLogo className="h-full w-full" />
+          </div>
         )}
-        <div>
-          <p className="text-2xl font-bold">{title}</p>
-          {leaderName && <p className="mt-1 text-white/90">{leaderName}</p>}
+        <div className="min-w-[200px] flex-1">
+          <p className="text-xs uppercase tracking-wide text-white/50">{eyebrow}</p>
+          <p className="mt-1 text-xl font-bold">{title}</p>
+          {leaderName && <p className="text-sm text-white/60">{leaderName}</p>}
         </div>
-      </div>
-      <div className="mt-4 flex items-center gap-8 text-sm">
-        <span>
-          <strong className="text-lg">{headcount}</strong>명 재직
-        </span>
-        {parts.map((p, i) => (
-          <span key={i}>
-            <strong className="text-lg">{p.count}</strong>
-            {p.label}
+        <div className="flex flex-wrap items-center gap-8 text-sm">
+          <span>
+            <strong className="text-lg">{headcount}</strong>명 재직
           </span>
-        ))}
-        {leaderId && (
-          <Link
-            href={`/platform/employees/${leaderId}`}
-            className="rounded border border-white/40 px-3 py-1.5 hover:bg-white/10"
-          >
-            상세보기 ›
-          </Link>
-        )}
+          {parts.map((p, i) => (
+            <span key={i}>
+              <strong className="text-lg">{p.count}</strong>
+              {p.label}
+            </span>
+          ))}
+          {leaderId && (
+            <Link
+              href={`/platform/employees/${leaderId}`}
+              className="rounded border border-white/40 px-3 py-1.5 hover:bg-white/10"
+            >
+              상세보기 ›
+            </Link>
+          )}
+        </div>
       </div>
     </div>
   );

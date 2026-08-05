@@ -135,12 +135,7 @@ export default async function PlatformHomePage() {
                   </thead>
                   <tbody>
                     {jobFamilyRows.map((r) => (
-                      <tr
-                        key={r.name}
-                        className={`border-b border-slate-100 last:border-0 ${
-                          r.remark.startsWith("주의") ? "bg-red-50" : ""
-                        }`}
-                      >
+                      <tr key={r.name} className="border-b border-slate-100 last:border-0">
                         <td className="px-4 py-3 font-medium">{r.name}</td>
                         <td className="px-4 py-3">{r.headcount}명</td>
                         <td className="px-4 py-3 text-slate-500">
@@ -155,22 +150,7 @@ export default async function PlatformHomePage() {
                         <td className="px-4 py-3 text-slate-500">{r.recentHires}명</td>
                         <td className="px-4 py-3 text-slate-500">{r.recentTerminations}명</td>
                         <td className="px-4 py-3 text-slate-500">{fmtPct(r.turnoverRate)}</td>
-                        <td className="px-4 py-3">
-                          <span
-                            title={r.flags.length > 0 ? r.flags.join(", ") : undefined}
-                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                              r.flags.length > 0 ? "cursor-help" : ""
-                            } ${
-                              r.remark === "정상"
-                                ? "bg-brand-green-light text-brand-green-dark"
-                                : r.remark === "판정 보류"
-                                  ? "bg-slate-100 text-slate-500"
-                                  : "bg-red-50 text-red-600"
-                            }`}
-                          >
-                            {r.remark}
-                          </span>
-                        </td>
+                        <td className="px-4 py-3"></td>
                       </tr>
                     ))}
                     {jobFamilyRows.length === 0 && (
