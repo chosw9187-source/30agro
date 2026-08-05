@@ -6,6 +6,7 @@ import {
   deleteTeam,
   addTeamMember,
   removeTeamMember,
+  toggleTeamActive,
 } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,8 @@ export default async function TeamsPage() {
           직원을 팀장으로 지정하면 평가자 권한이 자동으로 부여됩니다. 조직도는
           사명 → 사업단위 → 본부 → 팀 순으로 표시되며, 사업단위·본부를
           지정하지 않으면 그 단계를 건너뛰고 바로 상위(또는 사명)에 표시됩니다.
+          팀을 비활성화하면 팀 자체와 소속 인원 정보는 그대로 남아있지만
+          조직도에는 나타나지 않습니다.
         </p>
       </div>
 
@@ -93,12 +96,23 @@ export default async function TeamsPage() {
         {teams.map((team) => (
           <div
             key={team.id}
-            className="rounded-lg border border-slate-200 bg-white p-4"
+            className={`rounded-lg border bg-white p-4 ${
+              team.active ? "border-slate-200" : "border-slate-200 opacity-60"
+            }`}
           >
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium">
                   {team.name}
+                  {team.active ? (
+                    <span className="ml-2 rounded-full bg-brand-green-light px-2 py-0.5 text-xs font-normal text-brand-green-dark">
+                      활성화
+                    </span>
+                  ) : (
+                    <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-500">
+                      비활성화 · 조직도 미표시
+                    </span>
+                  )}
                   {team.businessUnit && (
                     <span className="ml-2 rounded bg-brand-green-light px-2 py-0.5 text-xs font-normal text-brand-green-dark">
                       {team.businessUnit}
@@ -115,14 +129,24 @@ export default async function TeamsPage() {
                   {team.leader ? team.leader.name : "미지정"}
                 </p>
               </div>
-              <form action={deleteTeam.bind(null, team.id)}>
-                <button
-                  type="submit"
-                  className="rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
-                >
-                  팀 삭제
-                </button>
-              </form>
+              <div className="flex items-center gap-2">
+                <form action={toggleTeamActive.bind(null, team.id, !team.active)}>
+                  <button
+                    type="submit"
+                    className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
+                  >
+                    {team.active ? "비활성화" : "활성화"}
+                  </button>
+                </form>
+                <form action={deleteTeam.bind(null, team.id)}>
+                  <button
+                    type="submit"
+                    className="rounded border border-red-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
+                  >
+                    팀 삭제
+                  </button>
+                </form>
+              </div>
             </div>
             <form
               action={updateTeamHierarchy.bind(null, team.id)}

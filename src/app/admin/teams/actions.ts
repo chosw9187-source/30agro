@@ -42,6 +42,16 @@ export async function updateTeamHierarchy(teamId: string, formData: FormData) {
   revalidatePath("/platform/org-chart/[teamId]", "page");
 }
 
+export async function toggleTeamActive(teamId: string, active: boolean) {
+  await requireRole("ADMIN");
+  await prisma.team.update({ where: { id: teamId }, data: { active } });
+
+  revalidatePath("/admin/teams");
+  revalidatePath("/platform");
+  revalidatePath("/platform/org-chart");
+  revalidatePath("/platform/org-chart/[teamId]", "page");
+}
+
 export async function setTeamLeader(teamId: string, formData: FormData) {
   await requireRole("ADMIN");
   const leaderId = String(formData.get("leaderId") ?? "");

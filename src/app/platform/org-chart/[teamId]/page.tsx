@@ -33,7 +33,7 @@ export default async function TeamOrgDetailPage({
     },
   });
 
-  if (!team) notFound();
+  if (!team || !team.active) notFound();
 
   const leader = team.leader && isActive(team.leader) ? team.leader : null;
 
