@@ -9,6 +9,7 @@ import {
   isActive,
   ageInYears,
   tenureInYears,
+  regularOrExceptionTeamWhere,
 } from "@/lib/hr-analytics";
 import { BarChart } from "@/components/bar-chart";
 import { TrendChart } from "@/components/trend-chart";
@@ -34,7 +35,7 @@ export default async function PlatformHomePage() {
     prisma.team.findMany({ select: { id: true } }),
     prisma.user.findUnique({ where: { id: session!.user.id }, select: { position: true } }),
     prisma.user.findMany({
-      where: { employmentType: "정규직" },
+      where: regularOrExceptionTeamWhere(),
       select: {
         id: true,
         teamId: true,

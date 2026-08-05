@@ -3,7 +3,14 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
-import { ageInYears, tenureInYears, isActive, activePrismaWhere, isBranchTeam } from "@/lib/hr-analytics";
+import {
+  ageInYears,
+  tenureInYears,
+  isActive,
+  activePrismaWhere,
+  isBranchTeam,
+  regularOrExceptionTeamWhere,
+} from "@/lib/hr-analytics";
 import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import { Avatar } from "@/components/avatar";
 import { BackPill } from "@/components/back-pill";
@@ -31,7 +38,7 @@ export default async function TeamOrgDetailPage({
     include: {
       leader: true,
       members: {
-        where: activePrismaWhere(),
+        where: { AND: [activePrismaWhere(), regularOrExceptionTeamWhere()] },
         orderBy: { hireDate: { sort: "asc", nulls: "last" } },
       },
     },

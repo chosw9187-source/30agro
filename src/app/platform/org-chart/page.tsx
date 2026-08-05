@@ -5,7 +5,12 @@ import { NoModuleAccess } from "@/components/no-module-access";
 import { Avatar } from "@/components/avatar";
 import { CompanyLogo } from "@/components/company-logo";
 import { BackPill } from "@/components/back-pill";
-import { isActive, activePrismaWhere, isBranchTeam } from "@/lib/hr-analytics";
+import {
+  isActive,
+  activePrismaWhere,
+  isBranchTeam,
+  regularOrExceptionTeamWhere,
+} from "@/lib/hr-analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -398,20 +403,28 @@ export default async function OrgChartPage({
       orderBy: { name: "asc" },
       include: {
         leader: true,
-        _count: { select: { members: { where: activePrismaWhere() } } },
+        _count: {
+          select: {
+            members: { where: { AND: [activePrismaWhere(), regularOrExceptionTeamWhere()] } },
+          },
+        },
       },
     }),
-    prisma.user.count({ where: activePrismaWhere() }),
+    prisma.user.count({ where: { AND: [activePrismaWhere(), regularOrExceptionTeamWhere()] } }),
     prisma.user.findMany({
-      where: { AND: [{ position: "CEO" }, activePrismaWhere()] },
+      where: { AND: [{ position: "CEO" }, activePrismaWhere(), regularOrExceptionTeamWhere()] },
       select: { id: true, name: true, jobGrade: true, photo: true },
     }),
     prisma.user.findMany({
-      where: { AND: [{ position: "OPERATIONS_HEAD" }, activePrismaWhere()] },
+      where: {
+        AND: [{ position: "OPERATIONS_HEAD" }, activePrismaWhere(), regularOrExceptionTeamWhere()],
+      },
       select: { id: true, name: true, jobGrade: true, businessUnit: true, division: true, photo: true },
     }),
     prisma.user.findMany({
-      where: { AND: [{ position: "SENIOR_STAFF" }, activePrismaWhere()] },
+      where: {
+        AND: [{ position: "SENIOR_STAFF" }, activePrismaWhere(), regularOrExceptionTeamWhere()],
+      },
       select: { id: true, name: true, jobGrade: true, businessUnit: true, division: true, photo: true },
     }),
   ]);

@@ -24,6 +24,26 @@ export function activePrismaWhere(at = new Date()) {
   return { OR: [{ terminationDate: null }, { terminationDate: { gt: at } }] };
 }
 
+/**
+ * Teams whose 계약직 members are still counted even though 홈/조직도 are
+ * otherwise scoped to 정규직 only.
+ */
+const CONTRACT_INCLUDED_TEAMS = ["영업관리팀"];
+
+/**
+ * Prisma `where` fragment for "정규직, or a member of one of the
+ * contract-included teams regardless of employment type." Wrap in an `AND`
+ * array alongside other filters (see `activePrismaWhere` for why).
+ */
+export function regularOrExceptionTeamWhere() {
+  return {
+    OR: [
+      { employmentType: "정규직" },
+      { team: { name: { in: CONTRACT_INCLUDED_TEAMS } } },
+    ],
+  };
+}
+
 /** Teams named "OO지점" are branches/sites, led by a 지점장 rather than a 팀장. */
 export function isBranchTeam(teamName: string) {
   return teamName.trim().endsWith("지점");
