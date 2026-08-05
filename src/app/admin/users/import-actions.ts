@@ -76,7 +76,7 @@ export async function importUsersFromExcel(
     const rowNum = i + 2;
     const name = String(row["이름"] ?? "").trim();
     const employeeNumber = String(row["사번"] ?? "").trim();
-    const email = String(row["이메일주소"] ?? "").trim();
+    const email = String(row["이메일주소"] ?? "").trim() || null;
     const teamName = String(row["팀명"] ?? "").trim();
     const businessUnit = String(row["사업단위"] ?? "").trim() || null;
     const division = String(row["본부"] ?? "").trim() || null;
@@ -89,8 +89,8 @@ export async function importUsersFromExcel(
     const jobFamily = String(row["직군"] ?? "").trim() || null;
     const gender = String(row["성별"] ?? "").trim() || null;
 
-    if (!name || !employeeNumber || !email) {
-      errors.push(`${rowNum}행: 이름/사번/이메일주소는 필수입니다.`);
+    if (!name || !employeeNumber) {
+      errors.push(`${rowNum}행: 이름/사번은 필수입니다.`);
       continue;
     }
 
@@ -112,15 +112,14 @@ export async function importUsersFromExcel(
         teamId = team.id;
       }
 
-      const existing = await prisma.user.findUnique({ where: { email } });
+      const existing = await prisma.user.findUnique({ where: { employeeNumber } });
       let userId: string;
 
       if (existing) {
         await prisma.user.update({
-          where: { email },
+          where: { employeeNumber },
           data: {
             name,
-            employeeNumber,
             teamId,
             birthDate,
             hireDate,
@@ -131,6 +130,7 @@ export async function importUsersFromExcel(
             gender,
             businessUnit,
             division,
+            ...(email ? { email } : {}),
             ...(position ? { position } : {}),
           },
         });

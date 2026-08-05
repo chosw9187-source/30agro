@@ -41,7 +41,7 @@ export async function GET() {
   const rows = users.map((u) => [
     u.name,
     u.employeeNumber,
-    u.email,
+    u.email ?? "",
     u.team?.businessUnit ?? u.businessUnit ?? "",
     u.team?.division ?? u.division ?? "",
     u.team?.name ?? "",

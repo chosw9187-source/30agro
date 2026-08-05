@@ -331,7 +331,7 @@ export default async function UsersPage({
                   <td className="whitespace-nowrap px-3 py-2">
                     <NameEditor userId={u.id} name={u.name} />
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.email}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.email ?? "-"}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.employeeNumber}</td>
                   <td className="whitespace-nowrap px-3 py-2">
                     {u.id === session?.user.id ? (
