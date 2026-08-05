@@ -54,11 +54,7 @@ export default async function TeamOrgDetailPage({
       </Link>
 
       <div className="rounded-lg border border-brand-green-dark bg-brand-green px-8 py-6 text-white">
-        <p className="text-sm text-white/80">
-          {team.businessUnit ? `${team.businessUnit} 사업단위 · ` : ""}
-          {team.division ? `${team.division} 본부 · ` : ""}
-          {team.name}
-        </p>
+        <p className="text-sm text-white/80">{team.name}</p>
         {team.leader ? (
           <div className="mt-3 flex items-center gap-4">
             <Avatar

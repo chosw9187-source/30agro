@@ -16,10 +16,6 @@ const HEADERS = [
   "퇴사일",
   "사원구분",
   "직급",
-  "학력",
-  "학교",
-  "전공",
-  "학위",
   "직군",
 ];
 
@@ -56,10 +52,6 @@ export async function GET() {
     u.terminationDate ?? "",
     u.employmentType ?? "",
     u.jobGrade ?? "",
-    u.educationLevel ?? "",
-    u.school ?? "",
-    u.major ?? "",
-    u.degree ?? "",
     u.jobFamily ?? "",
   ]);
 

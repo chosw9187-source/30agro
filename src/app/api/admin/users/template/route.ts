@@ -21,10 +21,6 @@ export async function GET() {
     "퇴사일",
     "사원구분",
     "직급",
-    "학력",
-    "학교",
-    "전공",
-    "학위",
     "직군",
   ];
   const example = [
@@ -41,10 +37,6 @@ export async function GET() {
     "",
     "정규직",
     "대리",
-    "학사",
-    "한국대학교",
-    "경영학",
-    "학사",
     "관리직",
   ];
   const executiveExample = [
@@ -61,10 +53,6 @@ export async function GET() {
     "",
     "정규직",
     "부사장",
-    "",
-    "",
-    "",
-    "",
     "",
   ];
 

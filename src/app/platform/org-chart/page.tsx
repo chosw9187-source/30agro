@@ -52,12 +52,14 @@ function CeoBanner({
   ceos,
   totalEmployees,
   teamCount,
-  unitCount,
+  opsHeadCount,
+  seniorCount,
 }: {
   ceos: CeoExec[];
   totalEmployees: number;
   teamCount: number;
-  unitCount: number;
+  opsHeadCount: number;
+  seniorCount: number;
 }) {
   return (
     <div className="flex w-full overflow-hidden rounded-lg border border-brand-black shadow-sm">
@@ -82,7 +84,10 @@ function CeoBanner({
             <strong className="text-lg">{totalEmployees}</strong>명 재직
           </span>
           <span>
-            <strong className="text-lg">{unitCount}</strong>개 사업단위
+            <strong className="text-lg">{opsHeadCount}</strong>운영책임
+          </span>
+          <span>
+            <strong className="text-lg">{seniorCount}</strong>책임
           </span>
           <span>
             <strong className="text-lg">{teamCount}</strong>개 팀
@@ -243,6 +248,7 @@ function LeaderBanner({
   title,
   leaderId,
   leaderName,
+  leaderHasPhoto,
   headcount,
   subCount,
   subLabel,
@@ -251,6 +257,7 @@ function LeaderBanner({
   title: string;
   leaderId?: string | null;
   leaderName?: string | null;
+  leaderHasPhoto?: boolean;
   headcount: number;
   subCount: number;
   subLabel: string;
@@ -258,8 +265,20 @@ function LeaderBanner({
   return (
     <div className="rounded-lg border border-brand-green-dark bg-brand-green px-8 py-6 text-white">
       <p className="text-sm text-white/80">{eyebrow}</p>
-      <p className="mt-1 text-2xl font-bold">{title}</p>
-      {leaderName && <p className="mt-1 text-white/90">{leaderName}</p>}
+      <div className="mt-2 flex items-center gap-4">
+        {leaderId && (
+          <Avatar
+            userId={leaderId}
+            name={leaderName ?? title}
+            hasPhoto={!!leaderHasPhoto}
+            className="h-14 w-14 border-2 border-white/50 text-lg"
+          />
+        )}
+        <div>
+          <p className="text-2xl font-bold">{title}</p>
+          {leaderName && <p className="mt-1 text-white/90">{leaderName}</p>}
+        </div>
+      </div>
       <div className="mt-4 flex items-center gap-8 text-sm">
         <span>
           <strong className="text-lg">{headcount}</strong>명 재직
@@ -447,9 +466,10 @@ export default async function OrgChartPage({
           ]}
         />
         <LeaderBanner
-          eyebrow={unitParam ? `${unitParam} · ${division.name}` : division.name}
+          eyebrow={division.name}
           title={division.leader ? `${division.leader.name} ${division.leader.jobGrade || ""}`.trim() : division.name}
           leaderId={division.leader?.id}
+          leaderHasPhoto={division.leader?.hasPhoto}
           headcount={divisionHeadcount(division)}
           subCount={division.teams.length}
           subLabel="개 팀"
@@ -485,9 +505,10 @@ export default async function OrgChartPage({
       <div className="flex flex-col gap-6">
         <Breadcrumb items={[{ label: "전체", href: "/platform/org-chart" }, { label: unit.name }]} />
         <LeaderBanner
-          eyebrow="사업단위"
+          eyebrow={unit.name}
           title={unit.leader ? `${unit.leader.name} ${unit.leader.jobGrade || ""}`.trim() : unit.name}
           leaderId={unit.leader?.id}
+          leaderHasPhoto={unit.leader?.hasPhoto}
           headcount={unitHeadcount(unit)}
           subCount={unitChildCount}
           subLabel="개 하위 조직"
@@ -533,7 +554,8 @@ export default async function OrgChartPage({
           ceos={ceoExecs}
           totalEmployees={totalEmployees}
           teamCount={teams.length}
-          unitCount={units.length}
+          opsHeadCount={opsHeads.length}
+          seniorCount={seniors.length}
         />
       ) : (
         <LeaderBanner

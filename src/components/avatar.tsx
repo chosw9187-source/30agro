@@ -1,3 +1,5 @@
+import { CompanyLogo } from "./company-logo";
+
 export function Avatar({
   userId,
   name,
@@ -21,9 +23,9 @@ export function Avatar({
   }
   return (
     <span
-      className={`flex shrink-0 items-center justify-center rounded-full bg-brand-green-light font-semibold text-brand-green-dark ${className}`}
+      className={`flex shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white p-1.5 ${className}`}
     >
-      {name.slice(0, 2)}
+      <CompanyLogo className="h-full w-full" />
     </span>
   );
 }

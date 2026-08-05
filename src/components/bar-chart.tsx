@@ -12,18 +12,18 @@ export function BarChart({
   const max = Math.max(1, ...bars.map((b) => b.count));
   const total = bars.reduce((s, b) => s + b.count, 0);
   const width = 280;
-  const chartHeight = 140;
-  const topPadding = showPercent ? 32 : 18;
-  const bottomLabelHeight = 20;
+  const chartHeight = 200;
+  const topPadding = showPercent ? 40 : 24;
+  const bottomLabelHeight = 26;
   const barGap = 12;
   const barWidth = (width - barGap * (bars.length - 1)) / bars.length;
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <p className="text-xs text-slate-500">{title}</p>
+      <p className="text-sm text-slate-500">{title}</p>
       <svg
         viewBox={`0 0 ${width} ${topPadding + chartHeight + bottomLabelHeight}`}
-        className="w-full max-w-xs"
+        className="w-full max-w-sm"
       >
         {bars.map((b, i) => {
           const barHeight = (b.count / max) * chartHeight;
@@ -44,8 +44,8 @@ export function BarChart({
               {showPercent && (
                 <text
                   x={x + barWidth / 2}
-                  y={y - 17}
-                  fontSize={9}
+                  y={y - 21}
+                  fontSize={12}
                   textAnchor="middle"
                   fill="#94a3b8"
                 >
@@ -54,8 +54,8 @@ export function BarChart({
               )}
               <text
                 x={x + barWidth / 2}
-                y={y - 5}
-                fontSize={11}
+                y={y - 6}
+                fontSize={14}
                 textAnchor="middle"
                 fill="#334155"
               >
@@ -63,8 +63,8 @@ export function BarChart({
               </text>
               <text
                 x={x + barWidth / 2}
-                y={topPadding + chartHeight + 14}
-                fontSize={10}
+                y={topPadding + chartHeight + 18}
+                fontSize={13}
                 textAnchor="middle"
                 fill="#64748b"
               >

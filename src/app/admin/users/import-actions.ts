@@ -86,10 +86,6 @@ export async function importUsersFromExcel(
     const position = parsePosition(row["직책"]);
     const employmentType = String(row["사원구분"] ?? "").trim() || null;
     const jobGrade = String(row["직급"] ?? "").trim() || null;
-    const educationLevel = String(row["학력"] ?? "").trim() || null;
-    const school = String(row["학교"] ?? "").trim() || null;
-    const major = String(row["전공"] ?? "").trim() || null;
-    const degree = String(row["학위"] ?? "").trim() || null;
     const jobFamily = String(row["직군"] ?? "").trim() || null;
     const gender = String(row["성별"] ?? "").trim() || null;
 
@@ -131,10 +127,6 @@ export async function importUsersFromExcel(
             terminationDate,
             employmentType,
             jobGrade,
-            educationLevel,
-            school,
-            major,
-            degree,
             jobFamily,
             gender,
             businessUnit,
@@ -158,10 +150,6 @@ export async function importUsersFromExcel(
             terminationDate,
             employmentType,
             jobGrade,
-            educationLevel,
-            school,
-            major,
-            degree,
             jobFamily,
             gender,
             businessUnit,

@@ -5,6 +5,7 @@ import { NoModuleAccess } from "@/components/no-module-access";
 import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import { ageInYears, tenureInYears } from "@/lib/hr-analytics";
 import { BackLink } from "@/components/back-link";
+import { Avatar } from "@/components/avatar";
 
 export const dynamic = "force-dynamic";
 
@@ -79,18 +80,12 @@ export default async function EmployeeDetailPage({
 
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
         <div className="flex items-center gap-5 border-b border-slate-100 bg-brand-green-light p-6">
-          {hasPhoto ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={`/api/employees/${employee.id}/photo`}
-              alt={employee.name}
-              className="h-20 w-20 shrink-0 rounded-full border-2 border-white object-cover"
-            />
-          ) : (
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-brand-green/40 bg-white text-2xl font-semibold text-brand-green-dark">
-              {employee.name.slice(0, 1)}
-            </div>
-          )}
+          <Avatar
+            userId={employee.id}
+            name={employee.name}
+            hasPhoto={hasPhoto}
+            className="h-20 w-20 border-2 border-white"
+          />
           <div>
             {!hasPhoto && <p className="text-xs text-slate-500">사진 미등록</p>}
             <h1 className="text-2xl font-semibold text-brand-black">{employee.name}</h1>

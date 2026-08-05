@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { getVisibleHomeBlocks, type Position } from "@/lib/permissions";
@@ -13,7 +12,6 @@ import {
 } from "@/lib/hr-analytics";
 import { BarChart } from "@/components/bar-chart";
 import { TrendChart } from "@/components/trend-chart";
-import { GenderPictogram } from "@/components/gender-pictogram";
 
 export const dynamic = "force-dynamic";
 
@@ -32,9 +30,6 @@ export default async function PlatformHomePage() {
   const session = await auth();
   const role = session!.user.role;
 
-  const evalHref =
-    role === "ADMIN" ? "/admin/evaluation" : role === "EVALUATOR" ? "/evaluate" : "/my-evaluations";
-
   const [allTeams, dbUser, allUsers] = await Promise.all([
     prisma.team.findMany({ select: { id: true } }),
     prisma.user.findUnique({ where: { id: session!.user.id }, select: { position: true } }),
@@ -47,7 +42,6 @@ export default async function PlatformHomePage() {
         hireDate: true,
         terminationDate: true,
         jobFamily: true,
-        gender: true,
       },
     }),
   ]);
@@ -95,10 +89,6 @@ export default async function PlatformHomePage() {
     withTenure.length > 0
       ? withTenure.reduce((s, u) => s + tenureInYears(u.hireDate!), 0) / withTenure.length
       : null;
-  const maleCount = activeUsers.filter((u) => u.gender === "남").length;
-  const femaleCount = activeUsers.filter((u) => u.gender === "여").length;
-  const genderKnownTotal = maleCount + femaleCount;
-
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -270,54 +260,12 @@ export default async function PlatformHomePage() {
                 </div>
 
                 <div className="rounded-lg border border-slate-200 bg-white p-4">
-                  <h3 className="mb-3 text-sm font-medium text-slate-700">남녀 성비</h3>
-                  {genderKnownTotal === 0 ? (
-                    <p className="text-sm text-slate-500">데이터 없음</p>
-                  ) : (
-                    <GenderPictogram
-                      segments={[
-                        { label: "남", value: maleCount, color: "#0d9488" },
-                        { label: "여", value: femaleCount, color: "#dc2626" },
-                      ]}
-                    />
-                  )}
-                </div>
-
-                <div className="rounded-lg border border-slate-200 bg-white p-4">
                   <h3 className="mb-3 text-sm font-medium text-slate-700">오늘 처리할 일</h3>
                   <p className="text-sm text-slate-500">
                     데이터 없음 — 업무 관리 기능이 준비되면 표시됩니다.
                   </p>
                 </div>
               </>
-            )}
-
-            {showQuickLinks && (
-              <div className="rounded-lg border border-slate-200 bg-white p-4">
-                <h3 className="mb-3 text-sm font-medium text-slate-700">바로가기</h3>
-                <div className="flex flex-col gap-2 text-sm">
-                  <Link
-                    href="/platform/employees"
-                    className="rounded border border-slate-300 px-3 py-1.5 text-center hover:bg-slate-100"
-                  >
-                    직원정보 조회
-                  </Link>
-                  <Link
-                    href={evalHref}
-                    className="rounded border border-slate-300 px-3 py-1.5 text-center hover:bg-slate-100"
-                  >
-                    평가
-                  </Link>
-                  {role === "ADMIN" && (
-                    <Link
-                      href="/admin/users"
-                      className="rounded border border-slate-300 px-3 py-1.5 text-center hover:bg-slate-100"
-                    >
-                      사용자 관리
-                    </Link>
-                  )}
-                </div>
-              </div>
             )}
           </section>
         )}
