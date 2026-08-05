@@ -4,6 +4,7 @@ import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { Avatar } from "@/components/avatar";
 import { CompanyLogo } from "@/components/company-logo";
+import { isActive, activePrismaWhere } from "@/lib/hr-analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -337,19 +338,22 @@ export default async function OrgChartPage({
   const [teams, totalEmployees, ceos, opsHeads, seniors] = await Promise.all([
     prisma.team.findMany({
       orderBy: { name: "asc" },
-      include: { leader: true, _count: { select: { members: true } } },
+      include: {
+        leader: true,
+        _count: { select: { members: { where: activePrismaWhere() } } },
+      },
     }),
-    prisma.user.count(),
+    prisma.user.count({ where: activePrismaWhere() }),
     prisma.user.findMany({
-      where: { position: "CEO" },
+      where: { AND: [{ position: "CEO" }, activePrismaWhere()] },
       select: { id: true, name: true, jobGrade: true, photo: true },
     }),
     prisma.user.findMany({
-      where: { position: "OPERATIONS_HEAD" },
+      where: { AND: [{ position: "OPERATIONS_HEAD" }, activePrismaWhere()] },
       select: { id: true, name: true, jobGrade: true, businessUnit: true, division: true, photo: true },
     }),
     prisma.user.findMany({
-      where: { position: "SENIOR_STAFF" },
+      where: { AND: [{ position: "SENIOR_STAFF" }, activePrismaWhere()] },
       select: { id: true, name: true, jobGrade: true, businessUnit: true, division: true, photo: true },
     }),
   ]);
@@ -362,14 +366,17 @@ export default async function OrgChartPage({
     hasPhoto: !!c.photo,
   }));
 
-  const toTeamLite = (t: (typeof teams)[number]): TeamLite => ({
-    id: t.id,
-    name: t.name,
-    leaderId: t.leader?.id ?? null,
-    leaderName: t.leader?.name ?? null,
-    leaderHasPhoto: !!t.leader?.photo,
-    memberCount: t._count.members,
-  });
+  const toTeamLite = (t: (typeof teams)[number]): TeamLite => {
+    const leader = t.leader && isActive(t.leader) ? t.leader : null;
+    return {
+      id: t.id,
+      name: t.name,
+      leaderId: leader?.id ?? null,
+      leaderName: leader?.name ?? null,
+      leaderHasPhoto: !!leader?.photo,
+      memberCount: t._count.members,
+    };
+  };
 
   const unitOrder: string[] = [];
   const unitMap = new Map<string, UnitNode>();

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { checkModuleAccess, getEmployeeListScopeFilter } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { POSITIONS, POSITION_LABEL, type Position } from "@/lib/permission-constants";
+import { activePrismaWhere } from "@/lib/hr-analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -29,33 +30,38 @@ export default async function EmployeeDirectoryPage({
     hasQuery
       ? prisma.user.findMany({
           where: {
-            ...(scopeFilter ?? {}),
-            ...(teamId ? { teamId } : {}),
-            ...(q
-              ? {
-                  OR: [
-                    { name: { contains: q, mode: "insensitive" } },
-                    { email: { contains: q, mode: "insensitive" } },
-                    { employeeNumber: { contains: q } },
-                    { major: { contains: q, mode: "insensitive" } },
-                    { school: { contains: q, mode: "insensitive" } },
-                    { jobFamily: { contains: q, mode: "insensitive" } },
-                    { gender: { contains: q, mode: "insensitive" } },
-                    { employmentType: { contains: q, mode: "insensitive" } },
-                    { jobGrade: { contains: q, mode: "insensitive" } },
-                    { educationLevel: { contains: q, mode: "insensitive" } },
-                    { degree: { contains: q, mode: "insensitive" } },
-                    { businessUnit: { contains: q, mode: "insensitive" } },
-                    { division: { contains: q, mode: "insensitive" } },
-                    { team: { name: { contains: q, mode: "insensitive" } } },
-                    { team: { businessUnit: { contains: q, mode: "insensitive" } } },
-                    { team: { division: { contains: q, mode: "insensitive" } } },
-                    ...(matchingPositions.length > 0
-                      ? [{ position: { in: matchingPositions } }]
-                      : []),
-                  ],
-                }
-              : {}),
+            AND: [
+              ...(scopeFilter ? [scopeFilter] : []),
+              activePrismaWhere(),
+              ...(teamId ? [{ teamId }] : []),
+              ...(q
+                ? [
+                    {
+                      OR: [
+                        { name: { contains: q, mode: "insensitive" as const } },
+                        { email: { contains: q, mode: "insensitive" as const } },
+                        { employeeNumber: { contains: q } },
+                        { major: { contains: q, mode: "insensitive" as const } },
+                        { school: { contains: q, mode: "insensitive" as const } },
+                        { jobFamily: { contains: q, mode: "insensitive" as const } },
+                        { gender: { contains: q, mode: "insensitive" as const } },
+                        { employmentType: { contains: q, mode: "insensitive" as const } },
+                        { jobGrade: { contains: q, mode: "insensitive" as const } },
+                        { educationLevel: { contains: q, mode: "insensitive" as const } },
+                        { degree: { contains: q, mode: "insensitive" as const } },
+                        { businessUnit: { contains: q, mode: "insensitive" as const } },
+                        { division: { contains: q, mode: "insensitive" as const } },
+                        { team: { name: { contains: q, mode: "insensitive" as const } } },
+                        { team: { businessUnit: { contains: q, mode: "insensitive" as const } } },
+                        { team: { division: { contains: q, mode: "insensitive" as const } } },
+                        ...(matchingPositions.length > 0
+                          ? [{ position: { in: matchingPositions } }]
+                          : []),
+                      ],
+                    },
+                  ]
+                : []),
+            ],
           },
           orderBy: { name: "asc" },
           include: { team: true },
@@ -70,7 +76,7 @@ export default async function EmployeeDirectoryPage({
         <h1 className="text-2xl font-semibold">직원정보 조회</h1>
         <p className="mt-1 text-slate-600">
           키워드로 검색하면 볼 수 있습니다. 이름을 클릭하면 상세 정보를 볼 수
-          있습니다.
+          있습니다. (재직자만 표시됩니다)
         </p>
       </div>
 

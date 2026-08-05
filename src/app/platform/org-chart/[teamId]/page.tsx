@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
-import { ageInYears, tenureInYears } from "@/lib/hr-analytics";
+import { ageInYears, tenureInYears, isActive, activePrismaWhere } from "@/lib/hr-analytics";
 import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import { Avatar } from "@/components/avatar";
 
@@ -29,11 +29,13 @@ export default async function TeamOrgDetailPage({
     where: { id: teamId },
     include: {
       leader: true,
-      members: { orderBy: { name: "asc" } },
+      members: { where: activePrismaWhere(), orderBy: { name: "asc" } },
     },
   });
 
   if (!team) notFound();
+
+  const leader = team.leader && isActive(team.leader) ? team.leader : null;
 
   const params_ = new URLSearchParams();
   if (team.businessUnit) params_.set("unit", team.businessUnit);
@@ -54,28 +56,28 @@ export default async function TeamOrgDetailPage({
 
       <div className="rounded-lg border border-brand-green-dark bg-brand-green px-8 py-6 text-white">
         <p className="text-sm text-white/80">{team.name}</p>
-        {team.leader ? (
+        {leader ? (
           <div className="mt-3 flex items-center gap-4">
             <Avatar
-              userId={team.leader.id}
-              name={team.leader.name}
-              hasPhoto={!!team.leader.photo}
+              userId={leader.id}
+              name={leader.name}
+              hasPhoto={!!leader.photo}
               className="h-14 w-14 border-2 border-white/50 text-lg"
             />
             <div>
-              <p className="text-2xl font-bold">{team.leader.name} 팀장</p>
+              <p className="text-2xl font-bold">{leader.name} 팀장</p>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/90">
                 <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium">
-                  {POSITION_LABEL[team.leader.position as Position]}
+                  {POSITION_LABEL[leader.position as Position]}
                 </span>
-                {team.leader.birthDate && <span>만 {ageInYears(team.leader.birthDate)}세</span>}
-                {team.leader.hireDate && (
-                  <span>· 근속 {tenureInYears(team.leader.hireDate).toFixed(1)}년</span>
+                {leader.birthDate && <span>만 {ageInYears(leader.birthDate)}세</span>}
+                {leader.hireDate && (
+                  <span>· 근속 {tenureInYears(leader.hireDate).toFixed(1)}년</span>
                 )}
               </div>
               <p className="mt-1 text-xs text-white/70">
-                {team.leader.hireDate
-                  ? `입사 ${team.leader.hireDate.toLocaleDateString("ko-KR")}`
+                {leader.hireDate
+                  ? `입사 ${leader.hireDate.toLocaleDateString("ko-KR")}`
                   : "입사일 미입력"}
               </p>
             </div>
@@ -87,9 +89,9 @@ export default async function TeamOrgDetailPage({
           <span>
             <strong className="text-lg">{team.members.length}</strong>명 재직
           </span>
-          {team.leader && (
+          {leader && (
             <Link
-              href={`/platform/employees/${team.leader.id}`}
+              href={`/platform/employees/${leader.id}`}
               className="rounded border border-white/40 px-3 py-1.5 hover:bg-white/10"
             >
               상세보기 ›

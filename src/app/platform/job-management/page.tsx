@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { SeedDraftForm } from "./seed-draft-form";
+import { isActive } from "@/lib/hr-analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,7 @@ export default async function JobManagementPage() {
             <div>
               <p className="font-medium">{t.name}</p>
               <p className="text-sm text-slate-500">
-                {t.leader ? `${t.leader.name} 팀장` : "팀장 미지정"}
+                {t.leader && isActive(t.leader) ? `${t.leader.name} 팀장` : "팀장 미지정"}
               </p>
             </div>
             <span

@@ -6,6 +6,7 @@ import { saveJobDescription } from "../actions";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { JobFileUploadForm } from "../job-file-upload-form";
+import { isActive } from "@/lib/hr-analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -121,7 +122,7 @@ export default async function JobDescriptionDetailPage({
       <div>
         <h1 className="text-2xl font-semibold">{team.name} — 직무기술서</h1>
         <p className="mt-1 text-slate-600">
-          {team.leader ? `${team.leader.name} 팀장` : "팀장 미지정"}
+          {team.leader && isActive(team.leader) ? `${team.leader.name} 팀장` : "팀장 미지정"}
         </p>
       </div>
 

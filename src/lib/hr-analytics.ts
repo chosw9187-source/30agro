@@ -14,6 +14,16 @@ export function isActive(u: Pick<AnalyticsUser, "terminationDate">, at = new Dat
   return !u.terminationDate || u.terminationDate > at;
 }
 
+/**
+ * Prisma `where` fragment matching `isActive` — wrap in an `AND` array
+ * alongside other filters rather than spreading directly, since this
+ * returns a top-level `OR` key that would silently clobber another
+ * filter's own `OR` key if both were spread into the same object.
+ */
+export function activePrismaWhere(at = new Date()) {
+  return { OR: [{ terminationDate: null }, { terminationDate: { gt: at } }] };
+}
+
 export function ageInYears(birthDate: Date, at = new Date()) {
   let age = at.getFullYear() - birthDate.getFullYear();
   const m = at.getMonth() - birthDate.getMonth();
