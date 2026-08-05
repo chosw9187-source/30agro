@@ -32,6 +32,9 @@ export function TrendChart({
         {points.map((p, i) => {
           const [hx, hy] = toXY(p.hires, i);
           const [tx, ty] = toXY(p.terminations, i);
+          // Put each label on the side with more clearance from the other
+          // series' point, so labels don't sit on top of the crossing line.
+          const hireAbove = hy <= ty;
           return (
             <g key={p.label}>
               <circle cx={hx} cy={hy} r={4} fill="#1f9a44" />
@@ -39,7 +42,7 @@ export function TrendChart({
               {p.hires > 0 && (
                 <text
                   x={hx}
-                  y={hy - 12}
+                  y={hireAbove ? hy - 12 : hy + 22}
                   fontSize={18}
                   textAnchor="middle"
                   fill="#1f9a44"
@@ -50,7 +53,7 @@ export function TrendChart({
               {p.terminations > 0 && (
                 <text
                   x={tx}
-                  y={ty - 12}
+                  y={hireAbove ? ty + 22 : ty - 12}
                   fontSize={18}
                   textAnchor="middle"
                   fill="#f59e0b"
