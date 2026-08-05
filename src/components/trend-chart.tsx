@@ -5,7 +5,7 @@ export function TrendChart({
 }) {
   const width = 600;
   const height = 220;
-  const padding = 20;
+  const padding = 30;
   const max = Math.max(1, ...points.map((p) => Math.max(p.hires, p.terminations)));
   const stepX = points.length > 1 ? (width - padding * 2) / (points.length - 1) : 0;
 
@@ -26,7 +26,7 @@ export function TrendChart({
 
   return (
     <div className="flex flex-col gap-2">
-      <svg viewBox={`0 0 ${width} ${height + 16}`} className="w-full">
+      <svg viewBox={`0 0 ${width} ${height + 24}`} className="w-full">
         <path d={pathFor("hires")} fill="none" stroke="#1f9a44" strokeWidth={2} />
         <path d={pathFor("terminations")} fill="none" stroke="#f59e0b" strokeWidth={2} />
         {points.map((p, i) => {
@@ -39,8 +39,8 @@ export function TrendChart({
               {p.hires > 0 && (
                 <text
                   x={hx}
-                  y={hy - 8}
-                  fontSize={10}
+                  y={hy - 10}
+                  fontSize={14}
                   textAnchor="middle"
                   fill="#1f9a44"
                 >
@@ -50,8 +50,8 @@ export function TrendChart({
               {p.terminations > 0 && (
                 <text
                   x={tx}
-                  y={ty - 8}
-                  fontSize={10}
+                  y={ty - 10}
+                  fontSize={14}
                   textAnchor="middle"
                   fill="#f59e0b"
                 >
@@ -60,8 +60,8 @@ export function TrendChart({
               )}
               <text
                 x={hx}
-                y={height + 12}
-                fontSize={11}
+                y={height + 18}
+                fontSize={14}
                 textAnchor="middle"
                 fill="#64748b"
               >
@@ -71,7 +71,7 @@ export function TrendChart({
           );
         })}
       </svg>
-      <div className="flex gap-4 text-xs text-slate-500">
+      <div className="flex gap-4 text-sm text-slate-500">
         <span className="flex items-center gap-1">
           <span className="inline-block h-2 w-2 rounded-full bg-brand-green" />
           입사
