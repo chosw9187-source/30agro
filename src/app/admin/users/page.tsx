@@ -11,6 +11,7 @@ import { PositionSelect } from "./position-select";
 import { NameEditor } from "./name-editor";
 import { JobGradeEditor } from "./job-grade-editor";
 import { GenderSelect } from "./gender-select";
+import { isActive } from "@/lib/hr-analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -309,6 +310,7 @@ export default async function UsersPage({
                 <th className="whitespace-nowrap px-3 py-2 font-medium">생년월일</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">입사일</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">퇴사일</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">재직상태</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">사원구분</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">직급</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">학력</th>
@@ -355,6 +357,17 @@ export default async function UsersPage({
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{fmtDate(u.birthDate)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{fmtDate(u.hireDate)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{fmtDate(u.terminationDate)}</td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    {isActive(u) ? (
+                      <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-xs font-medium text-brand-green-dark">
+                        재직중
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
+                        퇴직
+                      </span>
+                    )}
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.employmentType ?? "-"}</td>
                   <td className="whitespace-nowrap px-3 py-2">
                     <JobGradeEditor userId={u.id} jobGrade={u.jobGrade} />

@@ -41,15 +41,14 @@ export default async function TeamOrgDetailPage({
   const backHref = params_.toString()
     ? `/platform/org-chart?${params_.toString()}`
     : "/platform/org-chart";
-  const backLabel = team.division
-    ? `${team.division} 본부`
-    : team.businessUnit
-      ? `${team.businessUnit} 사업단위`
-      : "조직도";
+  const backLabel = team.division ?? team.businessUnit ?? "조직도";
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href={backHref} className="text-sm text-slate-500 hover:underline">
+      <Link
+        href={backHref}
+        className="inline-flex w-fit items-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:border-brand-green hover:text-brand-green-dark"
+      >
         ← {backLabel}
       </Link>
 
