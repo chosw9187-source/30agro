@@ -8,6 +8,7 @@ import {
   removeTeamMember,
   toggleTeamActive,
 } from "./actions";
+import { isActive, activePrismaWhere } from "@/lib/hr-analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +21,13 @@ export default async function TeamsPage() {
   const [teams, users] = await Promise.all([
     prisma.team.findMany({
       orderBy: { createdAt: "asc" },
-      include: { leader: true, members: true },
+      include: {
+        leader: true,
+        members: { where: activePrismaWhere(), orderBy: { name: "asc" } },
+      },
     }),
     prisma.user.findMany({
-      where: { role: { not: "ADMIN" } },
+      where: { AND: [{ role: { not: "ADMIN" } }, activePrismaWhere()] },
       orderBy: { name: "asc" },
       include: { team: true },
     }),
@@ -93,7 +97,9 @@ export default async function TeamsPage() {
 
       <section className="flex flex-col gap-3">
         {teams.length === 0 && <p className="text-slate-500">아직 팀이 없습니다.</p>}
-        {teams.map((team) => (
+        {teams.map((team) => {
+          const leader = team.leader && isActive(team.leader) ? team.leader : null;
+          return (
           <div
             key={team.id}
             className={`rounded-lg border bg-white p-4 ${
@@ -126,7 +132,7 @@ export default async function TeamsPage() {
                 </p>
                 <p className="text-sm text-slate-500">
                   구성원 {team.members.length}명 · 팀장:{" "}
-                  {team.leader ? team.leader.name : "미지정"}
+                  {leader ? leader.name : "미지정"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -199,59 +205,64 @@ export default async function TeamsPage() {
               </button>
             </form>
 
-            <div className="mt-3 border-t border-slate-100 pt-3">
-              <p className="mb-2 text-sm text-slate-600">구성원</p>
-              {team.members.length === 0 ? (
-                <p className="text-sm text-slate-400">아직 구성원이 없습니다.</p>
-              ) : (
-                <ul className="flex flex-col gap-1">
-                  {team.members.map((m) => (
-                    <li
-                      key={m.id}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <span>{m.name}</span>
-                      <form action={removeTeamMember.bind(null, team.id, m.id)}>
-                        <button
-                          type="submit"
-                          className="text-red-600 hover:underline"
-                        >
-                          제외
-                        </button>
-                      </form>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <form
-                action={addTeamMember.bind(null, team.id)}
-                className="mt-3 flex items-center gap-2"
-              >
-                <select
-                  name="userId"
-                  required
-                  className="rounded border border-slate-300 px-3 py-2 text-sm"
-                >
-                  <option value="">구성원 추가...</option>
-                  {users
-                    .filter((u) => u.teamId !== team.id)
-                    .map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name}
-                        {u.team ? ` (현재: ${u.team.name})` : ""}
-                      </option>
+            <details className="mt-3 border-t border-slate-100 pt-3">
+              <summary className="cursor-pointer text-sm text-slate-600 hover:text-brand-green-dark">
+                구성원 {team.members.length}명 보기
+              </summary>
+              <div className="mt-2">
+                {team.members.length === 0 ? (
+                  <p className="text-sm text-slate-400">아직 구성원이 없습니다.</p>
+                ) : (
+                  <ul className="flex flex-col gap-1">
+                    {team.members.map((m) => (
+                      <li
+                        key={m.id}
+                        className="flex items-center justify-between text-sm"
+                      >
+                        <span>{m.name}</span>
+                        <form action={removeTeamMember.bind(null, team.id, m.id)}>
+                          <button
+                            type="submit"
+                            className="text-red-600 hover:underline"
+                          >
+                            제외
+                          </button>
+                        </form>
+                      </li>
                     ))}
-                </select>
-                <button
-                  type="submit"
-                  className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
+                  </ul>
+                )}
+                <form
+                  action={addTeamMember.bind(null, team.id)}
+                  className="mt-3 flex items-center gap-2"
                 >
-                  추가
-                </button>
-              </form>
-            </div>
+                  <select
+                    name="userId"
+                    required
+                    className="rounded border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    <option value="">구성원 추가...</option>
+                    {users
+                      .filter((u) => u.teamId !== team.id)
+                      .map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name}
+                          {u.team ? ` (현재: ${u.team.name})` : ""}
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    type="submit"
+                    className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
+                  >
+                    추가
+                  </button>
+                </form>
+              </div>
+            </details>
           </div>
-        ))}
+          );
+        })}
       </section>
     </div>
   );
