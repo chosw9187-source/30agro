@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
-import { ageInYears, tenureInYears, isActive, activePrismaWhere } from "@/lib/hr-analytics";
+import { ageInYears, tenureInYears, isActive, activePrismaWhere, isBranchTeam } from "@/lib/hr-analytics";
 import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import { Avatar } from "@/components/avatar";
 
@@ -36,6 +36,7 @@ export default async function TeamOrgDetailPage({
   if (!team || !team.active) notFound();
 
   const leader = team.leader && isActive(team.leader) ? team.leader : null;
+  const leaderTitle = isBranchTeam(team.name) ? "지점장" : "팀장";
 
   const params_ = new URLSearchParams();
   if (team.businessUnit) params_.set("unit", team.businessUnit);
@@ -65,10 +66,10 @@ export default async function TeamOrgDetailPage({
               className="h-14 w-14 border-2 border-white/50 text-lg"
             />
             <div>
-              <p className="text-2xl font-bold">{leader.name} 팀장</p>
+              <p className="text-2xl font-bold">{leader.name} {leaderTitle}</p>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/90">
                 <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium">
-                  {POSITION_LABEL[leader.position as Position]}
+                  {leader.position === "TEAM_LEADER" ? leaderTitle : POSITION_LABEL[leader.position as Position]}
                 </span>
                 {leader.birthDate && <span>만 {ageInYears(leader.birthDate)}세</span>}
                 {leader.hireDate && (
@@ -83,7 +84,7 @@ export default async function TeamOrgDetailPage({
             </div>
           </div>
         ) : (
-          <p className="mt-1 text-2xl font-bold">팀장 미지정</p>
+          <p className="mt-1 text-2xl font-bold">{leaderTitle} 미지정</p>
         )}
         <div className="mt-4 flex items-center gap-8 text-sm">
           <span>

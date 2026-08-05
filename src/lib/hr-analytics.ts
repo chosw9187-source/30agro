@@ -24,6 +24,11 @@ export function activePrismaWhere(at = new Date()) {
   return { OR: [{ terminationDate: null }, { terminationDate: { gt: at } }] };
 }
 
+/** Teams named "OO지점" are branches/sites, led by a 지점장 rather than a 팀장. */
+export function isBranchTeam(teamName: string) {
+  return teamName.trim().endsWith("지점");
+}
+
 export function ageInYears(birthDate: Date, at = new Date()) {
   let age = at.getFullYear() - birthDate.getFullYear();
   const m = at.getMonth() - birthDate.getMonth();

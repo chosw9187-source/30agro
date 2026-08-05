@@ -4,7 +4,7 @@ import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { Avatar } from "@/components/avatar";
 import { CompanyLogo } from "@/components/company-logo";
-import { isActive, activePrismaWhere } from "@/lib/hr-analytics";
+import { isActive, activePrismaWhere, isBranchTeam } from "@/lib/hr-analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -49,16 +49,61 @@ function divisionHeadcount(division: DivisionNode) {
   return division.teams.reduce((s, t) => s + t.memberCount, 0);
 }
 
+type CompositionPart = { count: number; label: string };
+
+function splitTeams(teamList: { name: string }[]) {
+  let teamCount = 0;
+  let branchCount = 0;
+  for (const t of teamList) {
+    if (isBranchTeam(t.name)) branchCount++;
+    else teamCount++;
+  }
+  return { teamCount, branchCount };
+}
+
+function buildComposition({
+  divisionCount = 0,
+  teamCount = 0,
+  branchCount = 0,
+}: {
+  divisionCount?: number;
+  teamCount?: number;
+  branchCount?: number;
+}): CompositionPart[] {
+  const parts: CompositionPart[] = [];
+  if (divisionCount > 0) parts.push({ count: divisionCount, label: "책임" });
+  if (teamCount > 0) parts.push({ count: teamCount, label: "팀" });
+  if (branchCount > 0) parts.push({ count: branchCount, label: "지점" });
+  return parts.length > 0 ? parts : [{ count: 0, label: "팀" }];
+}
+
+function unitComposition(unit: UnitNode): CompositionPart[] {
+  const allTeams = [...unit.directTeams, ...unit.divisions.flatMap((d) => d.teams)];
+  const { teamCount, branchCount } = splitTeams(allTeams);
+  return buildComposition({ divisionCount: unit.divisions.length, teamCount, branchCount });
+}
+
+function divisionComposition(division: DivisionNode): CompositionPart[] {
+  const { teamCount, branchCount } = splitTeams(division.teams);
+  return buildComposition({ teamCount, branchCount });
+}
+
+function compositionText(parts: CompositionPart[]) {
+  return parts.map((p) => `${p.count}${p.label}`).join(" ");
+}
+
 function CeoBanner({
   ceos,
   totalEmployees,
   teamCount,
+  branchCount,
   opsHeadCount,
   seniorCount,
 }: {
   ceos: CeoExec[];
   totalEmployees: number;
   teamCount: number;
+  branchCount: number;
   opsHeadCount: number;
   seniorCount: number;
 }) {
@@ -91,7 +136,10 @@ function CeoBanner({
             <strong className="text-lg">{seniorCount}</strong>책임
           </span>
           <span>
-            <strong className="text-lg">{teamCount}</strong>개 팀
+            <strong className="text-lg">{teamCount}</strong>팀
+          </span>
+          <span>
+            <strong className="text-lg">{branchCount}</strong>지점
           </span>
         </div>
       </div>
@@ -105,16 +153,14 @@ function CardShell({
   title,
   subtitle,
   headcount,
-  subCount,
-  subLabel,
+  parts,
 }: {
   href: string;
   avatarNode: React.ReactNode;
   title: string;
   subtitle: string;
   headcount: number;
-  subCount: number;
-  subLabel: string;
+  parts: CompositionPart[];
 }) {
   return (
     <Link
@@ -128,10 +174,7 @@ function CardShell({
         <span>
           <strong className="text-brand-green-dark">{headcount}</strong>명
         </span>
-        <span>
-          <strong className="text-brand-green-dark">{subCount}</strong>
-          {subLabel}
-        </span>
+        <span>{compositionText(parts)}</span>
       </div>
       <span className="mt-3 w-full rounded bg-brand-green-light py-1.5 text-xs font-medium text-brand-green-dark">
         상세보기 ›
@@ -154,6 +197,7 @@ function LeaderAvatarOrInitial({ leader, fallbackText }: { leader?: Exec; fallba
 }
 
 function TeamChip({ team }: { team: TeamLite }) {
+  const leaderTitle = isBranchTeam(team.name) ? "지점장" : "팀장";
   return (
     <Link
       href={`/platform/org-chart/${team.id}`}
@@ -173,7 +217,7 @@ function TeamChip({ team }: { team: TeamLite }) {
       )}
       <p className="mt-2 text-sm font-medium text-slate-800">{team.name}</p>
       <p className="text-xs text-slate-500">
-        {team.leaderName ? `${team.leaderName} 팀장` : "팀장 미지정"} · {team.memberCount}명
+        {team.leaderName ? `${team.leaderName} ${leaderTitle}` : `${leaderTitle} 미지정`} · {team.memberCount}명
       </p>
     </Link>
   );
@@ -184,15 +228,13 @@ function DrillCard({
   title,
   leader,
   headcount,
-  subCount,
-  subLabel,
+  parts,
 }: {
   href: string;
   title: string;
   leader?: Exec;
   headcount: number;
-  subCount: number;
-  subLabel: string;
+  parts: CompositionPart[];
 }) {
   return (
     <CardShell
@@ -201,8 +243,7 @@ function DrillCard({
       title={title}
       subtitle={leader ? `${leader.name}${leader.jobGrade ? ` ${leader.jobGrade}` : ""}` : "리더 미지정"}
       headcount={headcount}
-      subCount={subCount}
-      subLabel={subLabel}
+      parts={parts}
     />
   );
 }
@@ -251,8 +292,7 @@ function LeaderBanner({
   leaderName,
   leaderHasPhoto,
   headcount,
-  subCount,
-  subLabel,
+  parts,
 }: {
   eyebrow: string;
   title: string;
@@ -260,8 +300,7 @@ function LeaderBanner({
   leaderName?: string | null;
   leaderHasPhoto?: boolean;
   headcount: number;
-  subCount: number;
-  subLabel: string;
+  parts: CompositionPart[];
 }) {
   return (
     <div className="rounded-lg border border-brand-green-dark bg-brand-green px-8 py-6 text-white">
@@ -284,10 +323,12 @@ function LeaderBanner({
         <span>
           <strong className="text-lg">{headcount}</strong>명 재직
         </span>
-        <span>
-          <strong className="text-lg">{subCount}</strong>
-          {subLabel}
-        </span>
+        {parts.map((p, i) => (
+          <span key={i}>
+            <strong className="text-lg">{p.count}</strong>
+            {p.label}
+          </span>
+        ))}
         {leaderId && (
           <Link
             href={`/platform/employees/${leaderId}`}
@@ -479,8 +520,7 @@ export default async function OrgChartPage({
           leaderId={division.leader?.id}
           leaderHasPhoto={division.leader?.hasPhoto}
           headcount={divisionHeadcount(division)}
-          subCount={division.teams.length}
-          subLabel="개 팀"
+          parts={divisionComposition(division)}
         />
         <div>
           <h2 className="mb-3 text-lg font-medium">소속 팀</h2>
@@ -518,11 +558,10 @@ export default async function OrgChartPage({
           leaderId={unit.leader?.id}
           leaderHasPhoto={unit.leader?.hasPhoto}
           headcount={unitHeadcount(unit)}
-          subCount={unitChildCount}
-          subLabel="개 하위 조직"
+          parts={unitComposition(unit)}
         />
         <div>
-          <h2 className="mb-3 text-lg font-medium">하위 조직</h2>
+          <h2 className="mb-3 text-lg font-medium">소속 조직</h2>
           <ConnectorRow count={unitChildCount} minWidth={unitChildCount * 200}>
             {unit.divisions.map((d) => (
               <DrillCard
@@ -531,8 +570,7 @@ export default async function OrgChartPage({
                 title={d.name}
                 leader={d.leader}
                 headcount={divisionHeadcount(d)}
-                subCount={d.teams.length}
-                subLabel="개 팀"
+                parts={divisionComposition(d)}
               />
             ))}
             {unit.directTeams.map((t) => (
@@ -547,6 +585,7 @@ export default async function OrgChartPage({
 
   // ROOT VIEW
   const rootChildCount = units.length + standaloneDivisions.length;
+  const { teamCount: companyTeamCount, branchCount: companyBranchCount } = splitTeams(teams);
 
   return (
     <div className="flex flex-col gap-8">
@@ -561,7 +600,8 @@ export default async function OrgChartPage({
         <CeoBanner
           ceos={ceoExecs}
           totalEmployees={totalEmployees}
-          teamCount={teams.length}
+          teamCount={companyTeamCount}
+          branchCount={companyBranchCount}
           opsHeadCount={opsHeads.length}
           seniorCount={seniors.length}
         />
@@ -570,8 +610,7 @@ export default async function OrgChartPage({
           eyebrow="한국삼공"
           title="전체 조직"
           headcount={totalEmployees}
-          subCount={teams.length}
-          subLabel="개 팀"
+          parts={buildComposition({ teamCount: companyTeamCount, branchCount: companyBranchCount })}
         />
       )}
 
@@ -585,8 +624,7 @@ export default async function OrgChartPage({
                 title={u.name}
                 leader={u.leader}
                 headcount={unitHeadcount(u)}
-                subCount={u.divisions.length + u.directTeams.length}
-                subLabel="개 하위 조직"
+                parts={unitComposition(u)}
               />
             ))}
             {standaloneDivisions.map((d) => (
@@ -596,8 +634,7 @@ export default async function OrgChartPage({
                 title={d.name}
                 leader={d.leader}
                 headcount={divisionHeadcount(d)}
-                subCount={d.teams.length}
-                subLabel="개 팀"
+                parts={divisionComposition(d)}
               />
             ))}
           </ConnectorRow>
