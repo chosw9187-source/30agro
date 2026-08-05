@@ -30,7 +30,10 @@ export default async function TeamOrgDetailPage({
     where: { id: teamId },
     include: {
       leader: true,
-      members: { where: activePrismaWhere(), orderBy: { name: "asc" } },
+      members: {
+        where: activePrismaWhere(),
+        orderBy: { hireDate: { sort: "asc", nulls: "last" } },
+      },
     },
   });
 

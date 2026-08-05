@@ -286,6 +286,36 @@ function ConnectorRow({ count, minWidth, children }: { count: number; minWidth: 
   );
 }
 
+/**
+ * Wraps a long list of cards into several tree-connected rows instead of
+ * one endlessly wide ConnectorRow, so a division with many teams (e.g.
+ * many 지점) breaks onto multiple lines rather than forcing horizontal
+ * scroll. Each node must already carry its own `key`.
+ */
+function TreeGrid({
+  nodes,
+  chunkSize = 6,
+  cardWidth = 200,
+}: {
+  nodes: React.ReactNode[];
+  chunkSize?: number;
+  cardWidth?: number;
+}) {
+  if (nodes.length === 0) return null;
+  const rows: React.ReactNode[][] = [];
+  for (let i = 0; i < nodes.length; i += chunkSize) rows.push(nodes.slice(i, i + chunkSize));
+
+  return (
+    <div className="flex flex-col gap-8">
+      {rows.map((row, i) => (
+        <ConnectorRow key={i} count={row.length} minWidth={row.length * cardWidth}>
+          {row}
+        </ConnectorRow>
+      ))}
+    </div>
+  );
+}
+
 function LeaderBanner({
   eyebrow,
   title,
@@ -498,12 +528,7 @@ export default async function OrgChartPage({
           parts={divisionComposition(division)}
         />
         <div>
-          <h2 className="mb-3 text-lg font-medium">소속 팀</h2>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {division.teams.map((t) => (
-              <TeamChip key={t.id} team={t} />
-            ))}
-          </div>
+          <TreeGrid nodes={division.teams.map((t) => <TeamChip key={t.id} team={t} />)} />
           {division.teams.length === 0 && <p className="text-slate-500">소속 팀이 없습니다.</p>}
         </div>
       </div>
@@ -536,7 +561,6 @@ export default async function OrgChartPage({
           parts={unitComposition(unit)}
         />
         <div>
-          <h2 className="mb-3 text-lg font-medium">소속 조직</h2>
           <ConnectorRow count={unitChildCount} minWidth={unitChildCount * 200}>
             {unit.divisions.map((d) => (
               <DrillCard
