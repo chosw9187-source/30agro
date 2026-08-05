@@ -99,12 +99,13 @@ export function computeMonthlyHiresTerminations(
   months = 12,
   at = new Date()
 ) {
-  const points: { label: string; hires: number; terminations: number }[] = [];
+  const points: { label: string; shortLabel: string; hires: number; terminations: number }[] = [];
   for (let i = months - 1; i >= 0; i--) {
     const d = new Date(at.getFullYear(), at.getMonth() - i, 1);
     const y = d.getFullYear();
     const m = d.getMonth();
     const label = `${String(y).slice(2)}-${String(m + 1).padStart(2, "0")}`;
+    const shortLabel = `${m + 1}월`;
     const hires = users.filter(
       (u) => u.hireDate && u.hireDate.getFullYear() === y && u.hireDate.getMonth() === m
     ).length;
@@ -114,7 +115,7 @@ export function computeMonthlyHiresTerminations(
         u.terminationDate.getFullYear() === y &&
         u.terminationDate.getMonth() === m
     ).length;
-    points.push({ label, hires, terminations });
+    points.push({ label, shortLabel, hires, terminations });
   }
   return points;
 }

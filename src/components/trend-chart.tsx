@@ -1,9 +1,9 @@
 export function TrendChart({
   points,
 }: {
-  points: { label: string; hires: number; terminations: number }[];
+  points: { label: string; shortLabel: string; hires: number; terminations: number }[];
 }) {
-  const width = 600;
+  const width = Math.max(600, points.length * 60);
   const height = 220;
   const padding = 40;
   const max = Math.max(1, ...points.map((p) => Math.max(p.hires, p.terminations)));
@@ -61,11 +61,11 @@ export function TrendChart({
               <text
                 x={hx}
                 y={height + 26}
-                fontSize={18}
+                fontSize={14}
                 textAnchor="middle"
                 fill="#64748b"
               >
-                {p.label}
+                {p.shortLabel}
               </text>
             </g>
           );

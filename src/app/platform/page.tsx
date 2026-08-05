@@ -173,7 +173,7 @@ export default async function PlatformHomePage() {
                   재직 {activeUsers.length}명
                   {ageDist.missing > 0 && ` · 생년월일 미입력 ${ageDist.missing}명 제외`}
                 </p>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-4">
                   <div className="flex items-center justify-center rounded border border-slate-100 p-4">
                     <BarChart title="연령" bars={ageDist.buckets} showPercent color="#3b82f6" />
                   </div>
