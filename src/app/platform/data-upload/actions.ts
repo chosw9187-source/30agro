@@ -191,8 +191,9 @@ const EDUCATION_LEVEL_ORDER: Record<string, number> = {
 };
 
 /**
- * 학력 이력 업로드. (사번, 학력구분) 기준으로 upsert — 같은 학력구분을
- * 다시 올리면 갱신되고, 새 학력구분은 누적됩니다.
+ * 학력 이력 업로드. (사번, 학력구분, 학교명) 기준으로 upsert — 같은
+ * 학력구분+학교명을 다시 올리면 갱신되고, 학력구분이 같아도 학교명이
+ * 다르면(편입·복수전공 등) 별도 행으로 함께 누적됩니다.
  * 컬럼: 사번, 학력구분(고등학교/대학교/대학원(석사)/대학원(박사)), 학교명,
  * 전공(선택), 학위(선택).
  */
@@ -232,14 +233,14 @@ export async function uploadEducationRecords(
       continue;
     }
 
-    const school = str(row["학교명"]) ?? str(row["학교"]);
+    const school = str(row["학교명"]) ?? str(row["학교"]) ?? "";
     const major = str(row["전공"]);
     const degree = str(row["학위"]);
     const order = EDUCATION_LEVEL_ORDER[level] ?? 9;
 
     await prisma.educationRecord.upsert({
-      where: { userId_level: { userId: user.id, level } },
-      update: { school, major, degree, order },
+      where: { userId_level_school: { userId: user.id, level, school } },
+      update: { major, degree, order },
       create: { userId: user.id, level, school, major, degree, order },
     });
     applied++;

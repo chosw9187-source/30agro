@@ -133,7 +133,7 @@ model EducationRecord {
   degree String?
   order  Int     @default(0)
 
-  @@unique([userId, level])
+  @@unique([userId, level, school])
 }
 
 model UserTargetYear {
