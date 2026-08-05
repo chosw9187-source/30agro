@@ -220,6 +220,9 @@ function TeamChip({ team }: { team: TeamLite }) {
       <p className="text-xs text-slate-500">
         {team.leaderName ? `${team.leaderName} ${leaderTitle}` : `${leaderTitle} 미지정`} · {team.memberCount}명
       </p>
+      <span className="mt-3 w-full rounded bg-brand-green-light py-1.5 text-xs font-medium text-brand-green-dark">
+        상세보기 ›
+      </span>
     </Link>
   );
 }
