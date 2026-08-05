@@ -4,6 +4,7 @@ import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { Avatar } from "@/components/avatar";
 import { CompanyLogo } from "@/components/company-logo";
+import { BackPill } from "@/components/back-pill";
 import { isActive, activePrismaWhere, isBranchTeam } from "@/lib/hr-analytics";
 
 export const dynamic = "force-dynamic";
@@ -342,29 +343,6 @@ function LeaderBanner({
   );
 }
 
-function Breadcrumb({
-  items,
-}: {
-  items: { label: string; href?: string }[];
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-1 text-sm text-slate-500">
-      {items.map((item, i) => (
-        <span key={i} className="flex items-center gap-1">
-          {i > 0 && <span className="text-slate-300">›</span>}
-          {item.href ? (
-            <Link href={item.href} className="hover:text-brand-green hover:underline">
-              {item.label}
-            </Link>
-          ) : (
-            <span className="font-medium text-slate-700">{item.label}</span>
-          )}
-        </span>
-      ))}
-    </div>
-  );
-}
-
 export default async function OrgChartPage({
   searchParams,
 }: {
@@ -494,10 +472,15 @@ export default async function OrgChartPage({
       ? unitMap.get(unitParam)?.divisions.find((d) => d.name === divisionParam)
       : standaloneDivisionMap.get(divisionParam);
 
+    const divisionBackHref = unitParam
+      ? `/platform/org-chart?unit=${encodeURIComponent(unitParam)}`
+      : "/platform/org-chart";
+    const divisionBackLabel = unitParam ?? "전체";
+
     if (!division) {
       return (
         <div className="flex flex-col gap-4">
-          <Breadcrumb items={[{ label: "전체", href: "/platform/org-chart" }, { label: "찾을 수 없음" }]} />
+          <BackPill href={divisionBackHref} label={divisionBackLabel} />
           <p className="text-slate-500">해당 본부를 찾을 수 없습니다.</p>
         </div>
       );
@@ -505,15 +488,7 @@ export default async function OrgChartPage({
 
     return (
       <div className="flex flex-col gap-6">
-        <Breadcrumb
-          items={[
-            { label: "전체", href: "/platform/org-chart" },
-            ...(unitParam
-              ? [{ label: unitParam, href: `/platform/org-chart?unit=${encodeURIComponent(unitParam)}` }]
-              : []),
-            { label: division.name },
-          ]}
-        />
+        <BackPill href={divisionBackHref} label={divisionBackLabel} />
         <LeaderBanner
           eyebrow={division.name}
           title={division.leader ? `${division.leader.name} ${division.leader.jobGrade || ""}`.trim() : division.name}
@@ -524,11 +499,11 @@ export default async function OrgChartPage({
         />
         <div>
           <h2 className="mb-3 text-lg font-medium">소속 팀</h2>
-          <ConnectorRow count={division.teams.length} minWidth={division.teams.length * 200}>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {division.teams.map((t) => (
               <TeamChip key={t.id} team={t} />
             ))}
-          </ConnectorRow>
+          </div>
           {division.teams.length === 0 && <p className="text-slate-500">소속 팀이 없습니다.</p>}
         </div>
       </div>
@@ -541,7 +516,7 @@ export default async function OrgChartPage({
     if (!unit) {
       return (
         <div className="flex flex-col gap-4">
-          <Breadcrumb items={[{ label: "전체", href: "/platform/org-chart" }, { label: "찾을 수 없음" }]} />
+          <BackPill href="/platform/org-chart" label="전체" />
           <p className="text-slate-500">해당 사업단위를 찾을 수 없습니다.</p>
         </div>
       );
@@ -551,7 +526,7 @@ export default async function OrgChartPage({
 
     return (
       <div className="flex flex-col gap-6">
-        <Breadcrumb items={[{ label: "전체", href: "/platform/org-chart" }, { label: unit.name }]} />
+        <BackPill href="/platform/org-chart" label="전체" />
         <LeaderBanner
           eyebrow={unit.name}
           title={unit.leader ? `${unit.leader.name} ${unit.leader.jobGrade || ""}`.trim() : unit.name}

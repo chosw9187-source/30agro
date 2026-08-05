@@ -157,7 +157,10 @@ export default async function PlatformHomePage() {
                         <td className="px-4 py-3 text-slate-500">{fmtPct(r.turnoverRate)}</td>
                         <td className="px-4 py-3">
                           <span
+                            title={r.flags.length > 0 ? r.flags.join(", ") : undefined}
                             className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                              r.flags.length > 0 ? "cursor-help" : ""
+                            } ${
                               r.remark === "정상"
                                 ? "bg-brand-green-light text-brand-green-dark"
                                 : r.remark === "판정 보류"

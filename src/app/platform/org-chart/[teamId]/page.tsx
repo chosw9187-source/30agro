@@ -6,6 +6,7 @@ import { NoModuleAccess } from "@/components/no-module-access";
 import { ageInYears, tenureInYears, isActive, activePrismaWhere, isBranchTeam } from "@/lib/hr-analytics";
 import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import { Avatar } from "@/components/avatar";
+import { BackPill } from "@/components/back-pill";
 
 export const dynamic = "force-dynamic";
 
@@ -48,12 +49,7 @@ export default async function TeamOrgDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href={backHref}
-        className="inline-flex w-fit items-center gap-1.5 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:border-brand-green hover:text-brand-green-dark"
-      >
-        ← {backLabel}
-      </Link>
+      <BackPill href={backHref} label={backLabel} />
 
       <div className="rounded-lg border border-brand-green-dark bg-brand-green px-8 py-6 text-white">
         <p className="text-sm text-white/80">{team.name}</p>
