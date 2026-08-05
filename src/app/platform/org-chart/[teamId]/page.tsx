@@ -129,21 +129,29 @@ export default async function TeamOrgDetailPage({
                         </span>
                       </div>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                        <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-xs font-medium text-brand-green-dark">
+                        <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-sm font-medium text-brand-green-dark">
                           {POSITION_LABEL[m.position as Position]}
                         </span>
                         {m.birthDate && (
-                          <span className="text-xs text-slate-500">만 {ageInYears(m.birthDate)}세</span>
+                          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-sm font-medium text-blue-700">
+                            만 {ageInYears(m.birthDate)}세
+                          </span>
                         )}
-                        {m.hireDate && (
-                          <span className="text-xs text-slate-500">
-                            · 근속 {tenureInYears(m.hireDate).toFixed(1)}년
+                        {m.hireDate ? (
+                          <>
+                            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-sm font-medium text-amber-700">
+                              근속 {tenureInYears(m.hireDate).toFixed(1)}년
+                            </span>
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-600">
+                              입사 {m.hireDate.toLocaleDateString("ko-KR")}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-500">
+                            입사일 미입력
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 text-xs text-slate-400">
-                        {m.hireDate ? `입사 ${m.hireDate.toLocaleDateString("ko-KR")}` : "입사일 미입력"}
-                      </p>
                     </div>
                   </Link>
                 ))}
