@@ -251,6 +251,12 @@ export async function uploadEducationRecords(
   return { applied, errors };
 }
 
+export async function deleteEducationRecord(recordId: string) {
+  await requireRole("ADMIN");
+  const record = await prisma.educationRecord.delete({ where: { id: recordId } });
+  revalidatePath(`/platform/employees/${record.userId}`);
+}
+
 /**
  * 인사평가 이력 업로드. (사번, 연도) 기준으로 upsert — 같은 연도를 다시
  * 올리면 갱신되고, 새 연도는 누적됩니다.

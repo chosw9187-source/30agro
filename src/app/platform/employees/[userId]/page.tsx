@@ -1,11 +1,13 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 import { checkModuleAccess, canViewEmployeeCard } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import { ageInYears, tenureInYears } from "@/lib/hr-analytics";
 import { BackLink } from "@/components/back-link";
 import { Avatar } from "@/components/avatar";
+import { deleteEducationRecord } from "@/app/platform/data-upload/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +75,8 @@ export default async function EmployeeDetailPage({
   if (!employee) notFound();
   const hasPhoto = !!employee.photo;
   const isCeo = employee.position === "CEO";
+  const session = await auth();
+  const isAdmin = session?.user.role === "ADMIN";
 
   return (
     <div className="flex flex-col gap-6">
@@ -146,6 +150,7 @@ export default async function EmployeeDetailPage({
                   <th className="px-3 py-2 font-medium">학교명</th>
                   <th className="px-3 py-2 font-medium">전공</th>
                   <th className="px-3 py-2 font-medium">학위</th>
+                  {isAdmin && <th className="px-3 py-2"></th>}
                 </tr>
               </thead>
               <tbody>
@@ -155,6 +160,18 @@ export default async function EmployeeDetailPage({
                     <td className="px-3 py-2 text-slate-500">{r.school || "-"}</td>
                     <td className="px-3 py-2 text-slate-500">{r.major ?? "-"}</td>
                     <td className="px-3 py-2 text-slate-500">{r.degree ?? "-"}</td>
+                    {isAdmin && (
+                      <td className="px-3 py-2 text-right">
+                        <form action={deleteEducationRecord.bind(null, r.id)}>
+                          <button
+                            type="submit"
+                            className="text-xs text-red-600 hover:underline"
+                          >
+                            삭제
+                          </button>
+                        </form>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
