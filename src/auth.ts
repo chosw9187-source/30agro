@@ -6,7 +6,10 @@ import { isActive } from "@/lib/hr-analytics";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
-  session: { strategy: "jwt" },
+  // 짧게 유지: 세션 하트비트(SessionHeartbeat)가 탭이 열려있는 동안만
+  // 주기적으로 만료 시간을 연장한다. 탭을 닫으면(또는 어떤 이유로든
+  // 하트비트가 멈추면) 이 시간 안에 자동으로 로그아웃된다.
+  session: { strategy: "jwt", maxAge: 5 * 60 },
   pages: { signIn: "/login" },
   providers: [
     Credentials({
