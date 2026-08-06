@@ -3,13 +3,19 @@ import { signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { PlatformSidebar } from "@/components/platform-sidebar";
 import { CompanyLogo } from "@/components/company-logo";
+import { Watermark } from "@/components/watermark";
 import { getVisibleModules, getModuleUiConfig, type Position } from "@/lib/permissions";
 
 export async function PlatformShell({
   user,
   children,
 }: {
-  user: { id: string; name?: string | null; role: "ADMIN" | "EVALUATOR" | "EMPLOYEE" };
+  user: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    role: "ADMIN" | "EVALUATOR" | "EMPLOYEE";
+  };
   children: React.ReactNode;
 }) {
   const [notificationCount, dbUser] = await Promise.all([
@@ -27,8 +33,18 @@ export async function PlatformShell({
     await signOut({ redirectTo: "/login" });
   }
 
+  const viewedAt = new Date().toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const watermarkText = [user.name, user.email, viewedAt].filter(Boolean).join(" · ");
+
   return (
     <div className="flex flex-1">
+      <Watermark text={watermarkText} />
       <PlatformSidebar
         role={user.role}
         user={{ ...user, position }}
