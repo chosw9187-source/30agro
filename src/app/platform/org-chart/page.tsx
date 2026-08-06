@@ -123,9 +123,9 @@ function CeoBanner({
   seniorCount: number;
 }) {
   return (
-    <div className="flex w-full overflow-hidden rounded-lg border border-brand-black shadow-sm">
+    <div className="flex w-full min-w-0 overflow-hidden rounded-lg border border-brand-black shadow-sm">
       <div className="w-2 shrink-0 bg-brand-green" />
-      <div className="flex flex-1 flex-wrap items-center gap-6 bg-brand-black px-8 py-6 text-white">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-6 bg-brand-black px-8 py-6 text-white">
         <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-white p-2">
           <CompanyLogo className="h-full w-full" />
         </div>
@@ -347,9 +347,9 @@ function LeaderBanner({
   parts: CompositionPart[];
 }) {
   return (
-    <div className="flex w-full overflow-hidden rounded-lg border border-brand-black shadow-sm">
+    <div className="flex w-full min-w-0 overflow-hidden rounded-lg border border-brand-black shadow-sm">
       <div className="w-2 shrink-0 bg-brand-green" />
-      <div className="flex flex-1 flex-wrap items-center gap-6 bg-brand-black px-8 py-6 text-white">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-6 bg-brand-black px-8 py-6 text-white">
         {leader ? (
           <Avatar
             userId={leader.id}
