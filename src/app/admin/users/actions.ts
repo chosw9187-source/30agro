@@ -149,6 +149,8 @@ export async function updateUserEmploymentType(userId: string, value: string) {
   await prisma.user.update({ where: { id: userId }, data: { employmentType: value.trim() || null } });
   revalidatePath("/admin/users");
   revalidatePath("/platform");
+  revalidatePath("/platform/employees");
+  revalidatePath("/platform/employees/[userId]", "page");
 }
 
 export async function updateUserJobFamily(userId: string, value: string) {
@@ -156,6 +158,8 @@ export async function updateUserJobFamily(userId: string, value: string) {
   await prisma.user.update({ where: { id: userId }, data: { jobFamily: value.trim() || null } });
   revalidatePath("/admin/users");
   revalidatePath("/platform");
+  revalidatePath("/platform/employees");
+  revalidatePath("/platform/employees/[userId]", "page");
 }
 
 export async function updateUserBusinessUnit(userId: string, value: string) {
@@ -211,6 +215,7 @@ export async function updateUserPosition(
 
   revalidatePath("/admin/users");
   revalidatePath("/platform/employees");
+  revalidatePath("/platform/employees/[userId]", "page");
 }
 
 export async function resetUserPassword(userId: string) {

@@ -8,6 +8,19 @@ import { ageInYears, tenureInYears } from "@/lib/hr-analytics";
 import { BackLink } from "@/components/back-link";
 import { Avatar } from "@/components/avatar";
 import { deleteEducationRecord } from "@/app/platform/data-upload/actions";
+import {
+  updateUserBirthDate,
+  updateUserHireDate,
+  updateUserTerminationDate,
+  updateUserEmploymentType,
+  updateUserJobFamily,
+  updateUserBusinessUnit,
+  updateUserDivision,
+} from "@/app/admin/users/actions";
+import { GenderSelect } from "@/app/admin/users/gender-select";
+import { PositionSelect } from "@/app/admin/users/position-select";
+import { TextFieldEditor } from "@/app/admin/users/text-field-editor";
+import { DateFieldEditor } from "@/app/admin/users/date-field-editor";
 
 export const dynamic = "force-dynamic";
 
@@ -109,10 +122,72 @@ export default async function EmployeeDetailPage({
             <dl className="grid grid-cols-2 gap-4">
               <Field label="사번" value={employee.employeeNumber} />
               <Field label="이메일" value={employee.email} />
-              <Field label="성별" value={employee.gender} />
-              <Field label="생년월일" value={fmtBirthDate(employee.birthDate)} />
-              <Field label="입사일" value={fmtHireDate(employee.hireDate)} />
-              <Field label="퇴사일" value={fmtDate(employee.terminationDate)} />
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-xs text-slate-400">성별</dt>
+                <dd className="text-sm text-slate-800">
+                  {isAdmin ? (
+                    <GenderSelect userId={employee.id} gender={employee.gender} />
+                  ) : (
+                    employee.gender || "-"
+                  )}
+                </dd>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-xs text-slate-400">생년월일</dt>
+                <dd className="text-sm text-slate-800">
+                  {isAdmin ? (
+                    <div className="flex items-center gap-2">
+                      <DateFieldEditor
+                        userId={employee.id}
+                        value={employee.birthDate}
+                        action={updateUserBirthDate}
+                      />
+                      {employee.birthDate && (
+                        <span className="text-xs text-slate-400">
+                          만 {ageInYears(employee.birthDate)}세
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    fmtBirthDate(employee.birthDate)
+                  )}
+                </dd>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-xs text-slate-400">입사일</dt>
+                <dd className="text-sm text-slate-800">
+                  {isAdmin ? (
+                    <div className="flex items-center gap-2">
+                      <DateFieldEditor
+                        userId={employee.id}
+                        value={employee.hireDate}
+                        action={updateUserHireDate}
+                      />
+                      {employee.hireDate && (
+                        <span className="text-xs text-slate-400">
+                          근속 {tenureInYears(employee.hireDate).toFixed(1)}년
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    fmtHireDate(employee.hireDate)
+                  )}
+                </dd>
+              </div>
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-xs text-slate-400">퇴사일</dt>
+                <dd className="text-sm text-slate-800">
+                  {isAdmin ? (
+                    <DateFieldEditor
+                      userId={employee.id}
+                      value={employee.terminationDate}
+                      action={updateUserTerminationDate}
+                    />
+                  ) : (
+                    fmtDate(employee.terminationDate)
+                  )}
+                </dd>
+              </div>
             </dl>
           </section>
 
@@ -120,18 +195,81 @@ export default async function EmployeeDetailPage({
             <section>
               <h2 className="mb-3 text-sm font-semibold text-slate-700">조직 정보</h2>
               <dl className="grid grid-cols-2 gap-4">
-                <Field
-                  label="사업단위"
-                  value={employee.team?.businessUnit ?? employee.businessUnit}
-                />
-                <Field label="본부" value={employee.team?.division ?? employee.division} />
+                <div className="flex flex-col gap-0.5">
+                  <dt className="text-xs text-slate-400">사업단위</dt>
+                  <dd className="text-sm text-slate-800">
+                    {employee.team ? (
+                      employee.team.businessUnit ?? "-"
+                    ) : isAdmin ? (
+                      <TextFieldEditor
+                        userId={employee.id}
+                        value={employee.businessUnit}
+                        action={updateUserBusinessUnit}
+                        width="w-28"
+                      />
+                    ) : (
+                      employee.businessUnit ?? "-"
+                    )}
+                  </dd>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <dt className="text-xs text-slate-400">본부</dt>
+                  <dd className="text-sm text-slate-800">
+                    {employee.team ? (
+                      employee.team.division ?? "-"
+                    ) : isAdmin ? (
+                      <TextFieldEditor
+                        userId={employee.id}
+                        value={employee.division}
+                        action={updateUserDivision}
+                        width="w-28"
+                      />
+                    ) : (
+                      employee.division ?? "-"
+                    )}
+                  </dd>
+                </div>
                 <Field label="팀" value={employee.team?.name} />
-                <Field
-                  label="직책"
-                  value={POSITION_LABEL[employee.position as Position]}
-                />
-                <Field label="사원구분" value={employee.employmentType} />
-                <Field label="직군" value={employee.jobFamily} />
+                <div className="flex flex-col gap-0.5">
+                  <dt className="text-xs text-slate-400">직책</dt>
+                  <dd className="text-sm text-slate-800">
+                    {isAdmin ? (
+                      <PositionSelect userId={employee.id} position={employee.position as Position} />
+                    ) : (
+                      POSITION_LABEL[employee.position as Position]
+                    )}
+                  </dd>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <dt className="text-xs text-slate-400">사원구분</dt>
+                  <dd className="text-sm text-slate-800">
+                    {isAdmin ? (
+                      <TextFieldEditor
+                        userId={employee.id}
+                        value={employee.employmentType}
+                        action={updateUserEmploymentType}
+                        width="w-20"
+                      />
+                    ) : (
+                      employee.employmentType ?? "-"
+                    )}
+                  </dd>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <dt className="text-xs text-slate-400">직군</dt>
+                  <dd className="text-sm text-slate-800">
+                    {isAdmin ? (
+                      <TextFieldEditor
+                        userId={employee.id}
+                        value={employee.jobFamily}
+                        action={updateUserJobFamily}
+                        width="w-20"
+                      />
+                    ) : (
+                      employee.jobFamily ?? "-"
+                    )}
+                  </dd>
+                </div>
               </dl>
             </section>
           )}
