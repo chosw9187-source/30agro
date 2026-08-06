@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { PlatformSidebar } from "@/components/platform-sidebar";
 import { CompanyLogo } from "@/components/company-logo";
 import { Watermark } from "@/components/watermark";
+import { AutoLogoutOnLeave } from "@/components/auto-logout-on-leave";
 import { getVisibleModules, getModuleUiConfig, type Position } from "@/lib/permissions";
 
 export async function PlatformShell({
@@ -52,6 +53,7 @@ export async function PlatformShell({
         className="fixed inset-0 z-30 hidden bg-black/40 peer-checked:block md:!hidden"
       />
       <Watermark text={watermarkText} />
+      <AutoLogoutOnLeave />
       <PlatformSidebar
         role={user.role}
         user={{ ...user, position }}
