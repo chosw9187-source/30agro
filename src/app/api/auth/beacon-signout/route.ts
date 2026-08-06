@@ -9,7 +9,14 @@ export async function POST() {
   const store = await cookies();
   for (const c of store.getAll()) {
     if (c.name.includes("session-token")) {
-      store.delete(c.name);
+      // Cookies with a __Secure-/__Host- prefix are only accepted by the
+      // browser (even for deletion) when the Secure attribute is present —
+      // omitting it makes the browser silently ignore the Set-Cookie.
+      store.delete({
+        name: c.name,
+        path: "/",
+        secure: c.name.startsWith("__Secure-") || c.name.startsWith("__Host-"),
+      });
     }
   }
   return new NextResponse(null, { status: 204 });
