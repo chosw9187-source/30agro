@@ -328,3 +328,78 @@ export async function uploadPerformanceHistory(
 
   return { applied, errors };
 }
+
+/** 인사카드 화면에서 학력 한 건을 직접 추가/수정(같은 학력구분+학교명이면 갱신). */
+export async function addEducationRecord(userId: string, formData: FormData) {
+  await requireRole("ADMIN");
+  const level = str(formData.get("level"));
+  if (!level) return;
+
+  const school = str(formData.get("school")) ?? "";
+  const major = str(formData.get("major"));
+  const degree = str(formData.get("degree"));
+  const order = EDUCATION_LEVEL_ORDER[level] ?? 9;
+
+  await prisma.educationRecord.upsert({
+    where: { userId_level_school: { userId, level, school } },
+    update: { major, degree, order },
+    create: { userId, level, school, major, degree, order },
+  });
+  revalidatePath(`/platform/employees/${userId}`);
+}
+
+/** 인사카드 화면에서 발령 이력 한 건을 직접 추가. */
+export async function addAppointmentRecord(userId: string, formData: FormData) {
+  await requireRole("ADMIN");
+  const date = parseExcelDate(formData.get("date"));
+  if (!date) return;
+
+  await prisma.appointmentRecord.create({
+    data: {
+      userId,
+      date,
+      type: str(formData.get("type")),
+      title: str(formData.get("title")),
+      department: str(formData.get("department")),
+      positionTitle: str(formData.get("positionTitle")),
+      jobGrade: str(formData.get("jobGrade")),
+      note: str(formData.get("note")),
+    },
+  });
+  revalidatePath(`/platform/employees/${userId}`);
+}
+
+export async function deleteAppointmentRecord(recordId: string) {
+  await requireRole("ADMIN");
+  const record = await prisma.appointmentRecord.delete({ where: { id: recordId } });
+  revalidatePath(`/platform/employees/${record.userId}`);
+}
+
+/** 인사카드 화면에서 인사평가 이력 한 건을 직접 추가/수정(같은 연도면 갱신). */
+export async function addPerformanceHistory(userId: string, formData: FormData) {
+  await requireRole("ADMIN");
+  const year = Number(formData.get("year"));
+  if (!year || Number.isNaN(year)) return;
+
+  const scoreRaw = str(formData.get("score"));
+  const score = scoreRaw ? Number(scoreRaw) : null;
+
+  await prisma.performanceHistory.upsert({
+    where: { userId_year: { userId, year } },
+    update: { grade: str(formData.get("grade")), score, note: str(formData.get("note")) },
+    create: {
+      userId,
+      year,
+      grade: str(formData.get("grade")),
+      score,
+      note: str(formData.get("note")),
+    },
+  });
+  revalidatePath(`/platform/employees/${userId}`);
+}
+
+export async function deletePerformanceHistory(recordId: string) {
+  await requireRole("ADMIN");
+  const record = await prisma.performanceHistory.delete({ where: { id: recordId } });
+  revalidatePath(`/platform/employees/${record.userId}`);
+}

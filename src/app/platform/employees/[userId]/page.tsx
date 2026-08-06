@@ -7,7 +7,14 @@ import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import { ageInYears, tenureInYears } from "@/lib/hr-analytics";
 import { BackLink } from "@/components/back-link";
 import { Avatar } from "@/components/avatar";
-import { deleteEducationRecord } from "@/app/platform/data-upload/actions";
+import {
+  deleteEducationRecord,
+  addEducationRecord,
+  addAppointmentRecord,
+  deleteAppointmentRecord,
+  addPerformanceHistory,
+  deletePerformanceHistory,
+} from "@/app/platform/data-upload/actions";
 import {
   updateUserBirthDate,
   updateUserHireDate,
@@ -325,6 +332,44 @@ export default async function EmployeeDetailPage({
         ) : (
           <p className="text-sm text-slate-500">등록된 학력 정보가 없습니다.</p>
         )}
+        {isAdmin && (
+          <form
+            action={addEducationRecord.bind(null, employee.id)}
+            className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4"
+          >
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">학력구분</label>
+              <select
+                name="level"
+                required
+                className="rounded border border-slate-300 px-2 py-1 text-sm"
+              >
+                <option value="고등학교">고등학교</option>
+                <option value="대학교">대학교</option>
+                <option value="대학원(석사)">대학원(석사)</option>
+                <option value="대학원(박사)">대학원(박사)</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">학교명</label>
+              <input name="school" className="w-32 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">전공</label>
+              <input name="major" className="w-28 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">학위</label>
+              <input name="degree" className="w-24 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <button
+              type="submit"
+              className="rounded bg-brand-green px-3 py-1.5 text-sm text-white hover:bg-brand-green-dark"
+            >
+              추가
+            </button>
+          </form>
+        )}
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-6">
@@ -343,6 +388,7 @@ export default async function EmployeeDetailPage({
                   <th className="px-3 py-2 font-medium">직책</th>
                   <th className="px-3 py-2 font-medium">직급</th>
                   <th className="px-3 py-2 font-medium">비고</th>
+                  {isAdmin && <th className="px-3 py-2"></th>}
                 </tr>
               </thead>
               <tbody>
@@ -355,11 +401,66 @@ export default async function EmployeeDetailPage({
                     <td className="px-3 py-2 text-slate-500">{r.positionTitle ?? "-"}</td>
                     <td className="px-3 py-2 text-slate-500">{r.jobGrade ?? "-"}</td>
                     <td className="px-3 py-2 text-slate-500">{r.note ?? "-"}</td>
+                    {isAdmin && (
+                      <td className="px-3 py-2 text-right">
+                        <form action={deleteAppointmentRecord.bind(null, r.id)}>
+                          <button type="submit" className="text-xs text-red-600 hover:underline">
+                            삭제
+                          </button>
+                        </form>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        )}
+        {isAdmin && (
+          <form
+            action={addAppointmentRecord.bind(null, employee.id)}
+            className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4"
+          >
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">발령일</label>
+              <input
+                type="date"
+                name="date"
+                required
+                className="rounded border border-slate-300 px-2 py-1 text-sm"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">구분</label>
+              <input name="type" className="w-20 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">발령명</label>
+              <input name="title" className="w-28 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">부서</label>
+              <input name="department" className="w-24 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">직책</label>
+              <input name="positionTitle" className="w-20 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">직급</label>
+              <input name="jobGrade" className="w-20 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">비고</label>
+              <input name="note" className="w-28 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <button
+              type="submit"
+              className="rounded bg-brand-green px-3 py-1.5 text-sm text-white hover:bg-brand-green-dark"
+            >
+              추가
+            </button>
+          </form>
         )}
       </div>
 
@@ -374,6 +475,9 @@ export default async function EmployeeDetailPage({
                 <tr>
                   <th className="px-3 py-2 font-medium">연도</th>
                   <th className="px-3 py-2 font-medium">등급</th>
+                  <th className="px-3 py-2 font-medium">점수</th>
+                  <th className="px-3 py-2 font-medium">비고</th>
+                  {isAdmin && <th className="px-3 py-2"></th>}
                 </tr>
               </thead>
               <tbody>
@@ -381,11 +485,61 @@ export default async function EmployeeDetailPage({
                   <tr key={r.id} className="border-b border-slate-100 last:border-0">
                     <td className="px-3 py-2 font-medium">{r.year}년</td>
                     <td className="px-3 py-2">{r.grade ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.score ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.note ?? "-"}</td>
+                    {isAdmin && (
+                      <td className="px-3 py-2 text-right">
+                        <form action={deletePerformanceHistory.bind(null, r.id)}>
+                          <button type="submit" className="text-xs text-red-600 hover:underline">
+                            삭제
+                          </button>
+                        </form>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        )}
+        {isAdmin && (
+          <form
+            action={addPerformanceHistory.bind(null, employee.id)}
+            className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4"
+          >
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">연도</label>
+              <input
+                type="number"
+                name="year"
+                required
+                className="w-20 rounded border border-slate-300 px-2 py-1 text-sm"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">등급</label>
+              <input name="grade" className="w-16 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">점수</label>
+              <input
+                type="number"
+                step="0.1"
+                name="score"
+                className="w-20 rounded border border-slate-300 px-2 py-1 text-sm"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">비고</label>
+              <input name="note" className="w-32 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <button
+              type="submit"
+              className="rounded bg-brand-green px-3 py-1.5 text-sm text-white hover:bg-brand-green-dark"
+            >
+              추가/수정
+            </button>
+          </form>
         )}
       </div>
     </div>
