@@ -39,28 +39,24 @@ export function TrendChart({
             <g key={p.label}>
               <circle cx={hx} cy={hy} r={4} fill="#1f9a44" />
               <circle cx={tx} cy={ty} r={4} fill="#f59e0b" />
-              {p.hires > 0 && (
-                <text
-                  x={hx}
-                  y={hireAbove ? hy - 12 : hy + 22}
-                  fontSize={18}
-                  textAnchor="middle"
-                  fill="#1f9a44"
-                >
-                  {p.hires}
-                </text>
-              )}
-              {p.terminations > 0 && (
-                <text
-                  x={tx}
-                  y={hireAbove ? ty + 22 : ty - 12}
-                  fontSize={18}
-                  textAnchor="middle"
-                  fill="#f59e0b"
-                >
-                  {p.terminations}
-                </text>
-              )}
+              <text
+                x={hx}
+                y={hireAbove ? hy - 12 : hy + 22}
+                fontSize={18}
+                textAnchor="middle"
+                fill="#1f9a44"
+              >
+                {p.hires}
+              </text>
+              <text
+                x={tx}
+                y={hireAbove ? ty + 22 : ty - 12}
+                fontSize={18}
+                textAnchor="middle"
+                fill="#f59e0b"
+              >
+                {p.terminations}
+              </text>
               <text
                 x={hx}
                 y={height + 26}
