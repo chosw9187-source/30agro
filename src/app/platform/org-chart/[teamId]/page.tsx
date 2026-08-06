@@ -73,20 +73,30 @@ export default async function TeamOrgDetailPage({
             />
             <div>
               <p className="text-2xl font-bold">{leader.name} {leaderTitle}</p>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/90">
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium">
                   {leader.position === "TEAM_LEADER" ? leaderTitle : POSITION_LABEL[leader.position as Position]}
                 </span>
-                {leader.birthDate && <span>만 {ageInYears(leader.birthDate)}세</span>}
-                {leader.hireDate && (
-                  <span>· 근속 {tenureInYears(leader.hireDate).toFixed(1)}년</span>
+                {leader.birthDate && (
+                  <span className="rounded-full bg-blue-400/20 px-2 py-0.5 text-xs font-medium text-blue-100">
+                    만 {ageInYears(leader.birthDate)}세
+                  </span>
+                )}
+                {leader.hireDate ? (
+                  <>
+                    <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-xs font-medium text-amber-100">
+                      근속 {tenureInYears(leader.hireDate).toFixed(1)}년
+                    </span>
+                    <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-medium text-white/80">
+                      입사 {leader.hireDate.toLocaleDateString("ko-KR")}
+                    </span>
+                  </>
+                ) : (
+                  <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-medium text-white/70">
+                    입사일 미입력
+                  </span>
                 )}
               </div>
-              <p className="mt-1 text-xs text-white/70">
-                {leader.hireDate
-                  ? `입사 ${leader.hireDate.toLocaleDateString("ko-KR")}`
-                  : "입사일 미입력"}
-              </p>
             </div>
           </div>
         ) : (

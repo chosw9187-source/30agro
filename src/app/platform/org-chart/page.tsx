@@ -10,11 +10,20 @@ import {
   activePrismaWhere,
   isBranchTeam,
   regularOrExceptionTeamWhere,
+  ageInYears,
+  tenureInYears,
 } from "@/lib/hr-analytics";
 
 export const dynamic = "force-dynamic";
 
-type Exec = { id: string; name: string; jobGrade: string | null; hasPhoto: boolean };
+type Exec = {
+  id: string;
+  name: string;
+  jobGrade: string | null;
+  hasPhoto: boolean;
+  birthDate?: Date | null;
+  hireDate?: Date | null;
+};
 type CeoExec = Exec;
 type TeamLite = {
   id: string;
@@ -327,17 +336,13 @@ function TreeGrid({
 function LeaderBanner({
   eyebrow,
   title,
-  leaderId,
-  leaderName,
-  leaderHasPhoto,
+  leader,
   headcount,
   parts,
 }: {
   eyebrow: string;
   title: string;
-  leaderId?: string | null;
-  leaderName?: string | null;
-  leaderHasPhoto?: boolean;
+  leader?: Exec | null;
   headcount: number;
   parts: CompositionPart[];
 }) {
@@ -345,11 +350,11 @@ function LeaderBanner({
     <div className="flex w-full overflow-hidden rounded-lg border border-brand-black shadow-sm">
       <div className="w-2 shrink-0 bg-brand-green" />
       <div className="flex flex-1 flex-wrap items-center gap-6 bg-brand-black px-8 py-6 text-white">
-        {leaderId ? (
+        {leader ? (
           <Avatar
-            userId={leaderId}
-            name={leaderName ?? title}
-            hasPhoto={!!leaderHasPhoto}
+            userId={leader.id}
+            name={leader.name}
+            hasPhoto={!!leader.hasPhoto}
             className="h-16 w-16 shrink-0 border-2 border-white/50 text-lg"
           />
         ) : (
@@ -360,7 +365,25 @@ function LeaderBanner({
         <div className="min-w-[200px] flex-1">
           <p className="text-xs uppercase tracking-wide text-white/50">{eyebrow}</p>
           <p className="mt-1 text-xl font-bold">{title}</p>
-          {leaderName && <p className="text-sm text-white/60">{leaderName}</p>}
+          {leader && (leader.birthDate || leader.hireDate) && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {leader.birthDate && (
+                <span className="rounded-full bg-blue-400/20 px-2 py-0.5 text-xs font-medium text-blue-100">
+                  만 {ageInYears(leader.birthDate)}세
+                </span>
+              )}
+              {leader.hireDate && (
+                <>
+                  <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-xs font-medium text-amber-100">
+                    근속 {tenureInYears(leader.hireDate).toFixed(1)}년
+                  </span>
+                  <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-medium text-white/80">
+                    입사 {leader.hireDate.toLocaleDateString("ko-KR")}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-8 text-sm">
           <span>
@@ -372,9 +395,9 @@ function LeaderBanner({
               {p.label}
             </span>
           ))}
-          {leaderId && (
+          {leader && (
             <Link
-              href={`/platform/employees/${leaderId}`}
+              href={`/platform/employees/${leader.id}`}
               className="rounded border border-white/40 px-3 py-1.5 hover:bg-white/10"
             >
               상세보기 ›
@@ -419,13 +442,31 @@ export default async function OrgChartPage({
       where: {
         AND: [{ position: "OPERATIONS_HEAD" }, activePrismaWhere(), regularOrExceptionTeamWhere()],
       },
-      select: { id: true, name: true, jobGrade: true, businessUnit: true, division: true, photo: true },
+      select: {
+        id: true,
+        name: true,
+        jobGrade: true,
+        businessUnit: true,
+        division: true,
+        photo: true,
+        birthDate: true,
+        hireDate: true,
+      },
     }),
     prisma.user.findMany({
       where: {
         AND: [{ position: "SENIOR_STAFF" }, activePrismaWhere(), regularOrExceptionTeamWhere()],
       },
-      select: { id: true, name: true, jobGrade: true, businessUnit: true, division: true, photo: true },
+      select: {
+        id: true,
+        name: true,
+        jobGrade: true,
+        businessUnit: true,
+        division: true,
+        photo: true,
+        birthDate: true,
+        hireDate: true,
+      },
     }),
   ]);
 
@@ -495,11 +536,25 @@ export default async function OrgChartPage({
   }
 
   for (const l of opsHeads) {
-    const leader: Exec = { id: l.id, name: l.name, jobGrade: l.jobGrade, hasPhoto: !!l.photo };
+    const leader: Exec = {
+      id: l.id,
+      name: l.name,
+      jobGrade: l.jobGrade,
+      hasPhoto: !!l.photo,
+      birthDate: l.birthDate,
+      hireDate: l.hireDate,
+    };
     if (l.businessUnit) ensureUnit(l.businessUnit).leader = leader;
   }
   for (const l of seniors) {
-    const leader: Exec = { id: l.id, name: l.name, jobGrade: l.jobGrade, hasPhoto: !!l.photo };
+    const leader: Exec = {
+      id: l.id,
+      name: l.name,
+      jobGrade: l.jobGrade,
+      hasPhoto: !!l.photo,
+      birthDate: l.birthDate,
+      hireDate: l.hireDate,
+    };
     if (l.businessUnit && l.division) {
       ensureDivisionIn(ensureUnit(l.businessUnit), l.division).leader = leader;
     } else if (l.division) {
@@ -543,8 +598,7 @@ export default async function OrgChartPage({
         <LeaderBanner
           eyebrow={division.name}
           title={division.leader ? `${division.leader.name} ${division.leader.jobGrade || ""}`.trim() : division.name}
-          leaderId={division.leader?.id}
-          leaderHasPhoto={division.leader?.hasPhoto}
+          leader={division.leader}
           headcount={divisionHeadcount(division)}
           parts={divisionComposition(division)}
         />
@@ -576,8 +630,7 @@ export default async function OrgChartPage({
         <LeaderBanner
           eyebrow={unit.name}
           title={unit.leader ? `${unit.leader.name} ${unit.leader.jobGrade || ""}`.trim() : unit.name}
-          leaderId={unit.leader?.id}
-          leaderHasPhoto={unit.leader?.hasPhoto}
+          leader={unit.leader}
           headcount={unitHeadcount(unit)}
           parts={unitComposition(unit)}
         />
