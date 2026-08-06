@@ -102,7 +102,7 @@ export default async function TeamOrgDetailPage({
         ) : (
           <p className="mt-1 text-2xl font-bold">{leaderTitle} 미지정</p>
         )}
-        <div className="mt-4 flex items-center gap-8 text-sm">
+        <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <span>
             <strong className="text-lg">{team.members.length}</strong>명 재직
           </span>

@@ -140,7 +140,7 @@ function CeoBanner({
             ))}
           </div>
         </div>
-        <div className="flex gap-8 text-sm">
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
           <span>
             <strong className="text-lg">{totalEmployees}</strong>명 재직
           </span>

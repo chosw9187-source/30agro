@@ -31,10 +31,14 @@ html {
      유틸리티가 이 값을 기준으로 스케일되므로 컴포넌트마다 손대지 않아도
      전체적으로 반영됨. */
   font-size: 21.3px;
+  /* 모바일에서 일부 넓은 요소가 페이지 전체를 옆으로 밀어내는 것을 방지 —
+     그런 요소는 자체 스크롤 컨테이너 안에서만 넘치도록 함. */
+  overflow-x: hidden;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  overflow-x: hidden;
 }
