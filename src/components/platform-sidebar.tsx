@@ -93,10 +93,16 @@ const roleLabel: Record<Role, string> = {
   EMPLOYEE: "직원",
 };
 
+function closeMobileNav() {
+  const toggle = document.getElementById("mobile-nav-toggle") as HTMLInputElement | null;
+  if (toggle) toggle.checked = false;
+}
+
 function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   return (
     <Link
       href={item.href}
+      onClick={closeMobileNav}
       className={`flex items-center justify-between rounded px-3 py-2 text-sm transition-colors ${
         active
           ? "bg-white text-brand-green-dark font-medium"
@@ -169,7 +175,7 @@ export function PlatformSidebar({
   }
 
   return (
-    <nav className="sticky top-0 flex h-screen w-60 shrink-0 flex-col gap-1 overflow-y-auto bg-brand-green px-3 py-6">
+    <nav className="fixed inset-y-0 left-0 z-40 flex h-screen w-64 -translate-x-full flex-col gap-1 overflow-y-auto bg-brand-green px-3 py-6 transition-transform duration-200 peer-checked:translate-x-0 md:sticky md:top-0 md:left-auto md:z-auto md:w-60 md:shrink-0 md:translate-x-0">
       <div className="px-3 pb-5">
         <p className="text-xs font-semibold uppercase tracking-wide text-amber-200">
           SG HR PLATFORM
