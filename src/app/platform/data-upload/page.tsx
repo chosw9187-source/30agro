@@ -7,6 +7,7 @@ import { AppointmentUploadForm } from "./appointment-upload-form";
 import { DedupeAppointmentForm } from "./dedupe-appointment-form";
 import { PerformanceHistoryUploadForm } from "./performance-history-upload-form";
 import { EducationUploadForm } from "./education-upload-form";
+import { EducationBulkDeleteForm } from "./education-bulk-delete-form";
 import { uploadJobDescriptionFileForTeam } from "@/app/platform/job-management/actions";
 
 export const dynamic = "force-dynamic";
@@ -90,6 +91,9 @@ export default async function DataUploadPage() {
       <section className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-3 text-lg font-medium">학력 업로드</h2>
         <EducationUploadForm />
+        <div className="mt-6 border-t border-slate-100 pt-6">
+          <EducationBulkDeleteForm />
+        </div>
       </section>
     </div>
   );
