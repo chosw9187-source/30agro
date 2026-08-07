@@ -20,13 +20,6 @@
   --color-brand-gray: #666666;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 html {
   /* 전체 글자 크기를 키움(약 16pt 기준) — rem 기반 Tailwind 텍스트
      유틸리티가 이 값을 기준으로 스케일되므로 컴포넌트마다 손대지 않아도
