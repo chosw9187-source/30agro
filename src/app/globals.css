@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
+  /* 페이지 배경 — 카드(흰색)와 구분되도록 아주 옅은 회색을 사용 */
+  --background: #f8fafc;
   --foreground: #171717;
 }
 
