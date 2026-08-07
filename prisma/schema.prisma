@@ -52,6 +52,13 @@ enum Position {
   STAFF
 }
 
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+}
+
 model User {
   id             String   @id @default(cuid())
   name           String
@@ -92,6 +99,10 @@ model User {
   performanceHistory PerformanceHistory[]
   educationRecords EducationRecord[]
   permissionOverrides UserPermissionOverride[]
+  tasksAssigned    Task[]         @relation("TaskAssignee")
+  tasksCreated     Task[]         @relation("TaskCreator")
+  sopDocuments     SopDocument[]
+  workLogEntries   WorkLogEntry[]
 }
 
 model AppointmentRecord {
@@ -161,6 +172,7 @@ model Team {
   members       User[]         @relation("TeamMember")
   templateItems TemplateItem[]
   jobDescription JobDescription?
+  tasks         Task[]
 }
 
 model JobDescription {
@@ -331,6 +343,54 @@ model UserPermissionOverride {
   scope  PermissionScope
 
   @@unique([userId, module])
+}
+
+/**
+ * 업무 관리 모듈: 칸반보드/캘린더·타임라인/To-do 세 화면이 공유하는
+ * 하나의 작업 단위. status로 칸반 컬럼을, dueDate로 캘린더·타임라인
+ * 정렬을, assignee가 나인 것만 필터링하면 To-do 목록이 된다.
+ */
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  dueDate     DateTime?
+  assigneeId  String?
+  assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  teamId      String?
+  team        Team?      @relation(fields: [teamId], references: [id])
+  createdById String
+  createdBy   User       @relation("TaskCreator", fields: [createdById], references: [id])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([assigneeId])
+  @@index([status])
+}
+
+/** 업무 관리 > SOP: 반복 업무의 표준 절차 문서. */
+model SopDocument {
+  id          String   @id @default(cuid())
+  title       String
+  category    String?
+  content     String
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+/** 업무 관리 > 업무일지 DB: 개인별 일일 업무 기록. */
+model WorkLogEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime @default(now())
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
 }
 
 enum HomeBlock {

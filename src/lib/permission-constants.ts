@@ -95,7 +95,6 @@ export const SIDEBAR_MODULES: Module[] = [
 export const DEFAULT_COMING_SOON_MODULES = new Set<Module>([
   "HR_REPORT",
   "JOB_MANAGEMENT",
-  "TASK_MANAGEMENT",
   "LEGAL_LIBRARY",
 ]);
 
