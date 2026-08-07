@@ -59,6 +59,12 @@ enum TaskStatus {
   DONE
 }
 
+enum TaskPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
 model User {
   id             String   @id @default(cuid())
   name           String
@@ -355,6 +361,7 @@ model Task {
   title       String
   description String?
   status      TaskStatus @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
   dueDate     DateTime?
   assigneeId  String?
   assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
@@ -365,8 +372,22 @@ model Task {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
+  subtasks Subtask[]
+
   @@index([assigneeId])
   @@index([status])
+}
+
+/** 업무 관리 > 하위 체크리스트 항목. */
+model Subtask {
+  id     String  @id @default(cuid())
+  taskId String
+  task   Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title  String
+  done   Boolean @default(false)
+  order  Int     @default(0)
+
+  @@index([taskId])
 }
 
 /** 업무 관리 > SOP: 반복 업무의 표준 절차 문서. */
