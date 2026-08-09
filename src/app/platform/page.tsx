@@ -16,13 +16,6 @@ import { TrendChart } from "@/components/trend-chart";
 
 export const dynamic = "force-dynamic";
 
-function greeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "좋은 아침입니다";
-  if (hour < 18) return "좋은 오후입니다";
-  return "좋은 저녁입니다";
-}
-
 function fmtPct(v: number | null) {
   return v === null ? "데이터 없음" : `${v.toFixed(1)}%`;
 }
@@ -93,7 +86,7 @@ export default async function PlatformHomePage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <p className="text-slate-500">{greeting()},</p>
+        <p className="text-slate-500">안녕하세요,</p>
         <h1 className="text-2xl font-semibold">{session?.user.name}님</h1>
       </div>
 
