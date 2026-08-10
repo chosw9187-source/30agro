@@ -102,15 +102,16 @@ async function SelfAssessmentSection({ userId }: { userId: string }) {
 }
 
 async function AdminSection() {
-  const [activeUsers, keyTalentResponses, inviteLinks, host] = await Promise.all([
+  const [activeUsers, employeeResponses, inviteLinks, host] = await Promise.all([
     prisma.user.findMany({
       where: activePrismaWhere(),
       orderBy: { name: "asc" },
       select: { id: true, name: true, employeeNumber: true, isKeyTalent: true, team: { select: { name: true } } },
     }),
     prisma.competencyAssessmentResponse.findMany({
-      where: { user: { isKeyTalent: true } },
-      select: { scores: true },
+      where: { userId: { not: null } },
+      orderBy: { createdAt: "desc" },
+      include: { user: { select: { name: true, isKeyTalent: true, team: { select: { name: true } } } } },
     }),
     prisma.surveyInviteLink.findMany({
       orderBy: { createdAt: "desc" },
@@ -119,6 +120,7 @@ async function AdminSection() {
     headers(),
   ]);
 
+  const keyTalentResponses = employeeResponses.filter((r) => r.user?.isKeyTalent);
   const benchmark = averageScores(keyTalentResponses.map((r) => r.scores as CompetencyScores));
   const hasBenchmark = keyTalentResponses.length > 0;
   const hostHeader = host.get("host");
@@ -151,6 +153,47 @@ async function AdminSection() {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-5">
+        <h2 className="text-lg font-semibold text-slate-800">직원 응시 결과</h2>
+        <p className="mt-1 text-sm text-slate-600">자가진단을 제출한 직원 {employeeResponses.length}명의 결과입니다.</p>
+        <div className="mt-3 flex flex-col gap-3">
+          {employeeResponses.map((r) => {
+            const scores = r.scores as CompetencyScores;
+            const fit = hasBenchmark ? fitScore(scores, benchmark) : null;
+            return (
+              <details key={r.id} className="rounded border border-slate-200 p-3">
+                <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-slate-800">
+                    {r.user?.name}
+                    {r.user?.isKeyTalent && (
+                      <span className="ml-2 rounded-full bg-brand-green-light px-2 py-0.5 text-xs font-normal text-brand-green-dark">
+                        핵심인재
+                      </span>
+                    )}
+                    <span className="ml-2 text-xs font-normal text-slate-400">{r.user?.team?.name ?? "-"}</span>
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">종합 {r.overallScore}점</span>
+                </summary>
+                <div className="mt-3 flex flex-col gap-3">
+                  {fit !== null && (
+                    <span className="self-start rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700">
+                      핵심인재 적합도 {fit}점
+                    </span>
+                  )}
+                  <div className="flex flex-col gap-2">
+                    {COMPETENCIES.map((c) => (
+                      <ScoreBar key={c.key} label={c.label} score={scores[c.key]} />
+                    ))}
+                  </div>
+                  <StrengthWeaknessList scores={scores} />
+                </div>
+              </details>
+            );
+          })}
+          {employeeResponses.length === 0 && <p className="text-sm text-slate-500">아직 응시한 직원이 없습니다.</p>}
         </div>
       </div>
 
