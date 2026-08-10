@@ -11,6 +11,10 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
   const session = req.auth;
 
+  if (pathname.startsWith("/apply/")) {
+    return NextResponse.next();
+  }
+
   if (pathname === "/login") {
     if (session?.user) {
       return NextResponse.redirect(new URL(roleHome[session.user.role], req.nextUrl));

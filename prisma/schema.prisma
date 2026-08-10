@@ -89,6 +89,7 @@ model User {
   photoType       String?
   businessUnit    String?
   division        String?
+  isKeyTalent     Boolean  @default(false)
   teamId         String?
   team           Team?    @relation("TeamMember", fields: [teamId], references: [id])
   createdAt      DateTime @default(now())
@@ -109,6 +110,8 @@ model User {
   tasksCreated     Task[]         @relation("TaskCreator")
   sopDocuments     SopDocument[]
   workLogEntries   WorkLogEntry[]
+  surveyInvitesCreated SurveyInviteLink[]
+  competencyResponses CompetencyAssessmentResponse[]
 }
 
 model AppointmentRecord {
@@ -307,6 +310,37 @@ model Notification {
   createdAt    DateTime         @default(now())
 }
 
+/**
+ * SG 인적성검사: 핵심인재 지정 직원의 자가진단 응답이 모여 "기준 프로파일"이
+ * 되고, 초대 링크로 응시한 외부 지원자의 프로파일과 비교해 적합도를 낸다.
+ * userId가 있으면 내부 직원, inviteLinkId가 있으면 외부 지원자 응답이다.
+ */
+model CompetencyAssessmentResponse {
+  id             String            @id @default(cuid())
+  userId         String?           @unique
+  user           User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inviteLinkId   String?           @unique
+  inviteLink     SurveyInviteLink? @relation(fields: [inviteLinkId], references: [id], onDelete: Cascade)
+  respondentName String?
+  answers        Json
+  scores         Json
+  overallScore   Float
+  createdAt      DateTime          @default(now())
+}
+
+/** 외부 지원자용 1회성 응시 링크. */
+model SurveyInviteLink {
+  id            String   @id @default(cuid())
+  token         String   @unique @default(cuid())
+  applicantName String?
+  note          String?
+  createdById   String
+  createdBy     User     @relation(fields: [createdById], references: [id])
+  createdAt     DateTime @default(now())
+
+  response CompetencyAssessmentResponse?
+}
+
 enum Module {
   EMPLOYEES
   ORG_CHART
@@ -315,6 +349,7 @@ enum Module {
   LEGAL_LIBRARY
   HR_REPORT
   EVALUATION
+  TALENT_ASSESSMENT
 }
 
 enum PermissionScope {
