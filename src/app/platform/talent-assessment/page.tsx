@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
@@ -75,10 +76,10 @@ function StrengthWeaknessList({ scores }: { scores: CompetencyScores }) {
   );
 }
 
-async function SelfAssessmentSection({ userId }: { userId: string }) {
+async function SelfAssessmentSection({ userId, retake }: { userId: string; retake: boolean }) {
   const existing = await prisma.competencyAssessmentResponse.findUnique({ where: { userId } });
 
-  if (existing) {
+  if (existing && !retake) {
     const scores = existing.scores as CompetencyScores;
     return (
       <div className="rounded-lg border border-slate-200 bg-white p-5">
@@ -99,6 +100,11 @@ async function SelfAssessmentSection({ userId }: { userId: string }) {
         <div className="mt-4">
           <StrengthWeaknessList scores={scores} />
         </div>
+        <div className="mt-4">
+          <Link href="/platform/talent-assessment?retake=1" className="text-xs text-brand-green-dark hover:underline">
+            다시 응시하기
+          </Link>
+        </div>
       </div>
     );
   }
@@ -108,7 +114,8 @@ async function SelfAssessmentSection({ userId }: { userId: string }) {
       <div className="rounded-lg border border-slate-200 bg-white p-5">
         <h2 className="text-lg font-semibold text-slate-800">자가진단 응시</h2>
         <p className="mt-1 text-sm text-slate-600">
-          핵심인재로 지정된 경우 이 응답이 채용 적합도 비교의 기준 프로파일에 반영됩니다. 한 번 제출하면 다시 응시할 수 없습니다.
+          핵심인재로 지정된 경우 이 응답이 채용 적합도 비교의 기준 프로파일에 반영됩니다.
+          {existing ? " 제출하면 기존 결과가 이번 응답으로 교체됩니다." : ""}
         </p>
       </div>
       <CompetencySurveyQuestions />
@@ -325,13 +332,18 @@ async function AdminSection() {
   );
 }
 
-export default async function TalentAssessmentPage() {
+export default async function TalentAssessmentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ retake?: string }>;
+}) {
   if (!(await checkModuleAccess("TALENT_ASSESSMENT"))) {
     return <NoModuleAccess title="SG 인적성검사" />;
   }
 
   const session = await auth();
   const isAdmin = session!.user.role === "ADMIN";
+  const { retake } = await searchParams;
 
   return (
     <div className="flex flex-col gap-6">
@@ -342,7 +354,7 @@ export default async function TalentAssessmentPage() {
         </p>
       </div>
 
-      <SelfAssessmentSection userId={session!.user.id} />
+      <SelfAssessmentSection userId={session!.user.id} retake={retake === "1"} />
       {isAdmin && <AdminSection />}
     </div>
   );

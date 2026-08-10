@@ -47,19 +47,14 @@ function parseAnswers(formData: FormData): Record<string, number> {
 export async function submitSelfAssessment(formData: FormData) {
   const session = await requireRole(...ALL_ROLES);
 
-  const existing = await prisma.competencyAssessmentResponse.findUnique({ where: { userId: session.user.id } });
-  if (existing) return;
-
   const answers = parseAnswers(formData);
   const scores = computeCompetencyScores(answers);
+  const data = { answers, scores, overallScore: overallScore(scores) };
 
-  await prisma.competencyAssessmentResponse.create({
-    data: {
-      userId: session.user.id,
-      answers,
-      scores,
-      overallScore: overallScore(scores),
-    },
+  await prisma.competencyAssessmentResponse.upsert({
+    where: { userId: session.user.id },
+    create: { userId: session.user.id, ...data },
+    update: data,
   });
   revalidatePath(PATH);
 }
