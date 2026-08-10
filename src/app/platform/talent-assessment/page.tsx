@@ -10,6 +10,7 @@ import {
   averageScores,
   fitScore,
   topBottomCompetencies,
+  computeReliability,
   STRENGTH_COMMENT,
   WEAKNESS_COMMENT,
 } from "@/lib/competency-survey";
@@ -28,6 +29,23 @@ function ScoreBar({ label, score }: { label: string; score: number }) {
       </div>
       <span className="w-10 shrink-0 text-right text-slate-500">{score}</span>
     </div>
+  );
+}
+
+function ReliabilityBadge({ answers }: { answers: Record<string, number> }) {
+  const r = computeReliability(answers);
+  if (r.reliable) {
+    return (
+      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">응답 신뢰도 양호</span>
+    );
+  }
+  return (
+    <span
+      className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600"
+      title={`불일치 문항 ${r.mismatchCount}개 · 자기고양 응답 평균 ${r.socialDesirabilityAvg}점`}
+    >
+      응답 신뢰도 낮음
+    </span>
   );
 }
 
@@ -64,11 +82,14 @@ async function SelfAssessmentSection({ userId }: { userId: string }) {
     const scores = existing.scores as CompetencyScores;
     return (
       <div className="rounded-lg border border-slate-200 bg-white p-5">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-semibold text-slate-800">내 검사 결과</h2>
-          <span className="rounded-full bg-brand-green-light px-3 py-1 text-sm font-semibold text-brand-green-dark">
-            종합 {existing.overallScore}점
-          </span>
+          <div className="flex items-center gap-2">
+            <ReliabilityBadge answers={existing.answers as Record<string, number>} />
+            <span className="rounded-full bg-brand-green-light px-3 py-1 text-sm font-semibold text-brand-green-dark">
+              종합 {existing.overallScore}점
+            </span>
+          </div>
         </div>
         <div className="mt-4 flex flex-col gap-2">
           {COMPETENCIES.map((c) => (
@@ -175,7 +196,10 @@ async function AdminSection() {
                     )}
                     <span className="ml-2 text-xs font-normal text-slate-400">{r.user?.team?.name ?? "-"}</span>
                   </span>
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">종합 {r.overallScore}점</span>
+                  <span className="flex items-center gap-2">
+                    <ReliabilityBadge answers={r.answers as Record<string, number>} />
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">종합 {r.overallScore}점</span>
+                  </span>
                 </summary>
                 <div className="mt-3 flex flex-col gap-3">
                   {fit !== null && (
@@ -269,7 +293,8 @@ async function AdminSection() {
                   <details className="mt-2">
                     <summary className="cursor-pointer text-xs text-brand-green-dark">결과 보기</summary>
                     <div className="mt-3 flex flex-col gap-3">
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <ReliabilityBadge answers={link.response.answers as Record<string, number>} />
                         <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
                           종합 {link.response.overallScore}점
                         </span>
