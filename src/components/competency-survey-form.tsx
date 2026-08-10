@@ -1,4 +1,13 @@
-import { COMPETENCIES, SURVEY_ITEMS, LIKERT_LABELS } from "@/lib/competency-survey";
+import { COMPETENCIES, SURVEY_ITEMS, LIKERT_LABELS, type SurveyItem } from "@/lib/competency-survey";
+
+function shuffled(items: SurveyItem[]): SurveyItem[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
 
 export function CompetencySurveyQuestions() {
   return (
@@ -10,7 +19,7 @@ export function CompetencySurveyQuestions() {
         <div key={c.key} className="rounded-lg border border-slate-200 bg-white p-4">
           <h3 className="mb-3 text-sm font-semibold text-brand-green-dark">{c.label}</h3>
           <div className="flex flex-col gap-3">
-            {SURVEY_ITEMS.filter((i) => i.competency === c.key).map((item, idx) => (
+            {shuffled(SURVEY_ITEMS.filter((i) => i.competency === c.key)).map((item, idx) => (
               <div key={item.id} className="flex flex-col gap-1.5 border-t border-slate-100 pt-3 first:border-t-0 first:pt-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                 <p className="text-sm text-slate-700">
                   {idx + 1}. {item.text}
@@ -31,7 +40,7 @@ export function CompetencySurveyQuestions() {
       <div className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="mb-3 text-sm font-semibold text-brand-green-dark">기타</h3>
         <div className="flex flex-col gap-3">
-          {SURVEY_ITEMS.filter((i) => i.kind === "SOCIAL_DESIRABILITY").map((item, idx) => (
+          {shuffled(SURVEY_ITEMS.filter((i) => i.kind === "SOCIAL_DESIRABILITY")).map((item, idx) => (
             <div key={item.id} className="flex flex-col gap-1.5 border-t border-slate-100 pt-3 first:border-t-0 first:pt-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
               <p className="text-sm text-slate-700">
                 {idx + 1}. {item.text}
