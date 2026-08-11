@@ -24,7 +24,7 @@ import { GenderSelect } from "./gender-select";
 import { TextFieldEditor } from "./text-field-editor";
 import { DateFieldEditor } from "./date-field-editor";
 import { ResetAllPasswordsButton } from "./reset-all-passwords-button";
-import { isActive } from "@/lib/hr-analytics";
+import { isActive, activePrismaWhere } from "@/lib/hr-analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +61,7 @@ export default async function UsersPage({
     q?: string;
     teamId?: string;
     page?: string;
+    status?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -71,6 +72,8 @@ export default async function UsersPage({
   const q = (params.q ?? "").trim();
   const filterTeamId = params.teamId ?? "";
   const page = Math.max(1, Math.trunc(Number(params.page)) || 1);
+  const status: "active" | "terminated" | "all" =
+    params.status === "terminated" || params.status === "all" ? params.status : "active";
 
   const thisYear = new Date().getFullYear();
   const selectedYear = Number(params.year) > 0 ? Number(params.year) : thisYear;
@@ -93,18 +96,20 @@ export default async function UsersPage({
       orderBy = { name: sortDir };
   }
 
-  const where = {
-    ...(filterTeamId ? { teamId: filterTeamId } : {}),
-    ...(q
-      ? {
-          OR: [
-            { name: { contains: q, mode: "insensitive" as const } },
-            { email: { contains: q, mode: "insensitive" as const } },
-            { employeeNumber: { contains: q } },
-          ],
-        }
-      : {}),
-  };
+  const whereConditions: Record<string, unknown>[] = [];
+  if (filterTeamId) whereConditions.push({ teamId: filterTeamId });
+  if (q) {
+    whereConditions.push({
+      OR: [
+        { name: { contains: q, mode: "insensitive" as const } },
+        { email: { contains: q, mode: "insensitive" as const } },
+        { employeeNumber: { contains: q } },
+      ],
+    });
+  }
+  if (status === "active") whereConditions.push(activePrismaWhere());
+  if (status === "terminated") whereConditions.push({ terminationDate: { lte: new Date() } });
+  const where = whereConditions.length > 0 ? { AND: whereConditions } : {};
 
   const session = await auth();
   const [users, totalCount, teams, yearRows] = await Promise.all([
@@ -165,7 +170,7 @@ export default async function UsersPage({
 
   const filterQS = `${q ? `&q=${encodeURIComponent(q)}` : ""}${
     filterTeamId ? `&teamId=${filterTeamId}` : ""
-  }`;
+  }${status !== "active" ? `&status=${status}` : ""}`;
 
   function sortHref(key: SortKey) {
     const nextDir: SortDir = sortKey === key && sortDir === "asc" ? "desc" : "asc";
@@ -275,13 +280,22 @@ export default async function UsersPage({
             </option>
           ))}
         </select>
+        <select
+          name="status"
+          defaultValue={status}
+          className="rounded border border-slate-300 px-3 py-1.5 text-sm"
+        >
+          <option value="active">재직자만</option>
+          <option value="terminated">퇴직자만</option>
+          <option value="all">전체(재직+퇴직)</option>
+        </select>
         <button
           type="submit"
           className="rounded bg-brand-green px-3 py-1.5 text-sm text-white hover:bg-brand-green-dark"
         >
           검색
         </button>
-        {(q || filterTeamId) && (
+        {(q || filterTeamId || status !== "active") && (
           <Link
             href={`/admin/users?year=${selectedYear}`}
             className="text-sm text-slate-500 hover:underline"
@@ -368,7 +382,12 @@ export default async function UsersPage({
                   <SelectAllCheckbox />
                 </th>
                 {columns.map((col) => (
-                  <th key={col.key} className="whitespace-nowrap px-3 py-2 font-medium">
+                  <th
+                    key={col.key}
+                    className={`whitespace-nowrap px-3 py-2 font-medium ${
+                      col.key === "name" ? "sticky left-0 z-10 border-r border-slate-200 bg-white" : ""
+                    }`}
+                  >
                     <Link
                       href={sortHref(col.key)}
                       className="flex items-center gap-1 hover:text-slate-700"
@@ -406,7 +425,7 @@ export default async function UsersPage({
                   <td className="px-3 py-2">
                     <input type="checkbox" name="userIds" value={u.id} />
                   </td>
-                  <td className="whitespace-nowrap px-3 py-2">
+                  <td className="sticky left-0 z-10 whitespace-nowrap border-r border-slate-200 bg-white px-3 py-2">
                     <NameEditor userId={u.id} name={u.name} />
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-slate-400">{u.email ?? "-"}</td>

@@ -13,6 +13,7 @@ type NavItem = {
   comingSoon?: boolean;
   badgeCount?: number;
   module?: Module;
+  hidden?: boolean;
 };
 
 type Section = {
@@ -50,6 +51,7 @@ function mainItems(
     label: MODULE_LABEL_FOR_NAV[m],
     module: m as Module,
     comingSoon: moduleUiConfig[m]?.comingSoon ?? false,
+    hidden: moduleUiConfig[m]?.hidden ?? false,
   }));
 
   return [
@@ -99,7 +101,7 @@ function closeMobileNav() {
   if (toggle) toggle.checked = false;
 }
 
-function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+function NavLink({ item, active, showHiddenBadge }: { item: NavItem; active: boolean; showHiddenBadge?: boolean }) {
   return (
     <Link
       href={item.href}
@@ -111,6 +113,11 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
       }`}
     >
       <span>{item.label}</span>
+      {showHiddenBadge && (
+        <span className="rounded-full bg-slate-500 px-2 py-0.5 text-[10px] font-semibold text-white" title="다른 사용자에게는 사이드바에서 숨겨져 있습니다">
+          관리자만
+        </span>
+      )}
       {item.comingSoon && (
         <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-semibold text-amber-950">
           개발 중
@@ -148,8 +155,10 @@ export function PlatformSidebar({
     return pathname === href || pathname.startsWith(`${href}/`);
   }
 
+  // 숨김 처리된 메뉴는 관리자 본인에게는 계속 보여야 개발 중에도 접근할 수
+  // 있으므로, 다른 역할(평가자·직원)에게서만 실제로 숨긴다.
   const visibleMainItems = mainItems(role, notificationCount, moduleUiConfig).filter(
-    (item) => (!item.module || visible.has(item.module)) && !(item.module && moduleUiConfig[item.module]?.hidden)
+    (item) => (!item.module || visible.has(item.module)) && (role === "ADMIN" || !item.hidden)
   );
 
   const sections: Section[] = [
@@ -186,7 +195,12 @@ export function PlatformSidebar({
 
       <div className="flex flex-col gap-1">
         {visibleMainItems.map((item) => (
-          <NavLink key={item.href} item={item} active={isActive(item.href)} />
+          <NavLink
+            key={item.href}
+            item={item}
+            active={isActive(item.href)}
+            showHiddenBadge={role === "ADMIN" && item.hidden}
+          />
         ))}
       </div>
 
