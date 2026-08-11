@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { checkModuleAccess, getEmployeeListScopeFilter } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { POSITIONS, POSITION_LABEL, type Position } from "@/lib/permission-constants";
-import { activePrismaWhere } from "@/lib/hr-analytics";
+import { activePrismaWhere, ageInYears, tenureInYears } from "@/lib/hr-analytics";
 
 export const dynamic = "force-dynamic";
 
@@ -122,16 +122,32 @@ export default async function EmployeeDirectoryPage({
                 href={`/platform/employees/${e.id}`}
                 className="rounded-lg border border-slate-200 bg-white p-4 hover:border-brand-green"
               >
-                <div className="flex items-center justify-between">
-                  <p className="font-medium text-brand-green-dark hover:underline">
-                    {e.name}
-                  </p>
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                <p className="font-medium text-brand-green-dark hover:underline">{e.name}</p>
+                <p className="mt-0.5 text-sm text-slate-500">{e.team?.name ?? "팀 미지정"}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-sm font-medium text-brand-green-dark">
                     {POSITION_LABEL[e.position as Position]}
                   </span>
+                  {e.birthDate && (
+                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-sm font-medium text-blue-700">
+                      만 {ageInYears(e.birthDate)}세
+                    </span>
+                  )}
+                  {e.hireDate ? (
+                    <>
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-sm font-medium text-amber-700">
+                        근속 {tenureInYears(e.hireDate).toFixed(1)}년
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-600">
+                        입사 {e.hireDate.toLocaleDateString("ko-KR")}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-500">
+                      입사일 미입력
+                    </span>
+                  )}
                 </div>
-                <p className="mt-1 text-sm text-slate-500">사번 {e.employeeNumber}</p>
-                <p className="text-sm text-slate-500">{e.team?.name ?? "팀 미지정"}</p>
               </Link>
             ))}
             {employees.length === 0 && (
