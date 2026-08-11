@@ -5,12 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 
-const roleHome: Record<string, string> = {
-  ADMIN: "/admin",
-  EVALUATOR: "/evaluate",
-  EMPLOYEE: "/my-evaluations",
-};
-
 export async function changePassword(
   _prevState: string | undefined,
   formData: FormData
@@ -36,5 +30,5 @@ export async function changePassword(
     data: { passwordHash, mustChangePassword: false },
   });
 
-  redirect(roleHome[session.user.role] ?? "/login");
+  redirect("/platform");
 }
