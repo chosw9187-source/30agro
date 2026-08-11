@@ -40,7 +40,7 @@ function evaluationHref(role: Role): string {
 function mainItems(
   role: Role,
   notificationCount: number,
-  moduleUiConfig: Record<string, { order: number; comingSoon: boolean }>
+  moduleUiConfig: Record<string, { order: number; comingSoon: boolean; hidden: boolean }>
 ): NavItem[] {
   const orderedModules = [...SIDEBAR_MODULES].sort(
     (a, b) => (moduleUiConfig[a]?.order ?? 0) - (moduleUiConfig[b]?.order ?? 0)
@@ -138,7 +138,7 @@ export function PlatformSidebar({
   notificationCount?: number;
   onLogout: () => Promise<void>;
   visibleModules: Module[];
-  moduleUiConfig: Record<string, { order: number; comingSoon: boolean }>;
+  moduleUiConfig: Record<string, { order: number; comingSoon: boolean; hidden: boolean }>;
 }) {
   const pathname = usePathname();
   const visible = new Set(visibleModules);
@@ -149,7 +149,7 @@ export function PlatformSidebar({
   }
 
   const visibleMainItems = mainItems(role, notificationCount, moduleUiConfig).filter(
-    (item) => !item.module || visible.has(item.module)
+    (item) => (!item.module || visible.has(item.module)) && !(item.module && moduleUiConfig[item.module]?.hidden)
   );
 
   const sections: Section[] = [

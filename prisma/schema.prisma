@@ -359,6 +359,8 @@ enum PermissionScope {
   DIVISION
   BUSINESS_UNIT
   FULL
+  /** EMPLOYEES 모듈 전용: 목록은 전체 공개하되 개인 인사카드 상세는 본인만. */
+  LIST_ONLY
 }
 
 model PermissionMatrixEntry {
@@ -474,4 +476,5 @@ model ModuleUiConfig {
   module     Module  @unique
   order      Int     @default(0)
   comingSoon Boolean @default(false)
+  hidden     Boolean @default(false)
 }

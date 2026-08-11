@@ -166,7 +166,7 @@ export async function canViewEmployeeCard(targetUserId: string): Promise<boolean
     viewer.position as Position,
     "EMPLOYEES"
   );
-  if (scope === "NONE" || scope === "SELF") return false;
+  if (scope === "NONE" || scope === "SELF" || scope === "LIST_ONLY") return false;
   if (scope === "FULL") return true;
 
   const [viewerCtx, targetCtx] = await Promise.all([
@@ -216,7 +216,7 @@ export async function getEmployeeListScopeFilter(): Promise<Record<string, unkno
     viewer.position as Position,
     "EMPLOYEES"
   );
-  if (scope === "FULL") return hideCeo;
+  if (scope === "FULL" || scope === "LIST_ONLY") return hideCeo;
   if (scope === "NONE" || scope === "SELF") return { id: viewer.id };
 
   const ctx = await loadViewerContext(viewer.id);
@@ -267,6 +267,7 @@ export async function getModuleUiConfig(): Promise<Record<Module, ModuleUiConfig
     result[m] = {
       order: row?.order ?? i,
       comingSoon: row ? row.comingSoon : DEFAULT_COMING_SOON_MODULES.has(m),
+      hidden: row?.hidden ?? false,
     };
   });
   return result;

@@ -13,8 +13,12 @@ import {
 } from "@/lib/hr-analytics";
 import { BarChart } from "@/components/bar-chart";
 import { TrendChart } from "@/components/trend-chart";
+import { EmployeeCardContent } from "@/components/employee-card-content";
+import { HomeTabBar } from "@/components/home-tab-bar";
 
 export const dynamic = "force-dynamic";
+
+const EXECUTIVE_POSITIONS: Position[] = ["CEO", "OPERATIONS_HEAD", "SENIOR_STAFF"];
 
 function fmtPct(v: number | null) {
   return v === null ? "데이터 없음" : `${v.toFixed(1)}%`;
@@ -24,9 +28,39 @@ export default async function PlatformHomePage() {
   const session = await auth();
   const role = session!.user.role;
 
-  const [allTeams, dbUser, allUsers] = await Promise.all([
+  const dbUser = await prisma.user.findUnique({ where: { id: session!.user.id }, select: { position: true } });
+  const position = (dbUser?.position ?? "STAFF") as Position;
+  const showDashboard = role === "ADMIN" || EXECUTIVE_POSITIONS.includes(position);
+
+  // 팀장·담당(비관리자)은 회사 전체 대시보드가 의미가 없으므로 홈 화면을
+  // 곧바로 본인 인사카드로 대체한다. EMPLOYEES 모듈 권한 범위와 무관하게
+  // 항상 볼 수 있어야 하므로 canViewEmployeeCard/checkModuleAccess를
+  // 거치지 않고 직접 조회한다.
+  if (!showDashboard) {
+    const employee = await prisma.user.findUnique({
+      where: { id: session!.user.id },
+      include: {
+        team: true,
+        appointmentRecords: { orderBy: { date: "desc" } },
+        performanceHistory: { orderBy: { year: "desc" } },
+        educationRecords: { orderBy: { order: "asc" } },
+      },
+    });
+    if (!employee) return null;
+
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <p className="text-slate-500">안녕하세요,</p>
+          <h1 className="text-2xl font-semibold">{session?.user.name}님</h1>
+        </div>
+        <EmployeeCardContent employee={employee} isAdmin={false} />
+      </div>
+    );
+  }
+
+  const [allTeams, allUsers] = await Promise.all([
     prisma.team.findMany({ select: { id: true } }),
-    prisma.user.findUnique({ where: { id: session!.user.id }, select: { position: true } }),
     prisma.user.findMany({
       where: regularOrExceptionTeamWhere(),
       select: {
@@ -40,7 +74,6 @@ export default async function PlatformHomePage() {
     }),
   ]);
 
-  const position = (dbUser?.position ?? "STAFF") as Position;
   const visibleBlocks = await getVisibleHomeBlocks(role, position);
 
   const showTeamSummary = visibleBlocks.has("TEAM_SUMMARY");
@@ -89,6 +122,8 @@ export default async function PlatformHomePage() {
         <p className="text-slate-500">안녕하세요,</p>
         <h1 className="text-2xl font-semibold">{session?.user.name}님</h1>
       </div>
+
+      <HomeTabBar active="dashboard" selfId={session!.user.id} />
 
       <div
         className={`grid grid-cols-1 gap-6 ${

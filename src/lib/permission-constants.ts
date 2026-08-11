@@ -59,10 +59,12 @@ export type PermissionScope =
   | "TEAM"
   | "DIVISION"
   | "BUSINESS_UNIT"
-  | "FULL";
+  | "FULL"
+  | "LIST_ONLY";
 
 export const PERMISSION_SCOPES: PermissionScope[] = [
   "FULL",
+  "LIST_ONLY",
   "BUSINESS_UNIT",
   "DIVISION",
   "TEAM",
@@ -72,6 +74,7 @@ export const PERMISSION_SCOPES: PermissionScope[] = [
 
 export const PERMISSION_SCOPE_LABEL: Record<PermissionScope, string> = {
   FULL: "전체",
+  LIST_ONLY: "목록만(상세 비공개)",
   BUSINESS_UNIT: "사업단위",
   DIVISION: "부문",
   TEAM: "팀",
@@ -102,7 +105,7 @@ export const DEFAULT_COMING_SOON_MODULES = new Set<Module>([
   "LEGAL_LIBRARY",
 ]);
 
-export type ModuleUiConfigEntry = { order: number; comingSoon: boolean };
+export type ModuleUiConfigEntry = { order: number; comingSoon: boolean; hidden: boolean };
 
 export type HomeBlock = "TEAM_SUMMARY" | "OVERALL_SUMMARY" | "QUICK_LINKS";
 

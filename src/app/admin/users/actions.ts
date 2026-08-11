@@ -231,3 +231,29 @@ export async function resetUserPassword(userId: string) {
 
   revalidatePath("/admin/users");
 }
+
+/**
+ * 본인 계정은 제외하고 전체 직원의 비밀번호를 각자의 사번으로 초기화한다 —
+ * 관리자가 작업 도중 자기 세션의 비밀번호 변경 요구를 갑자기 마주치지
+ * 않도록 하기 위함.
+ */
+export async function resetAllPasswords() {
+  const session = await requireRole("ADMIN");
+
+  const users = await prisma.user.findMany({
+    where: { id: { not: session.user.id } },
+    select: { id: true, employeeNumber: true },
+  });
+
+  await Promise.all(
+    users.map(async (u) => {
+      const passwordHash = await bcrypt.hash(u.employeeNumber, 10);
+      await prisma.user.update({
+        where: { id: u.id },
+        data: { passwordHash, mustChangePassword: true },
+      });
+    })
+  );
+
+  revalidatePath("/admin/users");
+}

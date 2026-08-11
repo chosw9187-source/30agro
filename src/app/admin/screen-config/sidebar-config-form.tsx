@@ -20,8 +20,9 @@ export function SidebarConfigForm({
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <p className="text-sm text-slate-600">
-        사이드바에 나오는 순서와 &quot;개발 중&quot; 배지 표시 여부를 항목별로
-        설정하세요. 홈/알림은 항상 맨 위·맨 아래 고정입니다.
+        사이드바에 나오는 순서, &quot;개발 중&quot; 배지 표시 여부, 사이드바에서
+        완전히 숨길지를 항목별로 설정하세요. 홈/알림은 항상 맨 위·맨 아래
+        고정입니다.
       </p>
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
         <table className="w-full text-left text-sm">
@@ -30,6 +31,7 @@ export function SidebarConfigForm({
               <th className="px-4 py-3 font-medium">메뉴</th>
               <th className="px-4 py-3 font-medium">순서</th>
               <th className="px-4 py-3 font-medium">개발 중 배지</th>
+              <th className="px-4 py-3 font-medium">사이드바에서 숨기기</th>
             </tr>
           </thead>
           <tbody>
@@ -49,6 +51,13 @@ export function SidebarConfigForm({
                     type="checkbox"
                     name={`comingSoon:${m}`}
                     defaultChecked={config[m].comingSoon}
+                  />
+                </td>
+                <td className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    name={`hidden:${m}`}
+                    defaultChecked={config[m].hidden}
                   />
                 </td>
               </tr>

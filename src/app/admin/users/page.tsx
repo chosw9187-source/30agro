@@ -23,6 +23,7 @@ import { JobGradeEditor } from "./job-grade-editor";
 import { GenderSelect } from "./gender-select";
 import { TextFieldEditor } from "./text-field-editor";
 import { DateFieldEditor } from "./date-field-editor";
+import { ResetAllPasswordsButton } from "./reset-all-passwords-button";
 import { isActive } from "@/lib/hr-analytics";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,8 @@ const columns: { key: SortKey; label: string }[] = [
   { key: "team", label: "팀" },
 ];
 
+const PAGE_SIZE = 50;
+
 export default async function UsersPage({
   searchParams,
 }: {
@@ -57,6 +60,7 @@ export default async function UsersPage({
     skipped?: string;
     q?: string;
     teamId?: string;
+    page?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -66,6 +70,7 @@ export default async function UsersPage({
   const sortDir: SortDir = params.dir === "desc" ? "desc" : "asc";
   const q = (params.q ?? "").trim();
   const filterTeamId = params.teamId ?? "";
+  const page = Math.max(1, Math.trunc(Number(params.page)) || 1);
 
   const thisYear = new Date().getFullYear();
   const selectedYear = Number(params.year) > 0 ? Number(params.year) : thisYear;
@@ -88,27 +93,53 @@ export default async function UsersPage({
       orderBy = { name: sortDir };
   }
 
+  const where = {
+    ...(filterTeamId ? { teamId: filterTeamId } : {}),
+    ...(q
+      ? {
+          OR: [
+            { name: { contains: q, mode: "insensitive" as const } },
+            { email: { contains: q, mode: "insensitive" as const } },
+            { employeeNumber: { contains: q } },
+          ],
+        }
+      : {}),
+  };
+
   const session = await auth();
-  const [users, teams, yearRows] = await Promise.all([
+  const [users, totalCount, teams, yearRows] = await Promise.all([
     prisma.user.findMany({
-      where: {
-        ...(filterTeamId ? { teamId: filterTeamId } : {}),
-        ...(q
-          ? {
-              OR: [
-                { name: { contains: q, mode: "insensitive" } },
-                { email: { contains: q, mode: "insensitive" } },
-                { employeeNumber: { contains: q } },
-              ],
-            }
-          : {}),
-      },
+      where,
       orderBy,
-      include: {
-        team: true,
-        targetYears: { where: { year: selectedYear } },
+      take: PAGE_SIZE,
+      skip: (page - 1) * PAGE_SIZE,
+      // photo/photoType are large binary blobs never rendered on this list —
+      // select explicitly instead of include so they're never fetched here.
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        employeeNumber: true,
+        role: true,
+        position: true,
+        gender: true,
+        birthDate: true,
+        hireDate: true,
+        terminationDate: true,
+        employmentType: true,
+        jobGrade: true,
+        educationLevel: true,
+        school: true,
+        major: true,
+        degree: true,
+        jobFamily: true,
+        businessUnit: true,
+        division: true,
+        team: { select: { name: true, businessUnit: true, division: true } },
+        targetYears: { where: { year: selectedYear }, select: { id: true } },
       },
     }),
+    prisma.user.count({ where }),
     prisma.team.findMany({ orderBy: { name: "asc" } }),
     prisma.userTargetYear.findMany({
       distinct: ["year"],
@@ -116,6 +147,8 @@ export default async function UsersPage({
       orderBy: { year: "desc" },
     }),
   ]);
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const availableYears = Array.from(
     new Set([thisYear, selectedYear, ...yearRows.map((r) => r.year)])
@@ -139,12 +172,19 @@ export default async function UsersPage({
     return `/admin/users?year=${selectedYear}&sort=${key}&dir=${nextDir}${filterQS}`;
   }
 
+  function pageHref(p: number) {
+    return `/admin/users?year=${selectedYear}&sort=${sortKey}&dir=${sortDir}&page=${p}${filterQS}`;
+  }
+
   const deletedCount = Number(params.deleted ?? 0);
   const skippedCount = Number(params.skipped ?? 0);
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-2xl font-semibold">사용자 관리</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-semibold">사용자 관리</h1>
+        <ResetAllPasswordsButton />
+      </div>
 
       {(deletedCount > 0 || skippedCount > 0) && (
         <p className="text-sm text-slate-500">
@@ -481,6 +521,34 @@ export default async function UsersPage({
           </div>
         </section>
       </form>
+
+      {totalPages > 1 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500">
+          <span>
+            총 {totalCount.toLocaleString()}명 중 {(page - 1) * PAGE_SIZE + 1}–
+            {Math.min(page * PAGE_SIZE, totalCount)}명 표시
+          </span>
+          <div className="flex items-center gap-2">
+            {page > 1 ? (
+              <Link href={pageHref(page - 1)} className="rounded border border-slate-300 px-2.5 py-1 hover:bg-slate-100">
+                이전
+              </Link>
+            ) : (
+              <span className="rounded border border-slate-200 px-2.5 py-1 text-slate-300">이전</span>
+            )}
+            <span>
+              {page} / {totalPages}
+            </span>
+            {page < totalPages ? (
+              <Link href={pageHref(page + 1)} className="rounded border border-slate-300 px-2.5 py-1 hover:bg-slate-100">
+                다음
+              </Link>
+            ) : (
+              <span className="rounded border border-slate-200 px-2.5 py-1 text-slate-300">다음</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Standalone form for the year-clear action and the "이동" year jump, kept outside
           the bulk-delete form so their submits don't trigger account deletion. */}

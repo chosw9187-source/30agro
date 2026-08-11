@@ -53,7 +53,7 @@ const RECOMMENDED_EMPLOYEES_SCOPE: Record<(typeof POSITIONS)[number], Permission
   OPERATIONS_HEAD: "BUSINESS_UNIT",
   SENIOR_STAFF: "DIVISION",
   TEAM_LEADER: "TEAM",
-  STAFF: "SELF",
+  STAFF: "LIST_ONLY",
 };
 
 export async function applyRecommendedEmployeeScope(
