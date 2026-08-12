@@ -48,6 +48,20 @@ export default async function DataUploadPage() {
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-2 text-lg font-medium">인사카드 PDF 업로드</h2>
+        <p className="mb-3 text-sm text-slate-500">
+          인사기록카드 PDF에서 경력사항·발령사항·학력사항만 추출합니다(주소·연락처·가족정보는 자동으로
+          가려짐). 자주 있는 일이 아니라 수동 업로드용입니다.
+        </p>
+        <Link
+          href="/platform/data-upload/hr-card-import"
+          className="inline-block rounded bg-brand-green px-4 py-2 text-sm text-white hover:bg-brand-green-dark"
+        >
+          인사카드 업로드 화면으로 이동
+        </Link>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-3 text-lg font-medium">사원명부 일괄 업로드</h2>
         <p className="mb-2 text-sm text-slate-500">
           정해진 양식(사번/이름/이메일주소/팀명 등 표준 헤더)에 맞춰 만든
