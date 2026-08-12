@@ -38,7 +38,14 @@ const STATUS_COLOR: Record<string, string> = {
   UNCHANGED: "border-slate-200 bg-slate-50",
 };
 
-function formatValue(v: unknown): string {
+function formatValue(field: string, v: unknown, teamNameById: Map<string, string>): string {
+  if (field === "teamId") {
+    if (!v) return "(팀 없음)";
+    return teamNameById.get(String(v)) ?? "(삭제된 팀)";
+  }
+  if (field === "position" && typeof v === "string" && v in POSITION_LABEL) {
+    return POSITION_LABEL[v as Position];
+  }
   if (v === null || v === undefined || v === "") return "—";
   if (typeof v === "boolean") return v ? "예" : "아니오";
   if (v instanceof Date) return v.toLocaleDateString("ko-KR");
@@ -49,7 +56,7 @@ function formatValue(v: unknown): string {
   return String(v);
 }
 
-function DiffTable({ diff }: { diff: FieldDiff[] }) {
+function DiffTable({ diff, teamNameById }: { diff: FieldDiff[]; teamNameById: Map<string, string> }) {
   if (diff.length === 0) return <span className="text-sm text-slate-400">변경 항목 없음</span>;
   return (
     <table className="text-sm">
@@ -57,9 +64,9 @@ function DiffTable({ diff }: { diff: FieldDiff[] }) {
         {diff.map((d) => (
           <tr key={d.field}>
             <td className="pr-2 text-slate-500">{d.label}</td>
-            <td className="pr-2 text-slate-400">{formatValue(d.before)}</td>
+            <td className="pr-2 text-slate-400">{formatValue(d.field, d.before, teamNameById)}</td>
             <td className="pr-2 text-slate-400">→</td>
-            <td className="font-medium text-slate-800">{formatValue(d.after)}</td>
+            <td className="font-medium text-slate-800">{formatValue(d.field, d.after, teamNameById)}</td>
           </tr>
         ))}
       </tbody>
@@ -149,7 +156,7 @@ export default async function ErpBatchDetailPage({
     }),
   ]);
 
-  const teamNameByIdForCards = new Map(teams.map((t) => [t.id, t.name]));
+  const teamNameById = new Map(teams.map((t) => [t.id, t.name]));
   const employeeNumbers = batch.rows.map((r) => r.employeeNumber);
   const existingUsers = await prisma.user.findMany({
     where: { employeeNumber: { in: employeeNumbers } },
@@ -166,7 +173,7 @@ export default async function ErpBatchDetailPage({
     const afterRaw = mergeDefined(existing ?? {}, computed.next);
     cardsByRowId.set(row.id, {
       name: (afterRaw.name as string) ?? row.name,
-      teamName: afterRaw.teamId ? teamNameByIdForCards.get(afterRaw.teamId as string) : null,
+      teamName: afterRaw.teamId ? teamNameById.get(afterRaw.teamId as string) : null,
       position: afterRaw.position as string | null,
       birthDate: afterRaw.birthDate as Date | null,
       hireDate: afterRaw.hireDate as Date | null,
@@ -186,7 +193,6 @@ export default async function ErpBatchDetailPage({
   ).length;
   const needsMappingCount = grouped.get("NEEDS_MAPPING")?.length ?? 0;
 
-  const teamNameById = new Map(teams.map((t) => [t.id, t.name]));
   const teamDeltas = new Map<string, { adds: string[]; removes: string[] }>();
   for (const row of batch.rows) {
     if (row.status !== "NEW" && row.status !== "CHANGED") continue;
@@ -349,7 +355,7 @@ export default async function ErpBatchDetailPage({
                       {(status === "NEW" || status === "CHANGED" || status === "TERMINATION") && (
                         <div>
                           <p className="mb-1 text-xs font-medium text-slate-500">바뀌는 항목</p>
-                          <DiffTable diff={(row.diff as FieldDiff[] | null) ?? []} />
+                          <DiffTable diff={(row.diff as FieldDiff[] | null) ?? []} teamNameById={teamNameById} />
                         </div>
                       )}
 
