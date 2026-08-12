@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { NoModuleAccess } from "@/components/no-module-access";
-import { loadMappingContext, whichMappingNeeded } from "@/lib/erp-compute";
+import { loadMappingContext, whichMappingNeeded, computeRow, USER_SELECT } from "@/lib/erp-compute";
 import type { RawErpRow, FieldDiff } from "@/lib/erp-import";
+import { ageInYears, tenureInYears } from "@/lib/hr-analytics";
+import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import {
   ApprovalToggle,
   PositionMappingPicker,
@@ -65,6 +67,60 @@ function DiffTable({ diff }: { diff: FieldDiff[] }) {
   );
 }
 
+function mergeDefined(
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>
+): Record<string, unknown> {
+  const merged = { ...base };
+  for (const [k, v] of Object.entries(patch)) {
+    if (v !== undefined) merged[k] = v;
+  }
+  return merged;
+}
+
+type CardData = {
+  name: string;
+  teamName?: string | null;
+  position?: string | null;
+  birthDate?: Date | null;
+  hireDate?: Date | null;
+};
+
+function EmployeePreviewCard({ label, data, muted }: { label: string; data: CardData; muted?: boolean }) {
+  return (
+    <div
+      className={`min-w-[180px] rounded-lg border p-3 ${
+        muted ? "border-slate-200 bg-slate-50 opacity-70" : "border-brand-green bg-white"
+      }`}
+    >
+      <p className="mb-1 text-xs text-slate-400">{label}</p>
+      <p className="text-sm font-medium">{data.name}</p>
+      <div className="mt-1.5 flex flex-wrap gap-1">
+        {data.teamName && (
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+            {data.teamName}
+          </span>
+        )}
+        {data.position && (
+          <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-xs font-medium text-brand-green-dark">
+            {POSITION_LABEL[data.position as Position] ?? data.position}
+          </span>
+        )}
+        {data.birthDate && (
+          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+            만 {ageInYears(data.birthDate)}세
+          </span>
+        )}
+        {data.hireDate && (
+          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+            근속 {tenureInYears(data.hireDate).toFixed(1)}년
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default async function ErpBatchDetailPage({
   params,
 }: {
@@ -92,6 +148,34 @@ export default async function ErpBatchDetailPage({
       select: { id: true, name: true, businessUnit: true, division: true },
     }),
   ]);
+
+  const teamNameByIdForCards = new Map(teams.map((t) => [t.id, t.name]));
+  const employeeNumbers = batch.rows.map((r) => r.employeeNumber);
+  const existingUsers = await prisma.user.findMany({
+    where: { employeeNumber: { in: employeeNumbers } },
+    select: { ...USER_SELECT, employeeNumber: true },
+  });
+  const existingByEmpNo = new Map(existingUsers.map((u) => [u.employeeNumber, u]));
+
+  const cardsByRowId = new Map<string, { before: CardData | null; after: CardData }>();
+  for (const row of batch.rows) {
+    if (row.status !== "NEW" && row.status !== "CHANGED") continue;
+    const existing = existingByEmpNo.get(row.employeeNumber) ?? null;
+    const computed = computeRow(row.rawData as RawErpRow, ctx, existing);
+    if (!computed.next) continue;
+    const afterRaw = mergeDefined(existing ?? {}, computed.next);
+    const toCard = (u: Record<string, unknown>): CardData => ({
+      name: (u.name as string) ?? row.name,
+      teamName: u.teamId ? teamNameByIdForCards.get(u.teamId as string) : null,
+      position: u.position as string | null,
+      birthDate: u.birthDate as Date | null,
+      hireDate: u.hireDate as Date | null,
+    });
+    cardsByRowId.set(row.id, {
+      before: existing ? toCard(existing) : null,
+      after: toCard(afterRaw),
+    });
+  }
 
   const grouped = new Map<string, typeof batch.rows>();
   for (const status of STATUS_ORDER) grouped.set(status, []);
@@ -225,8 +309,33 @@ export default async function ErpBatchDetailPage({
                           );
                         })()}
 
+                      {(status === "NEW" || status === "CHANGED") &&
+                        cardsByRowId.get(row.id) &&
+                        (() => {
+                          const cards = cardsByRowId.get(row.id)!;
+                          return (
+                            <div className="flex flex-wrap items-center gap-2">
+                              {cards.before && (
+                                <>
+                                  <EmployeePreviewCard label="변경 전" data={cards.before} muted />
+                                  <span className="text-slate-300">→</span>
+                                </>
+                              )}
+                              <EmployeePreviewCard
+                                label={status === "NEW" ? "신규 생성" : "변경 후"}
+                                data={cards.after}
+                              />
+                            </div>
+                          );
+                        })()}
+
                       {(status === "NEW" || status === "CHANGED" || status === "TERMINATION") && (
-                        <DiffTable diff={(row.diff as FieldDiff[] | null) ?? []} />
+                        <details className="text-sm">
+                          <summary className="cursor-pointer text-xs text-slate-400">항목별 상세 보기</summary>
+                          <div className="mt-1">
+                            <DiffTable diff={(row.diff as FieldDiff[] | null) ?? []} />
+                          </div>
+                        </details>
                       )}
 
                       {status === "ERROR" && (

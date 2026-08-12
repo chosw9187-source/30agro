@@ -72,6 +72,8 @@ export type RowComputation = {
   diff: FieldDiff[];
   errorMessage?: string;
   name: string;
+  /** NEW/CHANGED/UNCHANGED일 때만 채워짐 — 검토 화면의 미리보기 카드를 만드는 데 쓰인다. */
+  next?: Record<string, unknown>;
 };
 
 /**
@@ -129,8 +131,8 @@ export function computeRow(
   };
 
   const diff = computeDiff(existing, next);
-  if (!existing) return { status: "NEW", diff, name };
-  return { status: diff.length > 0 ? "CHANGED" : "UNCHANGED", diff, name };
+  if (!existing) return { status: "NEW", diff, name, next };
+  return { status: diff.length > 0 ? "CHANGED" : "UNCHANGED", diff, name, next };
 }
 
 /** NEEDS_MAPPING 행이 직책/직위 때문인지 팀명 때문인지(혹은 둘 다인지) 판별. */
