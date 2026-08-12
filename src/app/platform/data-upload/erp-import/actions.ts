@@ -205,16 +205,24 @@ type ApplyResult = {
   terminated: number;
   skippedStale: string[];
   errors: string[];
+  dryRun: boolean;
 };
 
+/** dryRun 모드에서 실제 반영 로직을 다 실행한 뒤 일부러 던져서 트랜잭션을 롤백시키는 표식. */
+class DryRunRollback extends Error {}
+
 /**
- * 승인된 행만 실제 User/Team 데이터에 반영한다. 미리보기 이후 시간이
- * 지났을 수 있으므로, 반영 직전에 각 행을 다시 계산해서 그 사이 관리자가
- * 수동으로 값을 바꿔놓았다면(미리보기 당시의 "이전값"과 지금 DB 값이
- * 다르면) 그 행은 건너뛰고 별도로 알려준다 — ERP가 수동 수정을 덮어쓰지
- * 않도록.
+ * 승인된 행만 실제 User/Team 데이터에 반영한다. dryRun=true면 똑같은 로직을
+ * 그대로 실행하되 트랜잭션을 끝에서 항상 롤백해서, 실제로는 아무것도
+ * 저장되지 않는다 — 다른 직원에게 노출되기 전에 "반영하면 어떻게 되는지"를
+ * 안전하게 테스트해볼 수 있게 하기 위함.
+ *
+ * 미리보기 이후 시간이 지났을 수 있으므로, 반영 직전에 각 행을 다시
+ * 계산해서 그 사이 관리자가 수동으로 값을 바꿔놓았다면(미리보기 당시의
+ * "이전값"과 지금 DB 값이 다르면) 그 행은 건너뛰고 별도로 알려준다 — ERP가
+ * 수동 수정을 덮어쓰지 않도록.
  */
-export async function applyErpBatch(batchId: string): Promise<ApplyResult> {
+export async function applyErpBatch(batchId: string, dryRun = false): Promise<ApplyResult> {
   await requireRole("ADMIN");
 
   const batch = await prisma.erpImportBatch.findUnique({
@@ -222,109 +230,130 @@ export async function applyErpBatch(batchId: string): Promise<ApplyResult> {
     include: { rows: { where: { approved: true } } },
   });
   if (!batch || batch.status !== "PENDING_REVIEW") {
-    return { created: 0, updated: 0, terminated: 0, skippedStale: [], errors: ["이미 처리된 배치입니다."] };
+    return {
+      created: 0,
+      updated: 0,
+      terminated: 0,
+      skippedStale: [],
+      errors: ["이미 처리된 배치입니다."],
+      dryRun,
+    };
   }
 
   const ctx = await loadMappingContext();
-  const result: ApplyResult = { created: 0, updated: 0, terminated: 0, skippedStale: [], errors: [] };
+  const result: ApplyResult = { created: 0, updated: 0, terminated: 0, skippedStale: [], errors: [], dryRun };
 
-  for (const row of batch.rows) {
-    if (row.status !== "NEW" && row.status !== "CHANGED" && row.status !== "TERMINATION") continue;
+  try {
+    await prisma.$transaction(
+      async (tx) => {
+        for (const row of batch.rows) {
+          if (row.status !== "NEW" && row.status !== "CHANGED" && row.status !== "TERMINATION") continue;
 
-    const raw = row.rawData as RawErpRow;
-    const existing = await prisma.user.findUnique({
-      where: { employeeNumber: row.employeeNumber },
-      select: { ...USER_SELECT, employeeNumber: true },
-    });
-    const fresh = computeRow(raw, ctx, existing ?? null);
+          const raw = row.rawData as RawErpRow;
+          const existing = await tx.user.findUnique({
+            where: { employeeNumber: row.employeeNumber },
+            select: { ...USER_SELECT, employeeNumber: true },
+          });
+          const fresh = computeRow(raw, ctx, existing ?? null);
 
-    const originalDiff = (row.diff as FieldDiff[] | null) ?? [];
-    const staleField = originalDiff.find(
-      (d) =>
-        existing &&
-        normalizeForCompare((existing as unknown as Record<string, unknown>)[d.field]) !==
-          normalizeForCompare(d.before)
+          const originalDiff = (row.diff as FieldDiff[] | null) ?? [];
+          const staleField = originalDiff.find(
+            (d) =>
+              existing &&
+              normalizeForCompare((existing as unknown as Record<string, unknown>)[d.field]) !==
+                normalizeForCompare(d.before)
+          );
+          if (staleField && (fresh.status === "CHANGED" || fresh.status === "TERMINATION")) {
+            result.skippedStale.push(
+              `${row.name}(${row.employeeNumber}): ${staleField.label}이(가) 미리보기 이후 변경됨`
+            );
+            continue;
+          }
+          if (fresh.status === "NEEDS_MAPPING" || fresh.status === "UNCHANGED" || fresh.status === "SKIPPED") {
+            continue;
+          }
+
+          try {
+            if (fresh.status === "TERMINATION") {
+              if (!existing) continue;
+              const terminationDate =
+                fresh.diff.find((d) => d.field === "terminationDate")?.after ?? new Date();
+              await tx.user.update({
+                where: { id: existing.id },
+                data: { terminationDate: terminationDate as Date },
+              });
+              await clearLeaderIfDeparting(tx, existing.id);
+              result.terminated++;
+              continue;
+            }
+
+            const t = transformErpRow(raw);
+            const posResult = resolvePosition(t.positionRawKey, ctx.positionMap);
+            const teamResult = resolveTeam(t.teamRawKey, ctx.teamsByName, ctx.teamMap);
+            const teamInfo = teamResult.teamId ? ctx.teamsById.get(teamResult.teamId) : null;
+            const position = posResult.position;
+
+            const data = {
+              name: t.name,
+              gender: t.gender,
+              birthDate: t.birthDate,
+              hireDate: t.hireDate,
+              terminationDate: null,
+              employmentType: t.employmentType,
+              jobGrade: t.jobGrade,
+              jobFamily: t.jobFamily,
+              educationLevel: t.educationLevel,
+              school: t.school,
+              major: t.major,
+              degree: t.degree,
+              teamId: teamResult.teamId,
+              ...(teamInfo ? { businessUnit: teamInfo.businessUnit, division: teamInfo.division } : {}),
+              ...(position ? { position } : {}),
+              ...(t.email ? { email: t.email } : {}),
+            };
+
+            let userId: string;
+            if (existing) {
+              await tx.user.update({ where: { id: existing.id }, data });
+              userId = existing.id;
+              result.updated++;
+            } else {
+              const passwordHash = await bcrypt.hash(row.employeeNumber, 10);
+              const created = await tx.user.create({
+                data: {
+                  ...data,
+                  employeeNumber: row.employeeNumber,
+                  email: t.email ?? null,
+                  passwordHash,
+                  role: "EMPLOYEE",
+                },
+              });
+              userId = created.id;
+              result.created++;
+            }
+
+            if (position === "TEAM_LEADER" && teamResult.teamId) {
+              await reassignTeamLeader(tx, teamResult.teamId, userId);
+            }
+          } catch (e) {
+            result.errors.push(`${row.name}(${row.employeeNumber}): ${e instanceof Error ? e.message : "반영 실패"}`);
+          }
+        }
+
+        if (dryRun) {
+          throw new DryRunRollback();
+        }
+        await tx.erpImportBatch.update({
+          where: { id: batchId },
+          data: { status: "APPLIED", appliedAt: new Date() },
+        });
+      },
+      { timeout: 30_000 }
     );
-    if (staleField && (fresh.status === "CHANGED" || fresh.status === "TERMINATION")) {
-      result.skippedStale.push(`${row.name}(${row.employeeNumber}): ${staleField.label}이(가) 미리보기 이후 변경됨`);
-      continue;
-    }
-    if (fresh.status === "NEEDS_MAPPING" || fresh.status === "UNCHANGED" || fresh.status === "SKIPPED") {
-      continue;
-    }
-
-    try {
-      if (fresh.status === "TERMINATION") {
-        if (!existing) continue;
-        const terminationDate =
-          fresh.diff.find((d) => d.field === "terminationDate")?.after ?? new Date();
-        await prisma.user.update({
-          where: { id: existing.id },
-          data: { terminationDate: terminationDate as Date },
-        });
-        await clearLeaderIfDeparting(existing.id);
-        result.terminated++;
-        continue;
-      }
-
-      const t = transformErpRow(raw);
-      const posResult = resolvePosition(t.positionRawKey, ctx.positionMap);
-      const teamResult = resolveTeam(t.teamRawKey, ctx.teamsByName, ctx.teamMap);
-      const teamInfo = teamResult.teamId ? ctx.teamsById.get(teamResult.teamId) : null;
-      const position = posResult.position;
-
-      const data = {
-        name: t.name,
-        gender: t.gender,
-        birthDate: t.birthDate,
-        hireDate: t.hireDate,
-        terminationDate: null,
-        employmentType: t.employmentType,
-        jobGrade: t.jobGrade,
-        jobFamily: t.jobFamily,
-        educationLevel: t.educationLevel,
-        school: t.school,
-        major: t.major,
-        degree: t.degree,
-        teamId: teamResult.teamId,
-        ...(teamInfo ? { businessUnit: teamInfo.businessUnit, division: teamInfo.division } : {}),
-        ...(position ? { position } : {}),
-        ...(t.email ? { email: t.email } : {}),
-      };
-
-      let userId: string;
-      if (existing) {
-        await prisma.user.update({ where: { id: existing.id }, data });
-        userId = existing.id;
-        result.updated++;
-      } else {
-        const passwordHash = await bcrypt.hash(row.employeeNumber, 10);
-        const created = await prisma.user.create({
-          data: {
-            ...data,
-            employeeNumber: row.employeeNumber,
-            email: t.email ?? null,
-            passwordHash,
-            role: "EMPLOYEE",
-          },
-        });
-        userId = created.id;
-        result.created++;
-      }
-
-      if (position === "TEAM_LEADER" && teamResult.teamId) {
-        await reassignTeamLeader(teamResult.teamId, userId);
-      }
-    } catch (e) {
-      result.errors.push(`${row.name}(${row.employeeNumber}): ${e instanceof Error ? e.message : "반영 실패"}`);
-    }
+  } catch (e) {
+    if (!(e instanceof DryRunRollback)) throw e;
   }
 
-  await prisma.erpImportBatch.update({
-    where: { id: batchId },
-    data: { status: "APPLIED", appliedAt: new Date() },
-  });
-
-  revalidateAffected();
+  if (!dryRun) revalidateAffected();
   return result;
 }

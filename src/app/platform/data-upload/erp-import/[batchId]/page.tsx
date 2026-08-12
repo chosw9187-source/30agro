@@ -126,13 +126,18 @@ export default async function ErpBatchDetailPage({
 
       {batch.status === "PENDING_REVIEW" && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-4">
+          <p className="text-sm text-slate-500">
+            &ldquo;테스트 반영&rdquo;은 실제 반영과 완전히 동일한 로직을 실행하지만 끝에서 항상 취소되어
+            데이터베이스에 저장되지 않습니다 — 다른 직원에게 노출되지 않고 결과만 확인할 수 있습니다.
+          </p>
           {needsMappingCount > 0 && (
             <p className="text-sm text-amber-700">
               매핑 필요 {needsMappingCount}건이 남아있습니다. 먼저 지정해야 해당 행이 반영 대상에 포함됩니다.
             </p>
           )}
-          <div className="ml-auto flex gap-2">
+          <div className="ml-auto flex flex-wrap items-start gap-2">
             <DiscardBatchButton batchId={batch.id} />
+            <ApplyBatchButton batchId={batch.id} count={approvedActionableCount} dryRun />
             <ApplyBatchButton batchId={batch.id} count={approvedActionableCount} />
           </div>
         </div>

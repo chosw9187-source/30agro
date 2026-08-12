@@ -170,7 +170,7 @@ export async function importUsersFromExcel(
       });
 
       if (position === "TEAM_LEADER" && teamId) {
-        await reassignTeamLeader(teamId, userId);
+        await reassignTeamLeader(prisma, teamId, userId);
       }
     } catch {
       errors.push(`${rowNum}행: 저장 실패 (이메일 또는 사번이 다른 사용자와 중복될 수 있습니다).`);

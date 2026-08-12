@@ -153,7 +153,15 @@ export function TeamMappingPicker({
   );
 }
 
-export function ApplyBatchButton({ batchId, count }: { batchId: string; count: number }) {
+export function ApplyBatchButton({
+  batchId,
+  count,
+  dryRun = false,
+}: {
+  batchId: string;
+  count: number;
+  dryRun?: boolean;
+}) {
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<string | null>(null);
   const router = useRouter();
@@ -164,19 +172,33 @@ export function ApplyBatchButton({ batchId, count }: { batchId: string; count: n
         type="button"
         disabled={isPending || count === 0}
         onClick={() => {
-          if (!window.confirm(`승인된 ${count}건을 실제 직원 데이터에 반영할까요?`)) return;
+          if (
+            !dryRun &&
+            !window.confirm(`승인된 ${count}건을 실제 직원 데이터에 반영할까요? 다른 직원에게도 즉시 노출됩니다.`)
+          )
+            return;
           startTransition(async () => {
-            const r = await applyErpBatch(batchId);
+            const r = await applyErpBatch(batchId, dryRun);
             const parts = [`생성 ${r.created}`, `수정 ${r.updated}`, `퇴직전환 ${r.terminated}`];
             if (r.skippedStale.length > 0) parts.push(`건너뜀(변경됨) ${r.skippedStale.length}`);
             if (r.errors.length > 0) parts.push(`오류 ${r.errors.length}`);
-            setResult(parts.join(" · "));
-            router.refresh();
+            setResult((dryRun ? "[테스트, 저장 안 됨] " : "") + parts.join(" · "));
+            if (!dryRun) router.refresh();
           });
         }}
-        className="rounded bg-brand-green px-4 py-2 text-sm text-white hover:bg-brand-green-dark disabled:opacity-50"
+        className={
+          dryRun
+            ? "rounded border border-brand-green px-4 py-2 text-sm text-brand-green-dark hover:bg-brand-green-light/40 disabled:opacity-50"
+            : "rounded bg-brand-green px-4 py-2 text-sm text-white hover:bg-brand-green-dark disabled:opacity-50"
+        }
       >
-        {isPending ? "반영 중..." : `승인된 ${count}건 반영`}
+        {isPending
+          ? dryRun
+            ? "테스트 중..."
+            : "반영 중..."
+          : dryRun
+            ? `테스트 반영 (저장 안 함, ${count}건)`
+            : `승인된 ${count}건 반영`}
       </button>
       {result && <p className="text-xs text-slate-500">{result}</p>}
     </div>
