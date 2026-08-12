@@ -484,6 +484,7 @@ enum ErpBatchStatus {
   PENDING_REVIEW
   APPLIED
   DISCARDED
+  ROLLED_BACK
 }
 
 enum ErpRowStatus {
@@ -510,11 +511,17 @@ model ErpImportBatch {
   totalRows    Int
   createdAt    DateTime       @default(now())
   appliedAt    DateTime?
+  rolledBackAt DateTime?
 
   rows ErpImportRow[]
 }
 
-/** 배치 내 행 단위 원본 데이터 + 계산된 변경 diff + 승인 여부. */
+/**
+ * 배치 내 행 단위 원본 데이터 + 계산된 변경 diff + 승인 여부.
+ * appliedOutcome/appliedUserId는 실제 반영 시 이 행이 어떤 User에게
+ * 무엇을 했는지 기록 — 되돌리기(rollbackErpBatch)가 diff의 이전값으로
+ * 정확히 복구할 대상을 찾는 데 쓰인다.
+ */
 model ErpImportRow {
   id             String         @id @default(cuid())
   batchId        String
@@ -526,6 +533,8 @@ model ErpImportRow {
   diff           Json?
   errorMessage   String?
   approved       Boolean        @default(true)
+  appliedOutcome String?
+  appliedUserId  String?
 
   @@index([batchId])
 }

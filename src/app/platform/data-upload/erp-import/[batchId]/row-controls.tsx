@@ -11,6 +11,7 @@ import {
   createTeamAndMapErp,
   applyErpBatch,
   discardBatch,
+  rollbackErpBatch,
 } from "../actions";
 
 export function ApprovalToggle({ rowId, approved }: { rowId: string; approved: boolean }) {
@@ -221,5 +222,42 @@ export function DiscardBatchButton({ batchId }: { batchId: string }) {
     >
       폐기
     </button>
+  );
+}
+
+export function RollbackBatchButton({ batchId }: { batchId: string }) {
+  const [isPending, startTransition] = useTransition();
+  const [result, setResult] = useState<string | null>(null);
+  const router = useRouter();
+
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() => {
+          if (
+            !window.confirm(
+              "이 배치를 되돌릴까요? 변경/퇴직전환 항목은 이전 값으로 복구됩니다. 단, 신규 생성된 사람과 팀장 교체 관련 권한 변경은 자동으로 되돌려지지 않으니 목록으로 따로 확인해야 합니다."
+            )
+          )
+            return;
+          startTransition(async () => {
+            const r = await rollbackErpBatch(batchId);
+            const parts = [`복구 ${r.restored}건`];
+            if (r.createdNeedsReview.length > 0) {
+              parts.push(`신규 생성분 확인 필요 ${r.createdNeedsReview.length}건: ${r.createdNeedsReview.join(", ")}`);
+            }
+            if (r.errors.length > 0) parts.push(`오류 ${r.errors.length}`);
+            setResult(parts.join(" · "));
+            router.refresh();
+          });
+        }}
+        className="rounded border border-rose-300 px-4 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+      >
+        {isPending ? "되돌리는 중..." : "이 배치 되돌리기"}
+      </button>
+      {result && <p className="text-xs text-slate-500">{result}</p>}
+    </div>
   );
 }

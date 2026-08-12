@@ -267,6 +267,12 @@ export async function applyErpBatch(batchId: string, dryRun = false): Promise<Ap
             result.skippedStale.push(
               `${row.name}(${row.employeeNumber}): ${staleField.label}이(가) 미리보기 이후 변경됨`
             );
+            if (!dryRun) {
+              await tx.erpImportRow.update({
+                where: { id: row.id },
+                data: { appliedOutcome: "SKIPPED_STALE" },
+              });
+            }
             continue;
           }
           if (fresh.status === "NEEDS_MAPPING" || fresh.status === "UNCHANGED" || fresh.status === "SKIPPED") {
@@ -284,6 +290,12 @@ export async function applyErpBatch(batchId: string, dryRun = false): Promise<Ap
               });
               await clearLeaderIfDeparting(tx, existing.id);
               result.terminated++;
+              if (!dryRun) {
+                await tx.erpImportRow.update({
+                  where: { id: row.id },
+                  data: { appliedOutcome: "TERMINATED", appliedUserId: existing.id },
+                });
+              }
               continue;
             }
 
@@ -313,9 +325,11 @@ export async function applyErpBatch(batchId: string, dryRun = false): Promise<Ap
             };
 
             let userId: string;
+            let outcome: "CREATED" | "UPDATED";
             if (existing) {
               await tx.user.update({ where: { id: existing.id }, data });
               userId = existing.id;
+              outcome = "UPDATED";
               result.updated++;
             } else {
               const passwordHash = await bcrypt.hash(row.employeeNumber, 10);
@@ -329,14 +343,28 @@ export async function applyErpBatch(batchId: string, dryRun = false): Promise<Ap
                 },
               });
               userId = created.id;
+              outcome = "CREATED";
               result.created++;
             }
 
             if (position === "TEAM_LEADER" && teamResult.teamId) {
               await reassignTeamLeader(tx, teamResult.teamId, userId);
             }
+
+            if (!dryRun) {
+              await tx.erpImportRow.update({
+                where: { id: row.id },
+                data: { appliedOutcome: outcome, appliedUserId: userId },
+              });
+            }
           } catch (e) {
             result.errors.push(`${row.name}(${row.employeeNumber}): ${e instanceof Error ? e.message : "반영 실패"}`);
+            if (!dryRun) {
+              await tx.erpImportRow.update({
+                where: { id: row.id },
+                data: { appliedOutcome: "ERROR" },
+              });
+            }
           }
         }
 
@@ -355,5 +383,80 @@ export async function applyErpBatch(batchId: string, dryRun = false): Promise<Ap
   }
 
   if (!dryRun) revalidateAffected();
+  return result;
+}
+
+const DATE_FIELDS = new Set(["birthDate", "hireDate", "terminationDate"]);
+
+/** rawData/diff는 JSON 왕복을 거쳐 날짜가 ISO 문자열로 저장돼있어 Date로 복원해야 한다. */
+function coerceFieldValue(field: string, value: unknown): unknown {
+  if (value === null || value === undefined) return null;
+  if (DATE_FIELDS.has(field)) {
+    const d = new Date(value as string);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return value;
+}
+
+type RollbackResult = {
+  restored: number;
+  createdNeedsReview: string[];
+  errors: string[];
+};
+
+/**
+ * 반영된(APPLIED) 배치를 되돌린다. 변경/퇴직전환 행은 diff에 저장해둔
+ * "이전값"으로 필드를 정확히 복구한다. 신규 생성된 사람은 삭제가 더 위험한
+ * 동작이라 자동으로 되돌리지 않고, 확인이 필요한 목록으로만 알려준다.
+ *
+ * 주의: 팀장 교체로 인한 역할(EVALUATOR) 승격/강등이나 팀 leaderId 변경
+ * 같은 부수 효과는 자동으로 되돌리지 않는다 — 팀장 관련 변경이 있었다면
+ * 되돌리기 후 권한 매트릭스/팀 관리에서 별도로 확인이 필요하다.
+ */
+export async function rollbackErpBatch(batchId: string): Promise<RollbackResult> {
+  await requireRole("ADMIN");
+
+  const batch = await prisma.erpImportBatch.findUnique({
+    where: { id: batchId },
+    include: { rows: true },
+  });
+  if (!batch || batch.status !== "APPLIED") {
+    return { restored: 0, createdNeedsReview: [], errors: ["되돌릴 수 없는 배치입니다."] };
+  }
+
+  const result: RollbackResult = { restored: 0, createdNeedsReview: [], errors: [] };
+
+  await prisma.$transaction(
+    async (tx) => {
+      for (const row of batch.rows) {
+        if (row.appliedOutcome === "CREATED" && row.appliedUserId) {
+          result.createdNeedsReview.push(`${row.name}(${row.employeeNumber})`);
+          continue;
+        }
+        if ((row.appliedOutcome === "UPDATED" || row.appliedOutcome === "TERMINATED") && row.appliedUserId) {
+          const diff = (row.diff as FieldDiff[] | null) ?? [];
+          if (diff.length === 0) continue;
+          const restoreData: Record<string, unknown> = {};
+          for (const d of diff) {
+            restoreData[d.field] = coerceFieldValue(d.field, d.before);
+          }
+          try {
+            await tx.user.update({ where: { id: row.appliedUserId }, data: restoreData });
+            result.restored++;
+          } catch (e) {
+            result.errors.push(`${row.name}(${row.employeeNumber}): ${e instanceof Error ? e.message : "복구 실패"}`);
+          }
+        }
+      }
+
+      await tx.erpImportBatch.update({
+        where: { id: batchId },
+        data: { status: "ROLLED_BACK", rolledBackAt: new Date() },
+      });
+    },
+    { timeout: 30_000 }
+  );
+
+  revalidateAffected();
   return result;
 }

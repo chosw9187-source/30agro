@@ -10,12 +10,14 @@ const STATUS_LABEL: Record<string, string> = {
   PENDING_REVIEW: "검토중",
   APPLIED: "반영완료",
   DISCARDED: "폐기됨",
+  ROLLED_BACK: "되돌려짐",
 };
 
 const STATUS_BADGE: Record<string, string> = {
   PENDING_REVIEW: "bg-amber-100 text-amber-700",
   APPLIED: "bg-emerald-100 text-emerald-700",
   DISCARDED: "bg-slate-100 text-slate-500",
+  ROLLED_BACK: "bg-rose-100 text-rose-700",
 };
 
 export default async function ErpImportIndexPage() {

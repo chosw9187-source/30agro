@@ -11,6 +11,7 @@ import {
   TeamMappingPicker,
   ApplyBatchButton,
   DiscardBatchButton,
+  RollbackBatchButton,
 } from "./row-controls";
 
 export const dynamic = "force-dynamic";
@@ -104,6 +105,25 @@ export default async function ErpBatchDetailPage({
   ).length;
   const needsMappingCount = grouped.get("NEEDS_MAPPING")?.length ?? 0;
 
+  const teamNameById = new Map(teams.map((t) => [t.id, t.name]));
+  const teamDeltas = new Map<string, { adds: string[]; removes: string[] }>();
+  for (const row of batch.rows) {
+    if (row.status !== "NEW" && row.status !== "CHANGED") continue;
+    const diff = (row.diff as FieldDiff[] | null) ?? [];
+    const teamDiff = diff.find((d) => d.field === "teamId");
+    if (!teamDiff) continue;
+    const before = teamDiff.before as string | null;
+    const after = teamDiff.after as string | null;
+    if (after) {
+      if (!teamDeltas.has(after)) teamDeltas.set(after, { adds: [], removes: [] });
+      teamDeltas.get(after)!.adds.push(row.name);
+    }
+    if (before) {
+      if (!teamDeltas.has(before)) teamDeltas.set(before, { adds: [], removes: [] });
+      teamDeltas.get(before)!.removes.push(row.name);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -118,10 +138,35 @@ export default async function ErpBatchDetailPage({
       </div>
 
       {batch.status !== "PENDING_REVIEW" && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-          이 배치는 이미 {batch.status === "APPLIED" ? "반영완료" : "폐기됨"} 상태입니다.
-          {batch.appliedAt && ` (반영: ${batch.appliedAt.toLocaleString("ko-KR")})`}
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          <p>
+            이 배치는 이미{" "}
+            {batch.status === "APPLIED" ? "반영완료" : batch.status === "ROLLED_BACK" ? "되돌려짐" : "폐기됨"}{" "}
+            상태입니다.
+            {batch.appliedAt && ` (반영: ${batch.appliedAt.toLocaleString("ko-KR")})`}
+            {batch.rolledBackAt && ` (되돌림: ${batch.rolledBackAt.toLocaleString("ko-KR")})`}
+          </p>
+          {batch.status === "APPLIED" && <RollbackBatchButton batchId={batch.id} />}
         </div>
+      )}
+
+      {batch.status === "PENDING_REVIEW" && teamDeltas.size > 0 && (
+        <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <h2 className="mb-3 font-medium">팀 구성 변경 요약</h2>
+          <div className="flex flex-col gap-2">
+            {[...teamDeltas.entries()].map(([teamId, delta]) => (
+              <div key={teamId} className="rounded border border-slate-100 p-3 text-sm">
+                <p className="font-medium">{teamNameById.get(teamId) ?? "알 수 없는 팀"}</p>
+                {delta.adds.length > 0 && (
+                  <p className="text-emerald-700">영입: {delta.adds.join(", ")}</p>
+                )}
+                {delta.removes.length > 0 && (
+                  <p className="text-rose-700">이탈: {delta.removes.join(", ")}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {batch.status === "PENDING_REVIEW" && (
