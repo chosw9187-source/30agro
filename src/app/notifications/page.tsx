@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { PlatformShell } from "@/components/platform-shell";
+import { formatKSTDateTime } from "@/lib/format-kst";
 
 const typeLabel: Record<string, string> = {
   SELF_ASSESSMENT_SUBMITTED: "자기평가 제출",
@@ -50,7 +51,7 @@ export default async function NotificationsPage() {
                   <p className="mt-1">{n.message}</p>
                 </div>
                 <p className="whitespace-nowrap text-sm text-slate-500">
-                  {new Date(n.createdAt).toLocaleString("ko-KR")}
+                  {formatKSTDateTime(n.createdAt)}
                 </p>
               </div>
             );

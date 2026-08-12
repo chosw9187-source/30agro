@@ -13,6 +13,7 @@ import {
   ageInYears,
   tenureInYears,
 } from "@/lib/hr-analytics";
+import { formatKSTDate } from "@/lib/format-kst";
 
 export const dynamic = "force-dynamic";
 
@@ -378,7 +379,7 @@ function LeaderBanner({
                     근속 {tenureInYears(leader.hireDate).toFixed(1)}년
                   </span>
                   <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-medium text-white/80">
-                    입사 {leader.hireDate.toLocaleDateString("ko-KR")}
+                    입사 {formatKSTDate(leader.hireDate)}
                   </span>
                 </>
               )}

@@ -14,6 +14,7 @@ import {
 import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import { Avatar } from "@/components/avatar";
 import { BackPill } from "@/components/back-pill";
+import { formatKSTDate } from "@/lib/format-kst";
 
 export const dynamic = "force-dynamic";
 
@@ -88,7 +89,7 @@ export default async function TeamOrgDetailPage({
                       근속 {tenureInYears(leader.hireDate).toFixed(1)}년
                     </span>
                     <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs font-medium text-white/80">
-                      입사 {leader.hireDate.toLocaleDateString("ko-KR")}
+                      입사 {formatKSTDate(leader.hireDate)}
                     </span>
                   </>
                 ) : (
@@ -153,7 +154,7 @@ export default async function TeamOrgDetailPage({
                               근속 {tenureInYears(m.hireDate).toFixed(1)}년
                             </span>
                             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-600">
-                              입사 {m.hireDate.toLocaleDateString("ko-KR")}
+                              입사 {formatKSTDate(m.hireDate)}
                             </span>
                           </>
                         ) : (

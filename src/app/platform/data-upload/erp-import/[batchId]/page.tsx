@@ -7,6 +7,7 @@ import { loadMappingContext, whichMappingNeeded, computeRow, USER_SELECT } from 
 import type { RawErpRow, FieldDiff } from "@/lib/erp-import";
 import { ageInYears, tenureInYears } from "@/lib/hr-analytics";
 import { POSITION_LABEL, EXECUTIVE_POSITIONS, type Position } from "@/lib/permission-constants";
+import { formatKSTDate, formatKSTDateTime } from "@/lib/format-kst";
 import {
   ApprovalToggle,
   PositionMappingPicker,
@@ -49,10 +50,10 @@ function formatValue(field: string, v: unknown, teamNameById: Map<string, string
   }
   if (v === null || v === undefined || v === "") return "—";
   if (typeof v === "boolean") return v ? "예" : "아니오";
-  if (v instanceof Date) return v.toLocaleDateString("ko-KR");
+  if (v instanceof Date) return formatKSTDate(v);
   if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v)) {
     const d = new Date(v);
-    if (!Number.isNaN(d.getTime())) return d.toLocaleDateString("ko-KR");
+    if (!Number.isNaN(d.getTime())) return formatKSTDate(d);
   }
   return String(v);
 }
@@ -233,7 +234,7 @@ export default async function ErpBatchDetailPage({
         </Link>
         <h1 className="mt-2 text-2xl font-semibold">ERP 배치 검토</h1>
         <p className="mt-1 text-sm text-slate-500">
-          {batch.fileName} · {batch.uploadedBy.name} 업로드 · {batch.createdAt.toLocaleString("ko-KR")} ·
+          {batch.fileName} · {batch.uploadedBy.name} 업로드 · {formatKSTDateTime(batch.createdAt)} ·
           총 {batch.totalRows}행
         </p>
       </div>
@@ -244,8 +245,8 @@ export default async function ErpBatchDetailPage({
             이 배치는 이미{" "}
             {batch.status === "APPLIED" ? "반영완료" : batch.status === "ROLLED_BACK" ? "되돌려짐" : "폐기됨"}{" "}
             상태입니다.
-            {batch.appliedAt && ` (반영: ${batch.appliedAt.toLocaleString("ko-KR")})`}
-            {batch.rolledBackAt && ` (되돌림: ${batch.rolledBackAt.toLocaleString("ko-KR")})`}
+            {batch.appliedAt && ` (반영: ${formatKSTDateTime(batch.appliedAt)})`}
+            {batch.rolledBackAt && ` (되돌림: ${formatKSTDateTime(batch.rolledBackAt)})`}
           </p>
           {batch.status === "APPLIED" && <RollbackBatchButton batchId={batch.id} />}
           {batch.status === "DISCARDED" && <DeleteBatchButton batchId={batch.id} />}

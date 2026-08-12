@@ -7,6 +7,7 @@ import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { JobFileUploadForm } from "../job-file-upload-form";
 import { isActive } from "@/lib/hr-analytics";
+import { formatKSTDate } from "@/lib/format-kst";
 
 export const dynamic = "force-dynamic";
 
@@ -139,7 +140,7 @@ export default async function JobDescriptionDetailPage({
             </a>
             {jd.fileUpdatedAt && (
               <span className="ml-2 text-slate-400">
-                업데이트: {jd.fileUpdatedAt.toLocaleDateString("ko-KR")}
+                업데이트: {formatKSTDate(jd.fileUpdatedAt)}
               </span>
             )}
           </p>

@@ -1,5 +1,6 @@
 import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import { ageInYears, tenureInYears } from "@/lib/hr-analytics";
+import { formatKSTDate } from "@/lib/format-kst";
 import { Avatar } from "@/components/avatar";
 import {
   deleteEducationRecord,
@@ -55,7 +56,7 @@ export type EmployeeCardData = {
 };
 
 function fmtDate(d: Date | null) {
-  return d ? d.toLocaleDateString("ko-KR") : "-";
+  return d ? formatKSTDate(d) : "-";
 }
 
 function fmtBirthDate(d: Date | null) {

@@ -4,6 +4,7 @@ import { checkModuleAccess, getEmployeeListScopeFilter } from "@/lib/permissions
 import { NoModuleAccess } from "@/components/no-module-access";
 import { POSITIONS, POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import { activePrismaWhere, ageInYears, tenureInYears } from "@/lib/hr-analytics";
+import { formatKSTDate } from "@/lib/format-kst";
 
 export const dynamic = "force-dynamic";
 
@@ -140,7 +141,7 @@ export default async function EmployeeDirectoryPage({
                         근속 {tenureInYears(e.hireDate).toFixed(1)}년
                       </span>
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-600">
-                        입사 {e.hireDate.toLocaleDateString("ko-KR")}
+                        입사 {formatKSTDate(e.hireDate)}
                       </span>
                     </>
                   ) : (

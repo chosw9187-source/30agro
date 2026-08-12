@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { activePrismaWhere } from "@/lib/hr-analytics";
+import { formatKSTDate } from "@/lib/format-kst";
 import {
   createTask,
   deleteTask,
@@ -63,7 +64,7 @@ type TaskWithRelations = {
 };
 
 function fmtDate(d: Date) {
-  return d.toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" });
+  return formatKSTDate(d, { month: "2-digit", day: "2-digit" });
 }
 
 function startOfDay(d: Date) {

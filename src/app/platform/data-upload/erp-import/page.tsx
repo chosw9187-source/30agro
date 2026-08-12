@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { ErpUploadForm } from "./upload-form";
+import { formatKSTDateTime } from "@/lib/format-kst";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +78,7 @@ export default async function ErpImportIndexPage() {
                         href={`/platform/data-upload/erp-import/${b.id}`}
                         className="text-brand-green-dark hover:underline"
                       >
-                        {b.createdAt.toLocaleString("ko-KR")}
+                        {formatKSTDateTime(b.createdAt)}
                       </Link>
                     </td>
                     <td className="py-2 pr-4">{b.fileName}</td>
