@@ -36,10 +36,21 @@ export async function POST(request: Request) {
     );
   }
 
-  const formData = await request.formData();
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return Response.json({ error: "파일이 없습니다." }, { status: 400 });
+  let file: File;
+  try {
+    const formData = await request.formData();
+    const f = formData.get("file");
+    if (!(f instanceof File) || f.size === 0) {
+      return Response.json({ error: "파일이 없습니다." }, { status: 400 });
+    }
+    file = f;
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "요청 본문을 읽는 중 오류가 발생했습니다.";
+    await notifyIfConfigured(
+      "[HR플랫폼] ERP 자동 업로드 실패",
+      `<p>자동 업로드 요청을 처리하지 못했습니다 (파일 전송 형식 문제일 수 있습니다).</p><p>${message}</p>`
+    );
+    return Response.json({ error: message }, { status: 400 });
   }
 
   let result;
