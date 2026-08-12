@@ -13,6 +13,7 @@ import {
   TeamMappingPicker,
   ApplyBatchButton,
   DiscardBatchButton,
+  DeleteBatchButton,
   RollbackBatchButton,
 } from "./row-controls";
 
@@ -247,6 +248,7 @@ export default async function ErpBatchDetailPage({
             {batch.rolledBackAt && ` (되돌림: ${batch.rolledBackAt.toLocaleString("ko-KR")})`}
           </p>
           {batch.status === "APPLIED" && <RollbackBatchButton batchId={batch.id} />}
+          {batch.status === "DISCARDED" && <DeleteBatchButton batchId={batch.id} />}
         </div>
       )}
 
@@ -305,6 +307,7 @@ export default async function ErpBatchDetailPage({
             </p>
           )}
           <div className="ml-auto flex flex-wrap items-start gap-2">
+            <DeleteBatchButton batchId={batch.id} />
             <DiscardBatchButton batchId={batch.id} />
             <ApplyBatchButton batchId={batch.id} count={approvedActionableCount} dryRun />
             <ApplyBatchButton batchId={batch.id} count={approvedActionableCount} />

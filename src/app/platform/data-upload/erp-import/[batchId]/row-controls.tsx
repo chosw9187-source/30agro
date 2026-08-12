@@ -11,6 +11,7 @@ import {
   createTeamAndMapErp,
   applyErpBatch,
   discardBatch,
+  deleteErpBatch,
   rollbackErpBatch,
 } from "../actions";
 
@@ -233,6 +234,35 @@ export function DiscardBatchButton({ batchId }: { batchId: string }) {
       className="rounded border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
     >
       폐기
+    </button>
+  );
+}
+
+/**
+ * 폐기와 다르게 이 배치의 원본 데이터를 DB에서 완전히 삭제한다.
+ * 되돌릴 수 없으니, 원본 파일에 민감정보가 섞여 있었던 경우처럼
+ * 데이터 자체를 지워야 할 때만 사용.
+ */
+export function DeleteBatchButton({ batchId }: { batchId: string }) {
+  const [isPending, startTransition] = useTransition();
+  return (
+    <button
+      type="button"
+      disabled={isPending}
+      onClick={() => {
+        if (
+          !window.confirm(
+            "이 배치의 원본 데이터를 DB에서 완전히 삭제할까요? 되돌릴 수 없습니다."
+          )
+        )
+          return;
+        startTransition(() => {
+          deleteErpBatch(batchId);
+        });
+      }}
+      className="rounded border border-red-300 px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+    >
+      완전 삭제
     </button>
   );
 }

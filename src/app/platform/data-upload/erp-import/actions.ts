@@ -165,6 +165,23 @@ export async function discardBatch(batchId: string) {
   redirect("/platform/data-upload/erp-import");
 }
 
+/**
+ * 폐기와 다르게 배치와 그 안의 원본 데이터(rawData)를 DB에서 완전히
+ * 삭제한다. 원본 파일에 실수로 민감정보가 포함됐던 경우처럼, 데이터
+ * 자체를 지워야 할 때 쓴다. 반영완료/되돌림 배치는 되돌리기 이력
+ * 추적을 위해 삭제 대상에서 제외한다.
+ */
+export async function deleteErpBatch(batchId: string) {
+  await requireRole("ADMIN");
+  const batch = await prisma.erpImportBatch.findUnique({ where: { id: batchId }, select: { status: true } });
+  if (!batch || (batch.status !== "PENDING_REVIEW" && batch.status !== "DISCARDED")) {
+    return;
+  }
+  await prisma.erpImportBatch.delete({ where: { id: batchId } });
+  revalidatePath("/platform/data-upload/erp-import");
+  redirect("/platform/data-upload/erp-import");
+}
+
 type ApplyResult = {
   created: number;
   updated: number;
