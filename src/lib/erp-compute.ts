@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import {
+  parseErpWorkbook,
   transformErpRow,
   resolvePosition,
   resolveTeam,
   computeDiff,
+  toJsonSafe,
   type RawErpRow,
   type FieldDiff,
 } from "@/lib/erp-import";
@@ -147,4 +149,71 @@ export function whichMappingNeeded(
     positionRawKey: posResult.needsMapping ? t.positionRawKey : undefined,
     teamRawKey: teamResult.needsMapping ? t.teamRawKey : undefined,
   };
+}
+
+export type CreateBatchResult = {
+  batchId: string;
+  totalRows: number;
+  counts: Record<string, number>;
+};
+
+/**
+ * ERP 원본 엑셀 버퍼를 파싱해서 검토 대기(PENDING_REVIEW) 배치로 스테이징한다.
+ * 화면에서 올리는 uploadErpBatch(Server Action)와, 로컬 자동 업로드 스크립트가
+ * 부르는 /api/erp-import/auto-upload 둘 다 이 함수 하나를 공유한다 — 어느
+ * 경로로 들어와도 절대 자동으로 반영(applyErpBatch)까지 가지 않고 항상
+ * 검토 대기 상태로만 멈춘다.
+ */
+export async function createErpImportBatch(
+  buffer: Buffer,
+  fileName: string,
+  uploadedById: string
+): Promise<CreateBatchResult> {
+  const rawRows = parseErpWorkbook(buffer);
+  if (rawRows.length === 0) {
+    throw new Error("처리할 행이 없습니다.");
+  }
+
+  const ctx = await loadMappingContext();
+  const employeeNumbers = [...new Set(rawRows.map((r) => (r["사번"] ?? "").trim()).filter(Boolean))];
+  const existingUsersWithNumber = await prisma.user.findMany({
+    where: { employeeNumber: { in: employeeNumbers } },
+    select: { ...USER_SELECT, employeeNumber: true },
+  });
+  const byEmpNo = new Map(existingUsersWithNumber.map((u) => [u.employeeNumber, u]));
+
+  const batch = await prisma.erpImportBatch.create({
+    data: { uploadedById, fileName, totalRows: 0, status: "PENDING_REVIEW" },
+  });
+
+  const rowsToInsert = [];
+  const counts: Record<string, number> = {};
+  for (const raw of rawRows) {
+    const employeeNumber = (raw["사번"] ?? "").trim();
+    const existing = byEmpNo.get(employeeNumber) ?? null;
+    const result = computeRow(raw, ctx, existing);
+    if (result.status === "SKIPPED") continue;
+    counts[result.status] = (counts[result.status] ?? 0) + 1;
+
+    rowsToInsert.push({
+      batchId: batch.id,
+      employeeNumber,
+      name: result.name,
+      status: result.status,
+      rawData: toJsonSafe(raw),
+      diff: result.diff.length > 0 ? toJsonSafe(result.diff) : undefined,
+      errorMessage: result.errorMessage,
+      approved: result.status === "NEW" || result.status === "CHANGED" || result.status === "TERMINATION",
+    });
+  }
+
+  if (rowsToInsert.length > 0) {
+    await prisma.erpImportRow.createMany({ data: rowsToInsert });
+  }
+  await prisma.erpImportBatch.update({
+    where: { id: batch.id },
+    data: { totalRows: rowsToInsert.length },
+  });
+
+  return { batchId: batch.id, totalRows: rowsToInsert.length, counts };
 }

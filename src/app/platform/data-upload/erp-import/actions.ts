@@ -7,7 +7,6 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { reassignTeamLeader, clearLeaderIfDeparting } from "@/lib/team-leader";
 import {
-  parseErpWorkbook,
   transformErpRow,
   resolvePosition,
   resolveTeam,
@@ -17,7 +16,7 @@ import {
   type RawErpRow,
   type FieldDiff,
 } from "@/lib/erp-import";
-import { USER_SELECT, loadMappingContext, computeRow } from "@/lib/erp-compute";
+import { USER_SELECT, loadMappingContext, computeRow, createErpImportBatch } from "@/lib/erp-compute";
 import type { Position } from "@/lib/permission-constants";
 
 function revalidateAffected() {
@@ -45,64 +44,17 @@ export async function uploadErpBatch(
     return "파일을 선택해주세요.";
   }
 
-  let rawRows: RawErpRow[];
+  let batchId: string;
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    rawRows = parseErpWorkbook(buffer);
+    const result = await createErpImportBatch(buffer, file.name, session.user.id);
+    batchId = result.batchId;
   } catch (e) {
     return e instanceof Error ? e.message : "파일을 읽는 중 문제가 발생했습니다.";
   }
 
-  if (rawRows.length === 0) {
-    return "처리할 행이 없습니다.";
-  }
-
-  const ctx = await loadMappingContext();
-  const employeeNumbers = [...new Set(rawRows.map((r) => (r["사번"] ?? "").trim()).filter(Boolean))];
-  const existingUsersWithNumber = await prisma.user.findMany({
-    where: { employeeNumber: { in: employeeNumbers } },
-    select: { ...USER_SELECT, employeeNumber: true },
-  });
-  const byEmpNo = new Map(existingUsersWithNumber.map((u) => [u.employeeNumber, u]));
-
-  const batch = await prisma.erpImportBatch.create({
-    data: {
-      uploadedById: session.user.id,
-      fileName: file.name,
-      totalRows: 0,
-      status: "PENDING_REVIEW",
-    },
-  });
-
-  const rowsToInsert = [];
-  for (const raw of rawRows) {
-    const employeeNumber = (raw["사번"] ?? "").trim();
-    const existing = byEmpNo.get(employeeNumber) ?? null;
-    const result = computeRow(raw, ctx, existing);
-    if (result.status === "SKIPPED") continue;
-
-    rowsToInsert.push({
-      batchId: batch.id,
-      employeeNumber,
-      name: result.name,
-      status: result.status,
-      rawData: toJsonSafe(raw),
-      diff: result.diff.length > 0 ? toJsonSafe(result.diff) : undefined,
-      errorMessage: result.errorMessage,
-      approved: result.status === "NEW" || result.status === "CHANGED" || result.status === "TERMINATION",
-    });
-  }
-
-  if (rowsToInsert.length > 0) {
-    await prisma.erpImportRow.createMany({ data: rowsToInsert });
-  }
-  await prisma.erpImportBatch.update({
-    where: { id: batch.id },
-    data: { totalRows: rowsToInsert.length },
-  });
-
   revalidatePath("/platform/data-upload/erp-import");
-  redirect(`/platform/data-upload/erp-import/${batch.id}`);
+  redirect(`/platform/data-upload/erp-import/${batchId}`);
 }
 
 /**
