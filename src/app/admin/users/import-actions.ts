@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import type { Position } from "@/lib/permissions";
+import { reassignTeamLeader } from "@/lib/team-leader";
 
 type ImportResult = {
   created: number;
@@ -169,11 +170,7 @@ export async function importUsersFromExcel(
       });
 
       if (position === "TEAM_LEADER" && teamId) {
-        await prisma.team.update({ where: { id: teamId }, data: { leaderId: userId } });
-        await prisma.user.updateMany({
-          where: { id: userId, role: "EMPLOYEE" },
-          data: { role: "EVALUATOR" },
-        });
+        await reassignTeamLeader(teamId, userId);
       }
     } catch {
       errors.push(`${rowNum}행: 저장 실패 (이메일 또는 사번이 다른 사용자와 중복될 수 있습니다).`);

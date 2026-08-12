@@ -112,6 +112,7 @@ model User {
   workLogEntries   WorkLogEntry[]
   surveyInvitesCreated SurveyInviteLink[]
   competencyResponses CompetencyAssessmentResponse[]
+  erpImportBatches ErpImportBatch[]
 }
 
 model AppointmentRecord {
@@ -477,4 +478,69 @@ model ModuleUiConfig {
   order      Int     @default(0)
   comingSoon Boolean @default(false)
   hidden     Boolean @default(false)
+}
+
+enum ErpBatchStatus {
+  PENDING_REVIEW
+  APPLIED
+  DISCARDED
+}
+
+enum ErpRowStatus {
+  NEW
+  CHANGED
+  UNCHANGED
+  TERMINATION
+  NEEDS_MAPPING
+  SKIPPED
+  ERROR
+}
+
+/**
+ * ERP 원본 사원명부 일일 업로드 배치. 업로드해도 바로 반영되지 않고
+ * PENDING_REVIEW 상태로 대기 — 관리자가 미리보기에서 확인/매핑 후
+ * 승인한 행만 실제 User/Team 데이터에 반영된다 (applyErpBatch).
+ */
+model ErpImportBatch {
+  id           String         @id @default(cuid())
+  uploadedById String
+  uploadedBy   User           @relation(fields: [uploadedById], references: [id])
+  fileName     String
+  status       ErpBatchStatus @default(PENDING_REVIEW)
+  totalRows    Int
+  createdAt    DateTime       @default(now())
+  appliedAt    DateTime?
+
+  rows ErpImportRow[]
+}
+
+/** 배치 내 행 단위 원본 데이터 + 계산된 변경 diff + 승인 여부. */
+model ErpImportRow {
+  id             String         @id @default(cuid())
+  batchId        String
+  batch          ErpImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  employeeNumber String
+  name           String
+  status         ErpRowStatus
+  rawData        Json
+  diff           Json?
+  errorMessage   String?
+  approved       Boolean        @default(true)
+
+  @@index([batchId])
+}
+
+/**
+ * ERP 원문 값 → 시스템 값 학습형 매핑. field="POSITION"이면
+ * targetValue는 Position enum 문자열, field="TEAM"이면 targetValue는
+ * teamId. 한 번 지정하면 이후 업로드부터 자동 적용된다.
+ */
+model ErpFieldMapping {
+  id          String   @id @default(cuid())
+  field       String
+  rawValue    String
+  targetValue String
+  createdAt   DateTime @default(now())
+
+  @@unique([field, rawValue])
 }

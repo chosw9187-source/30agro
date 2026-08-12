@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { NoModuleAccess } from "@/components/no-module-access";
@@ -31,8 +32,28 @@ export default async function DataUploadPage() {
         </p>
       </div>
 
+      <section className="rounded-lg border border-brand-green bg-brand-green-light/30 p-6">
+        <h2 className="mb-2 text-lg font-medium">ERP 사원명부 연동 (일일 갱신)</h2>
+        <p className="mb-3 text-sm text-slate-600">
+          ERP에서 뽑은 원본 사원명부를 그대로 업로드하면 재직자 기준으로
+          신규/변경/퇴직전환을 자동 분류해서 미리보기로 보여주고, 승인한
+          내용만 반영합니다. 매일 올리는 용도로는 이쪽을 사용하세요.
+        </p>
+        <Link
+          href="/platform/data-upload/erp-import"
+          className="inline-block rounded bg-brand-green px-4 py-2 text-sm text-white hover:bg-brand-green-dark"
+        >
+          ERP 연동 화면으로 이동
+        </Link>
+      </section>
+
       <section className="rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-3 text-lg font-medium">사원명부 일괄 업로드</h2>
+        <p className="mb-2 text-sm text-slate-500">
+          정해진 양식(사번/이름/이메일주소/팀명 등 표준 헤더)에 맞춰 만든
+          엑셀을 즉시 반영할 때 사용하세요. ERP 원본 파일은 위 &ldquo;ERP 사원명부
+          연동&rdquo;을 이용하세요.
+        </p>
         <ImportUsersForm defaultYear={thisYear} />
       </section>
 

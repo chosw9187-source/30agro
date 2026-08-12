@@ -1,0 +1,330 @@
+"use server";
+
+import bcrypt from "bcryptjs";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth-helpers";
+import { reassignTeamLeader, clearLeaderIfDeparting } from "@/lib/team-leader";
+import {
+  parseErpWorkbook,
+  transformErpRow,
+  resolvePosition,
+  resolveTeam,
+  normalizeForCompare,
+  toJsonSafe,
+  TEAM_MAPPING_NONE,
+  type RawErpRow,
+  type FieldDiff,
+} from "@/lib/erp-import";
+import { USER_SELECT, loadMappingContext, computeRow } from "@/lib/erp-compute";
+import type { Position } from "@/lib/permission-constants";
+
+function revalidateAffected() {
+  revalidatePath("/admin/users");
+  revalidatePath("/admin/teams");
+  revalidatePath("/platform");
+  revalidatePath("/platform/employees");
+  revalidatePath("/platform/org-chart");
+  revalidatePath("/platform/org-chart/[teamId]", "page");
+  revalidatePath("/platform/job-management");
+  revalidatePath("/platform/job-management/[teamId]", "page");
+  revalidatePath("/platform/employees/[userId]", "page");
+  revalidatePath("/platform/data-upload/erp-import");
+  revalidatePath("/platform/data-upload/erp-import/[batchId]", "page");
+}
+
+export async function uploadErpBatch(
+  _prevState: string | undefined,
+  formData: FormData
+): Promise<string | undefined> {
+  const session = await requireRole("ADMIN");
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return "파일을 선택해주세요.";
+  }
+
+  let rawRows: RawErpRow[];
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    rawRows = parseErpWorkbook(buffer);
+  } catch (e) {
+    return e instanceof Error ? e.message : "파일을 읽는 중 문제가 발생했습니다.";
+  }
+
+  if (rawRows.length === 0) {
+    return "처리할 행이 없습니다.";
+  }
+
+  const ctx = await loadMappingContext();
+  const employeeNumbers = [...new Set(rawRows.map((r) => (r["사번"] ?? "").trim()).filter(Boolean))];
+  const existingUsersWithNumber = await prisma.user.findMany({
+    where: { employeeNumber: { in: employeeNumbers } },
+    select: { ...USER_SELECT, employeeNumber: true },
+  });
+  const byEmpNo = new Map(existingUsersWithNumber.map((u) => [u.employeeNumber, u]));
+
+  const batch = await prisma.erpImportBatch.create({
+    data: {
+      uploadedById: session.user.id,
+      fileName: file.name,
+      totalRows: 0,
+      status: "PENDING_REVIEW",
+    },
+  });
+
+  const rowsToInsert = [];
+  for (const raw of rawRows) {
+    const employeeNumber = (raw["사번"] ?? "").trim();
+    const existing = byEmpNo.get(employeeNumber) ?? null;
+    const result = computeRow(raw, ctx, existing);
+    if (result.status === "SKIPPED") continue;
+
+    rowsToInsert.push({
+      batchId: batch.id,
+      employeeNumber,
+      name: result.name,
+      status: result.status,
+      rawData: toJsonSafe(raw),
+      diff: result.diff.length > 0 ? toJsonSafe(result.diff) : undefined,
+      errorMessage: result.errorMessage,
+      approved: result.status === "NEW" || result.status === "CHANGED" || result.status === "TERMINATION",
+    });
+  }
+
+  if (rowsToInsert.length > 0) {
+    await prisma.erpImportRow.createMany({ data: rowsToInsert });
+  }
+  await prisma.erpImportBatch.update({
+    where: { id: batch.id },
+    data: { totalRows: rowsToInsert.length },
+  });
+
+  revalidatePath("/platform/data-upload/erp-import");
+  redirect(`/platform/data-upload/erp-import/${batch.id}`);
+}
+
+export async function resolvePositionMapping(batchId: string, rawKey: string, target: Position) {
+  await requireRole("ADMIN");
+  await prisma.erpFieldMapping.upsert({
+    where: { field_rawValue: { field: "POSITION", rawValue: rawKey } },
+    update: { targetValue: target },
+    create: { field: "POSITION", rawValue: rawKey, targetValue: target },
+  });
+  await recomputeBatchMappingRows(batchId);
+}
+
+export async function resolveTeamMapping(
+  batchId: string,
+  rawKey: string,
+  target: string | typeof TEAM_MAPPING_NONE
+) {
+  await requireRole("ADMIN");
+  await prisma.erpFieldMapping.upsert({
+    where: { field_rawValue: { field: "TEAM", rawValue: rawKey } },
+    update: { targetValue: target },
+    create: { field: "TEAM", rawValue: rawKey, targetValue: target },
+  });
+  await recomputeBatchMappingRows(batchId);
+}
+
+export async function createTeamAndMapErp(
+  batchId: string,
+  rawKey: string,
+  name: string,
+  businessUnit: string,
+  division: string
+) {
+  await requireRole("ADMIN");
+  const team = await prisma.team.upsert({
+    where: { name },
+    update: {},
+    create: { name, businessUnit: businessUnit || null, division: division || null },
+  });
+  await prisma.erpFieldMapping.upsert({
+    where: { field_rawValue: { field: "TEAM", rawValue: rawKey } },
+    update: { targetValue: team.id },
+    create: { field: "TEAM", rawValue: rawKey, targetValue: team.id },
+  });
+  await recomputeBatchMappingRows(batchId);
+  revalidatePath("/admin/teams");
+}
+
+/** 매핑을 새로 지정한 뒤, 그 배치의 매핑필요 행들을 다시 분류한다. */
+async function recomputeBatchMappingRows(batchId: string) {
+  const [ctx, rows] = await Promise.all([
+    loadMappingContext(),
+    prisma.erpImportRow.findMany({
+      where: { batchId, status: "NEEDS_MAPPING" },
+    }),
+  ]);
+  if (rows.length === 0) return;
+
+  const employeeNumbers = [...new Set(rows.map((r) => r.employeeNumber))];
+  const existingUsers = await prisma.user.findMany({
+    where: { employeeNumber: { in: employeeNumbers } },
+    select: { ...USER_SELECT, employeeNumber: true },
+  });
+  const byEmpNo = new Map(existingUsers.map((u) => [u.employeeNumber, u]));
+
+  for (const row of rows) {
+    const raw = row.rawData as RawErpRow;
+    const existing = byEmpNo.get(row.employeeNumber) ?? null;
+    const result = computeRow(raw, ctx, existing);
+    await prisma.erpImportRow.update({
+      where: { id: row.id },
+      data: {
+        status: result.status,
+        diff: result.diff.length > 0 ? toJsonSafe(result.diff) : undefined,
+        errorMessage: result.errorMessage,
+        approved: result.status === "NEW" || result.status === "CHANGED" || result.status === "TERMINATION",
+      },
+    });
+  }
+
+  revalidatePath("/platform/data-upload/erp-import/[batchId]", "page");
+}
+
+export async function toggleRowApproval(rowId: string, approved: boolean) {
+  await requireRole("ADMIN");
+  const row = await prisma.erpImportRow.update({ where: { id: rowId }, data: { approved } });
+  revalidatePath(`/platform/data-upload/erp-import/${row.batchId}`);
+}
+
+export async function discardBatch(batchId: string) {
+  await requireRole("ADMIN");
+  await prisma.erpImportBatch.update({ where: { id: batchId }, data: { status: "DISCARDED" } });
+  revalidatePath("/platform/data-upload/erp-import");
+  redirect("/platform/data-upload/erp-import");
+}
+
+type ApplyResult = {
+  created: number;
+  updated: number;
+  terminated: number;
+  skippedStale: string[];
+  errors: string[];
+};
+
+/**
+ * 승인된 행만 실제 User/Team 데이터에 반영한다. 미리보기 이후 시간이
+ * 지났을 수 있으므로, 반영 직전에 각 행을 다시 계산해서 그 사이 관리자가
+ * 수동으로 값을 바꿔놓았다면(미리보기 당시의 "이전값"과 지금 DB 값이
+ * 다르면) 그 행은 건너뛰고 별도로 알려준다 — ERP가 수동 수정을 덮어쓰지
+ * 않도록.
+ */
+export async function applyErpBatch(batchId: string): Promise<ApplyResult> {
+  await requireRole("ADMIN");
+
+  const batch = await prisma.erpImportBatch.findUnique({
+    where: { id: batchId },
+    include: { rows: { where: { approved: true } } },
+  });
+  if (!batch || batch.status !== "PENDING_REVIEW") {
+    return { created: 0, updated: 0, terminated: 0, skippedStale: [], errors: ["이미 처리된 배치입니다."] };
+  }
+
+  const ctx = await loadMappingContext();
+  const result: ApplyResult = { created: 0, updated: 0, terminated: 0, skippedStale: [], errors: [] };
+
+  for (const row of batch.rows) {
+    if (row.status !== "NEW" && row.status !== "CHANGED" && row.status !== "TERMINATION") continue;
+
+    const raw = row.rawData as RawErpRow;
+    const existing = await prisma.user.findUnique({
+      where: { employeeNumber: row.employeeNumber },
+      select: { ...USER_SELECT, employeeNumber: true },
+    });
+    const fresh = computeRow(raw, ctx, existing ?? null);
+
+    const originalDiff = (row.diff as FieldDiff[] | null) ?? [];
+    const staleField = originalDiff.find(
+      (d) =>
+        existing &&
+        normalizeForCompare((existing as unknown as Record<string, unknown>)[d.field]) !==
+          normalizeForCompare(d.before)
+    );
+    if (staleField && (fresh.status === "CHANGED" || fresh.status === "TERMINATION")) {
+      result.skippedStale.push(`${row.name}(${row.employeeNumber}): ${staleField.label}이(가) 미리보기 이후 변경됨`);
+      continue;
+    }
+    if (fresh.status === "NEEDS_MAPPING" || fresh.status === "UNCHANGED" || fresh.status === "SKIPPED") {
+      continue;
+    }
+
+    try {
+      if (fresh.status === "TERMINATION") {
+        if (!existing) continue;
+        const terminationDate =
+          fresh.diff.find((d) => d.field === "terminationDate")?.after ?? new Date();
+        await prisma.user.update({
+          where: { id: existing.id },
+          data: { terminationDate: terminationDate as Date },
+        });
+        await clearLeaderIfDeparting(existing.id);
+        result.terminated++;
+        continue;
+      }
+
+      const t = transformErpRow(raw);
+      const posResult = resolvePosition(t.positionRawKey, ctx.positionMap);
+      const teamResult = resolveTeam(t.teamRawKey, ctx.teamsByName, ctx.teamMap);
+      const teamInfo = teamResult.teamId ? ctx.teamsById.get(teamResult.teamId) : null;
+      const position = posResult.position;
+
+      const data = {
+        name: t.name,
+        gender: t.gender,
+        birthDate: t.birthDate,
+        hireDate: t.hireDate,
+        terminationDate: null,
+        employmentType: t.employmentType,
+        jobGrade: t.jobGrade,
+        jobFamily: t.jobFamily,
+        educationLevel: t.educationLevel,
+        school: t.school,
+        major: t.major,
+        degree: t.degree,
+        teamId: teamResult.teamId,
+        ...(teamInfo ? { businessUnit: teamInfo.businessUnit, division: teamInfo.division } : {}),
+        ...(position ? { position } : {}),
+        ...(t.email ? { email: t.email } : {}),
+      };
+
+      let userId: string;
+      if (existing) {
+        await prisma.user.update({ where: { id: existing.id }, data });
+        userId = existing.id;
+        result.updated++;
+      } else {
+        const passwordHash = await bcrypt.hash(row.employeeNumber, 10);
+        const created = await prisma.user.create({
+          data: {
+            ...data,
+            employeeNumber: row.employeeNumber,
+            email: t.email ?? null,
+            passwordHash,
+            role: "EMPLOYEE",
+          },
+        });
+        userId = created.id;
+        result.created++;
+      }
+
+      if (position === "TEAM_LEADER" && teamResult.teamId) {
+        await reassignTeamLeader(teamResult.teamId, userId);
+      }
+    } catch (e) {
+      result.errors.push(`${row.name}(${row.employeeNumber}): ${e instanceof Error ? e.message : "반영 실패"}`);
+    }
+  }
+
+  await prisma.erpImportBatch.update({
+    where: { id: batchId },
+    data: { status: "APPLIED", appliedAt: new Date() },
+  });
+
+  revalidateAffected();
+  return result;
+}
