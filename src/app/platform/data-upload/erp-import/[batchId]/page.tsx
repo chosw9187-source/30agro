@@ -38,6 +38,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 function formatValue(v: unknown): string {
   if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "boolean") return v ? "예" : "아니오";
   if (v instanceof Date) return v.toLocaleDateString("ko-KR");
   if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v)) {
     const d = new Date(v);

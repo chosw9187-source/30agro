@@ -37,6 +37,8 @@ export function ApprovalToggle({ rowId, approved }: { rowId: string; approved: b
 export function PositionMappingPicker({ batchId, rawKey }: { batchId: string; rawKey: string }) {
   const [isPending, startTransition] = useTransition();
   const [jikchaek, jikwi] = rawKey.split("|");
+  const [position, setPosition] = useState<Position | "">("");
+  const [hidden, setHidden] = useState(false);
 
   return (
     <div className="flex flex-wrap items-center gap-2 rounded border border-amber-300 bg-amber-50 p-2 text-sm">
@@ -45,15 +47,9 @@ export function PositionMappingPicker({ batchId, rawKey }: { batchId: string; ra
       </span>
       <select
         disabled={isPending}
-        defaultValue=""
+        value={position}
         className="rounded border border-slate-300 px-2 py-1"
-        onChange={(e) => {
-          const value = e.target.value as Position;
-          if (!value) return;
-          startTransition(() => {
-            resolvePositionMapping(batchId, rawKey, value);
-          });
-        }}
+        onChange={(e) => setPosition(e.target.value as Position)}
       >
         <option value="">선택</option>
         {POSITIONS.map((p) => (
@@ -62,6 +58,22 @@ export function PositionMappingPicker({ batchId, rawKey }: { batchId: string; ra
           </option>
         ))}
       </select>
+      <label className="flex items-center gap-1">
+        <input type="checkbox" checked={hidden} onChange={(e) => setHidden(e.target.checked)} />
+        조직도·직원조회에서 숨김 (감사·자문위원 등 일반 조직 구성원이 아닌 경우)
+      </label>
+      <button
+        type="button"
+        disabled={isPending || !position}
+        onClick={() => {
+          startTransition(() => {
+            resolvePositionMapping(batchId, rawKey, position as Position, hidden);
+          });
+        }}
+        className="rounded bg-brand-green px-3 py-1 text-white hover:bg-brand-green-dark disabled:opacity-50"
+      >
+        적용
+      </button>
     </div>
   );
 }

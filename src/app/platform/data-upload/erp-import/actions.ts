@@ -105,12 +105,26 @@ export async function uploadErpBatch(
   redirect(`/platform/data-upload/erp-import/${batch.id}`);
 }
 
-export async function resolvePositionMapping(batchId: string, rawKey: string, target: Position) {
+/**
+ * hidden=true면 이 직책/직위 조합(예: 감사, 자문위원)은 계정은 정상 생성/
+ * 갱신하되 조직도·직원조회에는 나타나지 않도록 표시한다.
+ */
+export async function resolvePositionMapping(
+  batchId: string,
+  rawKey: string,
+  target: Position,
+  hidden: boolean
+) {
   await requireRole("ADMIN");
   await prisma.erpFieldMapping.upsert({
     where: { field_rawValue: { field: "POSITION", rawValue: rawKey } },
     update: { targetValue: target },
     create: { field: "POSITION", rawValue: rawKey, targetValue: target },
+  });
+  await prisma.erpFieldMapping.upsert({
+    where: { field_rawValue: { field: "HIDDEN", rawValue: rawKey } },
+    update: { targetValue: String(hidden) },
+    create: { field: "HIDDEN", rawValue: rawKey, targetValue: String(hidden) },
   });
   await recomputeBatchMappingRows(batchId);
 }
@@ -319,6 +333,7 @@ export async function applyErpBatch(batchId: string, dryRun = false): Promise<Ap
               major: t.major,
               degree: t.degree,
               teamId: teamResult.teamId,
+              hiddenFromDirectory: ctx.hiddenMap.get(t.positionRawKey) ?? false,
               ...(teamInfo ? { businessUnit: teamInfo.businessUnit, division: teamInfo.division } : {}),
               ...(position ? { position } : {}),
               ...(t.email ? { email: t.email } : {}),

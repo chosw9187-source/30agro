@@ -164,6 +164,7 @@ export const FIELD_LABEL: Record<string, string> = {
   teamId: "팀",
   businessUnit: "사업단위",
   division: "본부",
+  hiddenFromDirectory: "조직도·직원조회 숨김",
 };
 
 export function normalizeForCompare(v: unknown): string {

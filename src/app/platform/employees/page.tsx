@@ -33,6 +33,7 @@ export default async function EmployeeDirectoryPage({
             AND: [
               ...(scopeFilter ? [scopeFilter] : []),
               activePrismaWhere(),
+              { hiddenFromDirectory: false },
               ...(teamId ? [{ teamId }] : []),
               ...(q
                 ? [

@@ -28,6 +28,7 @@ export const USER_SELECT = {
   teamId: true,
   businessUnit: true,
   division: true,
+  hiddenFromDirectory: true,
 } as const;
 
 export type ExistingUserRow = Prisma.UserGetPayload<{ select: typeof USER_SELECT }> & {
@@ -37,6 +38,7 @@ export type ExistingUserRow = Prisma.UserGetPayload<{ select: typeof USER_SELECT
 export type MappingContext = {
   positionMap: Map<string, string>;
   teamMap: Map<string, string>;
+  hiddenMap: Map<string, boolean>;
   teamsByName: Map<string, string>;
   teamsById: Map<string, { businessUnit: string | null; division: string | null }>;
 };
@@ -50,13 +52,16 @@ export async function loadMappingContext(): Promise<MappingContext> {
   ]);
   const positionMap = new Map<string, string>();
   const teamMap = new Map<string, string>();
+  const hiddenMap = new Map<string, boolean>();
   for (const m of mappings) {
     if (m.field === "POSITION") positionMap.set(m.rawValue, m.targetValue);
     if (m.field === "TEAM") teamMap.set(m.rawValue, m.targetValue);
+    if (m.field === "HIDDEN") hiddenMap.set(m.rawValue, m.targetValue === "true");
   }
   return {
     positionMap,
     teamMap,
+    hiddenMap,
     teamsByName: new Map(teams.map((t) => [t.name, t.id])),
     teamsById: new Map(teams.map((t) => [t.id, { businessUnit: t.businessUnit, division: t.division }])),
   };
@@ -119,6 +124,7 @@ export function computeRow(
     degree: t.degree,
     position: posResult.position ?? undefined,
     teamId: teamResult.teamId,
+    hiddenFromDirectory: ctx.hiddenMap.get(t.positionRawKey) ?? false,
     ...(teamInfo ? { businessUnit: teamInfo.businessUnit, division: teamInfo.division } : {}),
   };
 

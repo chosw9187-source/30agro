@@ -32,14 +32,21 @@ const CONTRACT_INCLUDED_TEAMS = ["영업관리팀"];
 
 /**
  * Prisma `where` fragment for "정규직, or a member of one of the
- * contract-included teams regardless of employment type." Wrap in an `AND`
- * array alongside other filters (see `activePrismaWhere` for why).
+ * contract-included teams regardless of employment type", excluding anyone
+ * flagged `hiddenFromDirectory` (감사/자문위원 등 일반 조직 구성원이 아닌
+ * 특수 직책 — 계정은 있지만 조직도/직원조회에는 안 나타나야 함). Wrap in
+ * an `AND` array alongside other filters (see `activePrismaWhere` for why).
  */
 export function regularOrExceptionTeamWhere() {
   return {
-    OR: [
-      { employmentType: "정규직" },
-      { team: { name: { in: CONTRACT_INCLUDED_TEAMS } } },
+    AND: [
+      { hiddenFromDirectory: false },
+      {
+        OR: [
+          { employmentType: "정규직" },
+          { team: { name: { in: CONTRACT_INCLUDED_TEAMS } } },
+        ],
+      },
     ],
   };
 }
