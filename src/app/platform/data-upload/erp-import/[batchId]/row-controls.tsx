@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { POSITIONS, POSITION_LABEL, type Position } from "@/lib/permission-constants";
-import { TEAM_MAPPING_NONE } from "@/lib/erp-import";
+import { TEAM_MAPPING_NONE } from "@/lib/erp-constants";
 import {
   toggleRowApproval,
   resolvePositionMapping,

@@ -12,10 +12,10 @@ import {
   resolveTeam,
   normalizeForCompare,
   toJsonSafe,
-  TEAM_MAPPING_NONE,
   type RawErpRow,
   type FieldDiff,
 } from "@/lib/erp-import";
+import { TEAM_MAPPING_NONE } from "@/lib/erp-constants";
 import { USER_SELECT, loadMappingContext, computeRow, createErpImportBatch } from "@/lib/erp-compute";
 import type { Position } from "@/lib/permission-constants";
 
