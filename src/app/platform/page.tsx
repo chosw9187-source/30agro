@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { getVisibleHomeBlocks, type Position } from "@/lib/permissions";
+import { getVisibleHomeBlocks, EXECUTIVE_POSITIONS, type Position } from "@/lib/permissions";
 import {
   computeAgeDistribution,
   computeTenureDistribution,
@@ -17,8 +17,6 @@ import { EmployeeCardContent } from "@/components/employee-card-content";
 import { HomeTabBar } from "@/components/home-tab-bar";
 
 export const dynamic = "force-dynamic";
-
-const EXECUTIVE_POSITIONS: Position[] = ["CEO", "OPERATIONS_HEAD", "SENIOR_STAFF"];
 
 function fmtPct(v: number | null) {
   return v === null ? "데이터 없음" : `${v.toFixed(1)}%`;

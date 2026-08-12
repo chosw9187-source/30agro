@@ -21,6 +21,9 @@ export const POSITION_LABEL: Record<Position, string> = {
   STAFF: "담당",
 };
 
+/** 조직도에서 팀 트리 대신 상단 경영진 영역에 별도로 표시되는 직책. */
+export const EXECUTIVE_POSITIONS: Position[] = ["CEO", "OPERATIONS_HEAD", "SENIOR_STAFF"];
+
 export type Module =
   | "EMPLOYEES"
   | "ORG_CHART"

@@ -6,7 +6,7 @@ import { NoModuleAccess } from "@/components/no-module-access";
 import { loadMappingContext, whichMappingNeeded, computeRow, USER_SELECT } from "@/lib/erp-compute";
 import type { RawErpRow, FieldDiff } from "@/lib/erp-import";
 import { ageInYears, tenureInYears } from "@/lib/hr-analytics";
-import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
+import { POSITION_LABEL, EXECUTIVE_POSITIONS, type Position } from "@/lib/permission-constants";
 import {
   ApprovalToggle,
   PositionMappingPicker,
@@ -209,6 +209,19 @@ export default async function ErpBatchDetailPage({
     }
   }
 
+  const execChanges: { name: string; before: Position | null; after: Position }[] = [];
+  for (const row of batch.rows) {
+    if (row.status !== "NEW" && row.status !== "CHANGED") continue;
+    const diff = (row.diff as FieldDiff[] | null) ?? [];
+    const posDiff = diff.find((d) => d.field === "position");
+    if (!posDiff) continue;
+    const before = (posDiff.before as Position | null) ?? null;
+    const after = posDiff.after as Position;
+    if (EXECUTIVE_POSITIONS.includes(after) || (before && EXECUTIVE_POSITIONS.includes(before))) {
+      execChanges.push({ name: row.name, before, after });
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -233,6 +246,30 @@ export default async function ErpBatchDetailPage({
           </p>
           {batch.status === "APPLIED" && <RollbackBatchButton batchId={batch.id} />}
         </div>
+      )}
+
+      {batch.status === "PENDING_REVIEW" && execChanges.length > 0 && (
+        <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <h2 className="mb-3 font-medium">경영진 구성 변경</h2>
+          <p className="mb-3 text-sm text-slate-500">
+            사장·운영책임·책임 직책이 걸린 사람은 조직도에서 팀 트리가 아니라 상단 경영진 영역에 따로
+            표시돼요. 이번 배치로 그 영역 구성이 이렇게 바뀝니다.
+          </p>
+          <div className="flex flex-col gap-2">
+            {execChanges.map((c, i) => (
+              <div key={i} className="rounded border border-slate-100 p-3 text-sm">
+                <span className="font-medium">{c.name}</span>: {c.before ? POSITION_LABEL[c.before] : "(신규)"} →{" "}
+                <span className="font-medium text-brand-green-dark">{POSITION_LABEL[c.after]}</span>
+                {EXECUTIVE_POSITIONS.includes(c.after) && !(c.before && EXECUTIVE_POSITIONS.includes(c.before)) && (
+                  <span className="ml-2 text-emerald-700">(경영진 영역에 새로 표시됨)</span>
+                )}
+                {c.before && EXECUTIVE_POSITIONS.includes(c.before) && !EXECUTIVE_POSITIONS.includes(c.after) && (
+                  <span className="ml-2 text-rose-700">(경영진 영역에서 빠짐)</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {batch.status === "PENDING_REVIEW" && teamDeltas.size > 0 && (

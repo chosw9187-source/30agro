@@ -1,15 +1,13 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { checkModuleAccess, canViewEmployeeCard } from "@/lib/permissions";
+import { checkModuleAccess, canViewEmployeeCard, EXECUTIVE_POSITIONS } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { BackLink } from "@/components/back-link";
 import { EmployeeCardContent } from "@/components/employee-card-content";
 import { HomeTabBar } from "@/components/home-tab-bar";
 
 export const dynamic = "force-dynamic";
-
-const EXECUTIVE_POSITIONS = ["CEO", "OPERATIONS_HEAD", "SENIOR_STAFF"];
 
 export default async function EmployeeDetailPage({
   params,
