@@ -106,6 +106,7 @@ model User {
   appointmentRecords AppointmentRecord[]
   performanceHistory PerformanceHistory[]
   educationRecords EducationRecord[]
+  careerHistory    CareerHistory[]
   permissionOverrides UserPermissionOverride[]
   tasksAssigned    Task[]         @relation("TaskAssignee")
   tasksCreated     Task[]         @relation("TaskCreator")
@@ -146,16 +147,33 @@ model PerformanceHistory {
 }
 
 model EducationRecord {
-  id     String  @id @default(cuid())
-  userId String
-  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  level  String // 고등학교 | 대학교 | 대학원(석사) | 대학원(박사)
-  school String?
-  major  String?
-  degree String?
-  order  Int     @default(0)
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  level          String // 고등학교 | 대학교 | 대학원(석사) | 대학원(박사)
+  school         String?
+  major          String?
+  degree         String?
+  order          Int       @default(0)
+  admissionDate  DateTime?
+  graduationDate DateTime?
 
   @@unique([userId, level, school])
+}
+
+/** 인사카드의 [외부경력사항] — 입사 전 다른 회사에서의 근무 이력. */
+model CareerHistory {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   String
+  title     String?
+  duties    String?
+  startDate DateTime?
+  endDate   DateTime?
+  order     Int       @default(0)
+
+  @@index([userId])
 }
 
 model UserTargetYear {

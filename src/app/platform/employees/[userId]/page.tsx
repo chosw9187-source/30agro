@@ -44,6 +44,7 @@ export default async function EmployeeDetailPage({
       appointmentRecords: { orderBy: { date: "desc" } },
       performanceHistory: { orderBy: { year: "desc" } },
       educationRecords: { orderBy: { order: "asc" } },
+      careerHistory: { orderBy: { order: "asc" } },
     },
   });
 

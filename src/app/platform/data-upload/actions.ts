@@ -339,13 +339,40 @@ export async function addEducationRecord(userId: string, formData: FormData) {
   const major = str(formData.get("major"));
   const degree = str(formData.get("degree"));
   const order = EDUCATION_LEVEL_ORDER[level] ?? 9;
+  const admissionDate = parseExcelDate(formData.get("admissionDate"));
+  const graduationDate = parseExcelDate(formData.get("graduationDate"));
 
   await prisma.educationRecord.upsert({
     where: { userId_level_school: { userId, level, school } },
-    update: { major, degree, order },
-    create: { userId, level, school, major, degree, order },
+    update: { major, degree, order, admissionDate, graduationDate },
+    create: { userId, level, school, major, degree, order, admissionDate, graduationDate },
   });
   revalidatePath(`/platform/employees/${userId}`);
+}
+
+/** 인사카드 화면에서 경력사항 한 건을 직접 추가. */
+export async function addCareerHistory(userId: string, formData: FormData) {
+  await requireRole("ADMIN");
+  const company = str(formData.get("company"));
+  if (!company) return;
+
+  await prisma.careerHistory.create({
+    data: {
+      userId,
+      company,
+      title: str(formData.get("title")),
+      duties: str(formData.get("duties")),
+      startDate: parseExcelDate(formData.get("startDate")),
+      endDate: parseExcelDate(formData.get("endDate")),
+    },
+  });
+  revalidatePath(`/platform/employees/${userId}`);
+}
+
+export async function deleteCareerHistory(recordId: string) {
+  await requireRole("ADMIN");
+  const record = await prisma.careerHistory.delete({ where: { id: recordId } });
+  revalidatePath(`/platform/employees/${record.userId}`);
 }
 
 /** 인사카드 화면에서 발령 이력 한 건을 직접 추가. */

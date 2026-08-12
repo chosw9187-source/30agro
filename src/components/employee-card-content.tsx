@@ -9,6 +9,8 @@ import {
   deleteAppointmentRecord,
   addPerformanceHistory,
   deletePerformanceHistory,
+  addCareerHistory,
+  deleteCareerHistory,
 } from "@/app/platform/data-upload/actions";
 import {
   updateUserBirthDate,
@@ -41,7 +43,23 @@ export type EmployeeCardData = {
   jobGrade: string | null;
   photo: unknown;
   team: { name: string; businessUnit: string | null; division: string | null } | null;
-  educationRecords: { id: string; level: string; school: string | null; major: string | null; degree: string | null }[];
+  educationRecords: {
+    id: string;
+    level: string;
+    school: string | null;
+    major: string | null;
+    degree: string | null;
+    admissionDate: Date | null;
+    graduationDate: Date | null;
+  }[];
+  careerHistory: {
+    id: string;
+    company: string;
+    title: string | null;
+    duties: string | null;
+    startDate: Date | null;
+    endDate: Date | null;
+  }[];
   appointmentRecords: {
     id: string;
     date: Date;
@@ -67,6 +85,16 @@ function fmtBirthDate(d: Date | null) {
 function fmtHireDate(d: Date | null) {
   if (!d) return "-";
   return `${fmtDate(d)} (근속 ${tenureInYears(d).toFixed(1)}년)`;
+}
+
+function fmtYearMonth(d: Date | null) {
+  if (!d) return "-";
+  return formatKSTDate(d, { year: "numeric", month: "2-digit" });
+}
+
+function fmtPeriod(start: Date | null, end: Date | null) {
+  if (!start && !end) return "-";
+  return `${start ? fmtYearMonth(start) : "-"} ~ ${end ? fmtYearMonth(end) : "-"}`;
 }
 
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
@@ -238,6 +266,8 @@ export function EmployeeCardContent({ employee, isAdmin }: { employee: EmployeeC
                   <th className="px-3 py-2 font-medium">학교명</th>
                   <th className="px-3 py-2 font-medium">전공</th>
                   <th className="px-3 py-2 font-medium">학위</th>
+                  <th className="px-3 py-2 font-medium">입학년월</th>
+                  <th className="px-3 py-2 font-medium">졸업년월</th>
                   {isAdmin && <th className="px-3 py-2"></th>}
                 </tr>
               </thead>
@@ -248,6 +278,8 @@ export function EmployeeCardContent({ employee, isAdmin }: { employee: EmployeeC
                     <td className="px-3 py-2 text-slate-500">{r.school || "-"}</td>
                     <td className="px-3 py-2 text-slate-500">{r.major ?? "-"}</td>
                     <td className="px-3 py-2 text-slate-500">{r.degree ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{fmtYearMonth(r.admissionDate)}</td>
+                    <td className="px-3 py-2 text-slate-500">{fmtYearMonth(r.graduationDate)}</td>
                     {isAdmin && (
                       <td className="px-3 py-2 text-right">
                         <form action={deleteEducationRecord.bind(null, r.id)}>
@@ -290,6 +322,84 @@ export function EmployeeCardContent({ employee, isAdmin }: { employee: EmployeeC
             <div className="flex flex-col gap-1">
               <label className="text-xs text-slate-500">학위</label>
               <input name="degree" className="w-24 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">입학년월</label>
+              <input type="month" name="admissionDate" className="rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">졸업년월</label>
+              <input type="month" name="graduationDate" className="rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <button type="submit" className="rounded bg-brand-green px-3 py-1.5 text-sm text-white hover:bg-brand-green-dark">
+              추가
+            </button>
+          </form>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-3 text-lg font-medium">경력사항</h2>
+        {employee.careerHistory.length === 0 ? (
+          <p className="text-sm text-slate-500">등록된 경력사항이 없습니다.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 font-medium">근무회사</th>
+                  <th className="px-3 py-2 font-medium">직위</th>
+                  <th className="px-3 py-2 font-medium">담당업무</th>
+                  <th className="px-3 py-2 font-medium">근무기간</th>
+                  {isAdmin && <th className="px-3 py-2"></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {employee.careerHistory.map((r) => (
+                  <tr key={r.id} className="border-b border-slate-100 last:border-0">
+                    <td className="px-3 py-2 font-medium">{r.company}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.title ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.duties ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{fmtPeriod(r.startDate, r.endDate)}</td>
+                    {isAdmin && (
+                      <td className="px-3 py-2 text-right">
+                        <form action={deleteCareerHistory.bind(null, r.id)}>
+                          <button type="submit" className="text-xs text-red-600 hover:underline">
+                            삭제
+                          </button>
+                        </form>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {isAdmin && (
+          <form
+            action={addCareerHistory.bind(null, employee.id)}
+            className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4"
+          >
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">근무회사</label>
+              <input name="company" required className="w-32 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">직위</label>
+              <input name="title" className="w-24 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">담당업무</label>
+              <input name="duties" className="w-32 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">입사일</label>
+              <input type="date" name="startDate" className="rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">퇴사일</label>
+              <input type="date" name="endDate" className="rounded border border-slate-300 px-2 py-1 text-sm" />
             </div>
             <button type="submit" className="rounded bg-brand-green px-3 py-1.5 text-sm text-white hover:bg-brand-green-dark">
               추가
