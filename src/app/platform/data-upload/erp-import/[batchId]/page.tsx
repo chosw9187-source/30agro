@@ -157,23 +157,19 @@ export default async function ErpBatchDetailPage({
   });
   const existingByEmpNo = new Map(existingUsers.map((u) => [u.employeeNumber, u]));
 
-  const cardsByRowId = new Map<string, { before: CardData | null; after: CardData }>();
+  const cardsByRowId = new Map<string, CardData>();
   for (const row of batch.rows) {
-    if (row.status !== "NEW" && row.status !== "CHANGED") continue;
+    if (row.status !== "NEW") continue;
     const existing = existingByEmpNo.get(row.employeeNumber) ?? null;
     const computed = computeRow(row.rawData as RawErpRow, ctx, existing);
     if (!computed.next) continue;
     const afterRaw = mergeDefined(existing ?? {}, computed.next);
-    const toCard = (u: Record<string, unknown>): CardData => ({
-      name: (u.name as string) ?? row.name,
-      teamName: u.teamId ? teamNameByIdForCards.get(u.teamId as string) : null,
-      position: u.position as string | null,
-      birthDate: u.birthDate as Date | null,
-      hireDate: u.hireDate as Date | null,
-    });
     cardsByRowId.set(row.id, {
-      before: existing ? toCard(existing) : null,
-      after: toCard(afterRaw),
+      name: (afterRaw.name as string) ?? row.name,
+      teamName: afterRaw.teamId ? teamNameByIdForCards.get(afterRaw.teamId as string) : null,
+      position: afterRaw.position as string | null,
+      birthDate: afterRaw.birthDate as Date | null,
+      hireDate: afterRaw.hireDate as Date | null,
     });
   }
 
@@ -346,33 +342,15 @@ export default async function ErpBatchDetailPage({
                           );
                         })()}
 
-                      {(status === "NEW" || status === "CHANGED") &&
-                        cardsByRowId.get(row.id) &&
-                        (() => {
-                          const cards = cardsByRowId.get(row.id)!;
-                          return (
-                            <div className="flex flex-wrap items-center gap-2">
-                              {cards.before && (
-                                <>
-                                  <EmployeePreviewCard label="변경 전" data={cards.before} muted />
-                                  <span className="text-slate-300">→</span>
-                                </>
-                              )}
-                              <EmployeePreviewCard
-                                label={status === "NEW" ? "신규 생성" : "변경 후"}
-                                data={cards.after}
-                              />
-                            </div>
-                          );
-                        })()}
+                      {status === "NEW" && cardsByRowId.get(row.id) && (
+                        <EmployeePreviewCard label="신규 생성" data={cardsByRowId.get(row.id)!} />
+                      )}
 
                       {(status === "NEW" || status === "CHANGED" || status === "TERMINATION") && (
-                        <details className="text-sm">
-                          <summary className="cursor-pointer text-xs text-slate-400">항목별 상세 보기</summary>
-                          <div className="mt-1">
-                            <DiffTable diff={(row.diff as FieldDiff[] | null) ?? []} />
-                          </div>
-                        </details>
+                        <div>
+                          <p className="mb-1 text-xs font-medium text-slate-500">바뀌는 항목</p>
+                          <DiffTable diff={(row.diff as FieldDiff[] | null) ?? []} />
+                        </div>
                       )}
 
                       {status === "ERROR" && (
