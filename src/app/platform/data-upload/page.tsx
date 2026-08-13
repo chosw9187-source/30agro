@@ -108,7 +108,7 @@ export default async function DataUploadPage() {
       </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-6">
-        <h2 className="mb-3 text-lg font-medium">발령/학력/자격/상벌 일괄 업로드</h2>
+        <h2 className="mb-3 text-lg font-medium">발령/학력/경력/자격/상벌 일괄 업로드</h2>
         <HrCardBulkUploadForm />
       </section>
 

@@ -342,15 +342,16 @@ export async function deletePerformanceHistory(recordId: string) {
 export type HrCardBulkUploadResult = {
   appointments: RowUploadResult;
   education: RowUploadResult;
+  careerHistory: RowUploadResult;
   certifications: RowUploadResult;
   commendationDiscipline: RowUploadResult;
 };
 
 /**
- * 발령사항/학력사항/자격사항/상벌사항을 시트 4개짜리 엑셀 한 번에 업로드. 시트
- * 이름은 "발령사항"/"학력사항"/"자격사항"/"상벌사항" 중 있는 것만 처리하고,
- * 없는 시트는 건너뜁니다. 발령사항·학력사항은 upsert, 자격사항/상벌사항은
- * 매번 새로 추가합니다.
+ * 발령사항/학력사항/경력사항/자격사항/상벌사항을 시트 5개짜리 엑셀 한 번에
+ * 업로드. 시트 이름은 "발령사항"/"학력사항"/"경력사항"/"자격사항"/"상벌사항"
+ * 중 있는 것만 처리하고, 없는 시트는 건너뜁니다. 발령사항·학력사항은 upsert,
+ * 경력사항/자격사항/상벌사항은 매번 새로 추가합니다.
  */
 export async function uploadHrCardBulk(
   _prevState: HrCardBulkUploadResult | undefined,
@@ -361,6 +362,7 @@ export async function uploadHrCardBulk(
   const result: HrCardBulkUploadResult = {
     appointments: { applied: 0, errors: [] },
     education: { applied: 0, errors: [] },
+    careerHistory: { applied: 0, errors: [] },
     certifications: { applied: 0, errors: [] },
     commendationDiscipline: { applied: 0, errors: [] },
   };
@@ -447,6 +449,37 @@ export async function uploadHrCardBulk(
         create: { userId: user.id, level, school, ...data },
       });
       result.education.applied++;
+    }
+  }
+
+  const careerSheet = workbook.Sheets["경력사항"];
+  if (careerSheet) {
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(careerSheet);
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNum = i + 2;
+      const employeeNumber = str(row["사번"]);
+      const company = str(row["근무회사"]);
+      if (!employeeNumber || !company) {
+        result.careerHistory.errors.push(`${rowNum}행: 사번/근무회사는 필수입니다.`);
+        continue;
+      }
+      const user = await findUser(employeeNumber);
+      if (!user) {
+        result.careerHistory.errors.push(`${rowNum}행: 사번 ${employeeNumber}에 해당하는 직원이 없습니다.`);
+        continue;
+      }
+      await prisma.careerHistory.create({
+        data: {
+          userId: user.id,
+          company,
+          title: str(row["직위"]),
+          duties: str(row["담당업무"]),
+          startDate: parseExcelDate(row["입사일"]),
+          endDate: parseExcelDate(row["퇴사일"]),
+        },
+      });
+      result.careerHistory.applied++;
     }
   }
 

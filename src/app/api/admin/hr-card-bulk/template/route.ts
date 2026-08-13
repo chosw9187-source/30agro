@@ -21,6 +21,12 @@ export async function GET() {
   ]);
   XLSX.utils.book_append_sheet(workbook, educationSheet, "학력사항");
 
+  const careerSheet = XLSX.utils.aoa_to_sheet([
+    ["사번", "근무회사", "직위", "담당업무", "입사일", "퇴사일"],
+    ["20260001", "이전회사(주)", "대리", "영업관리", "2018-03-01", "2021-12-31"],
+  ]);
+  XLSX.utils.book_append_sheet(workbook, careerSheet, "경력사항");
+
   const certSheet = XLSX.utils.aoa_to_sheet([
     ["사번", "자격증", "발급기관", "자격번호", "취득일", "만료일"],
     ["20260001", "지게차운전기능사", "", "", "2024-01-01", ""],

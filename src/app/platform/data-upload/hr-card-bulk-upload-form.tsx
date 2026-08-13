@@ -30,9 +30,9 @@ export function HrCardBulkUploadForm() {
     <div className="flex flex-col gap-6">
       <form action={formAction} className="flex flex-col gap-3">
         <p className="text-sm text-slate-500">
-          엑셀 파일 하나에 <strong>발령사항 / 학력사항 / 자격사항 / 상벌사항</strong> 시트를 각각 넣어서
-          한 번에 올립니다 — 시트 이름이 정확히 일치해야 하고, 없는 시트는 건너뜁니다. 발령사항·학력사항은
-          같은 사번+발령일(또는 학력구분+학교명)이면 갱신되고, 자격사항/상벌사항은 매번 새로 추가됩니다.
+          엑셀 파일 하나에 <strong>발령사항 / 학력사항 / 경력사항 / 자격사항 / 상벌사항</strong> 시트를 각각
+          넣어서 한 번에 올립니다 — 시트 이름이 정확히 일치해야 하고, 없는 시트는 건너뜁니다. 발령사항·학력사항은
+          같은 사번+발령일(또는 학력구분+학교명)이면 갱신되고, 경력사항/자격사항/상벌사항은 매번 새로 추가됩니다.
         </p>
         <a
           href="/api/admin/hr-card-bulk/template"
@@ -58,6 +58,7 @@ export function HrCardBulkUploadForm() {
           <div className="flex flex-col gap-2 rounded bg-slate-50 p-3 text-sm">
             <SectionResult label="발령사항" result={result.appointments} />
             <SectionResult label="학력사항" result={result.education} />
+            <SectionResult label="경력사항" result={result.careerHistory} />
             <SectionResult label="자격사항" result={result.certifications} />
             <SectionResult label="상벌사항" result={result.commendationDiscipline} />
           </div>
