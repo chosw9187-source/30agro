@@ -45,6 +45,8 @@ export default async function EmployeeDetailPage({
       performanceHistory: { orderBy: { year: "desc" } },
       educationRecords: { orderBy: { order: "asc" } },
       careerHistory: { orderBy: { order: "asc" } },
+      certifications: { orderBy: { order: "asc" } },
+      commendationDiscipline: { orderBy: { order: "asc" } },
     },
   });
 

@@ -11,6 +11,10 @@ import {
   deletePerformanceHistory,
   addCareerHistory,
   deleteCareerHistory,
+  addCertification,
+  deleteCertification,
+  addCommendationDiscipline,
+  deleteCommendationDiscipline,
 } from "@/app/platform/data-upload/actions";
 import {
   updateUserBirthDate,
@@ -71,6 +75,23 @@ export type EmployeeCardData = {
     note: string | null;
   }[];
   performanceHistory: { id: string; year: number; grade: string | null; score: number | null; note: string | null }[];
+  certifications: {
+    id: string;
+    name: string;
+    issuer: string | null;
+    certNumber: string | null;
+    acquiredDate: Date | null;
+    expiryDate: Date | null;
+  }[];
+  commendationDiscipline: {
+    id: string;
+    type: string;
+    category: string | null;
+    reason: string | null;
+    authority: string | null;
+    startDate: Date | null;
+    endDate: Date | null;
+  }[];
 };
 
 function fmtDate(d: Date | null) {
@@ -399,6 +420,154 @@ export function EmployeeCardContent({ employee, isAdmin }: { employee: EmployeeC
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs text-slate-500">퇴사일</label>
+              <input type="date" name="endDate" className="rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <button type="submit" className="rounded bg-brand-green px-3 py-1.5 text-sm text-white hover:bg-brand-green-dark">
+              추가
+            </button>
+          </form>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-3 text-lg font-medium">자격사항</h2>
+        {employee.certifications.length === 0 ? (
+          <p className="text-sm text-slate-500">등록된 자격사항이 없습니다.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 font-medium">자격증</th>
+                  <th className="px-3 py-2 font-medium">발급기관</th>
+                  <th className="px-3 py-2 font-medium">자격번호</th>
+                  <th className="px-3 py-2 font-medium">취득일</th>
+                  <th className="px-3 py-2 font-medium">만료일</th>
+                  {isAdmin && <th className="px-3 py-2"></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {employee.certifications.map((r) => (
+                  <tr key={r.id} className="border-b border-slate-100 last:border-0">
+                    <td className="px-3 py-2 font-medium">{r.name}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.issuer ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.certNumber ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{fmtDate(r.acquiredDate)}</td>
+                    <td className="px-3 py-2 text-slate-500">{fmtDate(r.expiryDate)}</td>
+                    {isAdmin && (
+                      <td className="px-3 py-2 text-right">
+                        <form action={deleteCertification.bind(null, r.id)}>
+                          <button type="submit" className="text-xs text-red-600 hover:underline">
+                            삭제
+                          </button>
+                        </form>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {isAdmin && (
+          <form
+            action={addCertification.bind(null, employee.id)}
+            className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4"
+          >
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">자격증</label>
+              <input name="name" required className="w-32 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">발급기관</label>
+              <input name="issuer" className="w-28 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">자격번호</label>
+              <input name="certNumber" className="w-28 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">취득일</label>
+              <input type="date" name="acquiredDate" className="rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">만료일</label>
+              <input type="date" name="expiryDate" className="rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <button type="submit" className="rounded bg-brand-green px-3 py-1.5 text-sm text-white hover:bg-brand-green-dark">
+              추가
+            </button>
+          </form>
+        )}
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-3 text-lg font-medium">상벌사항</h2>
+        {employee.commendationDiscipline.length === 0 ? (
+          <p className="text-sm text-slate-500">등록된 상벌사항이 없습니다.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 font-medium">구분</th>
+                  <th className="px-3 py-2 font-medium">종류</th>
+                  <th className="px-3 py-2 font-medium">사유</th>
+                  <th className="px-3 py-2 font-medium">기관</th>
+                  <th className="px-3 py-2 font-medium">기간</th>
+                  {isAdmin && <th className="px-3 py-2"></th>}
+                </tr>
+              </thead>
+              <tbody>
+                {employee.commendationDiscipline.map((r) => (
+                  <tr key={r.id} className="border-b border-slate-100 last:border-0">
+                    <td className="px-3 py-2 font-medium">{r.type}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.category ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.reason ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{r.authority ?? "-"}</td>
+                    <td className="px-3 py-2 text-slate-500">{fmtPeriod(r.startDate, r.endDate)}</td>
+                    {isAdmin && (
+                      <td className="px-3 py-2 text-right">
+                        <form action={deleteCommendationDiscipline.bind(null, r.id)}>
+                          <button type="submit" className="text-xs text-red-600 hover:underline">
+                            삭제
+                          </button>
+                        </form>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {isAdmin && (
+          <form
+            action={addCommendationDiscipline.bind(null, employee.id)}
+            className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4"
+          >
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">구분(상/벌)</label>
+              <input name="type" required className="w-20 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">종류</label>
+              <input name="category" className="w-28 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">사유</label>
+              <input name="reason" className="w-32 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">기관</label>
+              <input name="authority" className="w-28 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">시작일</label>
+              <input type="date" name="startDate" className="rounded border border-slate-300 px-2 py-1 text-sm" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">종료일</label>
               <input type="date" name="endDate" className="rounded border border-slate-300 px-2 py-1 text-sm" />
             </div>
             <button type="submit" className="rounded bg-brand-green px-3 py-1.5 text-sm text-white hover:bg-brand-green-dark">

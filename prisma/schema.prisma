@@ -107,6 +107,8 @@ model User {
   performanceHistory PerformanceHistory[]
   educationRecords EducationRecord[]
   careerHistory    CareerHistory[]
+  certifications   Certification[]
+  commendationDiscipline CommendationDiscipline[]
   permissionOverrides UserPermissionOverride[]
   tasksAssigned    Task[]         @relation("TaskAssignee")
   tasksCreated     Task[]         @relation("TaskCreator")
@@ -172,6 +174,37 @@ model CareerHistory {
   startDate DateTime?
   endDate   DateTime?
   order     Int       @default(0)
+
+  @@index([userId])
+}
+
+/** 인사카드의 [자격사항] — 보유 자격증/면허. */
+model Certification {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  issuer       String?
+  certNumber   String?
+  acquiredDate DateTime?
+  expiryDate   DateTime?
+  order        Int       @default(0)
+
+  @@index([userId])
+}
+
+/** 인사카드의 [상벌사항] — 포상/징계 이력. */
+model CommendationDiscipline {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String // 상 | 벌
+  category   String?
+  reason     String?
+  authority  String?
+  startDate  DateTime?
+  endDate    DateTime?
+  order      Int       @default(0)
 
   @@index([userId])
 }

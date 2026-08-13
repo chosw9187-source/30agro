@@ -375,6 +375,55 @@ export async function deleteCareerHistory(recordId: string) {
   revalidatePath(`/platform/employees/${record.userId}`);
 }
 
+export async function addCertification(userId: string, formData: FormData) {
+  await requireRole("ADMIN");
+  const name = str(formData.get("name"));
+  if (!name) return;
+
+  await prisma.certification.create({
+    data: {
+      userId,
+      name,
+      issuer: str(formData.get("issuer")),
+      certNumber: str(formData.get("certNumber")),
+      acquiredDate: parseExcelDate(formData.get("acquiredDate")),
+      expiryDate: parseExcelDate(formData.get("expiryDate")),
+    },
+  });
+  revalidatePath(`/platform/employees/${userId}`);
+}
+
+export async function deleteCertification(recordId: string) {
+  await requireRole("ADMIN");
+  const record = await prisma.certification.delete({ where: { id: recordId } });
+  revalidatePath(`/platform/employees/${record.userId}`);
+}
+
+export async function addCommendationDiscipline(userId: string, formData: FormData) {
+  await requireRole("ADMIN");
+  const type = str(formData.get("type"));
+  if (!type) return;
+
+  await prisma.commendationDiscipline.create({
+    data: {
+      userId,
+      type,
+      category: str(formData.get("category")),
+      reason: str(formData.get("reason")),
+      authority: str(formData.get("authority")),
+      startDate: parseExcelDate(formData.get("startDate")),
+      endDate: parseExcelDate(formData.get("endDate")),
+    },
+  });
+  revalidatePath(`/platform/employees/${userId}`);
+}
+
+export async function deleteCommendationDiscipline(recordId: string) {
+  await requireRole("ADMIN");
+  const record = await prisma.commendationDiscipline.delete({ where: { id: recordId } });
+  revalidatePath(`/platform/employees/${record.userId}`);
+}
+
 /** 인사카드 화면에서 발령 이력 한 건을 직접 추가. */
 export async function addAppointmentRecord(userId: string, formData: FormData) {
   await requireRole("ADMIN");

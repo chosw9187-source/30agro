@@ -43,6 +43,8 @@ export default async function PlatformHomePage() {
         performanceHistory: { orderBy: { year: "desc" } },
         educationRecords: { orderBy: { order: "asc" } },
         careerHistory: { orderBy: { order: "asc" } },
+        certifications: { orderBy: { order: "asc" } },
+        commendationDiscipline: { orderBy: { order: "asc" } },
       },
     });
     if (!employee) return null;
