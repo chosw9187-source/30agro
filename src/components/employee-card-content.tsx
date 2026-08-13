@@ -120,6 +120,21 @@ function fmtPeriod(start: Date | null, end: Date | null) {
 
 const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25;
 
+function fmtDuration(start: Date | null, end: Date | null) {
+  if (!start) return "";
+  const totalMonths = monthsBetween(start, end ?? new Date());
+  if (totalMonths < 0) return "";
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+  if (years === 0) return `(${months}개월)`;
+  if (months === 0) return `(${years}년)`;
+  return `(${years}년 ${months}개월)`;
+}
+
+function monthsBetween(start: Date, end: Date) {
+  return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+}
+
 function totalCareerYears(records: { startDate: Date | null; endDate: Date | null }[]) {
   const now = new Date();
   const totalMs = records.reduce((sum, r) => {
@@ -400,7 +415,9 @@ export function EmployeeCardContent({ employee, isAdmin }: { employee: EmployeeC
                     <td className="px-3 py-2 font-medium">{r.company}</td>
                     <td className="px-3 py-2 text-slate-500">{r.title ?? "-"}</td>
                     <td className="px-3 py-2 text-slate-500">{r.duties ?? "-"}</td>
-                    <td className="px-3 py-2 text-slate-500">{fmtPeriod(r.startDate, r.endDate)}</td>
+                    <td className="px-3 py-2 text-slate-500">
+                      {fmtPeriod(r.startDate, r.endDate)} {fmtDuration(r.startDate, r.endDate)}
+                    </td>
                     {isAdmin && (
                       <td className="px-3 py-2 text-right">
                         <form action={deleteCareerHistory.bind(null, r.id)}>
