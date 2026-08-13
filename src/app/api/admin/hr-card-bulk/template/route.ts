@@ -15,6 +15,12 @@ export async function GET() {
   ]);
   XLSX.utils.book_append_sheet(workbook, appointmentSheet, "발령사항");
 
+  const educationSheet = XLSX.utils.aoa_to_sheet([
+    ["사번", "학력구분", "학교명", "전공", "학위", "입학년월", "졸업년월"],
+    ["20260001", "대학교", "한국대학교", "경영학과", "", "2010-03", "2014-02"],
+  ]);
+  XLSX.utils.book_append_sheet(workbook, educationSheet, "학력사항");
+
   const certSheet = XLSX.utils.aoa_to_sheet([
     ["사번", "자격증", "발급기관", "자격번호", "취득일", "만료일"],
     ["20260001", "지게차운전기능사", "", "", "2024-01-01", ""],
@@ -32,7 +38,7 @@ export async function GET() {
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent("발령상벌자격_업로드양식.xlsx")}`,
+      "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent("인사카드_일괄업로드양식.xlsx")}`,
     },
   });
 }

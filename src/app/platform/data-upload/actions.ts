@@ -66,86 +66,6 @@ export async function uploadEmployeePhotos(
   return { matched, unmatched };
 }
 
-/**
- * 발령사항(인사발령 이력) 업로드. (사번, 발령일) 기준으로 upsert — 같은
- * 사번+발령일을 다시 올리면 그 기록이 갱신되고, 발령일이 다르면 새 이력으로
- * 누적됩니다.
- * 컬럼: 사번, 발령일, 발령구분, 발령명, 부서(또는 근무부서), 직위(또는 직책),
- * 직급, 발령내역.
- */
-export async function uploadAppointmentRecords(
-  _prevState: RowUploadResult | undefined,
-  formData: FormData
-): Promise<RowUploadResult> {
-  await requireRole("ADMIN");
-
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { applied: 0, errors: ["파일을 선택해주세요."] };
-  }
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
-
-  let applied = 0;
-  const errors: string[] = [];
-
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    const rowNum = i + 2;
-    const employeeNumber = str(row["사번"]);
-    const date = parseExcelDate(row["발령일"]);
-
-    if (!employeeNumber || !date) {
-      errors.push(`${rowNum}행: 사번/발령일은 필수입니다.`);
-      continue;
-    }
-
-    const user = await prisma.user.findUnique({ where: { employeeNumber } });
-    if (!user) {
-      errors.push(`${rowNum}행: 사번 ${employeeNumber}에 해당하는 직원이 없습니다.`);
-      continue;
-    }
-
-    const type = str(row["발령구분"]);
-    const title = str(row["발령명"]);
-    const department = str(row["근무부서"]) ?? str(row["부서"]);
-    const positionTitle = str(row["직책"]) ?? str(row["직위"]);
-    const jobGrade = str(row["직급"]);
-    const note = str(row["발령내역"]);
-
-    const existing = await prisma.appointmentRecord.findFirst({
-      where: { userId: user.id, date },
-      select: { id: true },
-    });
-    if (existing) {
-      await prisma.appointmentRecord.update({
-        where: { id: existing.id },
-        data: { type, title, department, positionTitle, jobGrade, note },
-      });
-    } else {
-      await prisma.appointmentRecord.create({
-        data: {
-          userId: user.id,
-          date,
-          type,
-          title,
-          department,
-          positionTitle,
-          jobGrade,
-          note,
-        },
-      });
-    }
-    applied++;
-  }
-
-  revalidatePath("/platform/employees/[userId]", "page");
-
-  return { applied, errors };
-}
 
 /**
  * 이전(수정 전) 업로드 로직이 매번 새로 만들던 시절에 쌓인 중복 발령 이력을
@@ -189,67 +109,6 @@ const EDUCATION_LEVEL_ORDER: Record<string, number> = {
   "대학원(석사)": 2,
   "대학원(박사)": 3,
 };
-
-/**
- * 학력 이력 업로드. (사번, 학력구분, 학교명) 기준으로 upsert — 같은
- * 학력구분+학교명을 다시 올리면 갱신되고, 학력구분이 같아도 학교명이
- * 다르면(편입·복수전공 등) 별도 행으로 함께 누적됩니다.
- * 컬럼: 사번, 학력구분(고등학교/대학교/대학원(석사)/대학원(박사)), 학교명,
- * 전공(선택), 학위(선택).
- */
-export async function uploadEducationRecords(
-  _prevState: RowUploadResult | undefined,
-  formData: FormData
-): Promise<RowUploadResult> {
-  await requireRole("ADMIN");
-
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { applied: 0, errors: ["파일을 선택해주세요."] };
-  }
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet);
-
-  let applied = 0;
-  const errors: string[] = [];
-
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    const rowNum = i + 2;
-    const employeeNumber = str(row["사번"]);
-    const level = str(row["학력구분"]);
-
-    if (!employeeNumber || !level) {
-      errors.push(`${rowNum}행: 사번/학력구분은 필수입니다.`);
-      continue;
-    }
-
-    const user = await prisma.user.findUnique({ where: { employeeNumber } });
-    if (!user) {
-      errors.push(`${rowNum}행: 사번 ${employeeNumber}에 해당하는 직원이 없습니다.`);
-      continue;
-    }
-
-    const school = str(row["학교명"]) ?? str(row["학교"]) ?? "";
-    const major = str(row["전공"]);
-    const degree = str(row["학위"]);
-    const order = EDUCATION_LEVEL_ORDER[level] ?? 9;
-
-    await prisma.educationRecord.upsert({
-      where: { userId_level_school: { userId: user.id, level, school } },
-      update: { major, degree, order },
-      create: { userId: user.id, level, school, major, degree, order },
-    });
-    applied++;
-  }
-
-  revalidatePath("/platform/employees/[userId]", "page");
-
-  return { applied, errors };
-}
 
 export async function deleteEducationRecord(recordId: string) {
   await requireRole("ADMIN");
@@ -482,14 +341,16 @@ export async function deletePerformanceHistory(recordId: string) {
 
 export type HrCardBulkUploadResult = {
   appointments: RowUploadResult;
+  education: RowUploadResult;
   certifications: RowUploadResult;
   commendationDiscipline: RowUploadResult;
 };
 
 /**
- * 발령사항/자격사항/상벌사항을 시트 3개짜리 엑셀 한 번에 업로드. 시트 이름은
- * "발령사항"/"자격사항"/"상벌사항" 중 있는 것만 처리하고, 없는 시트는 건너뜁니다.
- * 발령사항은 (사번, 발령일) 기준 upsert, 자격사항/상벌사항은 매번 새로 추가합니다.
+ * 발령사항/학력사항/자격사항/상벌사항을 시트 4개짜리 엑셀 한 번에 업로드. 시트
+ * 이름은 "발령사항"/"학력사항"/"자격사항"/"상벌사항" 중 있는 것만 처리하고,
+ * 없는 시트는 건너뜁니다. 발령사항·학력사항은 upsert, 자격사항/상벌사항은
+ * 매번 새로 추가합니다.
  */
 export async function uploadHrCardBulk(
   _prevState: HrCardBulkUploadResult | undefined,
@@ -499,6 +360,7 @@ export async function uploadHrCardBulk(
 
   const result: HrCardBulkUploadResult = {
     appointments: { applied: 0, errors: [] },
+    education: { applied: 0, errors: [] },
     certifications: { applied: 0, errors: [] },
     commendationDiscipline: { applied: 0, errors: [] },
   };
@@ -551,6 +413,40 @@ export async function uploadHrCardBulk(
         await prisma.appointmentRecord.create({ data: { userId: user.id, date, ...data } });
       }
       result.appointments.applied++;
+    }
+  }
+
+  const educationSheet = workbook.Sheets["학력사항"];
+  if (educationSheet) {
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(educationSheet);
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNum = i + 2;
+      const employeeNumber = str(row["사번"]);
+      const level = str(row["학력구분"]);
+      if (!employeeNumber || !level) {
+        result.education.errors.push(`${rowNum}행: 사번/학력구분은 필수입니다.`);
+        continue;
+      }
+      const user = await findUser(employeeNumber);
+      if (!user) {
+        result.education.errors.push(`${rowNum}행: 사번 ${employeeNumber}에 해당하는 직원이 없습니다.`);
+        continue;
+      }
+      const school = str(row["학교명"]) ?? str(row["학교"]) ?? "";
+      const data = {
+        major: str(row["전공"]),
+        degree: str(row["학위"]),
+        order: EDUCATION_LEVEL_ORDER[level] ?? 9,
+        admissionDate: parseExcelDate(row["입학년월"]),
+        graduationDate: parseExcelDate(row["졸업년월"]),
+      };
+      await prisma.educationRecord.upsert({
+        where: { userId_level_school: { userId: user.id, level, school } },
+        update: data,
+        create: { userId: user.id, level, school, ...data },
+      });
+      result.education.applied++;
     }
   }
 
