@@ -479,3 +479,144 @@ export async function deletePerformanceHistory(recordId: string) {
   const record = await prisma.performanceHistory.delete({ where: { id: recordId } });
   revalidatePath(`/platform/employees/${record.userId}`);
 }
+
+export type HrCardBulkUploadResult = {
+  appointments: RowUploadResult;
+  certifications: RowUploadResult;
+  commendationDiscipline: RowUploadResult;
+};
+
+/**
+ * 발령사항/자격사항/상벌사항을 시트 3개짜리 엑셀 한 번에 업로드. 시트 이름은
+ * "발령사항"/"자격사항"/"상벌사항" 중 있는 것만 처리하고, 없는 시트는 건너뜁니다.
+ * 발령사항은 (사번, 발령일) 기준 upsert, 자격사항/상벌사항은 매번 새로 추가합니다.
+ */
+export async function uploadHrCardBulk(
+  _prevState: HrCardBulkUploadResult | undefined,
+  formData: FormData
+): Promise<HrCardBulkUploadResult> {
+  await requireRole("ADMIN");
+
+  const result: HrCardBulkUploadResult = {
+    appointments: { applied: 0, errors: [] },
+    certifications: { applied: 0, errors: [] },
+    commendationDiscipline: { applied: 0, errors: [] },
+  };
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    result.appointments.errors.push("파일을 선택해주세요.");
+    return result;
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
+
+  async function findUser(employeeNumber: string) {
+    return prisma.user.findUnique({ where: { employeeNumber }, select: { id: true } });
+  }
+
+  const appointmentSheet = workbook.Sheets["발령사항"];
+  if (appointmentSheet) {
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(appointmentSheet);
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNum = i + 2;
+      const employeeNumber = str(row["사번"]);
+      const date = parseExcelDate(row["발령일"]);
+      if (!employeeNumber || !date) {
+        result.appointments.errors.push(`${rowNum}행: 사번/발령일은 필수입니다.`);
+        continue;
+      }
+      const user = await findUser(employeeNumber);
+      if (!user) {
+        result.appointments.errors.push(`${rowNum}행: 사번 ${employeeNumber}에 해당하는 직원이 없습니다.`);
+        continue;
+      }
+      const data = {
+        type: str(row["발령구분"]),
+        title: str(row["발령명"]),
+        department: str(row["근무부서"]) ?? str(row["부서"]),
+        positionTitle: str(row["직책"]) ?? str(row["직위"]),
+        jobGrade: str(row["직급"]),
+        note: str(row["발령내역"]),
+      };
+      const existing = await prisma.appointmentRecord.findFirst({
+        where: { userId: user.id, date },
+        select: { id: true },
+      });
+      if (existing) {
+        await prisma.appointmentRecord.update({ where: { id: existing.id }, data });
+      } else {
+        await prisma.appointmentRecord.create({ data: { userId: user.id, date, ...data } });
+      }
+      result.appointments.applied++;
+    }
+  }
+
+  const certSheet = workbook.Sheets["자격사항"];
+  if (certSheet) {
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(certSheet);
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNum = i + 2;
+      const employeeNumber = str(row["사번"]);
+      const name = str(row["자격증"]);
+      if (!employeeNumber || !name) {
+        result.certifications.errors.push(`${rowNum}행: 사번/자격증은 필수입니다.`);
+        continue;
+      }
+      const user = await findUser(employeeNumber);
+      if (!user) {
+        result.certifications.errors.push(`${rowNum}행: 사번 ${employeeNumber}에 해당하는 직원이 없습니다.`);
+        continue;
+      }
+      await prisma.certification.create({
+        data: {
+          userId: user.id,
+          name,
+          issuer: str(row["발급기관"]),
+          certNumber: str(row["자격번호"]),
+          acquiredDate: parseExcelDate(row["취득일"]),
+          expiryDate: parseExcelDate(row["만료일"]),
+        },
+      });
+      result.certifications.applied++;
+    }
+  }
+
+  const cdSheet = workbook.Sheets["상벌사항"];
+  if (cdSheet) {
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(cdSheet);
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rowNum = i + 2;
+      const employeeNumber = str(row["사번"]);
+      const type = str(row["구분"]);
+      if (!employeeNumber || !type) {
+        result.commendationDiscipline.errors.push(`${rowNum}행: 사번/구분(상 또는 벌)은 필수입니다.`);
+        continue;
+      }
+      const user = await findUser(employeeNumber);
+      if (!user) {
+        result.commendationDiscipline.errors.push(`${rowNum}행: 사번 ${employeeNumber}에 해당하는 직원이 없습니다.`);
+        continue;
+      }
+      await prisma.commendationDiscipline.create({
+        data: {
+          userId: user.id,
+          type,
+          category: str(row["종류"]),
+          reason: str(row["사유"]),
+          authority: str(row["기관"]),
+          startDate: parseExcelDate(row["시작일"]),
+          endDate: parseExcelDate(row["종료일"]),
+        },
+      });
+      result.commendationDiscipline.applied++;
+    }
+  }
+
+  revalidatePath("/platform/employees/[userId]", "page");
+  return result;
+}

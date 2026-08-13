@@ -118,6 +118,18 @@ function fmtPeriod(start: Date | null, end: Date | null) {
   return `${start ? fmtYearMonth(start) : "-"} ~ ${end ? fmtYearMonth(end) : "-"}`;
 }
 
+const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25;
+
+function totalCareerYears(records: { startDate: Date | null; endDate: Date | null }[]) {
+  const now = new Date();
+  const totalMs = records.reduce((sum, r) => {
+    if (!r.startDate) return sum;
+    const end = r.endDate ?? now;
+    return sum + Math.max(0, end.getTime() - r.startDate.getTime());
+  }, 0);
+  return totalMs / MS_PER_YEAR;
+}
+
 function Field({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div className="flex flex-col gap-0.5">
@@ -360,7 +372,14 @@ export function EmployeeCardContent({ employee, isAdmin }: { employee: EmployeeC
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-6">
-        <h2 className="mb-3 text-lg font-medium">경력사항</h2>
+        <h2 className="mb-3 text-lg font-medium">
+          경력사항
+          {employee.careerHistory.length > 0 && (
+            <span className="ml-2 text-sm font-normal text-slate-500">
+              (총 경력 {totalCareerYears(employee.careerHistory).toFixed(1)}년)
+            </span>
+          )}
+        </h2>
         {employee.careerHistory.length === 0 ? (
           <p className="text-sm text-slate-500">등록된 경력사항이 없습니다.</p>
         ) : (

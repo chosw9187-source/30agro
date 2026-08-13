@@ -43,10 +43,10 @@ export default async function EmployeeDetailPage({
       team: true,
       appointmentRecords: { orderBy: { date: "desc" } },
       performanceHistory: { orderBy: { year: "desc" } },
-      educationRecords: { orderBy: { order: "asc" } },
-      careerHistory: { orderBy: { order: "asc" } },
-      certifications: { orderBy: { order: "asc" } },
-      commendationDiscipline: { orderBy: { order: "asc" } },
+      educationRecords: { orderBy: [{ admissionDate: "asc" }, { order: "asc" }] },
+      careerHistory: { orderBy: [{ startDate: "asc" }, { order: "asc" }] },
+      certifications: { orderBy: [{ acquiredDate: "asc" }, { order: "asc" }] },
+      commendationDiscipline: { orderBy: [{ startDate: "asc" }, { order: "asc" }] },
     },
   });
 
