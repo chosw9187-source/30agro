@@ -69,7 +69,7 @@ export default async function EmployeeDirectoryPage({
           include: { team: true },
         })
       : Promise.resolve([]),
-    prisma.team.findMany({ orderBy: { name: "asc" } }),
+    prisma.team.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
   ]);
 
   return (
