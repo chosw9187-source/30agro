@@ -17,6 +17,7 @@ export default async function JobManagementPage() {
   const isAdmin = session?.user.role === "ADMIN";
 
   const teams = await prisma.team.findMany({
+    where: { active: true },
     orderBy: { name: "asc" },
     include: {
       leader: true,
