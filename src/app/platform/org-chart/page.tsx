@@ -424,7 +424,7 @@ export default async function OrgChartPage({
   const [teams, totalEmployees, ceos, opsHeads, seniors] = await Promise.all([
     prisma.team.findMany({
       where: { active: true },
-      orderBy: { name: "asc" },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       include: {
         leader: true,
         _count: {
