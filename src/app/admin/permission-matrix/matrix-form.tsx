@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { savePermissionMatrix } from "./actions";
 import {
   MODULES,
@@ -14,6 +14,11 @@ import {
 
 export function MatrixForm({ scopeByKey }: { scopeByKey: Record<string, PermissionScope> }) {
   const [result, formAction, isPending] = useActionState(savePermissionMatrix, undefined);
+  // Controlled locally so a post-save server refresh (which hands this
+  // component a fresh `scopeByKey` prop) can't snap an in-progress or
+  // just-submitted selection back to the old value — `defaultValue` alone
+  // does that because the <select> DOM nodes persist across the refresh.
+  const [values, setValues] = useState<Record<string, PermissionScope>>(() => ({ ...scopeByKey }));
 
   return (
     <form action={formAction}>
@@ -42,12 +47,15 @@ export function MatrixForm({ scopeByKey }: { scopeByKey: Record<string, Permissi
                 <td className="px-4 py-3 font-medium">{MODULE_LABEL[m]}</td>
                 {POSITIONS.map((p) => {
                   const key = `${m}:${p}`;
-                  const current = scopeByKey[key] ?? "FULL";
+                  const current = values[key] ?? "FULL";
                   return (
                     <td key={p} className="px-4 py-3 text-center">
                       <select
                         name={key}
-                        defaultValue={current}
+                        value={current}
+                        onChange={(e) =>
+                          setValues((v) => ({ ...v, [key]: e.target.value as PermissionScope }))
+                        }
                         className="rounded border border-slate-300 px-2 py-1 text-xs"
                       >
                         {PERMISSION_SCOPES.map((s) => (

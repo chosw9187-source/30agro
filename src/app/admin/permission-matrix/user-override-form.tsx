@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { saveUserPermissionOverrides } from "./actions";
 import {
   MODULES,
@@ -29,6 +29,11 @@ export function UserOverrideForm({
     saveUserPermissionOverrides.bind(null, userId),
     undefined
   );
+  // See matrix-form.tsx: keep this controlled locally so a post-save
+  // server refresh can't snap the selection back to the old value.
+  const [values, setValues] = useState<Record<string, string>>(() => ({
+    ...Object.fromEntries(MODULES.map((m) => [m, overrideByModule[m] ?? DEFAULT_SENTINEL])),
+  }));
 
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
@@ -43,7 +48,8 @@ export function UserOverrideForm({
             <span className="text-slate-700">{MODULE_LABEL[m]}</span>
             <select
               name={m}
-              defaultValue={overrideByModule[m] ?? DEFAULT_SENTINEL}
+              value={values[m] ?? DEFAULT_SENTINEL}
+              onChange={(e) => setValues((v) => ({ ...v, [m]: e.target.value }))}
               className="rounded border border-slate-300 px-2 py-1 text-xs"
             >
               <option value={DEFAULT_SENTINEL}>직책 기본값</option>

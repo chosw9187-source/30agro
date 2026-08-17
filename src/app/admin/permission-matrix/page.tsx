@@ -39,8 +39,9 @@ async function MatrixTab() {
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
         <p className="text-sm text-slate-600">
-          직원정보조회 표준 설정: 사장=전체, 운영책임=사업단위, 책임=부문,
-          팀장=팀, 담당=본인
+          직원정보조회 표준 설정: 목록은 전 직원 조회 가능, 인사카드 상세는
+          사장=전체, 운영책임=사업단위, 책임=부문까지만 열람, 팀장·담당은
+          목록만(상세 비공개)
         </p>
         <RecommendedScopeButton />
       </div>

@@ -44,15 +44,16 @@ export async function savePermissionMatrix(
 }
 
 /**
- * 사장→전 직원, 운영책임→해당 사업단위만, 책임→본인 부문만, 팀장→본인
- * 팀만, 담당→본인만: 직원정보조회(EMPLOYEES)에 대해 자주 쓰이는 표준
- * 직책별 조회 범위를 한 번에 적용.
+ * 목록(직원정보조회 검색결과)은 팀장·담당을 포함해 전 직원이 볼 수 있고,
+ * 인사카드 상세는 사장·운영책임·책임만 열람 가능 — 팀장·담당은 LIST_ONLY로
+ * 목록만 보이고 상세는 막힘. (인사팀 소속은 직책과 무관하게 항상 상세
+ * 열람 가능 — canViewEmployeeCard의 별도 예외.)
  */
 const RECOMMENDED_EMPLOYEES_SCOPE: Record<(typeof POSITIONS)[number], PermissionScope> = {
   CEO: "FULL",
   OPERATIONS_HEAD: "BUSINESS_UNIT",
   SENIOR_STAFF: "DIVISION",
-  TEAM_LEADER: "TEAM",
+  TEAM_LEADER: "LIST_ONLY",
   STAFF: "LIST_ONLY",
 };
 
