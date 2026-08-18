@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Avatar } from "@/components/avatar";
 import { CompanyLogo } from "@/components/company-logo";
@@ -130,34 +130,8 @@ function DrillButton({
   );
 }
 
-export function TeamChip({ team, compact = false }: { team: TeamLite; compact?: boolean }) {
+export function TeamChip({ team }: { team: TeamLite }) {
   const leaderTitle = isBranchTeam(team.name) ? "지점장" : "팀장";
-  if (compact) {
-    return (
-      <Link
-        href={`/platform/org-chart/${team.id}`}
-        className="flex w-36 shrink-0 flex-col items-center rounded-lg border border-slate-200 bg-white p-2.5 text-center hover:border-brand-green hover:shadow-sm"
-      >
-        {team.leaderId ? (
-          <Avatar
-            userId={team.leaderId}
-            name={team.leaderName ?? team.name}
-            hasPhoto={team.leaderHasPhoto}
-            className="h-8 w-8 text-xs"
-          />
-        ) : (
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-green-light text-xs font-semibold text-brand-green-dark">
-            {team.name.slice(0, 1)}
-          </span>
-        )}
-        <p className="mt-1.5 text-xs font-medium text-slate-800">{team.name}</p>
-        <p className="text-[11px] text-slate-500">
-          {team.leaderName ? `${team.leaderName} ${leaderTitle}` : `${leaderTitle} 미지정`} · {team.memberCount}명
-        </p>
-      </Link>
-    );
-  }
-
   return (
     <Link
       href={`/platform/org-chart/${team.id}`}
@@ -392,6 +366,72 @@ function UnitDrilldown({ unit }: { unit: UnitNode }) {
   );
 }
 
+/**
+ * 비서실/사업개발팀처럼 사업단위 없이 CEO 직속인 팀들: 유닛 카드와 나란한
+ * 한 단(段)처럼 보이지 않도록, 중앙 트렁크 라인에서 오른쪽으로 갈라지는
+ * 곁가지로 작게(TeamChip 그대로) 붙여서 그린다. 갈라지는 지점의 가로선
+ * 폭은 실제 렌더된 카드 묶음 위치를 측정해서 정확히 맞춘다.
+ */
+function DirectTeamsBranch({ teams }: { teams: TeamLite[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const clusterRef = useRef<HTMLDivElement>(null);
+  const [dx, setDx] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    function measure() {
+      const container = containerRef.current;
+      const cluster = clusterRef.current;
+      if (!container || !cluster) return;
+      const c = container.getBoundingClientRect();
+      const cl = cluster.getBoundingClientRect();
+      setDx(cl.left + cl.width / 2 - (c.left + c.width / 2));
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [teams]);
+
+  if (teams.length === 0) return null;
+
+  const BRANCH_Y = 20;
+  const DROP_H = 18;
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <div
+        className="absolute left-1/2 top-0 w-0.5 -translate-x-1/2 bg-slate-300"
+        style={{ height: BRANCH_Y + DROP_H }}
+      />
+      {dx !== null && Math.abs(dx) > 1 && (
+        <>
+          <div
+            className="absolute h-0.5 bg-slate-300"
+            style={{
+              top: BRANCH_Y,
+              left: dx >= 0 ? "50%" : `calc(50% + ${dx}px)`,
+              width: Math.abs(dx),
+            }}
+          />
+          <div
+            className="absolute w-0.5 bg-slate-300"
+            style={{ top: BRANCH_Y, left: `calc(50% + ${dx}px)`, height: DROP_H, transform: "translateX(-50%)" }}
+          />
+        </>
+      )}
+      <div className="flex justify-end pr-[5%]" style={{ paddingTop: BRANCH_Y + DROP_H }}>
+        <div ref={clusterRef} className="flex flex-col items-center gap-1.5">
+          <p className="text-xs font-medium text-slate-400">직속</p>
+          <div className="flex gap-3">
+            {teams.map((t) => (
+              <TeamChip key={t.id} team={t} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function OrgChartRoot({
   units,
   standaloneDivisions,
@@ -407,19 +447,9 @@ export function OrgChartRoot({
 
   return (
     <div className="flex flex-col items-center gap-8">
-      {rootTeams.length > 0 && (
-        <div className="w-full">
-          <p className="mb-2 text-center text-xs font-medium text-slate-400">직속</p>
-          <div className="flex flex-wrap justify-center gap-3">
-            {rootTeams.map((t) => (
-              <TeamChip key={t.id} team={t} compact />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {rootChildCount > 0 && (
-        <div className="w-full">
+      <div className="flex w-full flex-col">
+        <DirectTeamsBranch teams={rootTeams} />
+        {rootChildCount > 0 && (
           <ConnectorRow count={rootChildCount} minWidth={rootChildCount * 200}>
             {units.map((u) => (
               <DrillButton
@@ -446,8 +476,8 @@ export function OrgChartRoot({
               />
             ))}
           </ConnectorRow>
-        </div>
-      )}
+        )}
+      </div>
 
       {expandedUnit && (
         <div className="w-full">
