@@ -6,7 +6,8 @@ type Role = "ADMIN" | "EVALUATOR" | "EMPLOYEE";
 
 export async function requireRole(...roles: Role[]) {
   const session = await auth();
-  if (!session?.user || !roles.includes(session.user.role)) {
+  const allowed = session?.user && (session.user.role === "ADMIN" || roles.includes(session.user.role));
+  if (!allowed) {
     redirect("/login");
   }
 

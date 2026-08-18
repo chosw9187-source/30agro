@@ -64,6 +64,18 @@ export default async function EvaluationHubPage() {
         >
           결과 다운로드
         </Link>
+        <Link
+          href="/evaluate"
+          className="rounded border border-slate-300 px-3 py-1.5 hover:bg-slate-100"
+        >
+          내가 평가하기
+        </Link>
+        <Link
+          href="/my-evaluations"
+          className="rounded border border-slate-300 px-3 py-1.5 hover:bg-slate-100"
+        >
+          내 평가 결과
+        </Link>
       </nav>
 
       <section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
