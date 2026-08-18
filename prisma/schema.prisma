@@ -66,58 +66,62 @@ enum TaskPriority {
 }
 
 model User {
-  id             String   @id @default(cuid())
-  name           String
-  email          String?  @unique
-  employeeNumber String   @unique
-  passwordHash   String
-  mustChangePassword Boolean @default(true)
-  role           Role
-  position       Position @default(STAFF)
-  birthDate       DateTime?
-  hireDate        DateTime?
-  terminationDate DateTime?
-  employmentType  String?
-  jobGrade        String?
-  educationLevel  String?
-  school          String?
-  major           String?
-  degree          String?
-  jobFamily       String?
-  gender          String?
-  photo           Bytes?
-  photoType       String?
-  businessUnit    String?
-  division        String?
-  isKeyTalent     Boolean  @default(false)
-  hiddenFromDirectory Boolean @default(false)
-  teamId         String?
-  team           Team?    @relation("TeamMember", fields: [teamId], references: [id])
-  createdAt      DateTime @default(now())
+  id                  String    @id @default(cuid())
+  name                String
+  email               String?   @unique
+  employeeNumber      String    @unique
+  passwordHash        String
+  mustChangePassword  Boolean   @default(true)
+  role                Role
+  position            Position  @default(STAFF)
+  birthDate           DateTime?
+  hireDate            DateTime?
+  terminationDate     DateTime?
+  employmentType      String?
+  jobGrade            String?
+  educationLevel      String?
+  school              String?
+  major               String?
+  degree              String?
+  jobFamily           String?
+  gender              String?
+  photo               Bytes?
+  photoType           String?
+  businessUnit        String?
+  division            String?
+  isKeyTalent         Boolean   @default(false)
+  hiddenFromDirectory Boolean   @default(false)
+  teamId              String?
+  team                Team?     @relation("TeamMember", fields: [teamId], references: [id])
+  createdAt           DateTime  @default(now())
 
-  createdTemplates EvaluationTemplate[] @relation("TemplateCreator")
-  evaluationsGiven Evaluation[]         @relation("Evaluator")
-  evaluationsOwned Evaluation[]         @relation("Evaluatee")
-  comments         Comment[]
-  ledTeams         Team[]               @relation("TeamLeader")
-  assignedItems    TemplateItem[]       @relation("AssignedItems")
-  notifications    Notification[]       @relation("NotificationRecipient")
-  targetYears      UserTargetYear[]
-  appointmentRecords AppointmentRecord[]
-  performanceHistory PerformanceHistory[]
-  educationRecords EducationRecord[]
-  careerHistory    CareerHistory[]
-  certifications   Certification[]
+  createdTemplates       EvaluationTemplate[]           @relation("TemplateCreator")
+  evaluationsGiven       Evaluation[]                   @relation("Evaluator")
+  evaluationsOwned       Evaluation[]                   @relation("Evaluatee")
+  comments               Comment[]
+  ledTeams               Team[]                         @relation("TeamLeader")
+  assignedItems          TemplateItem[]                 @relation("AssignedItems")
+  notifications          Notification[]                 @relation("NotificationRecipient")
+  targetYears            UserTargetYear[]
+  appointmentRecords     AppointmentRecord[]
+  performanceHistory     PerformanceHistory[]
+  educationRecords       EducationRecord[]
+  careerHistory          CareerHistory[]
+  certifications         Certification[]
   commendationDiscipline CommendationDiscipline[]
-  permissionOverrides UserPermissionOverride[]
-  tasksAssigned    Task[]         @relation("TaskAssignee")
-  tasksCreated     Task[]         @relation("TaskCreator")
-  sopDocuments     SopDocument[]
-  workLogEntries   WorkLogEntry[]
-  surveyInvitesCreated SurveyInviteLink[]
-  competencyResponses CompetencyAssessmentResponse[]
-  erpImportBatches ErpImportBatch[]
-  pageViews        PageView[]
+  permissionOverrides    UserPermissionOverride[]
+  tasksAssigned          Task[]                         @relation("TaskAssignee")
+  tasksCreated           Task[]                         @relation("TaskCreator")
+  sopDocuments           SopDocument[]
+  workLogEntries         WorkLogEntry[]
+  surveyInvitesCreated   SurveyInviteLink[]
+  competencyResponses    CompetencyAssessmentResponse[]
+  erpImportBatches       ErpImportBatch[]
+  pageViews              PageView[]
+  onboardingPrograms     OnboardingProgram[]      @relation("OnboardingProgramCreator")
+  onboardingInstructor   OnboardingInstructor?    @relation("OnboardingInstructor")
+  onboardingAssignments  OnboardingInstructor[]   @relation("OnboardingInstructorAssigner")
+  onboardingBookings     OnboardingBooking[]      @relation("OnboardingBookingInstructor")
 }
 
 model AppointmentRecord {
@@ -164,7 +168,9 @@ model EducationRecord {
   @@unique([userId, level, school])
 }
 
-/** 인사카드의 [외부경력사항] — 입사 전 다른 회사에서의 근무 이력. */
+/**
+ * 인사카드의 [외부경력사항] — 입사 전 다른 회사에서의 근무 이력.
+ */
 model CareerHistory {
   id        String    @id @default(cuid())
   userId    String
@@ -179,7 +185,9 @@ model CareerHistory {
   @@index([userId])
 }
 
-/** 인사카드의 [자격사항] — 보유 자격증/면허. */
+/**
+ * 인사카드의 [자격사항] — 보유 자격증/면허.
+ */
 model Certification {
   id           String    @id @default(cuid())
   userId       String
@@ -194,18 +202,20 @@ model Certification {
   @@index([userId])
 }
 
-/** 인사카드의 [상벌사항] — 포상/징계 이력. */
+/**
+ * 인사카드의 [상벌사항] — 포상/징계 이력.
+ */
 model CommendationDiscipline {
-  id         String    @id @default(cuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type       String // 상 | 벌
-  category   String?
-  reason     String?
-  authority  String?
-  startDate  DateTime?
-  endDate    DateTime?
-  order      Int       @default(0)
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String // 상 | 벌
+  category  String?
+  reason    String?
+  authority String?
+  startDate DateTime?
+  endDate   DateTime?
+  order     Int       @default(0)
 
   @@index([userId])
 }
@@ -221,28 +231,29 @@ model UserTargetYear {
 }
 
 model Team {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  leaderId  String?
-  leader    User?    @relation("TeamLeader", fields: [leaderId], references: [id])
+  id       String  @id @default(cuid())
+  name     String  @unique
+  leaderId String?
+  leader   User?   @relation("TeamLeader", fields: [leaderId], references: [id])
 
   businessUnit String?
   division     String?
-  active       Boolean  @default(true)
-  sortOrder    Int      @default(0)
+  active       Boolean @default(true)
+  sortOrder    Int     @default(0)
 
   createdAt DateTime @default(now())
 
-  members       User[]         @relation("TeamMember")
-  templateItems TemplateItem[]
+  members        User[]          @relation("TeamMember")
+  templateItems  TemplateItem[]
   jobDescription JobDescription?
-  tasks         Task[]
+  tasks          Task[]
+  jobTasks       JobTask[]
 }
 
 model JobDescription {
-  id                 String   @id @default(cuid())
-  teamId             String   @unique
-  team               Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  id                 String    @id @default(cuid())
+  teamId             String    @unique
+  team               Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
   responsibilities   String?
   purpose            String?
   relatedDepartments String?
@@ -252,7 +263,49 @@ model JobDescription {
   fileType           String?
   fileData           Bytes?
   fileUpdatedAt      DateTime?
-  updatedAt          DateTime @updatedAt
+  updatedAt          DateTime  @updatedAt
+}
+
+enum JobTaskSource {
+  MANUAL
+  PDF_EXTRACT
+  EXCEL_IMPORT
+}
+
+/**
+ * 직무분석 > 단위업무 원장. JobDescription이 담당업무를 줄바꿈 텍스트 한
+ * 덩어리로 들고 있는 것과 달리, 여기서는 단위업무 하나가 한 행이다 —
+ * 업무량(FTE) 집계·팀 간 중복업무 비교·직무평가 점수 산정이 전부 행 단위
+ * 집계라서, 텍스트 덩어리로는 계산 자체가 불가능하기 때문.
+ * 팀 = 직무 1:1 전제이므로 JobDescription이 아니라 Team에 직접 건다
+ * (직무기술서 파일이 아직 없는 팀도 단위업무는 먼저 쌓을 수 있어야 한다).
+ */
+model JobTask {
+  id     String @id @default(cuid())
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  category      String? // 책임·역할(대분류)
+  name          String // 단위업무명
+  detail        String? // 세부 수행내용
+  requiredGrade String? // 적정직급
+  outputs       String? // 산출물
+  relatedDept   String? // 관련부서
+  legalBasis    String? // 근거 규정·법령
+
+  // 업무량 조사 단계에서 채워지는 값. 지금은 임포트로 들어올 수 있어 컬럼만
+  // 두고, FTE 산출 로직은 다음 단계에서 붙인다.
+  frequency      String? // 수행주기(일/주/월/분기/연/수시)
+  annualCount    Float? // 연간 수행 횟수
+  hoursPerRun    Float? // 1회 소요시간(h)
+  performerCount Int? // 수행 인원
+
+  source    JobTaskSource @default(MANUAL)
+  order     Int           @default(0)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([teamId, order])
 }
 
 model EvaluationTemplate {
@@ -294,33 +347,33 @@ model TemplateItem {
 }
 
 model EvaluationCycle {
-  id              String      @id @default(cuid())
+  id              String             @id @default(cuid())
   name            String
   templateId      String
   template        EvaluationTemplate @relation(fields: [templateId], references: [id])
   startDate       DateTime
   endDate         DateTime
-  status          CycleStatus @default(DRAFT)
-  resultsReleased Boolean     @default(false)
-  createdAt       DateTime    @default(now())
+  status          CycleStatus        @default(DRAFT)
+  resultsReleased Boolean            @default(false)
+  createdAt       DateTime           @default(now())
 
   evaluations Evaluation[]
 }
 
 model Evaluation {
-  id          String           @id @default(cuid())
-  cycleId     String
-  cycle       EvaluationCycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  evaluatorId String
-  evaluator   User             @relation("Evaluator", fields: [evaluatorId], references: [id])
-  evaluateeId String
-  evaluatee   User             @relation("Evaluatee", fields: [evaluateeId], references: [id])
-  status      EvaluationStatus @default(PENDING)
-  submittedAt DateTime?
-  managerComment String?
-  selfStatus     EvaluationStatus @default(PENDING)
+  id              String           @id @default(cuid())
+  cycleId         String
+  cycle           EvaluationCycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  evaluatorId     String
+  evaluator       User             @relation("Evaluator", fields: [evaluatorId], references: [id])
+  evaluateeId     String
+  evaluatee       User             @relation("Evaluatee", fields: [evaluateeId], references: [id])
+  status          EvaluationStatus @default(PENDING)
+  submittedAt     DateTime?
+  managerComment  String?
+  selfStatus      EvaluationStatus @default(PENDING)
   selfSubmittedAt DateTime?
-  createdAt   DateTime         @default(now())
+  createdAt       DateTime         @default(now())
 
   scores   EvaluationScore[]
   comments Comment[]
@@ -383,7 +436,9 @@ model CompetencyAssessmentResponse {
   createdAt      DateTime          @default(now())
 }
 
-/** 외부 지원자용 1회성 응시 링크. */
+/**
+ * 외부 지원자용 1회성 응시 링크.
+ */
 model SurveyInviteLink {
   id            String   @id @default(cuid())
   token         String   @unique @default(cuid())
@@ -400,11 +455,13 @@ enum Module {
   EMPLOYEES
   ORG_CHART
   JOB_MANAGEMENT
+  JOB_ANALYSIS
   TASK_MANAGEMENT
   LEGAL_LIBRARY
   HR_REPORT
   EVALUATION
   TALENT_ASSESSMENT
+  ONBOARDING
 }
 
 enum PermissionScope {
@@ -414,7 +471,9 @@ enum PermissionScope {
   DIVISION
   BUSINESS_UNIT
   FULL
-  /** EMPLOYEES 모듈 전용: 목록은 전체 공개하되 개인 인사카드 상세는 본인만. */
+  /**
+   * EMPLOYEES 모듈 전용: 목록은 전체 공개하되 개인 인사카드 상세는 본인만.
+   */
   LIST_ONLY
 }
 
@@ -449,20 +508,20 @@ model UserPermissionOverride {
  * 정렬을, assignee가 나인 것만 필터링하면 To-do 목록이 된다.
  */
 model Task {
-  id          String     @id @default(cuid())
+  id          String       @id @default(cuid())
   title       String
   description String?
-  status      TaskStatus @default(TODO)
+  status      TaskStatus   @default(TODO)
   priority    TaskPriority @default(MEDIUM)
   dueDate     DateTime?
   assigneeId  String?
-  assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
   teamId      String?
-  team        Team?      @relation(fields: [teamId], references: [id])
+  team        Team?        @relation(fields: [teamId], references: [id])
   createdById String
-  createdBy   User       @relation("TaskCreator", fields: [createdById], references: [id])
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdBy   User         @relation("TaskCreator", fields: [createdById], references: [id])
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   subtasks Subtask[]
 
@@ -470,7 +529,9 @@ model Task {
   @@index([status])
 }
 
-/** 업무 관리 > 하위 체크리스트 항목. */
+/**
+ * 업무 관리 > 하위 체크리스트 항목.
+ */
 model Subtask {
   id     String  @id @default(cuid())
   taskId String
@@ -482,7 +543,9 @@ model Subtask {
   @@index([taskId])
 }
 
-/** 업무 관리 > SOP: 반복 업무의 표준 절차 문서. */
+/**
+ * 업무 관리 > SOP: 반복 업무의 표준 절차 문서.
+ */
 model SopDocument {
   id          String   @id @default(cuid())
   title       String
@@ -494,7 +557,9 @@ model SopDocument {
   updatedAt   DateTime @updatedAt
 }
 
-/** 업무 관리 > 업무일지 DB: 개인별 일일 업무 기록. */
+/**
+ * 업무 관리 > 업무일지 DB: 개인별 일일 업무 기록.
+ */
 model WorkLogEntry {
   id        String   @id @default(cuid())
   userId    String
@@ -621,4 +686,89 @@ model PageView {
 
   @@index([createdAt])
   @@index([userId, createdAt])
+}
+
+enum OnboardingBookingStatus {
+  REQUESTED
+  CONFIRMED
+  DECLINED
+}
+
+/**
+ * 온보딩 프로그램 = 한 기수(차수). 실제 교육 시간표는 이 아래
+ * OnboardingSession으로 달린다 — 기수가 바뀌어도 지난 기수의 일정과 강사
+ * 배정 이력이 그대로 남아야 하므로 세션을 프로그램에 묶는다.
+ */
+model OnboardingProgram {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+  active      Boolean   @default(true)
+  createdById String
+  createdBy   User      @relation("OnboardingProgramCreator", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+
+  sessions OnboardingSession[]
+}
+
+/**
+ * 온보딩 교육 한 타임 — 강사가 예약하는 단위. requiredInstructors만큼
+ * 확정(CONFIRMED) 강사가 차면 모집 완료로 표시된다. 그 전까지는 여러 강사가
+ * 같은 시간에 신청할 수 있고, 관리자가 그중에서 확정한다.
+ */
+model OnboardingSession {
+  id                  String            @id @default(cuid())
+  programId           String
+  program             OnboardingProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  title               String
+  description         String?
+  startAt             DateTime
+  endAt               DateTime
+  location            String?
+  requiredInstructors Int               @default(1)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  bookings OnboardingBooking[]
+
+  @@index([programId, startAt])
+}
+
+/**
+ * 강사 지정 — 관리자가 한국삼공 직원 중에서 지정한 온보딩 강사 풀.
+ * 여기에 active로 올라온 사람만 일정 화면에서 예약 버튼을 볼 수 있다.
+ */
+model OnboardingInstructor {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation("OnboardingInstructor", fields: [userId], references: [id], onDelete: Cascade)
+  specialty    String?
+  note         String?
+  active       Boolean  @default(true)
+  assignedById String?
+  assignedBy   User?    @relation("OnboardingInstructorAssigner", fields: [assignedById], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+/**
+ * 강사가 특정 세션에 넣은 예약. REQUESTED(신청)로 들어가고 관리자가
+ * CONFIRMED(확정)/DECLINED(반려)로 바꾼다 — 신청 상태를 그대로 노출해야
+ * 강사끼리 겹치는 시간을 보고 조율할 수 있다.
+ */
+model OnboardingBooking {
+  id        String                  @id @default(cuid())
+  sessionId String
+  session   OnboardingSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User                    @relation("OnboardingBookingInstructor", fields: [userId], references: [id], onDelete: Cascade)
+  status    OnboardingBookingStatus @default(REQUESTED)
+  note      String?
+  adminNote String?
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  @@unique([sessionId, userId])
+  @@index([userId])
 }

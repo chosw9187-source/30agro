@@ -26,10 +26,12 @@ const MODULE_NAV: Record<string, { href: string; label: string }> = {
   HR_REPORT: { href: "/platform/hr-report", label: "HR REPORT" },
   ORG_CHART: { href: "/platform/org-chart", label: "조직도" },
   JOB_MANAGEMENT: { href: "/platform/job-management", label: "직무관리" },
+  JOB_ANALYSIS: { href: "/platform/job-analysis", label: "직무분석" },
   TASK_MANAGEMENT: { href: "/platform/task-management", label: "업무 관리" },
   EMPLOYEES: { href: "/platform/employees", label: "직원정보 조회" },
   LEGAL_LIBRARY: { href: "/platform/legal-library", label: "AI 법률 라이브러리" },
   TALENT_ASSESSMENT: { href: "/platform/talent-assessment", label: "SG 인적성검사" },
+  ONBOARDING: { href: "/platform/onboarding", label: "온보딩 프로그램" },
 };
 
 function evaluationHref(role: Role): string {
