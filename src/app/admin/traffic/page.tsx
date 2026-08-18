@@ -80,6 +80,30 @@ export default async function AdminTrafficPage() {
         <h2 className="mb-4 text-lg font-medium">최근 {DAYS}일 추이</h2>
         <TrafficTrendChart points={days} />
       </div>
+
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <table className="w-full text-left text-sm">
+          <thead className="border-b border-slate-200 text-slate-500">
+            <tr>
+              <th className="px-4 py-3 font-medium">날짜</th>
+              <th className="px-4 py-3 text-right font-medium">조회수</th>
+              <th className="px-4 py-3 text-right font-medium">방문자 수</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...days].reverse().map((d) => (
+              <tr
+                key={d.key}
+                className={`border-b border-slate-100 last:border-0 ${d.key === todayKey ? "bg-brand-green-light/40" : ""}`}
+              >
+                <td className="px-4 py-2">{d.label}</td>
+                <td className="px-4 py-2 text-right">{d.views}</td>
+                <td className="px-4 py-2 text-right">{d.visitors}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
