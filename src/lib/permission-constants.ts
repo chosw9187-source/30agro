@@ -32,7 +32,8 @@ export type Module =
   | "LEGAL_LIBRARY"
   | "HR_REPORT"
   | "EVALUATION"
-  | "TALENT_ASSESSMENT";
+  | "TALENT_ASSESSMENT"
+  | "ONBOARDING";
 
 export const MODULES: Module[] = [
   "EMPLOYEES",
@@ -43,6 +44,7 @@ export const MODULES: Module[] = [
   "HR_REPORT",
   "EVALUATION",
   "TALENT_ASSESSMENT",
+  "ONBOARDING",
 ];
 
 export const MODULE_LABEL: Record<Module, string> = {
@@ -54,6 +56,7 @@ export const MODULE_LABEL: Record<Module, string> = {
   HR_REPORT: "HR REPORT",
   EVALUATION: "평가",
   TALENT_ASSESSMENT: "SG 인적성검사",
+  ONBOARDING: "온보딩 프로그램",
 };
 
 export type PermissionScope =
@@ -98,6 +101,7 @@ export const SIDEBAR_MODULES: Module[] = [
   "LEGAL_LIBRARY",
   "EVALUATION",
   "TALENT_ASSESSMENT",
+  "ONBOARDING",
 ];
 
 // Starting default until an admin explicitly overrides it: everything shows

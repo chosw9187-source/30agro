@@ -18,7 +18,7 @@ import {
 import { TaskStatusSelect } from "./task-status-select";
 import { TaskPrioritySelect } from "./task-priority-select";
 import { SubtaskCheckbox } from "./subtask-checkbox";
-import { SearchableSelect } from "./searchable-select";
+import { SearchableSelect } from "@/components/searchable-select";
 import { FilterSelect } from "./filter-select";
 import { KanbanDropZone, DraggableCard } from "./kanban-dnd";
 

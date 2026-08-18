@@ -118,6 +118,10 @@ model User {
   competencyResponses CompetencyAssessmentResponse[]
   erpImportBatches ErpImportBatch[]
   pageViews        PageView[]
+  onboardingPrograms    OnboardingProgram[]    @relation("OnboardingProgramCreator")
+  onboardingInstructor  OnboardingInstructor?  @relation("OnboardingInstructor")
+  onboardingAssignments OnboardingInstructor[] @relation("OnboardingInstructorAssigner")
+  onboardingBookings    OnboardingBooking[]    @relation("OnboardingBookingInstructor")
 }
 
 model AppointmentRecord {
@@ -405,6 +409,7 @@ enum Module {
   HR_REPORT
   EVALUATION
   TALENT_ASSESSMENT
+  ONBOARDING
 }
 
 enum PermissionScope {
@@ -621,4 +626,89 @@ model PageView {
 
   @@index([createdAt])
   @@index([userId, createdAt])
+}
+
+enum OnboardingBookingStatus {
+  REQUESTED
+  CONFIRMED
+  DECLINED
+}
+
+/**
+ * 온보딩 프로그램 = 한 기수(차수). 실제 교육 시간표는 이 아래
+ * OnboardingSession으로 달린다 — 기수가 바뀌어도 지난 기수의 일정과 강사
+ * 배정 이력이 그대로 남아야 하므로 세션을 프로그램에 묶는다.
+ */
+model OnboardingProgram {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+  active      Boolean   @default(true)
+  createdById String
+  createdBy   User      @relation("OnboardingProgramCreator", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+
+  sessions OnboardingSession[]
+}
+
+/**
+ * 온보딩 교육 한 타임 — 강사가 예약하는 단위. requiredInstructors만큼
+ * 확정(CONFIRMED) 강사가 차면 모집 완료로 표시된다. 그 전까지는 여러 강사가
+ * 같은 시간에 신청할 수 있고, 관리자가 그중에서 확정한다.
+ */
+model OnboardingSession {
+  id                  String            @id @default(cuid())
+  programId           String
+  program             OnboardingProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  title               String
+  description         String?
+  startAt             DateTime
+  endAt               DateTime
+  location            String?
+  requiredInstructors Int               @default(1)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  bookings OnboardingBooking[]
+
+  @@index([programId, startAt])
+}
+
+/**
+ * 강사 지정 — 관리자가 한국삼공 직원 중에서 지정한 온보딩 강사 풀.
+ * 여기에 active로 올라온 사람만 일정 화면에서 예약 버튼을 볼 수 있다.
+ */
+model OnboardingInstructor {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation("OnboardingInstructor", fields: [userId], references: [id], onDelete: Cascade)
+  specialty    String?
+  note         String?
+  active       Boolean  @default(true)
+  assignedById String?
+  assignedBy   User?    @relation("OnboardingInstructorAssigner", fields: [assignedById], references: [id])
+  createdAt    DateTime @default(now())
+}
+
+/**
+ * 강사가 특정 세션에 넣은 예약. REQUESTED(신청)로 들어가고 관리자가
+ * CONFIRMED(확정)/DECLINED(반려)로 바꾼다 — 신청 상태를 그대로 노출해야
+ * 강사끼리 겹치는 시간을 보고 조율할 수 있다.
+ */
+model OnboardingBooking {
+  id        String                  @id @default(cuid())
+  sessionId String
+  session   OnboardingSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User                    @relation("OnboardingBookingInstructor", fields: [userId], references: [id], onDelete: Cascade)
+  status    OnboardingBookingStatus @default(REQUESTED)
+  note      String?
+  adminNote String?
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  @@unique([sessionId, userId])
+  @@index([userId])
 }
