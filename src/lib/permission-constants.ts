@@ -52,7 +52,7 @@ export const MODULE_LABEL: Record<Module, string> = {
   ORG_CHART: "조직도",
   JOB_MANAGEMENT: "직무관리",
   TASK_MANAGEMENT: "업무 관리",
-  LEGAL_LIBRARY: "AI 법률 라이브러리",
+  LEGAL_LIBRARY: "인사 규정 챗봇",
   HR_REPORT: "HR REPORT",
   EVALUATION: "평가",
   TALENT_ASSESSMENT: "SG 인적성검사",

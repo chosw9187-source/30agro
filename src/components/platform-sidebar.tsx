@@ -28,7 +28,7 @@ const MODULE_NAV: Record<string, { href: string; label: string }> = {
   JOB_MANAGEMENT: { href: "/platform/job-management", label: "직무관리" },
   TASK_MANAGEMENT: { href: "/platform/task-management", label: "업무 관리" },
   EMPLOYEES: { href: "/platform/employees", label: "직원정보 조회" },
-  LEGAL_LIBRARY: { href: "/platform/legal-library", label: "AI 법률 라이브러리" },
+  LEGAL_LIBRARY: { href: "/platform/legal-library", label: "인사 규정 챗봇" },
   TALENT_ASSESSMENT: { href: "/platform/talent-assessment", label: "SG 인적성검사" },
   ONBOARDING: { href: "/platform/onboarding", label: "온보딩 프로그램" },
 };

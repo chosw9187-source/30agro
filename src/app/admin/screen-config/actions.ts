@@ -52,14 +52,12 @@ export async function saveSidebarConfig(
     });
   }
 
-  revalidatePath("/admin/screen-config");
-  revalidatePath("/platform");
-  revalidatePath("/platform/employees");
-  revalidatePath("/platform/org-chart");
-  revalidatePath("/platform/job-management");
-  revalidatePath("/platform/task-management");
-  revalidatePath("/platform/legal-library");
-  revalidatePath("/platform/hr-report");
+  // 사이드바는 /platform, /admin, /evaluate, /my-evaluations 레이아웃과
+  // /notifications 페이지에서 각각 PlatformShell로 그려진다. 경로를 하나씩
+  // 나열하면 새 레이아웃이 생길 때마다 빠뜨리고, 무엇보다 revalidatePath는
+  // 기본이 page 단위라 레이아웃 안의 사이드바는 갱신되지 않는다 — 순서를
+  // 바꿔도 화면이 그대로였던 원인. 루트 레이아웃을 갱신해 전부 덮는다.
+  revalidatePath("/", "layout");
 
   return { savedAt: Date.now() };
 }
