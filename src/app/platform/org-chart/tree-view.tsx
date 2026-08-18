@@ -407,10 +407,7 @@ function DirectTeamsBranch({ teams }: { teams: TeamLite[] }) {
 
   return (
     <div ref={containerRef} className="relative w-full">
-      <div
-        className="absolute left-1/2 top-0 w-0.5 -translate-x-1/2 bg-slate-300"
-        style={{ height: BRANCH_Y + DROP_H }}
-      />
+      <div className="absolute left-1/2 top-0 h-full w-0.5 -translate-x-1/2 bg-slate-300" />
       {dx !== null && Math.abs(dx) > 1 && (
         <>
           <div
