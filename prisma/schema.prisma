@@ -117,6 +117,7 @@ model User {
   surveyInvitesCreated SurveyInviteLink[]
   competencyResponses CompetencyAssessmentResponse[]
   erpImportBatches ErpImportBatch[]
+  pageViews        PageView[]
 }
 
 model AppointmentRecord {
@@ -605,4 +606,19 @@ model ErpFieldMapping {
   createdAt   DateTime @default(now())
 
   @@unique([field, rawValue])
+}
+
+/**
+ * 관리자 "일일 트래픽" 화면 집계용 방문 기록. 로그인한 사용자가
+ * PlatformShell로 감싸인 화면(플랫폼/관리자 페이지 전체)을 열 때마다
+ * 한 건씩 쌓이는 페이지뷰 로그 — 일별 총 조회수/순 방문자 수 집계에 쓰인다.
+ */
+model PageView {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
 }

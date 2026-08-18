@@ -6,6 +6,7 @@ import { CompanyLogo } from "@/components/company-logo";
 import { Watermark } from "@/components/watermark";
 import { SessionHeartbeat } from "@/components/session-heartbeat";
 import { getVisibleModules, getModuleUiConfig, type Position } from "@/lib/permissions";
+import { logPageView } from "@/lib/page-view";
 
 export async function PlatformShell({
   user,
@@ -22,6 +23,7 @@ export async function PlatformShell({
   const [notificationCount, dbUser] = await Promise.all([
     prisma.notification.count({ where: { recipientId: user.id, readAt: null } }),
     prisma.user.findUnique({ where: { id: user.id }, select: { position: true } }),
+    logPageView(user.id),
   ]);
   const position = (dbUser?.position ?? "STAFF") as Position;
   const [visibleModules, moduleUiConfig] = await Promise.all([

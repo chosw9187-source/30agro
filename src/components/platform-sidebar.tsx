@@ -83,6 +83,7 @@ function manageItems(role: Role): NavItem[] {
     { href: "/admin/reports", label: "결과 다운로드" },
     { href: "/admin/permission-matrix", label: "권한 매트릭스" },
     { href: "/admin/screen-config", label: "화면 구성" },
+    { href: "/admin/traffic", label: "일일 트래픽" },
   ];
 }
 
