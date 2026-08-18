@@ -135,7 +135,7 @@ export function TeamChip({ team }: { team: TeamLite }) {
   return (
     <Link
       href={`/platform/org-chart/${team.id}`}
-      className="flex flex-col items-center rounded-lg border border-slate-200 bg-white p-4 text-center hover:border-brand-green hover:shadow-sm"
+      className="mx-auto flex w-[280px] shrink-0 flex-col items-center rounded-lg border border-slate-200 bg-white p-4 text-center hover:border-brand-green hover:shadow-sm"
     >
       {team.leaderId ? (
         <Avatar
@@ -427,7 +427,7 @@ function DirectTeamsBranch({ teams }: { teams: TeamLite[] }) {
       <div className="flex justify-end pr-[5%]" style={{ paddingTop: BRANCH_Y + DROP_H }}>
         <div ref={clusterRef} className="flex flex-col items-center gap-1.5">
           <p className="text-xs font-medium text-slate-400">직속</p>
-          <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${teams.length}, 280px)` }}>
+          <div className="flex gap-3">
             {teams.map((t) => (
               <TeamChip key={t.id} team={t} />
             ))}
