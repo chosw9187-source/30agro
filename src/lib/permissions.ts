@@ -139,8 +139,11 @@ async function loadViewerContext(userId: string): Promise<ViewerContext | null> 
  * 열람 가능. 회장/부회장/사장(Position.CEO)의 인사카드는 본인·관리자
  * 외에는 인사팀을 포함해 누구에게도 보이지 않는다. 그 외에는 권한
  * 매트릭스에서 설정한 EMPLOYEES 모듈 범위(전체/사업단위/부문/팀/본인/
- * 접근 불가)를 따르며, 사용자별로 개별 지정된 값이 있으면 직책 기본값보다
- * 우선한다(예: 특정 HR 임원은 부문장이라도 전체 열람 가능하도록 개별 설정).
+ * 목록만/접근 불가)를 따르며, 사용자별로 개별 지정된 값이 있으면 직책
+ * 기본값보다 우선한다(예: 특정 HR 임원은 부문장이라도 전체 열람 가능하도록
+ * 개별 설정). LIST_ONLY는 목록 조회는 전 직원에게 열어두되 상세 카드는
+ * 원래 막는 범위지만, 팀장이 자기 팀 구성원조차 못 보는 건 비실용적이라
+ * 같은 팀에 한해서는 LIST_ONLY여도 상세 열람을 허용한다.
  */
 export async function canViewEmployeeCard(targetUserId: string): Promise<boolean> {
   const session = await auth();
@@ -167,7 +170,7 @@ export async function canViewEmployeeCard(targetUserId: string): Promise<boolean
     viewer.position as Position,
     "EMPLOYEES"
   );
-  if (scope === "NONE" || scope === "SELF" || scope === "LIST_ONLY") return false;
+  if (scope === "NONE" || scope === "SELF") return false;
   if (scope === "FULL") return true;
 
   const [viewerCtx, targetCtx] = await Promise.all([
@@ -176,6 +179,7 @@ export async function canViewEmployeeCard(targetUserId: string): Promise<boolean
   ]);
   if (!viewerCtx || !targetCtx) return false;
 
+  if (scope === "LIST_ONLY") return !!viewerCtx.teamId && viewerCtx.teamId === targetCtx.teamId;
   if (scope === "TEAM") return !!viewerCtx.teamId && viewerCtx.teamId === targetCtx.teamId;
   if (scope === "DIVISION") return !!viewerCtx.division && viewerCtx.division === targetCtx.division;
   if (scope === "BUSINESS_UNIT")
