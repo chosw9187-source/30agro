@@ -61,8 +61,18 @@ export async function deleteProgram(programId: string) {
 
 /* -------------------------------------------------------------- 온보딩 일정 */
 
+/**
+ * 교육 일정(시간대) 등록. 관리자뿐 아니라 지정된 강사도 온보딩 일정 달력에서
+ * 날짜를 눌러 직접 등록한다 — 강사가 "이 시간에 이 교육을 하겠다"고 잡는
+ * 것이므로, 강사가 만든 일정에는 본인 예약(신청)을 함께 넣어 준다.
+ * 관리자가 만든 일정은 빈 시간대로 남아 다른 강사가 예약할 수 있다.
+ */
 export async function createSession(formData: FormData) {
-  await requireRole("ADMIN");
+  const session = await requireRole(...ALL_ROLES);
+  const isAdmin = session.user.role === "ADMIN";
+  const asInstructor = await isActiveInstructor(session.user.id);
+  if (!isAdmin && !asInstructor) return;
+
   const programId = text(formData, "programId");
   const title = text(formData, "title");
   const startAt = parseKSTDateTime(formData.get("date"), formData.get("startTime"));
@@ -71,7 +81,7 @@ export async function createSession(formData: FormData) {
 
   const required = Number(text(formData, "requiredInstructors") || "1");
 
-  await prisma.onboardingSession.create({
+  const created = await prisma.onboardingSession.create({
     data: {
       programId,
       title,
@@ -80,8 +90,19 @@ export async function createSession(formData: FormData) {
       startAt,
       endAt,
       requiredInstructors: Number.isFinite(required) && required > 0 ? Math.floor(required) : 1,
+      createdById: session.user.id,
     },
   });
+
+  if (asInstructor) {
+    await prisma.onboardingBooking.create({
+      data: {
+        sessionId: created.id,
+        userId: session.user.id,
+        note: text(formData, "note") || null,
+      },
+    });
+  }
   revalidatePath(PATH);
 }
 
@@ -108,9 +129,19 @@ export async function updateSession(sessionId: string, formData: FormData) {
   revalidatePath(PATH);
 }
 
+/**
+ * 일정 삭제. 관리자는 전부, 강사는 본인이 올린 일정만 — 잘못 잡은 시간대를
+ * 스스로 치울 수 있어야 하되 남의 일정까지 지울 수는 없어야 한다.
+ */
 export async function deleteSession(sessionId: string) {
-  await requireRole("ADMIN");
-  await prisma.onboardingSession.delete({ where: { id: sessionId } });
+  const session = await requireRole(...ALL_ROLES);
+  if (session.user.role === "ADMIN") {
+    await prisma.onboardingSession.delete({ where: { id: sessionId } });
+  } else {
+    await prisma.onboardingSession.deleteMany({
+      where: { id: sessionId, createdById: session.user.id },
+    });
+  }
   revalidatePath(PATH);
 }
 

@@ -122,6 +122,7 @@ model User {
   onboardingInstructor  OnboardingInstructor?  @relation("OnboardingInstructor")
   onboardingAssignments OnboardingInstructor[] @relation("OnboardingInstructorAssigner")
   onboardingBookings    OnboardingBooking[]    @relation("OnboardingBookingInstructor")
+  onboardingSessionsAdded OnboardingSession[]  @relation("OnboardingSessionCreator")
 }
 
 model AppointmentRecord {
@@ -668,6 +669,11 @@ model OnboardingSession {
   endAt               DateTime
   location            String?
   requiredInstructors Int               @default(1)
+  // 강사가 달력에서 직접 등록할 수 있으므로 "누가 잡은 시간대인지"를 남긴다
+  // — 본인이 올린 일정은 본인이 지울 수 있어야 하기 때문. 관리자가 만든
+  // 일정은 null이다.
+  createdById         String?
+  createdBy           User?             @relation("OnboardingSessionCreator", fields: [createdById], references: [id])
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 

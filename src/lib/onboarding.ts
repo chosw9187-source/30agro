@@ -63,6 +63,11 @@ export function formatSessionTimeRange(startAt: Date, endAt: Date): string {
   return `${formatKSTDateTime(startAt, opts)} ~ ${formatKSTDateTime(endAt, opts)}`;
 }
 
+/** "10:00" — 달력 셀처럼 좁은 자리에 쓰는 시작 시각. */
+export function formatSessionStart(d: Date): string {
+  return formatKSTDateTime(d, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+}
+
 /** 같은 날짜(KST 기준)끼리 묶기 위한 키. */
 export function kstDayKey(d: Date): string {
   return toKSTInputValues(d).date;

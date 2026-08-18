@@ -10,6 +10,7 @@ import {
   BOOKING_STATUS_BADGE_CLASS,
   BOOKING_STATUS_LABEL,
   formatSessionDay,
+  formatSessionStart,
   formatSessionTimeRange,
   isActiveInstructor,
   kstDayKey,
@@ -63,6 +64,8 @@ type SessionRow = {
   startAt: Date;
   endAt: Date;
   requiredInstructors: number;
+  createdById: string | null;
+  createdBy: { name: string } | null;
   bookings: BookingRow[];
 };
 
@@ -154,7 +157,18 @@ function SessionCard({
           {session.location && <span className="ml-2 text-slate-400">· {session.location}</span>}
         </p>
         {session.description && <p className="mt-1 text-xs text-slate-500">{session.description}</p>}
+        {session.createdBy && (
+          <p className="mt-1 text-[11px] text-slate-400">등록: {session.createdBy.name}</p>
+        )}
       </div>
+
+      {(isAdmin || session.createdById === viewerId) && (
+        <form action={deleteSession.bind(null, session.id)} className="mt-2">
+          <button type="submit" className="text-xs text-red-500 hover:underline">
+            이 시간대 삭제
+          </button>
+        </form>
+      )}
 
       <div className="mt-3 flex flex-col gap-1.5 border-t border-slate-100 pt-3">
         {bookings.length === 0 && <p className="text-xs text-slate-400">아직 예약한 강사가 없습니다.</p>}
@@ -233,16 +247,222 @@ function SessionCard({
   );
 }
 
+const WEEKDAY_LABEL = ["일", "월", "화", "수", "목", "금", "토"];
+
+type ScheduleView = "calendar" | "list";
+
+function monthKeyOf(year: number, monthIdx: number) {
+  return `${year}-${String(monthIdx + 1).padStart(2, "0")}`;
+}
+
+function parseMonthKey(value: string | undefined, fallback: string) {
+  const s = value && /^\d{4}-\d{2}$/.test(value) ? value : fallback;
+  const [year, month] = s.split("-").map(Number);
+  return { year, monthIdx: month - 1 };
+}
+
+function scheduleHref(opts: {
+  programId: string | null;
+  view: ScheduleView;
+  month?: string;
+  date?: string | null;
+}) {
+  const params = new URLSearchParams({ tab: "schedule" });
+  if (opts.programId) params.set("programId", opts.programId);
+  if (opts.view !== "calendar") params.set("view", opts.view);
+  if (opts.month) params.set("month", opts.month);
+  if (opts.date) params.set("date", opts.date);
+  return `/platform/onboarding?${params.toString()}`;
+}
+
+/** 달력 셀 안의 시간대 칩 색 — 종료 / 강사 확정 / 모집 중. */
+function sessionTone(session: SessionRow, now: Date) {
+  if (session.endAt <= now) return "border-slate-300 bg-slate-100 text-slate-400";
+  const confirmed = session.bookings.filter((b) => b.status === "CONFIRMED").length;
+  return confirmed >= session.requiredInstructors
+    ? "border-emerald-400 bg-emerald-50 text-emerald-700"
+    : "border-amber-400 bg-amber-50 text-amber-700";
+}
+
+function CalendarGrid({
+  year,
+  monthIdx,
+  byDay,
+  selectedKey,
+  todayKey,
+  programId,
+  now,
+}: {
+  year: number;
+  monthIdx: number;
+  byDay: Map<string, SessionRow[]>;
+  selectedKey: string | null;
+  todayKey: string;
+  programId: string | null;
+  now: Date;
+}) {
+  // 달력 격자는 순수 달력 계산이라 Date.UTC로 만든다 — 로컬 시간대가 끼면
+  // 서버 리전에 따라 1일이 밀린다.
+  const firstWeekday = new Date(Date.UTC(year, monthIdx, 1)).getUTCDay();
+  const daysInMonth = new Date(Date.UTC(year, monthIdx + 1, 0)).getUTCDate();
+  const cells: (number | null)[] = [
+    ...Array<null>(firstWeekday).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-slate-200">
+      <div className="grid grid-cols-7 bg-slate-50 text-center text-xs font-medium text-slate-500">
+        {WEEKDAY_LABEL.map((w) => (
+          <div key={w} className="py-2">
+            {w}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-px bg-slate-200">
+        {cells.map((day, i) => {
+          if (day === null) return <div key={i} className="min-h-[92px] bg-slate-50" />;
+
+          const key = `${monthKeyOf(year, monthIdx)}-${String(day).padStart(2, "0")}`;
+          const daySessions = byDay.get(key) ?? [];
+          const selected = key === selectedKey;
+
+          return (
+            <Link
+              key={i}
+              href={scheduleHref({ programId, view: "calendar", month: monthKeyOf(year, monthIdx), date: key })}
+              className={`flex min-h-[92px] flex-col gap-0.5 p-1.5 text-left transition-colors ${
+                selected ? "bg-brand-green-light ring-1 ring-inset ring-brand-green" : "bg-white hover:bg-slate-50"
+              }`}
+            >
+              <span
+                className={`mb-0.5 text-xs font-medium ${
+                  key === todayKey
+                    ? "flex h-5 w-5 items-center justify-center rounded-full bg-brand-green text-white"
+                    : "text-slate-500"
+                }`}
+              >
+                {day}
+              </span>
+              {daySessions.slice(0, 3).map((s) => (
+                <span
+                  key={s.id}
+                  title={`${formatSessionTimeRange(s.startAt, s.endAt)} ${s.title}`}
+                  className={`truncate rounded border-l-2 px-1 py-0.5 text-[11px] ${sessionTone(s, now)}`}
+                >
+                  {formatSessionStart(s.startAt)} {s.title}
+                </span>
+              ))}
+              {daySessions.length > 3 && (
+                <span className="text-[11px] text-slate-400">+{daySessions.length - 3}개 더</span>
+              )}
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 달력에서 고른 날짜에 교육일정을 바로 등록하는 폼. 강사가 직접 자기
+ * 시간대를 잡을 수 있어야 해서 관리자 전용 화면이 아니라 여기에 둔다 —
+ * 강사가 등록하면 본인 예약(신청)이 함께 걸리고, 등록된 시간대는 지정된
+ * 강사 전원의 달력에 바로 나타난다.
+ */
+function AddSessionForm({
+  programId,
+  dateKey,
+  isAdmin,
+  amInstructor,
+  past,
+}: {
+  programId: string;
+  dateKey: string;
+  isAdmin: boolean;
+  amInstructor: boolean;
+  past: boolean;
+}) {
+  if (past) {
+    return (
+      <p className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3 text-xs text-slate-400">
+        지난 날짜에는 교육일정을 추가할 수 없습니다.
+      </p>
+    );
+  }
+
+  return (
+    <details className="rounded-lg border border-dashed border-brand-green bg-white p-4">
+      <summary className="cursor-pointer text-sm font-medium text-brand-green-dark">
+        + 이 날짜에 교육일정 추가
+      </summary>
+      <form action={createSession} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <input type="hidden" name="programId" value={programId} />
+        <input type="hidden" name="date" value={dateKey} />
+        <div className="sm:col-span-2">
+          <label className={LABEL_CLASS}>과정명</label>
+          <input name="title" required placeholder="예: 회사 소개 · 인사제도 안내" className={INPUT_CLASS} />
+        </div>
+        <div>
+          <label className={LABEL_CLASS}>시작 시간</label>
+          <input type="time" name="startTime" required defaultValue="09:00" className={INPUT_CLASS} />
+        </div>
+        <div>
+          <label className={LABEL_CLASS}>종료 시간</label>
+          <input type="time" name="endTime" required defaultValue="11:00" className={INPUT_CLASS} />
+        </div>
+        <div className="sm:col-span-2">
+          <label className={LABEL_CLASS}>장소 (선택)</label>
+          <input name="location" placeholder="예: 본사 3층 대회의실" className={INPUT_CLASS} />
+        </div>
+        <div className={isAdmin ? "" : "sm:col-span-2"}>
+          <label className={LABEL_CLASS}>설명 (선택)</label>
+          <input name="description" placeholder="교육 내용 요약" className={INPUT_CLASS} />
+        </div>
+        {isAdmin && (
+          <div>
+            <label className={LABEL_CLASS}>필요 강사 수</label>
+            <input type="number" name="requiredInstructors" min={1} defaultValue={1} className={INPUT_CLASS} />
+          </div>
+        )}
+        {amInstructor && (
+          <div className="sm:col-span-4">
+            <label className={LABEL_CLASS}>전달사항 (선택)</label>
+            <input name="note" placeholder="예: 실습 자료 필요" className={INPUT_CLASS} />
+          </div>
+        )}
+        <div className="sm:col-span-4 flex flex-wrap items-center gap-3">
+          <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+            교육일정 추가
+          </button>
+          <span className="text-xs text-slate-500">
+            {amInstructor
+              ? "추가하면 이 시간대에 내 예약(신청)이 함께 등록됩니다."
+              : "빈 시간대로 등록되어 강사가 예약할 수 있습니다."}
+          </span>
+        </div>
+      </form>
+    </details>
+  );
+}
+
 async function ScheduleSection({
   programId,
   viewerId,
   isAdmin,
   amInstructor,
+  view,
+  month,
+  date,
 }: {
   programId: string | null;
   viewerId: string;
   isAdmin: boolean;
   amInstructor: boolean;
+  view: ScheduleView;
+  month?: string;
+  date?: string;
 }) {
   if (!programId) {
     return (
@@ -261,6 +481,8 @@ async function ScheduleSection({
       startAt: true,
       endAt: true,
       requiredInstructors: true,
+      createdById: true,
+      createdBy: { select: { name: true } },
       bookings: {
         orderBy: { createdAt: "asc" },
         select: {
@@ -281,39 +503,164 @@ async function ScheduleSection({
   // 지난 일정은 카드에서 "종료"로 표시하고 예약 버튼을 감춘다 — 한 번
   // 지나간 시간대에 새로 예약이 들어오면 강사도 관리자도 혼란스럽다.
   const now = new Date();
+  const todayKey = kstDayKey(now);
 
-  // 같은 날짜끼리 묶어서 하루 단위로 보여준다 — 강사는 "내가 되는 날"을
-  // 먼저 찾고 그 안에서 시간을 고르기 때문.
-  const days = new Map<string, SessionRow[]>();
+  // 같은 날짜끼리 묶는다 — 달력은 이 날짜별 묶음을 셀에 뿌리고, 강사는
+  // "내가 되는 날"을 고른 뒤 그 안에서 시간대를 선택해 예약한다.
+  const byDay = new Map<string, SessionRow[]>();
   for (const s of sessions) {
     const key = kstDayKey(s.startAt);
-    const list = days.get(key) ?? [];
+    const list = byDay.get(key) ?? [];
     list.push(s);
-    days.set(key, list);
+    byDay.set(key, list);
   }
 
+  // 기본으로 펼칠 달: 앞으로 열리는 첫 일정이 있는 달. 프로그램이 다음 달
+  // 일정만 갖고 있는데 이번 달 빈 달력을 띄우면 아무것도 못 본다.
+  const upcoming = sessions.find((s) => s.endAt > now) ?? sessions[sessions.length - 1];
+  const { year, monthIdx } = parseMonthKey(month ?? date?.slice(0, 7), kstDayKey(upcoming.startAt).slice(0, 7));
+  const currentMonthKey = monthKeyOf(year, monthIdx);
+
+  const monthDayKeys = [...byDay.keys()].filter((k) => k.startsWith(currentMonthKey)).sort();
+  // 손으로 고친 URL로 month와 date가 서로 다른 달을 가리킬 수 있다 — 그럴
+  // 땐 date를 버려서 달력과 아래 시간대 목록이 항상 같은 달을 가리키게 한다.
+  const selectedKey =
+    (date?.startsWith(currentMonthKey) ? date : null) ??
+    monthDayKeys.find((k) => k >= todayKey) ??
+    monthDayKeys[0] ??
+    null;
+  const selectedSessions = selectedKey ? (byDay.get(selectedKey) ?? []) : [];
+
+  const prev = monthIdx === 0 ? { year: year - 1, monthIdx: 11 } : { year, monthIdx: monthIdx - 1 };
+  const next = monthIdx === 11 ? { year: year + 1, monthIdx: 0 } : { year, monthIdx: monthIdx + 1 };
+  const navLinkClass = "rounded border border-slate-300 px-2.5 py-1 text-sm text-slate-600 hover:bg-slate-100";
+
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       {!amInstructor && !isAdmin && (
         <p className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
           예약은 관리자가 지정한 온보딩 강사만 할 수 있습니다. 일정은 열람만 가능합니다.
         </p>
       )}
-      {[...days.entries()].map(([key, list]) => (
-        <div key={key} className="flex flex-col gap-2">
-          <p className="text-sm font-semibold text-slate-500">{formatSessionDay(list[0].startAt)}</p>
-          {list.map((s) => (
-            <SessionCard
-              key={s.id}
-              session={s}
-              viewerId={viewerId}
-              isAdmin={isAdmin}
-              amInstructor={amInstructor}
-              now={now}
-            />
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {view === "calendar" ? (
+          <div className="flex items-center gap-2">
+            <Link
+              href={scheduleHref({ programId, view, month: monthKeyOf(prev.year, prev.monthIdx) })}
+              className={navLinkClass}
+            >
+              ‹
+            </Link>
+            <p className="w-28 text-center text-lg font-semibold text-slate-800">
+              {year}년 {monthIdx + 1}월
+            </p>
+            <Link
+              href={scheduleHref({ programId, view, month: monthKeyOf(next.year, next.monthIdx) })}
+              className={navLinkClass}
+            >
+              ›
+            </Link>
+            <Link
+              href={scheduleHref({ programId, view, month: todayKey.slice(0, 7), date: todayKey })}
+              className="ml-1 rounded border border-slate-300 px-3 py-1 text-sm text-slate-600 hover:bg-slate-100"
+            >
+              오늘
+            </Link>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">전체 {sessions.length}개 시간대</p>
+        )}
+
+        <div className="flex gap-1 rounded bg-slate-100 p-0.5">
+          {(["calendar", "list"] as const).map((v) => (
+            <Link
+              key={v}
+              href={scheduleHref({ programId, view: v, month: currentMonthKey, date: selectedKey })}
+              className={`rounded px-3 py-1 text-xs font-medium ${
+                v === view ? "bg-white text-brand-green-dark shadow-sm" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {v === "calendar" ? "달력" : "목록"}
+            </Link>
           ))}
         </div>
-      ))}
+      </div>
+
+      {view === "calendar" ? (
+        <>
+          <CalendarGrid
+            year={year}
+            monthIdx={monthIdx}
+            byDay={byDay}
+            selectedKey={selectedKey}
+            todayKey={todayKey}
+            programId={programId}
+            now={now}
+          />
+
+          <div className="flex flex-col gap-2">
+            {selectedKey === null ? (
+              <EmptyBox>이 달에는 등록된 일정이 없습니다. 다른 달을 확인해 주세요.</EmptyBox>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <h2 className="text-lg font-semibold text-slate-800">
+                    {formatSessionDay(new Date(`${selectedKey}T00:00:00+09:00`))}
+                  </h2>
+                  <span className="text-sm text-slate-500">
+                    {selectedSessions.length > 0
+                      ? `시간대 ${selectedSessions.length}개 — 아래에서 선택해 예약하세요`
+                      : "등록된 시간대 없음"}
+                  </span>
+                </div>
+                {selectedSessions.length === 0 ? (
+                  <EmptyBox>이 날짜에는 아직 등록된 교육일정이 없습니다.</EmptyBox>
+                ) : (
+                  selectedSessions.map((s) => (
+                    <SessionCard
+                      key={s.id}
+                      session={s}
+                      viewerId={viewerId}
+                      isAdmin={isAdmin}
+                      amInstructor={amInstructor}
+                      now={now}
+                    />
+                  ))
+                )}
+
+                {(amInstructor || isAdmin) && (
+                  <AddSessionForm
+                    programId={programId}
+                    dateKey={selectedKey}
+                    isAdmin={isAdmin}
+                    amInstructor={amInstructor}
+                    past={new Date(`${selectedKey}T23:59:59+09:00`) <= now}
+                  />
+                )}
+              </>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="flex flex-col gap-5">
+          {[...byDay.entries()].map(([key, list]) => (
+            <div key={key} className="flex flex-col gap-2">
+              <p className="text-sm font-semibold text-slate-500">{formatSessionDay(list[0].startAt)}</p>
+              {list.map((s) => (
+                <SessionCard
+                  key={s.id}
+                  session={s}
+                  viewerId={viewerId}
+                  isAdmin={isAdmin}
+                  amInstructor={amInstructor}
+                  now={now}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -642,58 +989,19 @@ async function ManageSection({ programId }: { programId: string | null }) {
         </div>
       )}
 
-      <form action={createSession} className="rounded-lg border border-slate-200 bg-white p-5">
+      <div className="rounded-lg border border-dashed border-slate-300 bg-white p-5">
         <h2 className="text-lg font-semibold text-slate-800">교육 일정 추가</h2>
         <p className="mt-1 text-sm text-slate-600">
-          여기서 만든 시간대가 강사에게 노출되고, 강사는 본인이 가능한 시간에 예약합니다.
+          교육 일정은 <strong>[온보딩 일정]</strong> 탭의 달력에서 날짜를 눌러 추가합니다. 지정된 강사도 같은
+          화면에서 본인이 맡을 시간대를 직접 등록할 수 있습니다.
         </p>
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
-          <div className="sm:col-span-2">
-            <label className={LABEL_CLASS}>프로그램</label>
-            <select name="programId" required defaultValue={programId ?? ""} className={INPUT_CLASS}>
-              <option value="" disabled>
-                선택하세요
-              </option>
-              {programs.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="sm:col-span-2">
-            <label className={LABEL_CLASS}>과정명</label>
-            <input name="title" required placeholder="예: 회사 소개 · 인사제도 안내" className={INPUT_CLASS} />
-          </div>
-          <div>
-            <label className={LABEL_CLASS}>날짜</label>
-            <input type="date" name="date" required className={INPUT_CLASS} />
-          </div>
-          <div>
-            <label className={LABEL_CLASS}>시작 시간</label>
-            <input type="time" name="startTime" required defaultValue="09:00" className={INPUT_CLASS} />
-          </div>
-          <div>
-            <label className={LABEL_CLASS}>종료 시간</label>
-            <input type="time" name="endTime" required defaultValue="11:00" className={INPUT_CLASS} />
-          </div>
-          <div>
-            <label className={LABEL_CLASS}>필요 강사 수</label>
-            <input type="number" name="requiredInstructors" min={1} defaultValue={1} className={INPUT_CLASS} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className={LABEL_CLASS}>장소 (선택)</label>
-            <input name="location" placeholder="예: 본사 3층 대회의실" className={INPUT_CLASS} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className={LABEL_CLASS}>설명 (선택)</label>
-            <input name="description" placeholder="교육 내용 요약" className={INPUT_CLASS} />
-          </div>
-        </div>
-        <button type="submit" className={`mt-4 ${PRIMARY_BUTTON_CLASS}`}>
-          일정 추가
-        </button>
-      </form>
+        <Link
+          href={scheduleHref({ programId, view: "calendar" })}
+          className={`mt-4 inline-block ${PRIMARY_BUTTON_CLASS}`}
+        >
+          달력에서 추가하기
+        </Link>
+      </div>
 
       <div className="flex flex-col gap-2">
         <h2 className="text-lg font-semibold text-slate-800">등록된 일정</h2>
@@ -781,7 +1089,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
 export default async function OnboardingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; programId?: string }>;
+  searchParams: Promise<{ tab?: string; programId?: string; view?: string; month?: string; date?: string }>;
 }) {
   if (!(await checkModuleAccess("ONBOARDING"))) {
     return <NoModuleAccess title="온보딩 프로그램" />;
@@ -792,7 +1100,14 @@ export default async function OnboardingPage({
   const isAdmin = session!.user.role === "ADMIN";
   const amInstructor = await isActiveInstructor(viewerId);
 
-  const { tab: tabParam, programId: programIdParam } = await searchParams;
+  const {
+    tab: tabParam,
+    programId: programIdParam,
+    view: viewParam,
+    month: monthParam,
+    date: dateParam,
+  } = await searchParams;
+  const view: ScheduleView = viewParam === "list" ? "list" : "calendar";
 
   const visibleTabs = TABS.filter(
     (t) => t.role === "all" || (t.role === "admin" && isAdmin) || (t.role === "instructor" && amInstructor)
@@ -828,7 +1143,11 @@ export default async function OnboardingPage({
           {programs.map((p) => (
             <Link
               key={p.id}
-              href={`/platform/onboarding?tab=${tab}&programId=${p.id}`}
+              href={
+                tab === "schedule"
+                  ? scheduleHref({ programId: p.id, view })
+                  : `/platform/onboarding?tab=${tab}&programId=${p.id}`
+              }
               className={`rounded-full border px-3 py-1 text-xs ${
                 p.id === programId
                   ? "border-brand-green bg-brand-green-light text-brand-green-dark"
@@ -843,7 +1162,15 @@ export default async function OnboardingPage({
       )}
 
       {tab === "schedule" && (
-        <ScheduleSection programId={programId} viewerId={viewerId} isAdmin={isAdmin} amInstructor={amInstructor} />
+        <ScheduleSection
+          programId={programId}
+          viewerId={viewerId}
+          isAdmin={isAdmin}
+          amInstructor={amInstructor}
+          view={view}
+          month={monthParam}
+          date={dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : undefined}
+        />
       )}
       {tab === "my" && <MyBookingsSection viewerId={viewerId} />}
       {tab === "instructors" && <InstructorsSection />}
