@@ -377,12 +377,14 @@ function AddSessionForm({
   isAdmin,
   amInstructor,
   past,
+  openByDefault = false,
 }: {
   programId: string;
   dateKey: string;
   isAdmin: boolean;
   amInstructor: boolean;
   past: boolean;
+  openByDefault?: boolean;
 }) {
   if (past) {
     return (
@@ -393,7 +395,7 @@ function AddSessionForm({
   }
 
   return (
-    <details className="rounded-lg border border-dashed border-brand-green bg-white p-4">
+    <details open={openByDefault} className="rounded-lg border border-dashed border-brand-green bg-white p-4">
       <summary className="cursor-pointer text-sm font-medium text-brand-green-dark">
         + 이 날짜에 교육일정 추가
       </summary>
@@ -455,6 +457,7 @@ async function ScheduleSection({
   view,
   month,
   date,
+  programStart,
 }: {
   programId: string | null;
   viewerId: string;
@@ -463,6 +466,7 @@ async function ScheduleSection({
   view: ScheduleView;
   month?: string;
   date?: string;
+  programStart: Date | null;
 }) {
   if (!programId) {
     return (
@@ -496,9 +500,6 @@ async function ScheduleSection({
     },
   })) as SessionRow[];
 
-  if (sessions.length === 0) {
-    return <EmptyBox>이 프로그램에 등록된 교육 일정이 없습니다.</EmptyBox>;
-  }
 
   // 지난 일정은 카드에서 "종료"로 표시하고 예약 버튼을 감춘다 — 한 번
   // 지나간 시간대에 새로 예약이 들어오면 강사도 관리자도 혼란스럽다.
@@ -517,19 +518,26 @@ async function ScheduleSection({
 
   // 기본으로 펼칠 달: 앞으로 열리는 첫 일정이 있는 달. 프로그램이 다음 달
   // 일정만 갖고 있는데 이번 달 빈 달력을 띄우면 아무것도 못 본다.
+  // 아직 일정이 하나도 없으면(프로그램을 막 만든 직후) 프로그램 시작월을,
+  // 그것도 없으면 이번 달을 펼친다 — 여기서 첫 일정을 추가하게 되므로 달력은
+  // 항상 그려야 한다.
   const upcoming = sessions.find((s) => s.endAt > now) ?? sessions[sessions.length - 1];
-  const { year, monthIdx } = parseMonthKey(month ?? date?.slice(0, 7), kstDayKey(upcoming.startAt).slice(0, 7));
+  const fallbackMonth = upcoming
+    ? kstDayKey(upcoming.startAt).slice(0, 7)
+    : (programStart ? kstDayKey(programStart) : todayKey).slice(0, 7);
+  const { year, monthIdx } = parseMonthKey(month ?? date?.slice(0, 7), fallbackMonth);
   const currentMonthKey = monthKeyOf(year, monthIdx);
 
   const monthDayKeys = [...byDay.keys()].filter((k) => k.startsWith(currentMonthKey)).sort();
   // 손으로 고친 URL로 month와 date가 서로 다른 달을 가리킬 수 있다 — 그럴
   // 땐 date를 버려서 달력과 아래 시간대 목록이 항상 같은 달을 가리키게 한다.
+  // 일정이 없는 달이어도 날짜 하나는 고른 상태로 둔다(그래야 추가 폼이 뜬다).
   const selectedKey =
     (date?.startsWith(currentMonthKey) ? date : null) ??
     monthDayKeys.find((k) => k >= todayKey) ??
     monthDayKeys[0] ??
-    null;
-  const selectedSessions = selectedKey ? (byDay.get(selectedKey) ?? []) : [];
+    (todayKey.startsWith(currentMonthKey) ? todayKey : `${currentMonthKey}-01`);
+  const selectedSessions = byDay.get(selectedKey) ?? [];
 
   const prev = monthIdx === 0 ? { year: year - 1, monthIdx: 11 } : { year, monthIdx: monthIdx - 1 };
   const next = monthIdx === 11 ? { year: year + 1, monthIdx: 0 } : { year, monthIdx: monthIdx + 1 };
@@ -600,50 +608,54 @@ async function ScheduleSection({
           />
 
           <div className="flex flex-col gap-2">
-            {selectedKey === null ? (
-              <EmptyBox>이 달에는 등록된 일정이 없습니다. 다른 달을 확인해 주세요.</EmptyBox>
-            ) : (
-              <>
-                <div className="flex flex-wrap items-baseline gap-2">
-                  <h2 className="text-lg font-semibold text-slate-800">
-                    {formatSessionDay(new Date(`${selectedKey}T00:00:00+09:00`))}
-                  </h2>
-                  <span className="text-sm text-slate-500">
-                    {selectedSessions.length > 0
-                      ? `시간대 ${selectedSessions.length}개 — 아래에서 선택해 예약하세요`
-                      : "등록된 시간대 없음"}
-                  </span>
-                </div>
-                {selectedSessions.length === 0 ? (
-                  <EmptyBox>이 날짜에는 아직 등록된 교육일정이 없습니다.</EmptyBox>
-                ) : (
-                  selectedSessions.map((s) => (
-                    <SessionCard
-                      key={s.id}
-                      session={s}
-                      viewerId={viewerId}
-                      isAdmin={isAdmin}
-                      amInstructor={amInstructor}
-                      now={now}
-                    />
-                  ))
-                )}
+            <div className="flex flex-wrap items-baseline gap-2">
+              <h2 className="text-lg font-semibold text-slate-800">
+                {formatSessionDay(new Date(`${selectedKey}T00:00:00+09:00`))}
+              </h2>
+              <span className="text-sm text-slate-500">
+                {selectedSessions.length > 0
+                  ? `시간대 ${selectedSessions.length}개 — 아래에서 선택해 예약하세요`
+                  : "등록된 시간대 없음"}
+              </span>
+            </div>
 
-                {(amInstructor || isAdmin) && (
-                  <AddSessionForm
-                    programId={programId}
-                    dateKey={selectedKey}
-                    isAdmin={isAdmin}
-                    amInstructor={amInstructor}
-                    past={new Date(`${selectedKey}T23:59:59+09:00`) <= now}
-                  />
-                )}
-              </>
+            {selectedSessions.length === 0 && (
+              <p className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-4 text-center text-sm text-slate-500">
+                이 날짜에는 아직 교육일정이 없습니다.
+                {(amInstructor || isAdmin) && " 아래에서 추가하거나, 달력에서 다른 날짜를 선택하세요."}
+              </p>
+            )}
+
+            {selectedSessions.map((s) => (
+              <SessionCard
+                key={s.id}
+                session={s}
+                viewerId={viewerId}
+                isAdmin={isAdmin}
+                amInstructor={amInstructor}
+                now={now}
+              />
+            ))}
+
+            {(amInstructor || isAdmin) && (
+              <AddSessionForm
+                programId={programId}
+                dateKey={selectedKey}
+                isAdmin={isAdmin}
+                amInstructor={amInstructor}
+                past={new Date(`${selectedKey}T23:59:59+09:00`) <= now}
+                openByDefault={sessions.length === 0}
+              />
             )}
           </div>
         </>
       ) : (
         <div className="flex flex-col gap-5">
+          {sessions.length === 0 && (
+            <EmptyBox>
+              이 프로그램에 등록된 교육일정이 없습니다. [달력]에서 날짜를 눌러 추가하세요.
+            </EmptyBox>
+          )}
           {[...byDay.entries()].map(([key, list]) => (
             <div key={key} className="flex flex-col gap-2">
               <p className="text-sm font-semibold text-slate-500">{formatSessionDay(list[0].startAt)}</p>
@@ -1116,7 +1128,7 @@ export default async function OnboardingPage({
 
   const programs = await prisma.onboardingProgram.findMany({
     orderBy: [{ active: "desc" }, { createdAt: "desc" }],
-    select: { id: true, name: true, active: true },
+    select: { id: true, name: true, active: true, startDate: true },
   });
   const selectedProgram =
     programs.find((p) => p.id === programIdParam) ?? programs.find((p) => p.active) ?? programs[0] ?? null;
@@ -1127,7 +1139,7 @@ export default async function OnboardingPage({
       <div>
         <h1 className="text-2xl font-semibold">SG 온보딩 프로그램</h1>
         <p className="mt-1 text-slate-600">
-          관리자가 온보딩 교육 일정과 강사를 설정하고, 지정된 강사는 본인이 가능한 시간에 직접 예약합니다.
+          관리자가 온보딩 기수와 강사를 지정하고, 지정된 강사는 달력에서 본인이 맡을 교육일정을 직접 등록·예약합니다.
         </p>
       </div>
 
@@ -1168,6 +1180,7 @@ export default async function OnboardingPage({
           isAdmin={isAdmin}
           amInstructor={amInstructor}
           view={view}
+          programStart={selectedProgram?.startDate ?? null}
           month={monthParam}
           date={dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : undefined}
         />
