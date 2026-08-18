@@ -292,10 +292,6 @@ export function LeaderBanner({
 }
 
 /** Inline drilldown for a single division: banner + its teams, with a way to close. */
-function DrilldownStem() {
-  return <div className="mx-auto h-4 w-0.5 bg-slate-300" />;
-}
-
 function DivisionDrilldown({ division, onClose }: { division: DivisionNode; onClose: () => void }) {
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-dashed border-slate-300 bg-slate-50/60 p-4">
@@ -363,8 +359,7 @@ function UnitDrilldown({ unit }: { unit: UnitNode }) {
         )}
       </div>
       {expandedDivision && (
-        <div className="mt-4 flex flex-col items-center">
-          <DrilldownStem />
+        <div className="mt-4">
           <DivisionDrilldown
             division={unit.divisions.find((d) => d.name === expandedDivision)!}
             onClose={() => setExpandedDivision(null)}
@@ -486,15 +481,13 @@ export function OrgChartRoot({
       </div>
 
       {expandedUnit && (
-        <div className="flex w-full flex-col items-center">
-          <DrilldownStem />
+        <div className="mt-8 w-full">
           <UnitDrilldown unit={units.find((u) => u.name === expandedUnit)!} />
         </div>
       )}
 
       {expandedStandaloneDivision && (
-        <div className={`flex w-full flex-col items-center ${expandedUnit ? "mt-8" : ""}`}>
-          <DrilldownStem />
+        <div className="mt-8 w-full">
           <DivisionDrilldown
             division={standaloneDivisions.find((d) => d.name === expandedStandaloneDivision)!}
             onClose={() => setExpandedStandaloneDivision(null)}
