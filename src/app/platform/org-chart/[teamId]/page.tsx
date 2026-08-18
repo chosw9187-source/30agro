@@ -80,7 +80,7 @@ export default async function TeamOrgDetailPage({
                 </span>
                 {leader.birthDate && (
                   <span className="rounded-full bg-blue-400/20 px-2 py-0.5 text-xs font-medium text-blue-100">
-                    만 {ageInYears(leader.birthDate)}세
+                    만 {ageInYears(leader.birthDate)}세 ({formatKSTDate(leader.birthDate)})
                   </span>
                 )}
                 {leader.hireDate ? (
@@ -145,7 +145,7 @@ export default async function TeamOrgDetailPage({
                         </span>
                         {m.birthDate && (
                           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-sm font-medium text-blue-700">
-                            만 {ageInYears(m.birthDate)}세
+                            만 {ageInYears(m.birthDate)}세 ({formatKSTDate(m.birthDate)})
                           </span>
                         )}
                         {m.hireDate ? (

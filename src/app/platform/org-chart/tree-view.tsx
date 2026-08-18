@@ -135,7 +135,7 @@ export function TeamChip({ team }: { team: TeamLite }) {
   return (
     <Link
       href={`/platform/org-chart/${team.id}`}
-      className="flex flex-col items-center rounded-lg border border-slate-200 bg-white p-4 text-center hover:border-brand-green hover:shadow-sm"
+      className="mx-auto flex w-44 shrink-0 flex-col items-center rounded-lg border border-slate-200 bg-white p-4 text-center hover:border-brand-green hover:shadow-sm"
     >
       {team.leaderId ? (
         <Avatar
@@ -251,7 +251,7 @@ export function LeaderBanner({
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               {leader.birthDate && (
                 <span className="rounded-full bg-blue-400/20 px-2 py-0.5 text-xs font-medium text-blue-100">
-                  만 {ageInYears(leader.birthDate)}세
+                  만 {ageInYears(leader.birthDate)}세 ({formatKSTDate(leader.birthDate)})
                 </span>
               )}
               {leader.hireDate && (
@@ -292,6 +292,10 @@ export function LeaderBanner({
 }
 
 /** Inline drilldown for a single division: banner + its teams, with a way to close. */
+function DrilldownStem() {
+  return <div className="mx-auto h-4 w-0.5 bg-slate-300" />;
+}
+
 function DivisionDrilldown({ division, onClose }: { division: DivisionNode; onClose: () => void }) {
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-dashed border-slate-300 bg-slate-50/60 p-4">
@@ -328,39 +332,44 @@ function UnitDrilldown({ unit }: { unit: UnitNode }) {
   const childCount = unit.divisions.length + unit.directTeams.length;
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border border-dashed border-slate-300 bg-slate-50/60 p-4">
-      <LeaderBanner
-        eyebrow={unit.name}
-        title={unit.leader ? `${unit.leader.name} ${unit.leader.jobGrade || ""}`.trim() : unit.name}
-        leader={unit.leader}
-        headcount={unitHeadcount(unit)}
-        parts={unitComposition(unit)}
-      />
-      {childCount > 0 ? (
-        <ConnectorRow count={childCount} minWidth={childCount * 200}>
-          {unit.divisions.map((d) => (
-            <DrillButton
-              key={d.name}
-              title={d.name}
-              leader={d.leader}
-              headcount={divisionHeadcount(d)}
-              parts={divisionComposition(d)}
-              active={expandedDivision === d.name}
-              onClick={() => setExpandedDivision((cur) => (cur === d.name ? null : d.name))}
-            />
-          ))}
-          {unit.directTeams.map((t) => (
-            <TeamChip key={t.id} team={t} />
-          ))}
-        </ConnectorRow>
-      ) : (
-        <p className="text-slate-500">소속 조직이 없습니다.</p>
-      )}
-      {expandedDivision && (
-        <DivisionDrilldown
-          division={unit.divisions.find((d) => d.name === expandedDivision)!}
-          onClose={() => setExpandedDivision(null)}
+    <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/60 p-4">
+      <div className="flex flex-col gap-4">
+        <LeaderBanner
+          eyebrow={unit.name}
+          title={unit.leader ? `${unit.leader.name} ${unit.leader.jobGrade || ""}`.trim() : unit.name}
+          leader={unit.leader}
+          headcount={unitHeadcount(unit)}
+          parts={unitComposition(unit)}
         />
+        {childCount > 0 ? (
+          <ConnectorRow count={childCount} minWidth={childCount * 200}>
+            {unit.divisions.map((d) => (
+              <DrillButton
+                key={d.name}
+                title={d.name}
+                leader={d.leader}
+                headcount={divisionHeadcount(d)}
+                parts={divisionComposition(d)}
+                active={expandedDivision === d.name}
+                onClick={() => setExpandedDivision((cur) => (cur === d.name ? null : d.name))}
+              />
+            ))}
+            {unit.directTeams.map((t) => (
+              <TeamChip key={t.id} team={t} />
+            ))}
+          </ConnectorRow>
+        ) : (
+          <p className="text-slate-500">소속 조직이 없습니다.</p>
+        )}
+      </div>
+      {expandedDivision && (
+        <div className="mt-4 flex flex-col items-center">
+          <DrilldownStem />
+          <DivisionDrilldown
+            division={unit.divisions.find((d) => d.name === expandedDivision)!}
+            onClose={() => setExpandedDivision(null)}
+          />
+        </div>
       )}
     </div>
   );
@@ -446,7 +455,7 @@ export function OrgChartRoot({
   const rootChildCount = units.length + standaloneDivisions.length;
 
   return (
-    <div className="flex flex-col items-center gap-8">
+    <div className="flex flex-col items-center">
       <div className="flex w-full flex-col">
         <DirectTeamsBranch teams={rootTeams} />
         {rootChildCount > 0 && (
@@ -480,13 +489,15 @@ export function OrgChartRoot({
       </div>
 
       {expandedUnit && (
-        <div className="w-full">
+        <div className="flex w-full flex-col items-center">
+          <DrilldownStem />
           <UnitDrilldown unit={units.find((u) => u.name === expandedUnit)!} />
         </div>
       )}
 
       {expandedStandaloneDivision && (
-        <div className="w-full">
+        <div className={`flex w-full flex-col items-center ${expandedUnit ? "mt-8" : ""}`}>
+          <DrilldownStem />
           <DivisionDrilldown
             division={standaloneDivisions.find((d) => d.name === expandedStandaloneDivision)!}
             onClose={() => setExpandedStandaloneDivision(null)}
@@ -495,7 +506,7 @@ export function OrgChartRoot({
       )}
 
       {rootChildCount === 0 && rootTeams.length === 0 && (
-        <p className="text-slate-500">아직 등록된 팀이 없습니다.</p>
+        <p className="mt-8 text-slate-500">아직 등록된 팀이 없습니다.</p>
       )}
     </div>
   );

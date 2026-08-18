@@ -132,7 +132,7 @@ export default async function EmployeeDirectoryPage({
                   </span>
                   {e.birthDate && (
                     <span className="rounded-full bg-blue-50 px-2 py-0.5 text-sm font-medium text-blue-700">
-                      만 {ageInYears(e.birthDate)}세
+                      만 {ageInYears(e.birthDate)}세 ({formatKSTDate(e.birthDate)})
                     </span>
                   )}
                   {e.hireDate ? (

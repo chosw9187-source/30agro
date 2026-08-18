@@ -117,7 +117,7 @@ function EmployeePreviewCard({ label, data, muted }: { label: string; data: Card
         )}
         {data.birthDate && (
           <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-            만 {ageInYears(data.birthDate)}세
+            만 {ageInYears(data.birthDate)}세 ({formatKSTDate(data.birthDate)})
           </span>
         )}
         {data.hireDate && (
