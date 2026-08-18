@@ -35,11 +35,15 @@ import {
 
 export const dynamic = "force-dynamic";
 
+// 실제 진행 순서대로 — 관리자가 기수를 만들고(일정 관리) 강사를 지정하면,
+// 그때부터 강사가 쓰는 화면(온보딩 일정 · 내 강의 일정)이 의미를 갖는다.
+// 관리자 전용 탭은 강사에게는 아예 보이지 않으므로, 강사 눈에는
+// [온보딩 일정][내 강의 일정] 둘만 남는다.
 const TABS = [
+  { key: "manage", label: "일정 관리", role: "admin" },
+  { key: "instructors", label: "강사 지정", role: "admin" },
   { key: "schedule", label: "온보딩 일정", role: "all" },
   { key: "my", label: "내 강의 일정", role: "instructor" },
-  { key: "instructors", label: "강사 지정", role: "admin" },
-  { key: "manage", label: "일정 관리", role: "admin" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -1124,12 +1128,16 @@ export default async function OnboardingPage({
   const visibleTabs = TABS.filter(
     (t) => t.role === "all" || (t.role === "admin" && isAdmin) || (t.role === "instructor" && amInstructor)
   );
-  const tab: TabKey = visibleTabs.some((t) => t.key === tabParam) ? (tabParam as TabKey) : "schedule";
 
   const programs = await prisma.onboardingProgram.findMany({
     orderBy: [{ active: "desc" }, { createdAt: "desc" }],
     select: { id: true, name: true, active: true, startDate: true },
   });
+
+  // 평소에는 달력(온보딩 일정)으로 들어오는 게 맞지만, 기수가 아직 하나도
+  // 없는 관리자는 거기서 할 수 있는 게 없다 — 첫 순서인 [일정 관리]로 보낸다.
+  const defaultTab: TabKey = isAdmin && programs.length === 0 ? "manage" : "schedule";
+  const tab: TabKey = visibleTabs.some((t) => t.key === tabParam) ? (tabParam as TabKey) : defaultTab;
   const selectedProgram =
     programs.find((p) => p.id === programIdParam) ?? programs.find((p) => p.active) ?? programs[0] ?? null;
   const programId = selectedProgram?.id ?? null;
