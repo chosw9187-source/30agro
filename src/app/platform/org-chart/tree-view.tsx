@@ -135,7 +135,7 @@ export function TeamChip({ team }: { team: TeamLite }) {
   return (
     <Link
       href={`/platform/org-chart/${team.id}`}
-      className="mx-auto flex w-44 shrink-0 flex-col items-center rounded-lg border border-slate-200 bg-white p-4 text-center hover:border-brand-green hover:shadow-sm"
+      className="mx-auto flex w-[240px] shrink-0 flex-col items-center rounded-lg border border-slate-200 bg-white p-4 text-center hover:border-brand-green hover:shadow-sm"
     >
       {team.leaderId ? (
         <Avatar
