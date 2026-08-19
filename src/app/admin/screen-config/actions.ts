@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
-import { HOME_BLOCKS, SIDEBAR_MODULES, type Position } from "@/lib/permissions";
+import { HOME_BLOCKS, SIDEBAR_MODULES, ADMIN_MENU_ITEMS, type Position } from "@/lib/permissions";
 
 export type SaveResult = { savedAt: number };
 
@@ -57,6 +57,28 @@ export async function saveSidebarConfig(
   // 나열하면 새 레이아웃이 생길 때마다 빠뜨리고, 무엇보다 revalidatePath는
   // 기본이 page 단위라 레이아웃 안의 사이드바는 갱신되지 않는다 — 순서를
   // 바꿔도 화면이 그대로였던 원인. 루트 레이아웃을 갱신해 전부 덮는다.
+  revalidatePath("/", "layout");
+
+  return { savedAt: Date.now() };
+}
+
+export async function saveAdminMenuConfig(
+  _prevState: SaveResult | undefined,
+  formData: FormData
+): Promise<SaveResult> {
+  await requireRole("ADMIN");
+
+  for (const item of ADMIN_MENU_ITEMS) {
+    const hidden = formData.get(`hidden:${item.key}`) === "on";
+    await prisma.adminMenuConfig.upsert({
+      where: { key: item.key },
+      update: { hidden },
+      create: { key: item.key, hidden },
+    });
+  }
+
+  // See saveSidebarConfig above — layout-level revalidate needed for the
+  // sidebar (rendered inside PlatformShell) to actually pick up the change.
   revalidatePath("/", "layout");
 
   return { savedAt: Date.now() };

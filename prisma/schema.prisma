@@ -541,6 +541,13 @@ model ModuleUiConfig {
   hidden     Boolean @default(false)
 }
 
+/** 사이드바 "관리"(admin) 섹션 항목별 숨김 여부. key는 AdminMenuKey 문자열. */
+model AdminMenuConfig {
+  id     String  @id @default(cuid())
+  key    String  @unique
+  hidden Boolean @default(false)
+}
+
 enum ErpBatchStatus {
   PENDING_REVIEW
   APPLIED

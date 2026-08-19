@@ -2,7 +2,14 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { HomeLayoutForm } from "./home-layout-form";
 import { SidebarConfigForm } from "./sidebar-config-form";
-import { POSITIONS, POSITION_LABEL, getModuleUiConfig, type Position } from "@/lib/permissions";
+import { AdminMenuConfigForm } from "./admin-menu-config-form";
+import {
+  POSITIONS,
+  POSITION_LABEL,
+  getModuleUiConfig,
+  getHiddenAdminMenuKeys,
+  type Position,
+} from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -53,13 +60,19 @@ async function SidebarTab() {
   return <SidebarConfigForm config={config} />;
 }
 
+async function AdminMenuTab() {
+  const hidden = await getHiddenAdminMenuKeys();
+  return <AdminMenuConfigForm hidden={hidden} />;
+}
+
 export default async function ScreenConfigPage({
   searchParams,
 }: {
   searchParams: Promise<{ tab?: string; position?: string }>;
 }) {
   const params = await searchParams;
-  const activeTab = params.tab === "sidebar" ? "sidebar" : "home";
+  const activeTab =
+    params.tab === "sidebar" ? "sidebar" : params.tab === "admin-menu" ? "admin-menu" : "home";
   const selected: Position = POSITIONS.includes(params.position as Position)
     ? (params.position as Position)
     : "STAFF";
@@ -77,9 +90,20 @@ export default async function ScreenConfigPage({
       <div className="flex gap-2">
         <TabLink href="/admin/screen-config?tab=home" label="홈 화면" active={activeTab === "home"} />
         <TabLink href="/admin/screen-config?tab=sidebar" label="사이드바" active={activeTab === "sidebar"} />
+        <TabLink
+          href="/admin/screen-config?tab=admin-menu"
+          label="관리 메뉴"
+          active={activeTab === "admin-menu"}
+        />
       </div>
 
-      {activeTab === "home" ? <HomeTab selected={selected} /> : <SidebarTab />}
+      {activeTab === "home" ? (
+        <HomeTab selected={selected} />
+      ) : activeTab === "sidebar" ? (
+        <SidebarTab />
+      ) : (
+        <AdminMenuTab />
+      )}
     </div>
   );
 }

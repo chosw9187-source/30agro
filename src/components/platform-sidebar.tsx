@@ -3,7 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { POSITION_LABEL, SIDEBAR_MODULES, type Module, type Position } from "@/lib/permission-constants";
+import {
+  POSITION_LABEL,
+  SIDEBAR_MODULES,
+  ADMIN_MENU_ITEMS,
+  type Module,
+  type Position,
+  type AdminMenuKey,
+} from "@/lib/permission-constants";
 
 type Role = "ADMIN" | "EVALUATOR" | "EMPLOYEE";
 
@@ -71,21 +78,14 @@ const MODULE_LABEL_FOR_NAV: Record<string, string> = {
   EVALUATION: "평가",
 };
 
-function manageItems(role: Role): NavItem[] {
+function manageItems(role: Role, hiddenAdminMenuKeys: Set<AdminMenuKey>): NavItem[] {
   if (role !== "ADMIN") {
     return [];
   }
-  return [
-    { href: "/admin/users", label: "사용자 관리" },
-    { href: "/admin/teams", label: "팀 관리" },
-    { href: "/platform/data-upload", label: "데이터 업로드" },
-    { href: "/admin/templates", label: "평가 템플릿" },
-    { href: "/admin/cycles", label: "평가 사이클" },
-    { href: "/admin/reports", label: "결과 다운로드" },
-    { href: "/admin/permission-matrix", label: "권한 매트릭스" },
-    { href: "/admin/screen-config", label: "화면 구성" },
-    { href: "/admin/traffic", label: "일일 트래픽" },
-  ];
+  return ADMIN_MENU_ITEMS.filter((item) => !hiddenAdminMenuKeys.has(item.key)).map((item) => ({
+    href: item.href,
+    label: item.label,
+  }));
 }
 
 const supportItems: NavItem[] = [
@@ -141,6 +141,7 @@ export function PlatformSidebar({
   onLogout,
   visibleModules,
   moduleUiConfig,
+  hiddenAdminMenuKeys = [],
 }: {
   role: Role;
   user: { name?: string | null; role: Role; position?: Position };
@@ -148,6 +149,7 @@ export function PlatformSidebar({
   onLogout: () => Promise<void>;
   visibleModules: Module[];
   moduleUiConfig: Record<string, { order: number; comingSoon: boolean; hidden: boolean }>;
+  hiddenAdminMenuKeys?: AdminMenuKey[];
 }) {
   const pathname = usePathname();
   const visible = new Set(visibleModules);
@@ -164,7 +166,7 @@ export function PlatformSidebar({
   );
 
   const sections: Section[] = [
-    { key: "manage", label: "관리", items: manageItems(role) },
+    { key: "manage", label: "관리", items: manageItems(role, new Set(hiddenAdminMenuKeys)) },
     { key: "support", label: "지원", items: supportItems },
   ];
 

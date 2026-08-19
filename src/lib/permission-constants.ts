@@ -114,6 +114,30 @@ export const DEFAULT_COMING_SOON_MODULES = new Set<Module>([
 
 export type ModuleUiConfigEntry = { order: number; comingSoon: boolean; hidden: boolean };
 
+/** 사이드바 "관리" 섹션 항목 — ADMIN 역할에게만 보이는 관리자 전용 메뉴. */
+export type AdminMenuKey =
+  | "USERS"
+  | "TEAMS"
+  | "DATA_UPLOAD"
+  | "TEMPLATES"
+  | "CYCLES"
+  | "REPORTS"
+  | "PERMISSION_MATRIX"
+  | "SCREEN_CONFIG"
+  | "TRAFFIC";
+
+export const ADMIN_MENU_ITEMS: { key: AdminMenuKey; href: string; label: string }[] = [
+  { key: "USERS", href: "/admin/users", label: "사용자 관리" },
+  { key: "TEAMS", href: "/admin/teams", label: "팀 관리" },
+  { key: "DATA_UPLOAD", href: "/platform/data-upload", label: "데이터 업로드" },
+  { key: "TEMPLATES", href: "/admin/templates", label: "평가 템플릿" },
+  { key: "CYCLES", href: "/admin/cycles", label: "평가 사이클" },
+  { key: "REPORTS", href: "/admin/reports", label: "결과 다운로드" },
+  { key: "PERMISSION_MATRIX", href: "/admin/permission-matrix", label: "권한 매트릭스" },
+  { key: "SCREEN_CONFIG", href: "/admin/screen-config", label: "화면 구성" },
+  { key: "TRAFFIC", href: "/admin/traffic", label: "일일 트래픽" },
+];
+
 export type HomeBlock = "TEAM_SUMMARY" | "OVERALL_SUMMARY" | "QUICK_LINKS";
 
 export const HOME_BLOCKS: HomeBlock[] = [

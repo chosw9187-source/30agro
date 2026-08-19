@@ -10,6 +10,7 @@ import {
   type HomeBlock,
   type PermissionScope,
   type ModuleUiConfigEntry,
+  type AdminMenuKey,
 } from "@/lib/permission-constants";
 
 export {
@@ -23,11 +24,13 @@ export {
   PERMISSION_SCOPES,
   PERMISSION_SCOPE_LABEL,
   SIDEBAR_MODULES,
+  ADMIN_MENU_ITEMS,
   type Position,
   type Module,
   type HomeBlock,
   type PermissionScope,
   type ModuleUiConfigEntry,
+  type AdminMenuKey,
 } from "@/lib/permission-constants";
 
 /**
@@ -276,6 +279,12 @@ export async function getModuleUiConfig(): Promise<Record<Module, ModuleUiConfig
     };
   });
   return result;
+}
+
+/** 사이드바 "관리" 섹션에서 숨김 처리된 항목의 key 집합. */
+export async function getHiddenAdminMenuKeys(): Promise<Set<AdminMenuKey>> {
+  const rows = await prisma.adminMenuConfig.findMany({ where: { hidden: true } });
+  return new Set(rows.map((r) => r.key as AdminMenuKey));
 }
 
 export async function getVisibleHomeBlocks(

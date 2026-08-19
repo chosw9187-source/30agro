@@ -5,7 +5,7 @@ import { PlatformSidebar } from "@/components/platform-sidebar";
 import { CompanyLogo } from "@/components/company-logo";
 import { Watermark } from "@/components/watermark";
 import { SessionHeartbeat } from "@/components/session-heartbeat";
-import { getVisibleModules, getModuleUiConfig, type Position } from "@/lib/permissions";
+import { getVisibleModules, getModuleUiConfig, getHiddenAdminMenuKeys, type Position } from "@/lib/permissions";
 import { logPageView } from "@/lib/page-view";
 
 export async function PlatformShell({
@@ -26,9 +26,10 @@ export async function PlatformShell({
     logPageView(user.id),
   ]);
   const position = (dbUser?.position ?? "STAFF") as Position;
-  const [visibleModules, moduleUiConfig] = await Promise.all([
+  const [visibleModules, moduleUiConfig, hiddenAdminMenuKeys] = await Promise.all([
     getVisibleModules(user.id, user.role, position),
     getModuleUiConfig(),
+    user.role === "ADMIN" ? getHiddenAdminMenuKeys() : Promise.resolve(new Set<never>()),
   ]);
 
   async function logout() {
@@ -63,6 +64,7 @@ export async function PlatformShell({
         onLogout={logout}
         visibleModules={[...visibleModules]}
         moduleUiConfig={moduleUiConfig}
+        hiddenAdminMenuKeys={[...hiddenAdminMenuKeys]}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 text-sm md:px-8">
