@@ -120,22 +120,43 @@ export async function uploadRegulations(
 }
 
 /**
- * 저장해둔 원문으로 조문만 다시 쪼갠다. 파서를 고쳤을 때 파일을 다시
- * 올리지 않고 반영하기 위한 것 — 실제 문서를 보고 파서를 손볼 일이
- * 반복되므로 재파싱 경로가 없으면 매번 재업로드해야 한다.
+ * 올렸던 파일에서 원문을 다시 뽑아 조문을 다시 쪼갠다. 파서나 추출기를
+ * 고쳤을 때 파일을 다시 올리지 않고 반영하기 위한 것 — 실제 문서를 보고
+ * 손볼 일이 반복되므로 재파싱 경로가 없으면 매번 재업로드해야 한다.
+ *
+ * 저장된 sourceText만 다시 쪼개면 옛 추출 결과에 갇힌다. 표 인식처럼
+ * 추출 단계를 고친 경우가 그래서, 원본 파일이 남아 있으면 추출부터 다시
+ * 한다. 원본이 없거나 추출이 실패하면 저장된 원문으로 물러선다.
  */
 export async function reparseRegulation(id: string): Promise<{ articleCount: number }> {
   await requireRole("ADMIN");
 
   const regulation = await prisma.regulation.findUnique({
     where: { id },
-    select: { sourceText: true },
+    select: { sourceText: true, fileName: true, fileData: true },
   });
-  if (!regulation?.sourceText) {
+  if (!regulation) throw new Error("규정을 찾을 수 없습니다.");
+
+  let sourceText = regulation.sourceText;
+
+  if (regulation.fileData && regulation.fileName) {
+    try {
+      const extracted = await extractRegulationText(
+        regulation.fileName,
+        Buffer.from(regulation.fileData),
+      );
+      sourceText = extracted;
+      await prisma.regulation.update({ where: { id }, data: { sourceText } });
+    } catch {
+      // 재추출 실패는 재파싱 자체를 막지 않는다 — 아래 저장된 원문으로 간다.
+    }
+  }
+
+  if (!sourceText) {
     throw new Error("원문이 저장돼 있지 않습니다. 파일을 다시 올려주세요.");
   }
 
-  const articles = parseRegulation(regulation.sourceText);
+  const articles = parseRegulation(sourceText);
   await writeArticles(id, articles);
 
   revalidatePath("/platform/legal-library");
@@ -203,7 +224,10 @@ export async function searchArticles(query: string): Promise<ArticleSearchHit[]>
     // 본문 첫머리 대신 검색어 주변을 보여줘야 왜 걸렸는지 알 수 있다.
     const at = hit.body.toLowerCase().indexOf(q.toLowerCase());
     const from = at < 0 ? 0 : Math.max(0, at - 40);
-    const snippet = hit.body.slice(from, from + SNIPPET_LENGTH);
+    // 표 행의 칸 구분 문자는 미리보기에서 노이즈라 공백으로 편다.
+    const snippet = hit.body
+      .slice(from, from + SNIPPET_LENGTH)
+      .replace(/\s*\|\s*/g, " ");
 
     return {
       id: hit.id,

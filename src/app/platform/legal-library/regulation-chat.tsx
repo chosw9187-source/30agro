@@ -54,6 +54,69 @@ const SUGGESTIONS = [
   },
 ];
 
+/**
+ * 조문 본문 렌더러.
+ *
+ * 규정에는 경조금 기준처럼 표로 된 조항이 많다. 추출 단계에서 표 한 행을
+ * "| 칸 | 칸 |" 한 줄로 적어두므로, 여기서 그 줄들을 다시 표로 세운다.
+ * 줄글로 흘리면 "본인결혼 6일 50만원 100만원"이 어느 열의 값인지 알 수 없다.
+ */
+function ArticleBody({ text }: { text: string }) {
+  const blocks: ({ kind: "text"; lines: string[] } | { kind: "table"; rows: string[][] })[] = [];
+
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    const isRow = trimmed.startsWith("|") && trimmed.endsWith("|") && trimmed.length > 1;
+    const last = blocks[blocks.length - 1];
+
+    if (isRow) {
+      const cells = trimmed.slice(1, -1).split("|").map((c) => c.trim());
+      if (last?.kind === "table") last.rows.push(cells);
+      else blocks.push({ kind: "table", rows: [cells] });
+    } else {
+      if (last?.kind === "text") last.lines.push(line);
+      else blocks.push({ kind: "text", lines: [line] });
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {blocks.map((block, i) =>
+        block.kind === "text" ? (
+          <p
+            key={i}
+            className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800"
+          >
+            {block.lines.join("\n").trim()}
+          </p>
+        ) : (
+          // 열이 많은 기준표는 좁은 화면에서 넘친다 — 표만 가로로 스크롤시킨다.
+          <div key={i} className="-mx-1 overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <tbody>
+                {block.rows.map((row, r) => (
+                  <tr key={r} className={r === 0 ? "bg-brand-green-light" : undefined}>
+                    {row.map((cell, c) => (
+                      <td
+                        key={c}
+                        className={`border border-slate-300 px-2.5 py-1.5 align-top leading-relaxed ${
+                          r === 0 ? "font-semibold text-slate-900" : "text-slate-800"
+                        }`}
+                      >
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ),
+      )}
+    </div>
+  );
+}
+
 export function RegulationChat({ hasRegulations }: { hasRegulations: boolean }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
@@ -218,9 +281,7 @@ export function RegulationChat({ hasRegulations }: { hasRegulations: boolean }) 
                           조문을 불러오지 못했습니다.
                         </p>
                       ) : (
-                        <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-800">
-                          {details[hit.id]!.body}
-                        </pre>
+                        <ArticleBody text={details[hit.id]!.body} />
                       )}
                     </div>
                   )}
