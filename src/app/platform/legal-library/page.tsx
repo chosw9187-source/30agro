@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
-import { RegulationSearch } from "./regulation-search";
+import { RegulationChat } from "./regulation-chat";
 import { RegulationManager } from "./regulation-manager";
 
 export const dynamic = "force-dynamic";
@@ -30,18 +30,22 @@ export default async function LegalLibraryPage() {
   const activeCount = regulations.filter((r) => r.isActive).length;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">인사 규정 챗봇</h1>
-        <p className="mt-1 text-slate-600">
-          사내규정을 조(條) 단위로 찾습니다. 검색어와 관련된 조문을 근거 조항 그대로 보여줍니다.
-          자연어로 묻고 답하는 기능은 준비 중입니다.
-        </p>
-      </div>
+    <div className="flex flex-col gap-8">
+      {/* 인사말은 삼공이 말풍선이 하므로 제목은 접근성·페이지 식별용으로만 둔다. */}
+      <h1 className="sr-only">인사 규정 챗봇</h1>
 
-      <RegulationSearch hasRegulations={activeCount > 0} />
+      <RegulationChat hasRegulations={activeCount > 0} />
 
-      {isAdmin && <RegulationManager regulations={regulations} />}
+      {isAdmin && (
+        <details className="mx-auto w-full max-w-2xl rounded-xl border border-slate-200 bg-white">
+          <summary className="cursor-pointer px-5 py-3 text-sm font-semibold text-slate-700">
+            규정 파일 관리 (관리자) · 등록 {regulations.length}건
+          </summary>
+          <div className="border-t border-slate-200 p-4">
+            <RegulationManager regulations={regulations} />
+          </div>
+        </details>
+      )}
     </div>
   );
 }
