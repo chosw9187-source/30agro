@@ -32,6 +32,7 @@ import {
   toggleProgramActive,
   updateSession,
 } from "./actions";
+import { ProgramPeriodFields } from "./program-period-fields";
 
 export const dynamic = "force-dynamic";
 
@@ -929,14 +930,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
             <label className={LABEL_CLASS}>프로그램명</label>
             <input name="name" required placeholder="예: 2026년 상반기 신입 온보딩" className={INPUT_CLASS} />
           </div>
-          <div>
-            <label className={LABEL_CLASS}>시작일 (선택)</label>
-            <input type="date" name="startDate" className={INPUT_CLASS} />
-          </div>
-          <div>
-            <label className={LABEL_CLASS}>종료일 (선택)</label>
-            <input type="date" name="endDate" className={INPUT_CLASS} />
-          </div>
+          <ProgramPeriodFields inputClassName={INPUT_CLASS} labelClassName={LABEL_CLASS} />
           <div className="sm:col-span-4">
             <label className={LABEL_CLASS}>설명 (선택)</label>
             <input name="description" placeholder="대상·목적 등" className={INPUT_CLASS} />
