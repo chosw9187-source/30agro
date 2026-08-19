@@ -7,6 +7,7 @@ import { PhotoUploadForm } from "./photo-upload-form";
 import { HrCardBulkUploadForm } from "./hr-card-bulk-upload-form";
 import { PerformanceHistoryUploadForm } from "./performance-history-upload-form";
 import { uploadJobDescriptionFileForTeam } from "@/app/platform/job-management/actions";
+import { RegulationManager } from "@/app/platform/legal-library/regulation-manager";
 
 export const dynamic = "force-dynamic";
 
@@ -18,14 +19,25 @@ export default async function DataUploadPage() {
 
   const thisYear = new Date().getFullYear();
   const teams = await prisma.team.findMany({ orderBy: { name: "asc" } });
+  const regulations = await prisma.regulation.findMany({
+    select: {
+      id: true,
+      title: true,
+      category: true,
+      articleCount: true,
+      isActive: true,
+      fileName: true,
+    },
+    orderBy: [{ category: "asc" }, { title: "asc" }],
+  });
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">데이터 업로드</h1>
         <p className="mt-1 text-slate-600">
-          사원명부, 직원 사진, 직무기술서, 발령사항, 인사평가 이력을 이
-          화면에서 한 번에 업로드하세요.
+          사원명부, 직원 사진, 직무기술서, 발령사항, 인사평가 이력, 인사
+          규정을 이 화면에서 한 번에 업로드하세요.
         </p>
       </div>
 
@@ -116,6 +128,10 @@ export default async function DataUploadPage() {
         <h2 className="mb-3 text-lg font-medium">인사평가 이력 업로드</h2>
         <PerformanceHistoryUploadForm />
       </section>
+
+      {/* 인사 규정 챗봇(삼공이) 화면에 있던 관리자 패널을 여기로 옮겼다.
+          RegulationManager가 제목과 카드까지 직접 그리므로 감싸지 않는다. */}
+      <RegulationManager regulations={regulations} />
     </div>
   );
 }

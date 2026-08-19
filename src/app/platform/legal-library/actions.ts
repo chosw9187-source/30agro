@@ -115,6 +115,7 @@ export async function uploadRegulations(
   }
 
   revalidatePath("/platform/legal-library");
+  revalidatePath("/platform/data-upload");
   return results;
 }
 
@@ -138,6 +139,7 @@ export async function reparseRegulation(id: string): Promise<{ articleCount: num
   await writeArticles(id, articles);
 
   revalidatePath("/platform/legal-library");
+  revalidatePath("/platform/data-upload");
   return { articleCount: articles.length };
 }
 
@@ -145,12 +147,14 @@ export async function deleteRegulation(id: string): Promise<void> {
   await requireRole("ADMIN");
   await prisma.regulation.delete({ where: { id } });
   revalidatePath("/platform/legal-library");
+  revalidatePath("/platform/data-upload");
 }
 
 export async function setRegulationActive(id: string, isActive: boolean): Promise<void> {
   await requireRole("ADMIN");
   await prisma.regulation.update({ where: { id }, data: { isActive } });
   revalidatePath("/platform/legal-library");
+  revalidatePath("/platform/data-upload");
 }
 
 export type ArticleSearchHit = {
