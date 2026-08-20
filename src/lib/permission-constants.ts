@@ -32,6 +32,7 @@ export type Module =
   | "LEGAL_LIBRARY"
   | "HR_REPORT"
   | "EVALUATION"
+  | "EVALUATION_V2"
   | "TALENT_ASSESSMENT"
   | "ONBOARDING";
 
@@ -43,6 +44,7 @@ export const MODULES: Module[] = [
   "LEGAL_LIBRARY",
   "HR_REPORT",
   "EVALUATION",
+  "EVALUATION_V2",
   "TALENT_ASSESSMENT",
   "ONBOARDING",
 ];
@@ -55,6 +57,7 @@ export const MODULE_LABEL: Record<Module, string> = {
   LEGAL_LIBRARY: "인사 규정 챗봇",
   HR_REPORT: "HR REPORT",
   EVALUATION: "평가",
+  EVALUATION_V2: "평가2",
   TALENT_ASSESSMENT: "SG 인적성검사",
   ONBOARDING: "온보딩 프로그램",
 };
@@ -100,6 +103,7 @@ export const SIDEBAR_MODULES: Module[] = [
   "EMPLOYEES",
   "LEGAL_LIBRARY",
   "EVALUATION",
+  "EVALUATION_V2",
   "TALENT_ASSESSMENT",
   "ONBOARDING",
 ];
@@ -110,6 +114,7 @@ export const DEFAULT_COMING_SOON_MODULES = new Set<Module>([
   "HR_REPORT",
   "JOB_MANAGEMENT",
   "LEGAL_LIBRARY",
+  "EVALUATION_V2",
 ]);
 
 export type ModuleUiConfigEntry = { order: number; comingSoon: boolean; hidden: boolean };

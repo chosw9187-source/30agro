@@ -124,6 +124,9 @@ model User {
   onboardingBookings    OnboardingBooking[]    @relation("OnboardingBookingInstructor")
   uploadedRegulations   Regulation[]           @relation("RegulationUploader")
   onboardingSessionsAdded OnboardingSession[]  @relation("OnboardingSessionCreator")
+  goalsOwned            Goal[]                 @relation("GoalOwner")
+  goalsCreated          Goal[]                 @relation("GoalCreator")
+  goalCheckIns          GoalCheckIn[]          @relation("GoalCheckInAuthor")
 }
 
 model AppointmentRecord {
@@ -243,6 +246,7 @@ model Team {
   templateItems TemplateItem[]
   jobDescription JobDescription?
   tasks         Task[]
+  goals         Goal[]
 }
 
 model JobDescription {
@@ -410,6 +414,7 @@ enum Module {
   LEGAL_LIBRARY
   HR_REPORT
   EVALUATION
+  EVALUATION_V2
   TALENT_ASSESSMENT
   ONBOARDING
 }
@@ -780,4 +785,119 @@ model RegulationArticle {
 
   @@index([regulationId, order])
   @@index([articleNo])
+}
+
+// ---------------------------------------------------------------------------
+// 평가2 (목표관리) — 전사목표 → 책임목표 → 팀목표 → 개인목표 4단 캐스케이드
+// ---------------------------------------------------------------------------
+
+/**
+ * 목표가 걸리는 조직 계층. 조직도(사업단위 > 책임 > 팀 > 개인)와 같은
+ * 층위를 쓰되, 목표는 "책임"부터 나눠 내려가므로 사업단위 층은 두지 않는다.
+ */
+enum GoalLevel {
+  COMPANY
+  DIVISION
+  TEAM
+  INDIVIDUAL
+}
+
+enum GoalStatus {
+  /** 작성 중 — 상위에서 확정되기 전 */
+  DRAFT
+  /** 진행 중 */
+  ACTIVE
+  /** 달성 완료 */
+  DONE
+  /** 중단·폐기 */
+  DROPPED
+}
+
+enum GoalCycleStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+/** 목표 운영 기간(예: 2026년 상반기). 모든 목표는 한 사이클에 속한다. */
+model GoalCycle {
+  id        String          @id @default(cuid())
+  name      String
+  year      Int
+  startDate DateTime
+  endDate   DateTime
+  status    GoalCycleStatus @default(DRAFT)
+  createdAt DateTime        @default(now())
+
+  goals Goal[]
+
+  @@index([year])
+}
+
+/**
+ * 목표 한 건. parentId로 상위 목표에 연결해서 전사 → 책임 → 팀 → 개인으로
+ * 내려가는 정렬(cascade)을 만든다. 진척률은 하위 목표가 있으면 가중치
+ * 기준으로 굴려 올리고(rollup), 없으면 progress 입력값을 그대로 쓴다.
+ */
+model Goal {
+  id      String    @id @default(cuid())
+  cycleId String
+  cycle   GoalCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  level   GoalLevel
+
+  parentId String?
+  parent   Goal?   @relation("GoalCascade", fields: [parentId], references: [id])
+  children Goal[]  @relation("GoalCascade")
+
+  title       String
+  description String?
+
+  /** 책임목표가 속한 부문(책임) 이름. User.division / Team.division과 같은 값. */
+  division String?
+  /** 팀목표가 걸린 팀. */
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id])
+  /** 개인목표 담당자. 팀·책임 목표에서는 책임자(팀장·책임)를 가리킨다. */
+  ownerId String?
+  owner   User?   @relation("GoalOwner", fields: [ownerId], references: [id])
+
+  /** 같은 부모 아래 형제 목표들 사이의 가중치(%). 진척 롤업에 쓴다. */
+  weight Float @default(0)
+
+  /** 측정지표와 목표수준 — 서술형으로 받는다(예: "신규 거래처 20개"). */
+  metric      String?
+  targetValue String?
+  currentValue String?
+  unit        String?
+
+  progress Int        @default(0)
+  status   GoalStatus @default(ACTIVE)
+  dueDate  DateTime?
+  sortOrder Int       @default(0)
+
+  createdById String
+  createdBy   User     @relation("GoalCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  checkIns GoalCheckIn[]
+
+  @@index([cycleId, level])
+  @@index([parentId])
+  @@index([teamId])
+  @@index([ownerId])
+}
+
+/** 진척 업데이트 이력. 언제 몇 %로 올렸고 무슨 근거였는지 남긴다. */
+model GoalCheckIn {
+  id       String @id @default(cuid())
+  goalId   String
+  goal     Goal   @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  progress Int
+  note     String?
+  authorId String
+  author   User     @relation("GoalCheckInAuthor", fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([goalId, createdAt])
 }
