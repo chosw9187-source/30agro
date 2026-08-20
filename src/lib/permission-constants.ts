@@ -138,7 +138,8 @@ export type AdminMenuKey =
   | "REPORTS"
   | "PERMISSION_MATRIX"
   | "SCREEN_CONFIG"
-  | "TRAFFIC";
+  | "TRAFFIC"
+  | "ORG_GOALS";
 
 export const ADMIN_MENU_ITEMS: { key: AdminMenuKey; href: string; label: string }[] = [
   { key: "USERS", href: "/admin/users", label: "사용자 관리" },
@@ -150,6 +151,7 @@ export const ADMIN_MENU_ITEMS: { key: AdminMenuKey; href: string; label: string 
   { key: "PERMISSION_MATRIX", href: "/admin/permission-matrix", label: "권한 매트릭스" },
   { key: "SCREEN_CONFIG", href: "/admin/screen-config", label: "화면 구성" },
   { key: "TRAFFIC", href: "/admin/traffic", label: "일일 트래픽" },
+  { key: "ORG_GOALS", href: "/admin/org-goals", label: "조직 목표 관리" },
 ];
 
 export type HomeBlock = "TEAM_SUMMARY" | "OVERALL_SUMMARY" | "QUICK_LINKS";

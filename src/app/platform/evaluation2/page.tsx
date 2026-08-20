@@ -32,11 +32,8 @@ import {
   createGoal,
   createGoalCycle,
   deleteGoal,
-  deleteGoalCycle,
   seedCompanyGoalTemplate,
-  setGoalCycleStatus,
   updateGoal,
-  updateGoalCycleNote,
 } from "./actions";
 import { CycleSelect } from "./cycle-select";
 
@@ -878,93 +875,6 @@ export default async function Evaluation2Page({
     );
   }
 
-  function cycleAdminPanel() {
-    return (
-      <section className={`${CARD_CLASS} p-5`}>
-        <h2 className="text-base font-semibold">목표 사이클 관리</h2>
-        <div className="mt-3 flex flex-col gap-2">
-          {cycles.map((c) => (
-            <div
-              key={c.id}
-              className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 p-3 text-sm"
-            >
-              <span className="font-medium">{c.name}</span>
-              <span className="text-xs text-slate-500">
-                {formatKSTDate(c.startDate)} ~ {formatKSTDate(c.endDate)}
-              </span>
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
-                {GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]}
-              </span>
-              <div className="ml-auto flex gap-2">
-                {c.status !== "OPEN" && (
-                  <form action={setGoalCycleStatus.bind(null, c.id, "OPEN")}>
-                    <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
-                      진행중으로
-                    </button>
-                  </form>
-                )}
-                {c.status !== "CLOSED" && (
-                  <form action={setGoalCycleStatus.bind(null, c.id, "CLOSED")}>
-                    <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
-                      종료
-                    </button>
-                  </form>
-                )}
-                <form action={deleteGoalCycle.bind(null, c.id)}>
-                  <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-status-critical hover:bg-red-50">
-                    삭제
-                  </button>
-                </form>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {cycle && (
-          <form action={updateGoalCycleNote} className="mt-4 border-t border-slate-200 pt-4">
-            <input type="hidden" name="cycleId" value={cycle.id} />
-            <label className={LABEL_CLASS}>
-              전사목표 표 하단 안내문 — 한 줄이 i), ii) 한 항목이 됩니다
-            </label>
-            <textarea
-              name="note"
-              rows={2}
-              defaultValue={cycle.note ?? ""}
-              placeholder={"각 조직별 목표 달성을 위한 핵심 과제는 내부 공유 통해 정보 획득 및 실행 필요.\n사업개발의 경우 추후 확정 예정."}
-              className={INPUT_CLASS}
-            />
-            <button type="submit" className={`${PRIMARY_BUTTON_CLASS} mt-2`}>
-              안내문 저장
-            </button>
-          </form>
-        )}
-
-        <form
-          action={createGoalCycle}
-          className="mt-4 grid gap-3 border-t border-slate-200 pt-4 md:grid-cols-4"
-        >
-          <div className="md:col-span-2">
-            <label className={LABEL_CLASS}>새 사이클명</label>
-            <input name="name" required placeholder="2026년 하반기" className={INPUT_CLASS} />
-          </div>
-          <div>
-            <label className={LABEL_CLASS}>시작일</label>
-            <input type="date" name="startDate" required className={INPUT_CLASS} />
-          </div>
-          <div>
-            <label className={LABEL_CLASS}>종료일</label>
-            <input type="date" name="endDate" required className={INPUT_CLASS} />
-          </div>
-          <div className="md:col-span-4">
-            <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-              사이클 추가
-            </button>
-          </div>
-        </form>
-      </section>
-    );
-  }
-
   // ---- 렌더 ---------------------------------------------------------------
 
   // 사이클이 없을 때 폼에 미리 채워둘 값. 상·하반기 중 오늘이 속한 쪽을
@@ -1084,7 +994,23 @@ export default async function Evaluation2Page({
             )}
           </section>
 
-          {isAdmin && cycleAdminPanel()}
+          {isAdmin && (
+            <section className={`${CARD_CLASS} flex flex-wrap items-center gap-3 p-5`}>
+              <div>
+                <h2 className="text-base font-semibold">조직 목표 · 사이클 관리</h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  맨 위 표의 구분 · 목표 · 지표 · 가중치와 표 하단 안내문, 목표 사이클은
+                  관리자 화면에서 한 번에 고칩니다.
+                </p>
+              </div>
+              <Link
+                href="/admin/org-goals"
+                className={`${PRIMARY_BUTTON_CLASS} ml-auto shrink-0`}
+              >
+                조직 목표 관리 열기 →
+              </Link>
+            </section>
+          )}
         </div>
       ) : (
         levelTab(TAB_TO_LEVEL[tab])
