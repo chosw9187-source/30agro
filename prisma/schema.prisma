@@ -124,6 +124,8 @@ model User {
   onboardingBookings    OnboardingBooking[]    @relation("OnboardingBookingInstructor")
   uploadedRegulations   Regulation[]           @relation("RegulationUploader")
   onboardingSessionsAdded OnboardingSession[]  @relation("OnboardingSessionCreator")
+  onboardingTrainee       OnboardingTrainee[]  @relation("OnboardingTrainee")
+  onboardingTraineesAdded OnboardingTrainee[]  @relation("OnboardingTraineeAdder")
   goalsOwned            Goal[]                 @relation("GoalOwner")
   goalsCreated          Goal[]                 @relation("GoalCreator")
   goalCheckIns          GoalCheckIn[]          @relation("GoalCheckInAuthor")
@@ -665,6 +667,7 @@ model OnboardingProgram {
   createdAt   DateTime  @default(now())
 
   sessions OnboardingSession[]
+  trainees OnboardingTrainee[]
 }
 
 /**
@@ -690,7 +693,8 @@ model OnboardingSession {
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
-  bookings OnboardingBooking[]
+  bookings  OnboardingBooking[]
+  attendees OnboardingSessionAttendee[]
 
   @@index([programId, startAt])
 }
@@ -730,6 +734,44 @@ model OnboardingBooking {
 
   @@unique([sessionId, userId])
   @@index([userId])
+}
+
+/**
+ * 기수에 참석하는 교육생(신입사원) 명단. 강사(OnboardingInstructor)와 달리
+ * 기수마다 사람이 완전히 바뀌므로 프로그램에 묶는다 — 지난 기수 명단이
+ * 그대로 남아야 "누가 어느 기수를 들었는지"를 나중에 확인할 수 있다.
+ */
+model OnboardingTrainee {
+  id        String            @id @default(cuid())
+  programId String
+  program   OnboardingProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User              @relation("OnboardingTrainee", fields: [userId], references: [id], onDelete: Cascade)
+  note      String?
+  addedById String?
+  addedBy   User?             @relation("OnboardingTraineeAdder", fields: [addedById], references: [id])
+  createdAt DateTime          @default(now())
+
+  attendances OnboardingSessionAttendee[]
+
+  @@unique([programId, userId])
+  @@index([userId])
+}
+
+/**
+ * 특정 교육을 일부 교육생만 듣는 경우의 대상 지정. 한 건도 없으면 그 교육은
+ * 기수 전원이 대상이다 — 온보딩 교육은 대부분 전원 필수라 기본을 "전원"으로
+ * 두고, 예외인 교육에만 명단을 넣는 편이 관리 부담이 적다.
+ */
+model OnboardingSessionAttendee {
+  id        String            @id @default(cuid())
+  sessionId String
+  session   OnboardingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  traineeId String
+  trainee   OnboardingTrainee @relation(fields: [traineeId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, traineeId])
+  @@index([traineeId])
 }
 
 /**
