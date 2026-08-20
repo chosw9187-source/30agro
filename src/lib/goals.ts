@@ -66,10 +66,17 @@ export type GoalRow = {
   unit: string | null;
   progress: number;
   status: string;
+  excluded: boolean;
+  excludeReason: string | null;
   dueDate: Date | null;
   sortOrder: number;
   team?: { id: string; name: string } | null;
-  owner?: { id: string; name: string } | null;
+  owner?: {
+    id: string;
+    name: string;
+    teamId?: string | null;
+    terminationDate?: Date | null;
+  } | null;
 };
 
 export type GoalNode = GoalRow & {
@@ -78,9 +85,22 @@ export type GoalNode = GoalRow & {
   rollupProgress: number;
 };
 
-/** 중단(DROPPED)된 목표는 달성률 계산에서 통째로 빼고, 화면에서도 흐리게만 남긴다. */
-export function countsTowardProgress(g: { status: string }) {
-  return g.status !== "DROPPED";
+/**
+ * 집계에 넣을 목표인지. 중단(DROPPED)된 목표와 "집계 제외"로 표시한 목표
+ * (담당자 퇴사·부서이동 등)는 상위 달성률 계산에서 통째로 빠진다. 화면에는
+ * 흐리게 남겨서 왜 빠졌는지 볼 수 있게 한다.
+ */
+export function countsTowardProgress(g: { status: string; excluded?: boolean }) {
+  return g.status !== "DROPPED" && !g.excluded;
+}
+
+/**
+ * 이 층의 달성률을 하위 목표에서 자동으로 굴려 올리는지. 전사·책임·팀 목표는
+ * 결국 팀원 각자의 개인목표가 얼마나 됐는지의 합이므로 직접 입력하지 않는다.
+ * 개인목표만 사람이 실제 달성률을 적는 층이다.
+ */
+export function isAutoCalculated(level: string): boolean {
+  return level !== "INDIVIDUAL";
 }
 
 /**
@@ -151,7 +171,15 @@ export function buildGoalTree(rows: GoalRow[]): GoalNode[] {
   const computeRollup = (node: GoalNode): number => {
     node.children.forEach(computeRollup);
     const counted = node.children.filter(countsTowardProgress);
-    node.rollupProgress = counted.length > 0 ? weightedProgress(node.children) : leafProgress(node);
+    if (counted.length > 0) {
+      node.rollupProgress = weightedProgress(node.children);
+    } else if (isAutoCalculated(node.level)) {
+      // 자동 계산 층인데 집계할 하위가 하나도 없으면 근거가 없는 값이라 0이다.
+      // 여기서 입력값을 쓰면 아래는 비어 있는데 위만 100%인 표가 만들어진다.
+      node.rollupProgress = 0;
+    } else {
+      node.rollupProgress = leafProgress(node);
+    }
     return node.rollupProgress;
   };
   roots.forEach(computeRollup);
@@ -214,4 +242,26 @@ export function toDateInputValue(d: Date | null | undefined): string {
   }).formatToParts(d);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/**
+ * 담당자가 지금도 이 목표를 들고 있다고 보기 어려운 상태인지. 퇴사자이거나
+ * 목표가 걸린 팀과 다른 팀으로 옮긴 경우를 잡아, 화면에서 "집계에서 빼시겠어요"
+ * 라고 물어볼 수 있게 한다. 자동으로 빼지는 않는다 — 옮겼어도 그대로 들고
+ * 가는 목표가 있어서, 빼는 판단은 사람이 한다.
+ */
+export function ownerFlag(
+  goal: GoalRow,
+  now = new Date()
+): { kind: "RESIGNED" | "MOVED"; label: string } | null {
+  const owner = goal.owner;
+  if (!owner) return null;
+
+  if (owner.terminationDate && owner.terminationDate <= now) {
+    return { kind: "RESIGNED", label: "퇴사" };
+  }
+  if (goal.teamId && owner.teamId && owner.teamId !== goal.teamId) {
+    return { kind: "MOVED", label: "부서이동" };
+  }
+  return null;
 }

@@ -918,6 +918,15 @@ model Goal {
 
   progress Int        @default(0)
   status   GoalStatus @default(ACTIVE)
+
+  /**
+   * 집계 제외. 담당자가 퇴사하거나 다른 부서로 옮겨서 이 목표를 더는 그 조직의
+   * 성과로 보기 어려울 때 켠다. 켜진 목표는 상위 목표 달성률 계산에서 빠지고,
+   * 완료·지연 건수에도 잡히지 않는다. 목표 자체는 남겨둬야 나중에 왜 빠졌는지
+   * 추적할 수 있어서 삭제 대신 이 플래그를 쓴다.
+   */
+  excluded      Boolean @default(false)
+  excludeReason String?
   dueDate  DateTime?
   sortOrder Int       @default(0)
 

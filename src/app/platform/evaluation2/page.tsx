@@ -19,7 +19,9 @@ import {
   buildGoalTree,
   countsTowardProgress,
   flattenGoalTree,
+  isAutoCalculated,
   isOverdue,
+  ownerFlag,
   toDateInputValue,
   weightedProgress,
   type GoalCycleStatus,
@@ -33,6 +35,7 @@ import {
   createGoalCycle,
   deleteGoal,
   seedCompanyGoalTemplate,
+  setGoalExcluded,
   updateGoal,
 } from "./actions";
 import { CycleSelect } from "./cycle-select";
@@ -122,6 +125,27 @@ function LevelDot({ level }: { level: GoalLevel }) {
   );
 }
 
+/** 집계에서 빠져 있는 목표임을 알려주는 배지. */
+function ExcludedBadge({ reason }: { reason: string | null }) {
+  return (
+    <span
+      className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
+      title={reason ?? undefined}
+    >
+      집계 제외{reason ? ` · ${reason}` : ""}
+    </span>
+  );
+}
+
+/** 담당자가 퇴사했거나 다른 팀으로 옮겼음을 알려주는 배지. */
+function OwnerFlagBadge({ label }: { label: string }) {
+  return (
+    <span className="rounded bg-status-warning/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
+      담당자 {label}
+    </span>
+  );
+}
+
 function scopeText(goal: GoalNode): string {
   if (goal.level === "COMPANY") return "전사";
   if (goal.level === "DIVISION") return goal.division ?? "책임 미지정";
@@ -187,10 +211,14 @@ export default async function Evaluation2Page({
           unit: true,
           progress: true,
           status: true,
+          excluded: true,
+          excludeReason: true,
           dueDate: true,
           sortOrder: true,
           team: { select: { id: true, name: true } },
-          owner: { select: { id: true, name: true } },
+          owner: {
+            select: { id: true, name: true, teamId: true, terminationDate: true },
+          },
         },
       })
     : [];
@@ -243,13 +271,16 @@ export default async function Evaluation2Page({
   const counted = allNodes.filter(countsTowardProgress);
   const overallProgress =
     companyGoals.length > 0 ? weightedProgress(companyGoals) : averageProgress(counted);
-  const doneCount = allNodes.filter((g) => g.status === "DONE").length;
+  const doneCount = allNodes.filter((g) => g.status === "DONE" && !g.excluded).length;
+  const excludedCount = allNodes.filter((g) => g.excluded).length;
   // 상위에 안 매달린 목표는 아무리 달성해도 전사 달성률을 못 움직인다.
   // 숫자가 안 오르는 가장 흔한 이유라 화면에 대놓고 알려준다.
   const unlinked = allNodes.filter(
     (g) => GOAL_PARENT_LEVEL[g.level as GoalLevel] !== null && !g.parentId
   );
-  const overdueCount = allNodes.filter((g) => isOverdue(g, now)).length;
+  const overdueCount = allNodes.filter((g) => isOverdue(g, now) && !g.excluded).length;
+  // 담당자가 퇴사·부서이동했는데 아직 집계에 들어 있는 목표 — 눈에 띄게 알려준다.
+  const needsReviewCount = allNodes.filter((g) => !g.excluded && ownerFlag(g, now)).length;
   const myGoals = allNodes.filter((g) => g.ownerId === session!.user.id);
   const noteLines = (cycle?.note ?? "")
     .split("\n")
@@ -308,6 +339,12 @@ export default async function Evaluation2Page({
                   {overdueCount}
                 </dd>
               </div>
+              {excludedCount > 0 && (
+                <div>
+                  <dt className="text-[11px] text-slate-500">집계 제외</dt>
+                  <dd className="text-base font-semibold text-slate-400">{excludedCount}</dd>
+                </div>
+              )}
             </dl>
             {cycles.length > 0 && cycle && (
               <CycleSelect
@@ -422,7 +459,7 @@ export default async function Evaluation2Page({
           </div>
         )}
 
-        {(noteLines.length > 0 || focusGoal || unlinked.length > 0) && (
+        {(noteLines.length > 0 || focusGoal || unlinked.length > 0 || needsReviewCount > 0) && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/70 px-5 py-2.5">
             <div className="text-xs text-slate-500">
               {noteLines.map((line, i) => (
@@ -430,6 +467,12 @@ export default async function Evaluation2Page({
                   {["i)", "ii)", "iii)", "iv)", "v)"][i] ?? "·"} {line}
                 </p>
               ))}
+              {needsReviewCount > 0 && (
+                <p className="mt-1 text-amber-700">
+                  담당자가 퇴사했거나 부서를 옮긴 목표 {needsReviewCount}건이 아직 집계에 들어
+                  있습니다 — 해당 목표에서 「집계 제외」를 눌러 빼실 수 있습니다.
+                </p>
+              )}
               {unlinked.length > 0 && (
                 <p className="mt-1 text-status-critical">
                   상위 목표에 연결되지 않은 목표 {unlinked.length}건은 전사 달성률에 반영되지
@@ -459,7 +502,7 @@ export default async function Evaluation2Page({
     return (
       <li
         className={`border-l-2 py-2.5 pl-3 ${GOAL_LEVEL_RAMP_BORDER[level]} ${
-          goal.status === "DROPPED" ? "opacity-50" : ""
+          goal.status === "DROPPED" || goal.excluded ? "opacity-50" : ""
         }`}
       >
         <div className="flex items-start justify-between gap-2">
@@ -474,6 +517,7 @@ export default async function Evaluation2Page({
           {goal.dueDate && <span>~{formatKSTDate(goal.dueDate)}</span>}
           <StatusBadge status={goal.status} />
           {isOverdue(goal, now) && <OverdueBadge />}
+          {goal.excluded && <ExcludedBadge reason={goal.excludeReason} />}
         </div>
         <div className="mt-1.5">
           <Meter value={goal.rollupProgress} />
@@ -661,15 +705,21 @@ export default async function Evaluation2Page({
 
         <div>
           <label className={LABEL_CLASS}>달성률(%)</label>
-          <input
-            type="number"
-            name="progress"
-            min={0}
-            max={100}
-            step={1}
-            defaultValue={goal?.progress ?? 0}
-            className={INPUT_CLASS}
-          />
+          {isAutoCalculated(level) ? (
+            <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
+              하위 목표에서 자동 계산됩니다 (직접 입력하지 않습니다)
+            </p>
+          ) : (
+            <input
+              type="number"
+              name="progress"
+              min={0}
+              max={100}
+              step={1}
+              defaultValue={goal?.progress ?? 0}
+              className={INPUT_CLASS}
+            />
+          )}
         </div>
 
         <div>
@@ -713,15 +763,22 @@ export default async function Evaluation2Page({
     const isEditing = editingGoal?.id === goal.id;
     const parentLevel = GOAL_PARENT_LEVEL[level];
     const parentOptions = parentLevel ? byLevel(parentLevel) : [];
+    const flag = ownerFlag(goal, now);
 
     return (
-      <div className={`${CARD_CLASS} border-l-2 p-4 ${GOAL_LEVEL_RAMP_BORDER[level]}`}>
+      <div
+        className={`${CARD_CLASS} border-l-2 p-4 ${GOAL_LEVEL_RAMP_BORDER[level]} ${
+          goal.excluded ? "opacity-60" : ""
+        }`}
+      >
         <div className="flex flex-wrap items-center gap-2">
           <LevelDot level={level} />
           <span className="text-sm font-medium text-slate-800">{goal.title}</span>
           <span className="text-xs text-slate-500">{scopeText(goal)}</span>
           <StatusBadge status={goal.status} />
           {isOverdue(goal, now) && <OverdueBadge />}
+          {goal.excluded && <ExcludedBadge reason={goal.excludeReason} />}
+          {flag && !goal.excluded && <OwnerFlagBadge label={flag.label} />}
           <span className="ml-auto text-sm font-semibold tabular-nums text-slate-700">
             {goal.rollupProgress}%
           </span>
@@ -755,7 +812,7 @@ export default async function Evaluation2Page({
         {goal.description && <p className="mt-2 text-xs text-slate-600">{goal.description}</p>}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {editable && goal.children.length === 0 && (
+          {editable && !isAutoCalculated(level) && (
             <ActionForm
               action={addGoalCheckIn}
               successMessage="진척이 반영되었습니다."
@@ -791,9 +848,11 @@ export default async function Evaluation2Page({
               </button>
             </ActionForm>
           )}
-          {editable && goal.children.length > 0 && (
+          {isAutoCalculated(level) && (
             <span className="text-[11px] text-slate-400">
-              하위 목표의 가중평균으로 자동 계산됩니다
+              {goal.children.length > 0
+                ? `하위 ${goal.children.length}건의 가중평균으로 자동 계산됩니다`
+                : "하위 목표가 없어 0%입니다 — 아래 층 목표를 만들고 상위로 연결하세요"}
             </span>
           )}
           {editable && (
@@ -803,6 +862,29 @@ export default async function Evaluation2Page({
             >
               {isEditing ? "수정 닫기" : "수정"}
             </Link>
+          )}
+          {editable && (
+            <ActionForm
+              action={setGoalExcluded.bind(null, goal.id, !goal.excluded)}
+              successMessage={goal.excluded ? "집계에 다시 포함했습니다." : "집계에서 제외했습니다."}
+              className="flex items-center gap-1"
+            >
+              {!goal.excluded && (
+                <input
+                  name="excludeReason"
+                  defaultValue={flag ? `담당자 ${flag.label}` : ""}
+                  placeholder="제외 사유"
+                  aria-label="집계 제외 사유"
+                  className="w-32 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                />
+              )}
+              <button
+                type="submit"
+                className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
+              >
+                {goal.excluded ? "집계에 포함" : "집계 제외"}
+              </button>
+            </ActionForm>
           )}
           {isAdmin && (
             <ActionForm action={deleteGoal.bind(null, goal.id)} successMessage="삭제되었습니다.">

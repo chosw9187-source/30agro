@@ -67,10 +67,14 @@ export default async function OrgGoalsAdminPage({
           unit: true,
           progress: true,
           status: true,
+          excluded: true,
+          excludeReason: true,
           dueDate: true,
           sortOrder: true,
           team: { select: { id: true, name: true } },
-          owner: { select: { id: true, name: true } },
+          owner: {
+            select: { id: true, name: true, teamId: true, terminationDate: true },
+          },
         },
       })
     : [];
@@ -290,16 +294,12 @@ export default async function OrgGoalsAdminPage({
                         </div>
                         <div className="md:col-span-2">
                           <label className={LABEL_CLASS}>달성률(%)</label>
-                          <input
-                            type="number"
-                            name={`progress:${g.id}`}
-                            form={ORG_FORM_ID}
-                            min={0}
-                            max={100}
-                            defaultValue={g.progress}
-                            disabled={g.children.length > 0}
-                            className={`${INPUT_CLASS} disabled:bg-slate-200 disabled:text-slate-400`}
-                          />
+                          {/* 조직 목표는 아래 책임·팀·개인목표에서 굴려 올린 값이라
+                              직접 못 고친다. 여기서 손으로 적게 두면 아래는 비어
+                              있는데 위만 100%인 표가 만들어진다. */}
+                          <p className="rounded-md border border-dashed border-slate-300 px-2 py-1.5 text-sm text-slate-500 tabular-nums">
+                            {g.rollupProgress}% <span className="text-xs">(자동)</span>
+                          </p>
                         </div>
 
                         <div className="md:col-span-3">
@@ -330,8 +330,8 @@ export default async function OrgGoalsAdminPage({
                         <div className="flex items-end justify-between gap-3 md:col-span-6">
                           <p className="text-xs text-slate-500">
                             {g.children.length > 0
-                              ? `하위 ${g.children.length}건이 달려 있어 달성률은 하위 가중평균(${g.rollupProgress}%)으로 자동 계산됩니다.`
-                              : "하위 목표를 달면 달성률이 자동 계산으로 바뀝니다."}
+                              ? `하위 ${g.children.length}건의 가중평균으로 자동 계산 중 (${g.rollupProgress}%).`
+                              : "연결된 하위 목표가 없어 0%입니다. 책임·팀·개인목표를 만들어 이 목표에 연결하세요."}
                           </p>
                           <ActionForm
                             action={deleteOrgGoal.bind(null, g.id)}

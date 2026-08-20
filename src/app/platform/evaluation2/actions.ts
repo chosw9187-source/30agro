@@ -351,6 +351,31 @@ export async function deleteGoal(goalId: string) {
   revalidatePath(PATH);
 }
 
+/**
+ * 집계 제외를 켜고 끈다. 담당자가 퇴사하거나 부서를 옮겨서 이 목표를 더는 그
+ * 조직의 성과로 보기 어려울 때 쓴다. 목표를 지우면 왜 빠졌는지가 같이
+ * 사라지므로, 삭제 대신 제외 플래그를 켜고 사유를 남긴다.
+ */
+export async function setGoalExcluded(
+  goalId: string,
+  excluded: boolean,
+  formData?: FormData
+) {
+  await requireGoalModule();
+  if (!(await canManageGoal(goalId))) throw new Error("이 목표의 집계 여부를 바꿀 권한이 없습니다.");
+
+  const reason = str(formData?.get("excludeReason") ?? null);
+
+  await prisma.goal.update({
+    where: { id: goalId },
+    data: {
+      excluded,
+      excludeReason: excluded ? reason || "담당자 퇴사·부서이동" : null,
+    },
+  });
+  revalidatePath(PATH);
+}
+
 /** 진척 갱신 한 건 = 목표의 progress 갱신 + 이력 한 줄. */
 export async function addGoalCheckIn(formData: FormData) {
   const session = await requireGoalModule();
