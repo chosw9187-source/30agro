@@ -248,25 +248,6 @@ export async function canViewEmployeeCard(targetUserId: string): Promise<boolean
 }
 
 /**
- * 여러 명을 한 번에 판정한다 — 조직도 팀 상세처럼 한 화면에 수십 명의
- * 생년월일·근속 같은 개인정보를 그리는 곳에서, 사람마다 질의를 날리지 않고
- * "이 중 누구의 정보를 보여줘도 되는지"를 한 번에 받아오기 위한 것.
- */
-export async function getVisibleCardUserIds(userIds: string[]): Promise<Set<string>> {
-  const ids = [...new Set(userIds)];
-  if (ids.length === 0) return new Set();
-
-  const filter = await getCardScopeFilter();
-  if (filter === null) return new Set(ids);
-
-  const rows = await prisma.user.findMany({
-    where: { AND: [{ id: { in: ids } }, filter] },
-    select: { id: true },
-  });
-  return new Set(rows.map((r) => r.id));
-}
-
-/**
  * Prisma `where` fragment restricting a User query to what the current
  * viewer is allowed to see for the EMPLOYEES module scope — used by the
  * 직원정보조회 list/search page, which (unlike the per-record

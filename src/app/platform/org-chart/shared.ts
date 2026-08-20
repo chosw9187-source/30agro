@@ -7,12 +7,6 @@ export type Exec = {
   hasPhoto: boolean;
   birthDate?: Date | null;
   hireDate?: Date | null;
-  /**
-   * 이 사람의 인사카드를 보는 사람이 열 수 있는지. false면 생년월일·근속
-   * 같은 개인정보를 서버에서 아예 실어보내지 않고, 상세보기 링크도 걸지
-   * 않는다.
-   */
-  cardVisible?: boolean;
 };
 export type CeoExec = Exec;
 export type TeamLite = {

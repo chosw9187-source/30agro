@@ -45,19 +45,12 @@ export function CeoBanner({
         <div className="min-w-[200px] flex-1">
           <p className="text-xs uppercase tracking-wide text-white/50">한국삼공 · CEO</p>
           <div className="mt-1 flex flex-wrap items-baseline gap-x-5 gap-y-1">
-            {ceos.map((c) =>
-              c.cardVisible === false ? (
-                <span key={c.id}>
-                  <span className="text-xl font-bold">{c.name}</span>{" "}
-                  <span className="text-sm text-white/60">{c.jobGrade || "CEO"}</span>
-                </span>
-              ) : (
-                <Link key={c.id} href={`/platform/employees/${c.id}`} className="hover:underline">
-                  <span className="text-xl font-bold">{c.name}</span>{" "}
-                  <span className="text-sm text-white/60">{c.jobGrade || "CEO"}</span>
-                </Link>
-              )
-            )}
+            {ceos.map((c) => (
+              <Link key={c.id} href={`/platform/employees/${c.id}`} className="hover:underline">
+                <span className="text-xl font-bold">{c.name}</span>{" "}
+                <span className="text-sm text-white/60">{c.jobGrade || "CEO"}</span>
+              </Link>
+            ))}
           </div>
         </div>
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
@@ -254,13 +247,6 @@ export function LeaderBanner({
         <div className="min-w-[200px] flex-1">
           <p className="text-xs uppercase tracking-wide text-white/50">{eyebrow}</p>
           <p className="mt-1 text-xl font-bold">{title}</p>
-          {leader && leader.cardVisible === false && (
-            <div className="mt-1.5">
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-medium text-white/60">
-                개인정보 비공개
-              </span>
-            </div>
-          )}
           {leader && (leader.birthDate || leader.hireDate) && (
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               {leader.birthDate && (
@@ -291,7 +277,7 @@ export function LeaderBanner({
               {p.label}
             </span>
           ))}
-          {leader && leader.cardVisible !== false && (
+          {leader && (
             <Link
               href={`/platform/employees/${leader.id}`}
               className="rounded border border-white/40 px-3 py-1.5 hover:bg-white/10"
