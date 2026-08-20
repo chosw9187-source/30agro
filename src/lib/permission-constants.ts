@@ -117,6 +117,15 @@ export const DEFAULT_COMING_SOON_MODULES = new Set<Module>([
   "EVALUATION_V2",
 ]);
 
+/**
+ * 권한 매트릭스와 무관하게 ADMIN에게만 열리는 모듈. 사이드바에서 감추는
+ * 것만으로는 URL을 직접 치고 들어오는 걸 막지 못하므로, 목록 계산
+ * (getVisibleModules)과 화면 진입 검사(checkModuleAccess) 양쪽에서 같이
+ * 막는다. 서버 액션도 checkModuleAccess를 거치므로 함께 잠긴다.
+ * 일반 사용자에게 열어줄 때가 되면 이 목록에서 빼면 된다.
+ */
+export const ADMIN_ONLY_MODULES = new Set<Module>(["EVALUATION_V2"]);
+
 export type ModuleUiConfigEntry = { order: number; comingSoon: boolean; hidden: boolean };
 
 /** 사이드바 "관리" 섹션 항목 — ADMIN 역할에게만 보이는 관리자 전용 메뉴. */

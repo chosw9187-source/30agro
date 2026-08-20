@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { saveUserPermissionOverrides } from "./actions";
 import {
   MODULES,
+  ADMIN_ONLY_MODULES,
   MODULE_LABEL,
   POSITION_LABEL,
   PERMISSION_SCOPES,
@@ -43,7 +44,7 @@ export function UserOverrideForm({
         &quot;직책 기본값&quot;을 선택하세요. 그 외 값을 선택하면 직책 기본값보다 우선 적용됩니다.
       </p>
       <form action={formAction} className="flex flex-col gap-2">
-        {MODULES.map((m) => (
+        {MODULES.filter((m) => !ADMIN_ONLY_MODULES.has(m)).map((m) => (
           <div key={m} className="flex items-center justify-between gap-3 text-sm">
             <span className="text-slate-700">{MODULE_LABEL[m]}</span>
             <select
