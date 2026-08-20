@@ -30,8 +30,14 @@ function parseDate(value: FormDataEntryValue | null): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/**
+ * 빈 칸은 "0"이 아니라 "값 없음"이다 — Number("")가 0이라서, 이걸 안 걸러내면
+ * 폼에 없는 필드(예: 사이클의 연도)가 조용히 0으로 저장된다.
+ */
 function parseNumber(value: FormDataEntryValue | null, fallback = 0): number {
-  const n = Number(str(value));
+  const raw = str(value);
+  if (!raw) return fallback;
+  const n = Number(raw);
   return Number.isFinite(n) ? n : fallback;
 }
 
@@ -92,7 +98,10 @@ export async function createGoalCycle(formData: FormData) {
   const endDate = parseDate(formData.get("endDate"));
   if (!name || !startDate || !endDate) return;
 
-  const year = parseNumber(formData.get("year"), startDate.getFullYear());
+  // 연도는 시작일 문자열("2026-07-01")에서 그대로 떼어낸다. Date 객체의
+  // getFullYear()는 서버 시간대를 타서, 한국 밖 리전에서는 1월 1일 시작인
+  // 사이클이 전년도로 잡힐 수 있다.
+  const year = parseNumber(str(formData.get("startDate")).slice(0, 4), startDate.getFullYear());
 
   await prisma.goalCycle.create({
     data: { name, year, startDate, endDate, status: "OPEN" },
@@ -114,6 +123,59 @@ export async function deleteGoalCycle(cycleId: string) {
   if (!(await isAdmin())) throw new Error("목표 사이클은 관리자만 지울 수 있습니다.");
 
   await prisma.goalCycle.delete({ where: { id: cycleId } });
+  revalidatePath(PATH);
+}
+
+/**
+ * 사내 "조직 단위별 목표" 보고 양식의 구분 5개. 새 사이클을 열면 이 뼈대를
+ * 한 번에 깔아두고 목표 문구만 손보는 쪽이, 매번 빈 화면에서 다섯 줄을
+ * 새로 만드는 것보다 빠르다. 문구는 등록 후 전사목표 탭에서 수정한다.
+ */
+const COMPANY_GOAL_TEMPLATE = [
+  { category: "제품기획마케팅", title: "VISION 2028을 위한 신규시장 개척 및 대형 품목 육성" },
+  { category: "영업고객관리", title: "매출 목표 달성" },
+  { category: "기술연구", title: "신규제형 및 약제 효과 개선제품 개발과 판매제품의 안전성 자료 확보" },
+  { category: "생산", title: "생산성 향상을 위한 자동화 공정 구축과 신제형 생산라인 신설 타당성 확보" },
+  { category: "재무경영관리", title: "사업 경쟁력 강화를 위한 전략적 재무관리와 성과중심 조직문화 구축" },
+] as const;
+
+const COMPANY_GOAL_TEMPLATE_NOTE =
+  "각 조직별 목표 달성을 위한 핵심 과제는 내부 공유 통해 정보 획득 및 실행 필요.\n사업개발의 경우 추후 확정 예정.";
+
+/**
+ * 전사목표가 아직 하나도 없는 사이클에 위 양식을 깔아준다. 이미 한 건이라도
+ * 있으면 아무것도 하지 않는다 — 두 번 눌러서 열 줄이 되는 사고를 막는다.
+ */
+export async function seedCompanyGoalTemplate(cycleId: string) {
+  const session = await requireGoalModule();
+  if (!(await isAdmin())) throw new Error("전사목표 양식은 관리자만 넣을 수 있습니다.");
+
+  const existing = await prisma.goal.count({ where: { cycleId, level: "COMPANY" } });
+  if (existing > 0) return;
+
+  const cycle = await prisma.goalCycle.findUnique({
+    where: { id: cycleId },
+    select: { id: true, note: true },
+  });
+  if (!cycle) return;
+
+  await prisma.goal.createMany({
+    data: COMPANY_GOAL_TEMPLATE.map((row, i) => ({
+      cycleId,
+      level: "COMPANY" as const,
+      category: row.category,
+      title: row.title,
+      sortOrder: i + 1,
+      createdById: session.user.id,
+    })),
+  });
+
+  if (!cycle.note) {
+    await prisma.goalCycle.update({
+      where: { id: cycleId },
+      data: { note: COMPANY_GOAL_TEMPLATE_NOTE },
+    });
+  }
   revalidatePath(PATH);
 }
 

@@ -33,6 +33,7 @@ import {
   createGoalCycle,
   deleteGoal,
   deleteGoalCycle,
+  seedCompanyGoalTemplate,
   setGoalCycleStatus,
   updateGoal,
   updateGoalCycleNote,
@@ -317,10 +318,31 @@ export default async function Evaluation2Page({
         </div>
 
         {companyGoals.length === 0 ? (
-          <p className="border-t border-slate-200 px-5 py-6 text-sm text-slate-500">
-            등록된 전사목표가 없습니다.
-            {isAdmin && " 전사목표 탭에서 먼저 등록하면 이 자리에 고정되어 모두에게 보입니다."}
-          </p>
+          <div className="border-t border-slate-200 px-5 py-6">
+            <p className="text-sm text-slate-500">
+              등록된 전사목표가 없습니다.
+              {isAdmin && " 여기에 등록하면 이 자리에 고정되어 모두에게 보입니다."}
+            </p>
+            {isAdmin && cycle && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <form action={seedCompanyGoalTemplate.bind(null, cycle.id)}>
+                  <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                    조직 단위별 목표 양식으로 채우기
+                  </button>
+                </form>
+                <Link
+                  href={buildHref({ tab: "company" })}
+                  className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+                >
+                  하나씩 직접 등록
+                </Link>
+                <span className="text-xs text-slate-500">
+                  제품기획마케팅 · 영업고객관리 · 기술연구 · 생산 · 재무경영관리 5개 구분과 표
+                  하단 안내문이 한 번에 들어갑니다. 문구는 등록 후 수정하세요.
+                </span>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="max-h-[38vh] overflow-auto border-t border-slate-200">
             <table className="w-full min-w-[860px] text-sm">
@@ -945,6 +967,16 @@ export default async function Evaluation2Page({
 
   // ---- 렌더 ---------------------------------------------------------------
 
+  // 사이클이 없을 때 폼에 미리 채워둘 값. 상·하반기 중 오늘이 속한 쪽을
+  // 기본으로 잡아서, 관리자가 날짜를 손으로 안 넣어도 바로 만들 수 있게 한다.
+  const thisYear = Number(
+    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric" }).format(now)
+  );
+  const firstHalf = Number(toDateInputValue(now).slice(5, 7)) <= 6;
+  const defaultCycle = firstHalf
+    ? { name: `${thisYear}년 상반기`, startDate: `${thisYear}-01-01`, endDate: `${thisYear}-06-30` }
+    : { name: `${thisYear}년 하반기`, startDate: `${thisYear}-07-01`, endDate: `${thisYear}-12-31` };
+
   if (!cycle) {
     return (
       <div className="flex flex-col gap-6">
@@ -953,27 +985,48 @@ export default async function Evaluation2Page({
           <p className="text-sm text-slate-600">
             등록된 목표 사이클이 없습니다.{" "}
             {isAdmin
-              ? "먼저 사이클을 만들어 주세요."
+              ? "사이클을 하나 만들면 그 안에 전사 · 책임 · 팀 · 개인목표를 등록할 수 있습니다. 아래 값은 올해 기준으로 미리 채워뒀으니 그대로 만드셔도 됩니다."
               : "관리자가 사이클을 열면 목표를 등록할 수 있습니다."}
           </p>
           {isAdmin && (
             <form action={createGoalCycle} className="mt-4 grid gap-3 md:grid-cols-4">
               <div className="md:col-span-2">
                 <label className={LABEL_CLASS}>사이클명</label>
-                <input name="name" required placeholder="2026년 상반기" className={INPUT_CLASS} />
+                <input
+                  name="name"
+                  required
+                  defaultValue={defaultCycle.name}
+                  className={INPUT_CLASS}
+                />
               </div>
               <div>
                 <label className={LABEL_CLASS}>시작일</label>
-                <input type="date" name="startDate" required className={INPUT_CLASS} />
+                <input
+                  type="date"
+                  name="startDate"
+                  required
+                  defaultValue={defaultCycle.startDate}
+                  className={INPUT_CLASS}
+                />
               </div>
               <div>
                 <label className={LABEL_CLASS}>종료일</label>
-                <input type="date" name="endDate" required className={INPUT_CLASS} />
+                <input
+                  type="date"
+                  name="endDate"
+                  required
+                  defaultValue={defaultCycle.endDate}
+                  className={INPUT_CLASS}
+                />
               </div>
               <div className="md:col-span-4">
                 <button type="submit" className={PRIMARY_BUTTON_CLASS}>
                   사이클 만들기
                 </button>
+                <p className="mt-2 text-xs text-slate-500">
+                  만들고 나면 상단 전사목표 표에서 「조직 단위별 목표 양식으로 채우기」 버튼으로
+                  구분 5개를 한 번에 넣을 수 있습니다.
+                </p>
               </div>
             </form>
           )}
