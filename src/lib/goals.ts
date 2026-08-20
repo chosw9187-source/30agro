@@ -53,6 +53,7 @@ export type GoalRow = {
   id: string;
   level: string;
   parentId: string | null;
+  category: string | null;
   title: string;
   description: string | null;
   division: string | null;
@@ -170,13 +171,24 @@ export function clampProgress(value: number): number {
   return Math.min(100, Math.max(0, Math.round(value)));
 }
 
-/** 달성률 막대 색 — 낮으면 빨강, 보통이면 주황, 높으면 브랜드 초록. */
-export function progressBarClass(progress: number): string {
-  if (progress >= 80) return "bg-brand-green";
-  if (progress >= 50) return "bg-amber-400";
-  if (progress >= 20) return "bg-orange-400";
-  return "bg-red-400";
-}
+/**
+ * 계층 서열 램프. 전사 → 개인으로 갈수록 옅어지는 같은 초록 한 색이라
+ * 색만 봐도 위아래가 읽힌다. 층은 순서가 있는 값이므로 서로 다른 색상을
+ * 쓰는 카테고리 팔레트를 쓰지 않는다.
+ */
+export const GOAL_LEVEL_RAMP: Record<GoalLevel, string> = {
+  COMPANY: "bg-goal-1",
+  DIVISION: "bg-goal-2",
+  TEAM: "bg-goal-3",
+  INDIVIDUAL: "bg-goal-4",
+};
+
+export const GOAL_LEVEL_RAMP_BORDER: Record<GoalLevel, string> = {
+  COMPANY: "border-goal-1",
+  DIVISION: "border-goal-2",
+  TEAM: "border-goal-3",
+  INDIVIDUAL: "border-goal-4",
+};
 
 /**
  * `<input type="date">`에 넣을 yyyy-mm-dd. 서버가 한국 밖 리전에서 돌아도

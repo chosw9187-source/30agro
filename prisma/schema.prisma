@@ -827,6 +827,8 @@ model GoalCycle {
   startDate DateTime
   endDate   DateTime
   status    GoalCycleStatus @default(DRAFT)
+  /** 전사목표 표 아래에 붙는 안내 문구. 줄바꿈 한 줄이 각주 한 항목. */
+  note      String?
   createdAt DateTime        @default(now())
 
   goals Goal[]
@@ -849,6 +851,8 @@ model Goal {
   parent   Goal?   @relation("GoalCascade", fields: [parentId], references: [id])
   children Goal[]  @relation("GoalCascade")
 
+  /** 표의 "구분" 칸. 예: 영업고객관리, 기술연구. 비우면 순번만 표기한다. */
+  category    String?
   title       String
   description String?
 

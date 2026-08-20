@@ -10,16 +10,16 @@ import {
   GOAL_CYCLE_STATUS_LABEL,
   GOAL_LEVELS,
   GOAL_LEVEL_LABEL,
+  GOAL_LEVEL_RAMP,
+  GOAL_LEVEL_RAMP_BORDER,
   GOAL_PARENT_LEVEL,
   GOAL_STATUSES,
-  GOAL_STATUS_BADGE_CLASS,
   GOAL_STATUS_LABEL,
   averageProgress,
   buildGoalTree,
   countsTowardProgress,
   flattenGoalTree,
   isOverdue,
-  progressBarClass,
   toDateInputValue,
   weightedProgress,
   type GoalCycleStatus,
@@ -35,6 +35,7 @@ import {
   deleteGoalCycle,
   setGoalCycleStatus,
   updateGoal,
+  updateGoalCycleNote,
 } from "./actions";
 import { CycleSelect } from "./cycle-select";
 
@@ -52,57 +53,41 @@ const TAB_TO_LEVEL: Record<string, GoalLevel> = {
   individual: "INDIVIDUAL",
 };
 
-const INPUT_CLASS = "w-full rounded border border-slate-300 px-3 py-2 text-sm";
-const LABEL_CLASS = "mb-1 block text-xs font-medium text-slate-600";
+/** 대시보드 하단 보드에 한 줄로 나란히 세우는 층. 전사목표는 상단 고정이라 뺀다. */
+const BOARD_LEVELS: GoalLevel[] = ["DIVISION", "TEAM", "INDIVIDUAL"];
+
+const INPUT_CLASS =
+  "w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-green focus:outline-none";
+const LABEL_CLASS = "mb-1 block text-xs font-medium text-slate-500";
 const PRIMARY_BUTTON_CLASS =
-  "rounded bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark";
-const CARD_CLASS = "rounded-lg border border-slate-200 bg-white p-5";
+  "rounded-md bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark";
+const CARD_CLASS = "rounded-xl border border-slate-200 bg-white shadow-sm";
 
-/** 층별 강조색 — 대시보드/트리에서 어느 층 목표인지 눈으로 바로 잡히게. */
-const LEVEL_ACCENT: Record<GoalLevel, string> = {
-  COMPANY: "border-l-4 border-l-brand-green",
-  DIVISION: "border-l-4 border-l-blue-400",
-  TEAM: "border-l-4 border-l-amber-400",
-  INDIVIDUAL: "border-l-4 border-l-slate-300",
+/** 상태 배지 — 색만으로 뜻이 전달되지 않도록 항상 글자 라벨을 같이 둔다. */
+const STATUS_BADGE_CLASS: Record<GoalStatus, string> = {
+  DRAFT: "bg-slate-100 text-slate-600",
+  ACTIVE: "bg-slate-100 text-slate-600",
+  DONE: "bg-status-good/10 text-status-good",
+  DROPPED: "bg-slate-100 text-slate-400 line-through",
 };
 
-const LEVEL_CHIP: Record<GoalLevel, string> = {
-  COMPANY: "bg-brand-green-light text-brand-green-dark",
-  DIVISION: "bg-blue-50 text-blue-700",
-  TEAM: "bg-amber-50 text-amber-800",
-  INDIVIDUAL: "bg-slate-100 text-slate-600",
-};
-
-function ProgressBar({ value, className = "" }: { value: number; className?: string }) {
+/**
+ * 달성률 막대. 채움은 브랜드 초록 한 색(크기 = 값), 트랙은 같은 초록의 옅은
+ * 단계다. 값에 따라 색상을 바꾸면 막대 길이가 이미 보여주는 정보를 색으로
+ * 한 번 더 칠하는 셈이라 쓰지 않는다. 지연 여부는 옆의 "지연" 배지가 맡는다.
+ */
+function Meter({ value, size = "sm" }: { value: number; size?: "sm" | "md" }) {
+  const clamped = Math.min(100, Math.max(0, value));
   return (
-    <div className={`h-2 w-full overflow-hidden rounded-full bg-slate-100 ${className}`}>
+    <div
+      className={`w-full overflow-hidden rounded-[4px] bg-brand-green-light ${
+        size === "md" ? "h-2.5" : "h-1.5"
+      }`}
+    >
       <div
-        className={`h-full rounded-full ${progressBarClass(value)}`}
-        style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+        className="h-full rounded-r-[4px] bg-brand-green"
+        style={{ width: `${clamped}%` }}
       />
-    </div>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  suffix,
-  hint,
-}: {
-  label: string;
-  value: string | number;
-  suffix?: string;
-  hint?: string;
-}) {
-  return (
-    <div className={CARD_CLASS}>
-      <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-slate-800">
-        {value}
-        {suffix && <span className="ml-0.5 text-base font-normal text-slate-500">{suffix}</span>}
-      </p>
-      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
     </div>
   );
 }
@@ -111,14 +96,32 @@ function StatusBadge({ status }: { status: string }) {
   const s = (GOAL_STATUSES as readonly string[]).includes(status)
     ? (status as GoalStatus)
     : "ACTIVE";
+  if (s === "ACTIVE") return null;
   return (
-    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${GOAL_STATUS_BADGE_CLASS[s]}`}>
+    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${STATUS_BADGE_CLASS[s]}`}>
       {GOAL_STATUS_LABEL[s]}
     </span>
   );
 }
 
-/** 목표에 붙는 소속 표기 — 책임은 부문명, 팀은 팀명, 개인은 담당자명. */
+function OverdueBadge() {
+  return (
+    <span className="rounded bg-status-critical/10 px-1.5 py-0.5 text-[10px] font-medium text-status-critical">
+      지연
+    </span>
+  );
+}
+
+/** 층 표시용 사각 마크. 글자에 색을 입히지 않고 이 마크가 층 식별을 맡는다. */
+function LevelDot({ level }: { level: GoalLevel }) {
+  return (
+    <span
+      className={`inline-block h-2 w-2 shrink-0 rounded-[2px] ${GOAL_LEVEL_RAMP[level]}`}
+      aria-hidden
+    />
+  );
+}
+
 function scopeText(goal: GoalNode): string {
   if (goal.level === "COMPANY") return "전사";
   if (goal.level === "DIVISION") return goal.division ?? "책임 미지정";
@@ -129,7 +132,7 @@ function scopeText(goal: GoalNode): string {
 export default async function Evaluation2Page({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; cycleId?: string; edit?: string }>;
+  searchParams: Promise<{ tab?: string; cycleId?: string; edit?: string; focus?: string }>;
 }) {
   if (!(await checkModuleAccess("EVALUATION_V2"))) {
     return <NoModuleAccess title="평가2" />;
@@ -171,6 +174,7 @@ export default async function Evaluation2Page({
           id: true,
           level: true,
           parentId: true,
+          category: true,
           title: true,
           description: true,
           division: true,
@@ -195,6 +199,7 @@ export default async function Evaluation2Page({
   const allNodes = flattenGoalTree(tree);
   const nodeById = new Map(allNodes.map((n) => [n.id, n]));
   const byLevel = (level: GoalLevel) => allNodes.filter((n) => n.level === level);
+  const companyGoals = byLevel("COMPANY");
 
   const divisions = Array.from(
     new Set([
@@ -216,117 +221,275 @@ export default async function Evaluation2Page({
 
   const editingGoal = params.edit ? nodeById.get(params.edit) ?? null : null;
 
-  function hrefFor(nextTab: string) {
+  // 전사목표 한 건을 고르면 아래 세 칸이 그 목표의 갈래만 보여준다 — 한 화면
+  // 안에서 "이 전사목표가 어디까지 내려가 있나"를 훑을 수 있게.
+  const focusGoal = params.focus ? nodeById.get(params.focus) ?? null : null;
+  const focusedIds = focusGoal
+    ? new Set(flattenGoalTree([focusGoal]).map((n) => n.id))
+    : null;
+
+  function buildHref(next: { tab?: string; focus?: string | null; edit?: string | null }) {
     const qs = new URLSearchParams();
-    qs.set("tab", nextTab);
+    qs.set("tab", next.tab ?? tab);
     if (cycle) qs.set("cycleId", cycle.id);
+    const focus = next.focus === undefined ? params.focus : next.focus;
+    if (focus) qs.set("focus", focus);
+    const edit = next.edit === undefined ? undefined : next.edit;
+    if (edit) qs.set("edit", edit);
     return `/platform/evaluation2?${qs.toString()}`;
   }
-
-  function goalHref(goalId: string | null) {
-    const qs = new URLSearchParams();
-    qs.set("tab", tab);
-    if (cycle) qs.set("cycleId", cycle.id);
-    if (goalId) qs.set("edit", goalId);
-    return `/platform/evaluation2?${qs.toString()}`;
-  }
-
-  // ---- 대시보드 집계 ------------------------------------------------------
 
   const now = new Date();
   const counted = allNodes.filter(countsTowardProgress);
-  const companyGoals = byLevel("COMPANY");
-  // 전사목표끼리는 가중치가 서로를 비교하는 값이라 가중평균이 맞다.
-  // 아직 전사목표가 없으면 등록된 전체 목표의 단순 평균으로 대신 보여준다.
   const overallProgress =
     companyGoals.length > 0 ? weightedProgress(companyGoals) : averageProgress(counted);
   const doneCount = allNodes.filter((g) => g.status === "DONE").length;
   const overdueCount = allNodes.filter((g) => isOverdue(g, now)).length;
-  const unlinkedCount = allNodes.filter(
-    (g) => GOAL_PARENT_LEVEL[g.level as GoalLevel] !== null && !g.parentId
-  ).length;
-
-  const divisionRollup = divisions
-    .map((name) => {
-      const nodes = byLevel("DIVISION").filter((g) => g.division === name);
-      return { name, count: nodes.length, progress: averageProgress(nodes) };
-    })
-    .filter((d) => d.count > 0);
-
-  const teamRollup = teams
-    .map((t) => {
-      const nodes = byLevel("TEAM").filter((g) => g.teamId === t.id);
-      return { name: t.name, division: t.division, count: nodes.length, progress: averageProgress(nodes) };
-    })
-    .filter((t) => t.count > 0)
-    .sort((a, b) => b.progress - a.progress);
-
   const myGoals = allNodes.filter((g) => g.ownerId === session!.user.id);
+  const noteLines = (cycle?.note ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
 
-  // ---- 캐스케이드 트리 ----------------------------------------------------
+  function canManage(goal: GoalNode): boolean {
+    if (isAdmin) return true;
+    if (goal.ownerId === session!.user.id) return true;
+    const team = teams.find((t) => t.id === goal.teamId);
+    return !!team && team.leaderId === session!.user.id;
+  }
 
-  function CascadeNode({ node, depth }: { node: GoalNode; depth: number }) {
-    const level = node.level as GoalLevel;
-    const hasChildren = node.children.length > 0;
-    const overdue = isOverdue(node, now);
+  // ---- 상단 고정 전사목표 표 ---------------------------------------------
 
-    const body = (
-      <div className={`rounded border border-slate-200 bg-white p-3 ${LEVEL_ACCENT[level]}`}>
-        <div className="flex flex-wrap items-center gap-2">
-          {hasChildren && (
-            <span className="text-slate-400 transition-transform group-open:rotate-90" aria-hidden>
-              ›
-            </span>
-          )}
-          <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${LEVEL_CHIP[level]}`}>
-            {GOAL_LEVEL_LABEL[level]}
-          </span>
-          <span className="text-sm font-medium text-slate-800">{node.title}</span>
-          <span className="text-xs text-slate-500">{scopeText(node)}</span>
-          <StatusBadge status={node.status} />
-          {overdue && (
-            <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-600">
-              지연
-            </span>
-          )}
-          {node.weight > 0 && (
-            <span className="text-[11px] text-slate-400">가중치 {node.weight}%</span>
-          )}
-          <span className="ml-auto text-sm font-semibold text-slate-700">
-            {node.rollupProgress}%
-          </span>
-        </div>
-        <ProgressBar value={node.rollupProgress} className="mt-2" />
-        {(node.metric || node.targetValue) && (
-          <p className="mt-2 text-xs text-slate-500">
-            {node.metric}
-            {node.targetValue && ` · 목표 ${node.targetValue}${node.unit ?? ""}`}
-            {node.currentValue && ` / 현재 ${node.currentValue}${node.unit ?? ""}`}
-          </p>
-        )}
-        {hasChildren && (
-          <p className="mt-2 text-[11px] text-slate-400">
-            하위 {node.children.length}건의 가중평균으로 자동 산출 · 클릭해서 접기/펼치기
-          </p>
-        )}
-      </div>
-    );
-
+  function companyGoalBoard() {
     return (
-      <div className={depth > 0 ? "ml-4 border-l border-slate-200 pl-4" : ""}>
-        {hasChildren ? (
-          <details open={depth < 2} className="group mt-2">
-            <summary className="cursor-pointer list-none">{body}</summary>
-            <div>
-              {node.children.map((child) => (
-                <CascadeNode key={child.id} node={child} depth={depth + 1} />
+      <section className={`${CARD_CLASS} overflow-hidden`}>
+        <div className="flex flex-wrap items-end justify-between gap-4 px-5 pt-3 pb-2">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-brand-green">
+              전사목표
+            </p>
+            <h1 className="mt-0.5 text-lg font-bold text-slate-900">
+              {cycle ? `${cycle.year}년 조직 목표` : "목표관리"}
+              <span className="ml-2 text-sm font-normal text-slate-400">
+                {cycle?.name}
+              </span>
+            </h1>
+          </div>
+
+          <div className="flex items-end gap-5">
+            <div className="text-right">
+              <p className="text-[11px] font-medium whitespace-nowrap text-slate-500">전사 종합 달성률</p>
+              <p className="text-3xl leading-none font-semibold text-slate-900">
+                {overallProgress}
+                <span className="ml-0.5 text-lg font-normal text-slate-400">%</span>
+              </p>
+            </div>
+            <dl className="hidden gap-4 text-right sm:flex">
+              <div>
+                <dt className="text-[11px] text-slate-500">목표</dt>
+                <dd className="text-base font-semibold text-slate-800">{allNodes.length}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-slate-500">완료</dt>
+                <dd className="text-base font-semibold text-slate-800">{doneCount}</dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-slate-500">지연</dt>
+                <dd
+                  className={`text-base font-semibold ${
+                    overdueCount > 0 ? "text-status-critical" : "text-slate-800"
+                  }`}
+                >
+                  {overdueCount}
+                </dd>
+              </div>
+            </dl>
+            {cycles.length > 0 && cycle && (
+              <CycleSelect
+                value={cycle.id}
+                options={cycles.map((c) => ({
+                  value: c.id,
+                  label: `${c.name} (${GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]})`,
+                }))}
+              />
+            )}
+          </div>
+        </div>
+
+        {companyGoals.length === 0 ? (
+          <p className="border-t border-slate-200 px-5 py-6 text-sm text-slate-500">
+            등록된 전사목표가 없습니다.
+            {isAdmin && " 전사목표 탭에서 먼저 등록하면 이 자리에 고정되어 모두에게 보입니다."}
+          </p>
+        ) : (
+          <div className="max-h-[38vh] overflow-auto border-t border-slate-200">
+            <table className="w-full min-w-[860px] text-sm">
+              <thead className="sticky top-0 z-10 bg-slate-100 text-slate-600">
+                <tr>
+                  <th className="w-44 px-4 py-1.5 text-left text-xs font-semibold">구분</th>
+                  <th className="px-4 py-1.5 text-left text-xs font-semibold">목표</th>
+                  <th className="w-56 px-4 py-1.5 text-left text-xs font-semibold">달성률</th>
+                </tr>
+              </thead>
+              <tbody>
+                {companyGoals.map((g, i) => {
+                  const focused = focusGoal?.id === g.id;
+                  return (
+                    <tr
+                      key={g.id}
+                      className={`border-t border-slate-100 align-top ${
+                        focused ? "bg-brand-green-light" : i % 2 === 1 ? "bg-slate-50/70" : ""
+                      }`}
+                    >
+                      <td className="px-4 py-2">
+                        <span className="text-xs text-slate-400">{i + 1}.</span>{" "}
+                        <span className="font-medium text-slate-700">{g.category ?? "전사"}</span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <Link
+                          href={buildHref({ tab: "dashboard", focus: focused ? null : g.id })}
+                          className="group flex items-start gap-1.5"
+                          title={focused ? "전체 보기" : "이 목표의 하위 목표만 보기"}
+                        >
+                          <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-400" />
+                          <span className="font-medium text-slate-800 group-hover:text-brand-green-dark group-hover:underline">
+                            {g.title}
+                          </span>
+                        </Link>
+                        {(g.metric || g.targetValue || g.description) && (
+                          <p className="mt-0.5 pl-3 text-xs text-slate-500">
+                            {[
+                              g.metric,
+                              g.targetValue ? `목표 ${g.targetValue}${g.unit ?? ""}` : null,
+                              g.description,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="flex items-center gap-2">
+                          <Meter value={g.rollupProgress} size="md" />
+                          <span className="w-10 shrink-0 text-right text-sm font-semibold tabular-nums text-slate-800">
+                            {g.rollupProgress}%
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-center gap-1">
+                          <StatusBadge status={g.status} />
+                          {isOverdue(g, now) && <OverdueBadge />}
+                          {g.children.length > 0 && (
+                            <span className="text-[10px] text-slate-400">
+                              하위 {g.children.length}건 가중평균
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {(noteLines.length > 0 || focusGoal) && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/70 px-5 py-2.5">
+            <div className="text-xs text-slate-500">
+              {noteLines.map((line, i) => (
+                <p key={i}>
+                  {["i)", "ii)", "iii)", "iv)", "v)"][i] ?? "·"} {line}
+                </p>
               ))}
             </div>
-          </details>
-        ) : (
-          <div className="mt-2">{body}</div>
+            {focusGoal && (
+              <Link
+                href={buildHref({ tab: "dashboard", focus: null })}
+                className="shrink-0 rounded-full border border-brand-green px-3 py-1 text-xs font-medium text-brand-green-dark hover:bg-brand-green-light"
+              >
+                「{focusGoal.title}」 갈래만 보는 중 · 전체 보기 ✕
+              </Link>
+            )}
+          </div>
         )}
-      </div>
+      </section>
+    );
+  }
+
+  // ---- 한 줄 보드: 책임 · 팀 · 개인 ---------------------------------------
+
+  function BoardCard({ goal }: { goal: GoalNode }) {
+    const level = goal.level as GoalLevel;
+    const parent = goal.parentId ? nodeById.get(goal.parentId) : null;
+    return (
+      <li
+        className={`border-l-2 py-2.5 pl-3 ${GOAL_LEVEL_RAMP_BORDER[level]} ${
+          goal.status === "DROPPED" ? "opacity-50" : ""
+        }`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <p className="min-w-0 text-sm font-medium text-slate-800">{goal.title}</p>
+          <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-700">
+            {goal.rollupProgress}%
+          </span>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+          <span className="font-medium text-slate-600">{scopeText(goal)}</span>
+          {goal.weight > 0 && <span>가중치 {goal.weight}%</span>}
+          {goal.dueDate && <span>~{formatKSTDate(goal.dueDate)}</span>}
+          <StatusBadge status={goal.status} />
+          {isOverdue(goal, now) && <OverdueBadge />}
+        </div>
+        <div className="mt-1.5">
+          <Meter value={goal.rollupProgress} />
+        </div>
+        {parent && (
+          <p className="mt-1 truncate text-[11px] text-slate-400">↖ {parent.title}</p>
+        )}
+      </li>
+    );
+  }
+
+  function BoardColumn({ level }: { level: GoalLevel }) {
+    let rows = byLevel(level);
+    if (focusedIds) rows = rows.filter((g) => focusedIds.has(g.id));
+    if (level === "INDIVIDUAL" && !isAdmin) {
+      const myTeamIds = new Set(
+        teams.filter((t) => t.leaderId === session!.user.id).map((t) => t.id)
+      );
+      rows = rows.filter(
+        (g) => g.ownerId === session!.user.id || (g.teamId && myTeamIds.has(g.teamId))
+      );
+    }
+
+    return (
+      <section className={`${CARD_CLASS} flex min-h-0 flex-col`}>
+        <header className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+          <LevelDot level={level} />
+          <h2 className="text-sm font-semibold text-slate-800">{GOAL_LEVEL_LABEL[level]}</h2>
+          <span className="text-xs text-slate-400">{rows.length}건</span>
+          <span className="ml-auto text-sm font-semibold tabular-nums text-slate-700">
+            {averageProgress(rows)}%
+          </span>
+        </header>
+        {rows.length === 0 ? (
+          <p className="px-4 py-8 text-center text-xs text-slate-400">
+            {focusedIds ? "이 갈래에는 없습니다." : `등록된 ${GOAL_LEVEL_LABEL[level]}가 없습니다.`}
+          </p>
+        ) : (
+          <ul className="max-h-[42vh] divide-y divide-slate-100 overflow-y-auto px-4 py-1">
+            {rows.map((g) => (
+              <BoardCard key={g.id} goal={g} />
+            ))}
+          </ul>
+        )}
+        <Link
+          href={buildHref({ tab: level.toLowerCase(), focus: null })}
+          className="border-t border-slate-200 px-4 py-2 text-xs text-brand-green-dark hover:bg-slate-50"
+        >
+          {GOAL_LEVEL_LABEL[level]} 관리 →
+        </Link>
+      </section>
     );
   }
 
@@ -347,6 +510,18 @@ export default async function Evaluation2Page({
         <div className="md:col-span-2">
           <label className={LABEL_CLASS}>목표명</label>
           <input name="title" defaultValue={goal?.title ?? ""} required className={INPUT_CLASS} />
+        </div>
+
+        <div>
+          <label className={LABEL_CLASS}>
+            구분 <span className="text-slate-400">(표의 왼쪽 칸)</span>
+          </label>
+          <input
+            name="category"
+            defaultValue={goal?.category ?? ""}
+            placeholder="예: 영업고객관리"
+            className={INPUT_CLASS}
+          />
         </div>
 
         {parentLevel && (
@@ -432,12 +607,21 @@ export default async function Evaluation2Page({
 
         <div>
           <label className={LABEL_CLASS}>현재수준</label>
-          <input name="currentValue" defaultValue={goal?.currentValue ?? ""} className={INPUT_CLASS} />
+          <input
+            name="currentValue"
+            defaultValue={goal?.currentValue ?? ""}
+            className={INPUT_CLASS}
+          />
         </div>
 
         <div>
           <label className={LABEL_CLASS}>단위</label>
-          <input name="unit" defaultValue={goal?.unit ?? ""} placeholder="건, %, 억원" className={INPUT_CLASS} />
+          <input
+            name="unit"
+            defaultValue={goal?.unit ?? ""}
+            placeholder="건, %, 억원"
+            className={INPUT_CLASS}
+          />
         </div>
 
         <div>
@@ -487,14 +671,6 @@ export default async function Evaluation2Page({
     );
   }
 
-  /** 이 사용자가 해당 목표를 직접 고칠 수 있는지 — 서버 액션과 같은 기준. */
-  function canManage(goal: GoalNode): boolean {
-    if (isAdmin) return true;
-    if (goal.ownerId === session!.user.id) return true;
-    const team = teams.find((t) => t.id === goal.teamId);
-    return !!team && team.leaderId === session!.user.id;
-  }
-
   function GoalRowCard({ goal }: { goal: GoalNode }) {
     const level = goal.level as GoalLevel;
     const parent = goal.parentId ? nodeById.get(goal.parentId) : null;
@@ -504,28 +680,30 @@ export default async function Evaluation2Page({
     const parentOptions = parentLevel ? byLevel(parentLevel) : [];
 
     return (
-      <div className={`rounded-lg border border-slate-200 bg-white p-4 ${LEVEL_ACCENT[level]}`}>
+      <div className={`${CARD_CLASS} border-l-2 p-4 ${GOAL_LEVEL_RAMP_BORDER[level]}`}>
         <div className="flex flex-wrap items-center gap-2">
+          <LevelDot level={level} />
           <span className="text-sm font-medium text-slate-800">{goal.title}</span>
           <span className="text-xs text-slate-500">{scopeText(goal)}</span>
           <StatusBadge status={goal.status} />
-          {isOverdue(goal, now) && (
-            <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-600">
-              지연
-            </span>
-          )}
-          <span className="ml-auto text-sm font-semibold text-slate-700">{goal.rollupProgress}%</span>
+          {isOverdue(goal, now) && <OverdueBadge />}
+          <span className="ml-auto text-sm font-semibold tabular-nums text-slate-700">
+            {goal.rollupProgress}%
+          </span>
         </div>
 
-        <ProgressBar value={goal.rollupProgress} className="mt-2" />
+        <div className="mt-2">
+          <Meter value={goal.rollupProgress} size="md" />
+        </div>
 
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+          {goal.category && <span>구분: {goal.category}</span>}
           {parent && (
             <span>
               상위: {parent.title} ({GOAL_LEVEL_LABEL[parent.level as GoalLevel]})
             </span>
           )}
-          {!parent && parentLevel && <span className="text-amber-600">상위 목표 미연결</span>}
+          {!parent && parentLevel && <span className="text-status-critical">상위 목표 미연결</span>}
           {goal.weight > 0 && <span>가중치 {goal.weight}%</span>}
           {goal.metric && <span>지표: {goal.metric}</span>}
           {goal.targetValue && (
@@ -552,23 +730,23 @@ export default async function Evaluation2Page({
                 max={100}
                 defaultValue={goal.progress}
                 aria-label="달성률"
-                className="w-20 rounded border border-slate-300 px-2 py-1 text-xs"
+                className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs"
               />
               <input
                 name="currentValue"
                 placeholder="현재수준"
                 aria-label="현재수준"
-                className="w-28 rounded border border-slate-300 px-2 py-1 text-xs"
+                className="w-28 rounded-md border border-slate-300 px-2 py-1 text-xs"
               />
               <input
                 name="note"
                 placeholder="진척 메모"
                 aria-label="진척 메모"
-                className="w-44 rounded border border-slate-300 px-2 py-1 text-xs"
+                className="w-44 rounded-md border border-slate-300 px-2 py-1 text-xs"
               />
               <button
                 type="submit"
-                className="rounded bg-brand-green px-3 py-1 text-xs font-medium text-white hover:bg-brand-green-dark"
+                className="rounded-md bg-brand-green px-3 py-1 text-xs font-medium text-white hover:bg-brand-green-dark"
               >
                 진척 반영
               </button>
@@ -581,8 +759,8 @@ export default async function Evaluation2Page({
           )}
           {editable && (
             <Link
-              href={isEditing ? goalHref(null) : goalHref(goal.id)}
-              className="rounded border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
+              href={buildHref({ edit: isEditing ? null : goal.id })}
+              className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
             >
               {isEditing ? "수정 닫기" : "수정"}
             </Link>
@@ -591,7 +769,7 @@ export default async function Evaluation2Page({
             <form action={deleteGoal.bind(null, goal.id)}>
               <button
                 type="submit"
-                className="rounded border border-red-200 px-3 py-1 text-xs text-red-600 hover:bg-red-50"
+                className="rounded-md border border-red-200 px-3 py-1 text-xs text-status-critical hover:bg-red-50"
               >
                 삭제
               </button>
@@ -600,7 +778,10 @@ export default async function Evaluation2Page({
         </div>
 
         {isEditing && (
-          <form action={updateGoal} className="mt-4 grid gap-3 rounded border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+          <form
+            action={updateGoal}
+            className="mt-4 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-2"
+          >
             <input type="hidden" name="goalId" value={goal.id} />
             <GoalFormFields level={level} goal={goal} parentOptions={parentOptions} />
             <div className="md:col-span-2">
@@ -614,15 +795,15 @@ export default async function Evaluation2Page({
     );
   }
 
-  function LevelTab({ level }: { level: GoalLevel }) {
+  function levelTab(level: GoalLevel) {
     const parentLevel = GOAL_PARENT_LEVEL[level];
     const parentOptions = parentLevel ? byLevel(parentLevel) : [];
     let rows = byLevel(level);
 
-    // 개인목표는 건수가 많아 전사 목록이 의미가 없다. 관리자가 아니면
-    // 본인 것과 본인이 팀장인 팀의 것만 보여준다.
     if (level === "INDIVIDUAL" && !isAdmin) {
-      const myTeamIds = new Set(teams.filter((t) => t.leaderId === session!.user.id).map((t) => t.id));
+      const myTeamIds = new Set(
+        teams.filter((t) => t.leaderId === session!.user.id).map((t) => t.id)
+      );
       rows = rows.filter(
         (g) => g.ownerId === session!.user.id || (g.teamId && myTeamIds.has(g.teamId))
       );
@@ -636,13 +817,14 @@ export default async function Evaluation2Page({
     return (
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
+          <LevelDot level={level} />
           <h2 className="text-lg font-semibold">{GOAL_LEVEL_LABEL[level]}</h2>
           <span className="text-sm text-slate-500">{rows.length}건</span>
           <span className="text-sm text-slate-500">평균 달성률 {averageProgress(rows)}%</span>
         </div>
 
         {canCreate && cycle && (
-          <details className={CARD_CLASS}>
+          <details className={`${CARD_CLASS} p-5`}>
             <summary className="cursor-pointer text-sm font-medium text-brand-green-dark">
               + {GOAL_LEVEL_LABEL[level]} 등록
             </summary>
@@ -660,7 +842,7 @@ export default async function Evaluation2Page({
         )}
 
         {rows.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+          <p className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
             등록된 {GOAL_LEVEL_LABEL[level]}가 없습니다.
           </p>
         ) : (
@@ -674,53 +856,105 @@ export default async function Evaluation2Page({
     );
   }
 
+  function cycleAdminPanel() {
+    return (
+      <section className={`${CARD_CLASS} p-5`}>
+        <h2 className="text-base font-semibold">목표 사이클 관리</h2>
+        <div className="mt-3 flex flex-col gap-2">
+          {cycles.map((c) => (
+            <div
+              key={c.id}
+              className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 p-3 text-sm"
+            >
+              <span className="font-medium">{c.name}</span>
+              <span className="text-xs text-slate-500">
+                {formatKSTDate(c.startDate)} ~ {formatKSTDate(c.endDate)}
+              </span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+                {GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]}
+              </span>
+              <div className="ml-auto flex gap-2">
+                {c.status !== "OPEN" && (
+                  <form action={setGoalCycleStatus.bind(null, c.id, "OPEN")}>
+                    <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
+                      진행중으로
+                    </button>
+                  </form>
+                )}
+                {c.status !== "CLOSED" && (
+                  <form action={setGoalCycleStatus.bind(null, c.id, "CLOSED")}>
+                    <button className="rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
+                      종료
+                    </button>
+                  </form>
+                )}
+                <form action={deleteGoalCycle.bind(null, c.id)}>
+                  <button className="rounded-md border border-red-200 px-2 py-1 text-xs text-status-critical hover:bg-red-50">
+                    삭제
+                  </button>
+                </form>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {cycle && (
+          <form action={updateGoalCycleNote} className="mt-4 border-t border-slate-200 pt-4">
+            <input type="hidden" name="cycleId" value={cycle.id} />
+            <label className={LABEL_CLASS}>
+              전사목표 표 하단 안내문 — 한 줄이 i), ii) 한 항목이 됩니다
+            </label>
+            <textarea
+              name="note"
+              rows={2}
+              defaultValue={cycle.note ?? ""}
+              placeholder={"각 조직별 목표 달성을 위한 핵심 과제는 내부 공유 통해 정보 획득 및 실행 필요.\n사업개발의 경우 추후 확정 예정."}
+              className={INPUT_CLASS}
+            />
+            <button type="submit" className={`${PRIMARY_BUTTON_CLASS} mt-2`}>
+              안내문 저장
+            </button>
+          </form>
+        )}
+
+        <form
+          action={createGoalCycle}
+          className="mt-4 grid gap-3 border-t border-slate-200 pt-4 md:grid-cols-4"
+        >
+          <div className="md:col-span-2">
+            <label className={LABEL_CLASS}>새 사이클명</label>
+            <input name="name" required placeholder="2026년 하반기" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={LABEL_CLASS}>시작일</label>
+            <input type="date" name="startDate" required className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={LABEL_CLASS}>종료일</label>
+            <input type="date" name="endDate" required className={INPUT_CLASS} />
+          </div>
+          <div className="md:col-span-4">
+            <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+              사이클 추가
+            </button>
+          </div>
+        </form>
+      </section>
+    );
+  }
+
   // ---- 렌더 ---------------------------------------------------------------
 
-  return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">평가2 · 목표관리</h1>
-          <p className="mt-1 text-slate-600">
-            전사목표에서 책임 · 팀 · 개인목표까지 이어지는 목표 정렬과 달성 현황입니다.
-          </p>
-        </div>
-        {cycles.length > 0 && cycle && (
-          <div className="flex items-center gap-2">
-            <CycleSelect
-              value={cycle.id}
-              options={cycles.map((c) => ({
-                value: c.id,
-                label: `${c.name} (${GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]})`,
-              }))}
-            />
-            <span className="text-xs text-slate-500">
-              {formatKSTDate(cycle.startDate)} ~ {formatKSTDate(cycle.endDate)}
-            </span>
-          </div>
-        )}
-      </div>
-
-      <nav className="flex flex-wrap gap-2 border-b border-slate-200 pb-2 text-sm">
-        {TABS.map((t) => (
-          <Link
-            key={t.key}
-            href={hrefFor(t.key)}
-            className={`rounded px-3 py-1.5 ${
-              tab === t.key
-                ? "bg-brand-green text-white"
-                : "border border-slate-300 text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            {t.label}
-          </Link>
-        ))}
-      </nav>
-
-      {!cycle ? (
-        <div className={CARD_CLASS}>
+  if (!cycle) {
+    return (
+      <div className="flex flex-col gap-6">
+        <h1 className="text-2xl font-semibold">평가2 · 목표관리</h1>
+        <div className={`${CARD_CLASS} p-5`}>
           <p className="text-sm text-slate-600">
-            등록된 목표 사이클이 없습니다. {isAdmin ? "먼저 사이클을 만들어 주세요." : "관리자가 사이클을 열면 목표를 등록할 수 있습니다."}
+            등록된 목표 사이클이 없습니다.{" "}
+            {isAdmin
+              ? "먼저 사이클을 만들어 주세요."
+              : "관리자가 사이클을 열면 목표를 등록할 수 있습니다."}
           </p>
           {isAdmin && (
             <form action={createGoalCycle} className="mt-4 grid gap-3 md:grid-cols-4">
@@ -744,232 +978,63 @@ export default async function Evaluation2Page({
             </form>
           )}
         </div>
-      ) : tab === "dashboard" ? (
-        <div className="flex flex-col gap-6">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              label="전사 종합 달성률"
-              value={overallProgress}
-              suffix="%"
-              hint={companyGoals.length > 0 ? `전사목표 ${companyGoals.length}건 기준` : "전사목표 미등록 — 전체 평균"}
-            />
-            <StatCard label="등록 목표" value={allNodes.length} suffix="건" hint={`중단 제외 ${counted.length}건`} />
-            <StatCard label="완료" value={doneCount} suffix="건" hint={`전체의 ${allNodes.length > 0 ? Math.round((doneCount / allNodes.length) * 100) : 0}%`} />
-            <StatCard label="지연" value={overdueCount} suffix="건" hint={unlinkedCount > 0 ? `상위 미연결 ${unlinkedCount}건` : "마감일 경과 · 미완료"} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* 전사목표는 어느 탭에 있든 화면 맨 위에 붙어 모두에게 계속 보인다. */}
+      <div className="sticky -top-6 z-20 -mx-4 -mt-6 bg-slate-50 px-4 pt-6 pb-3 md:-top-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
+        {companyGoalBoard()}
+      </div>
+
+      <nav className="flex flex-wrap gap-2 text-sm">
+        {TABS.map((t) => (
+          <Link
+            key={t.key}
+            href={buildHref({ tab: t.key })}
+            className={`rounded-full px-3.5 py-1.5 transition-colors ${
+              tab === t.key
+                ? "bg-brand-green text-white"
+                : "border border-slate-300 text-slate-600 hover:bg-white"
+            }`}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </nav>
+
+      {tab === "dashboard" ? (
+        <div className="flex flex-col gap-5">
+          <div className="grid gap-4 lg:grid-cols-3">
+            {BOARD_LEVELS.map((level) => (
+              <BoardColumn key={level} level={level} />
+            ))}
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {GOAL_LEVELS.map((level) => {
-              const nodes = byLevel(level);
-              return (
-                <div key={level} className={`${CARD_CLASS} ${LEVEL_ACCENT[level]}`}>
-                  <div className="flex items-center justify-between">
-                    <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${LEVEL_CHIP[level]}`}>
-                      {GOAL_LEVEL_LABEL[level]}
-                    </span>
-                    <span className="text-xs text-slate-500">{nodes.length}건</span>
-                  </div>
-                  <p className="mt-3 text-2xl font-semibold text-slate-800">
-                    {averageProgress(nodes)}
-                    <span className="ml-0.5 text-base font-normal text-slate-500">%</span>
-                  </p>
-                  <ProgressBar value={averageProgress(nodes)} className="mt-2" />
-                  <Link
-                    href={hrefFor(level.toLowerCase())}
-                    className="mt-3 inline-block text-xs text-brand-green-dark hover:underline"
-                  >
-                    목록 보기 →
-                  </Link>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className={CARD_CLASS}>
-            <h2 className="text-lg font-semibold">목표 정렬 현황</h2>
-            <p className="mt-1 text-xs text-slate-500">
-              전사목표를 펼치면 그 아래 책임 · 팀 · 개인목표가 이어집니다. 상위 목표의 달성률은
-              하위 목표의 가중평균입니다.
-            </p>
-            {tree.length === 0 ? (
-              <p className="mt-6 rounded border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
-                이번 사이클에 등록된 목표가 없습니다.
-              </p>
-            ) : (
-              <div className="mt-3">
-                {tree.map((node) => (
-                  <CascadeNode key={node.id} node={node} depth={0} />
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className={CARD_CLASS}>
-              <h2 className="text-base font-semibold">책임별 달성률</h2>
-              {divisionRollup.length === 0 ? (
-                <p className="mt-4 text-sm text-slate-500">등록된 책임목표가 없습니다.</p>
-              ) : (
-                <table className="mt-3 w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
-                      <th className="py-2">책임(부문)</th>
-                      <th className="py-2">목표</th>
-                      <th className="py-2 w-1/2">달성률</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {divisionRollup.map((d) => (
-                      <tr key={d.name} className="border-b border-slate-100 last:border-0">
-                        <td className="py-2">{d.name}</td>
-                        <td className="py-2 text-slate-500">{d.count}건</td>
-                        <td className="py-2">
-                          <div className="flex items-center gap-2">
-                            <ProgressBar value={d.progress} />
-                            <span className="w-10 shrink-0 text-right text-xs text-slate-600">
-                              {d.progress}%
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+          <section className={`${CARD_CLASS} p-5`}>
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-base font-semibold">내 목표</h2>
+              <span className="text-xs text-slate-500">
+                {me?.name}님이 담당자로 지정된 목표
+              </span>
             </div>
-
-            <div className={CARD_CLASS}>
-              <h2 className="text-base font-semibold">팀별 달성률</h2>
-              {teamRollup.length === 0 ? (
-                <p className="mt-4 text-sm text-slate-500">등록된 팀목표가 없습니다.</p>
-              ) : (
-                <table className="mt-3 w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
-                      <th className="py-2">팀</th>
-                      <th className="py-2">목표</th>
-                      <th className="py-2 w-1/2">달성률</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teamRollup.map((t) => (
-                      <tr key={t.name} className="border-b border-slate-100 last:border-0">
-                        <td className="py-2">
-                          {t.name}
-                          {t.division && <span className="ml-1 text-xs text-slate-400">{t.division}</span>}
-                        </td>
-                        <td className="py-2 text-slate-500">{t.count}건</td>
-                        <td className="py-2">
-                          <div className="flex items-center gap-2">
-                            <ProgressBar value={t.progress} />
-                            <span className="w-10 shrink-0 text-right text-xs text-slate-600">
-                              {t.progress}%
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-
-          <div className={CARD_CLASS}>
-            <h2 className="text-base font-semibold">내 목표</h2>
-            <p className="mt-1 text-xs text-slate-500">
-              {me?.name}님이 담당자로 지정된 목표입니다.
-            </p>
             {myGoals.length === 0 ? (
-              <p className="mt-4 text-sm text-slate-500">담당으로 지정된 목표가 없습니다.</p>
+              <p className="mt-3 text-sm text-slate-500">담당으로 지정된 목표가 없습니다.</p>
             ) : (
-              <div className="mt-3 flex flex-col gap-2">
+              <ul className="mt-3 grid gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
                 {myGoals.map((g) => (
-                  <div key={g.id} className="flex flex-wrap items-center gap-2 rounded border border-slate-200 p-3">
-                    <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${LEVEL_CHIP[g.level as GoalLevel]}`}>
-                      {GOAL_LEVEL_LABEL[g.level as GoalLevel]}
-                    </span>
-                    <span className="text-sm text-slate-800">{g.title}</span>
-                    <StatusBadge status={g.status} />
-                    {isOverdue(g, now) && (
-                      <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-600">
-                        지연
-                      </span>
-                    )}
-                    <span className="ml-auto text-sm font-semibold text-slate-700">
-                      {g.rollupProgress}%
-                    </span>
-                    <div className="w-full">
-                      <ProgressBar value={g.rollupProgress} />
-                    </div>
-                  </div>
+                  <BoardCard key={g.id} goal={g} />
                 ))}
-              </div>
+              </ul>
             )}
-          </div>
+          </section>
 
-          {isAdmin && (
-            <div className={CARD_CLASS}>
-              <h2 className="text-base font-semibold">목표 사이클 관리</h2>
-              <div className="mt-3 flex flex-col gap-2">
-                {cycles.map((c) => (
-                  <div key={c.id} className="flex flex-wrap items-center gap-2 rounded border border-slate-200 p-3 text-sm">
-                    <span className="font-medium">{c.name}</span>
-                    <span className="text-xs text-slate-500">
-                      {formatKSTDate(c.startDate)} ~ {formatKSTDate(c.endDate)}
-                    </span>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
-                      {GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]}
-                    </span>
-                    <div className="ml-auto flex gap-2">
-                      {c.status !== "OPEN" && (
-                        <form action={setGoalCycleStatus.bind(null, c.id, "OPEN")}>
-                          <button className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
-                            진행중으로
-                          </button>
-                        </form>
-                      )}
-                      {c.status !== "CLOSED" && (
-                        <form action={setGoalCycleStatus.bind(null, c.id, "CLOSED")}>
-                          <button className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
-                            종료
-                          </button>
-                        </form>
-                      )}
-                      <form action={deleteGoalCycle.bind(null, c.id)}>
-                        <button className="rounded border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50">
-                          삭제
-                        </button>
-                      </form>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <form action={createGoalCycle} className="mt-4 grid gap-3 border-t border-slate-200 pt-4 md:grid-cols-4">
-                <div className="md:col-span-2">
-                  <label className={LABEL_CLASS}>새 사이클명</label>
-                  <input name="name" required placeholder="2026년 하반기" className={INPUT_CLASS} />
-                </div>
-                <div>
-                  <label className={LABEL_CLASS}>시작일</label>
-                  <input type="date" name="startDate" required className={INPUT_CLASS} />
-                </div>
-                <div>
-                  <label className={LABEL_CLASS}>종료일</label>
-                  <input type="date" name="endDate" required className={INPUT_CLASS} />
-                </div>
-                <div className="md:col-span-4">
-                  <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-                    사이클 추가
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
+          {isAdmin && cycleAdminPanel()}
         </div>
       ) : (
-        <LevelTab level={TAB_TO_LEVEL[tab]} />
+        levelTab(TAB_TO_LEVEL[tab])
       )}
     </div>
   );

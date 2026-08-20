@@ -117,6 +117,21 @@ export async function deleteGoalCycle(cycleId: string) {
   revalidatePath(PATH);
 }
 
+/** 전사목표 표 아래 안내문. 줄바꿈 한 줄이 각주 한 항목이 된다. */
+export async function updateGoalCycleNote(formData: FormData) {
+  await requireGoalModule();
+  if (!(await isAdmin())) throw new Error("안내문은 관리자만 고칠 수 있습니다.");
+
+  const cycleId = str(formData.get("cycleId"));
+  if (!cycleId) return;
+
+  await prisma.goalCycle.update({
+    where: { id: cycleId },
+    data: { note: str(formData.get("note")) || null },
+  });
+  revalidatePath(PATH);
+}
+
 // --- 목표 ------------------------------------------------------------------
 
 /**
@@ -181,6 +196,7 @@ export async function createGoal(formData: FormData) {
       cycleId,
       level,
       parentId: await resolveParentId(level, str(formData.get("parentId")), cycleId),
+      category: str(formData.get("category")) || null,
       title,
       description: str(formData.get("description")) || null,
       ...scope,
@@ -222,6 +238,7 @@ export async function updateGoal(formData: FormData) {
     where: { id: goalId },
     data: {
       title: str(formData.get("title")) || undefined,
+      category: str(formData.get("category")) || null,
       description: str(formData.get("description")) || null,
       ...scope,
       ...(admin
