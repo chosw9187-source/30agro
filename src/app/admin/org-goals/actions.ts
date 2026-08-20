@@ -65,7 +65,12 @@ export async function saveOrgGoals(formData: FormData) {
           currentValue: str(formData.get(`currentValue:${row.id}`)) || null,
           unit: str(formData.get(`unit:${row.id}`)) || null,
           weight: parseNumber(formData.get(`weight:${row.id}`), 0),
-          progress: clampProgress(parseNumber(formData.get(`progress:${row.id}`), 0)),
+          // 상태를 "완료"로 두면 달성률도 100으로 맞춘다 — 상태만 바꾸고
+          // 달성률 칸을 안 채워서 숫자가 안 오르는 일이 없도록.
+          progress:
+            asStatus(formData.get(`status:${row.id}`)) === "DONE"
+              ? 100
+              : clampProgress(parseNumber(formData.get(`progress:${row.id}`), 0)),
           status: asStatus(formData.get(`status:${row.id}`)),
           dueDate: parseDate(formData.get(`dueDate:${row.id}`)),
           sortOrder: parseNumber(formData.get(`sortOrder:${row.id}`), i + 1),

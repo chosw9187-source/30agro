@@ -37,6 +37,7 @@ import {
 } from "./actions";
 import { CycleSelect } from "./cycle-select";
 import { ActionForm } from "@/components/action-form";
+import { AutoRefresh } from "@/components/auto-refresh";
 
 export const dynamic = "force-dynamic";
 
@@ -243,6 +244,11 @@ export default async function Evaluation2Page({
   const overallProgress =
     companyGoals.length > 0 ? weightedProgress(companyGoals) : averageProgress(counted);
   const doneCount = allNodes.filter((g) => g.status === "DONE").length;
+  // 상위에 안 매달린 목표는 아무리 달성해도 전사 달성률을 못 움직인다.
+  // 숫자가 안 오르는 가장 흔한 이유라 화면에 대놓고 알려준다.
+  const unlinked = allNodes.filter(
+    (g) => GOAL_PARENT_LEVEL[g.level as GoalLevel] !== null && !g.parentId
+  );
   const overdueCount = allNodes.filter((g) => isOverdue(g, now)).length;
   const myGoals = allNodes.filter((g) => g.ownerId === session!.user.id);
   const noteLines = (cycle?.note ?? "")
@@ -416,7 +422,7 @@ export default async function Evaluation2Page({
           </div>
         )}
 
-        {(noteLines.length > 0 || focusGoal) && (
+        {(noteLines.length > 0 || focusGoal || unlinked.length > 0) && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/70 px-5 py-2.5">
             <div className="text-xs text-slate-500">
               {noteLines.map((line, i) => (
@@ -424,6 +430,12 @@ export default async function Evaluation2Page({
                   {["i)", "ii)", "iii)", "iv)", "v)"][i] ?? "·"} {line}
                 </p>
               ))}
+              {unlinked.length > 0 && (
+                <p className="mt-1 text-status-critical">
+                  상위 목표에 연결되지 않은 목표 {unlinked.length}건은 전사 달성률에 반영되지
+                  않습니다 — 해당 목표를 열어 「상위 목표」를 지정해 주세요.
+                </p>
+              )}
             </div>
             {focusGoal && (
               <Link
@@ -964,6 +976,8 @@ export default async function Evaluation2Page({
 
   return (
     <div className="flex flex-col gap-5">
+      {/* 다른 사람이 목표를 고쳐도 이 화면이 알아서 최신 값을 받아온다. */}
+      <AutoRefresh />
       {/* 전사목표는 어느 탭에 있든 화면 맨 위에 붙어 모두에게 계속 보인다. */}
       <div className="sticky -top-6 z-20 -mx-4 -mt-6 bg-slate-50 px-4 pt-6 pb-3 md:-top-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
         {companyGoalBoard()}

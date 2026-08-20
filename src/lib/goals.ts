@@ -84,6 +84,16 @@ export function countsTowardProgress(g: { status: string }) {
 }
 
 /**
+ * 하위가 없는 목표의 달성률. "완료"로 표시된 목표는 입력된 달성률과 무관하게
+ * 100%로 본다 — 상태만 완료로 바꾸고 달성률 칸은 그대로 둔 경우가 흔한데,
+ * 그때 완료 건수는 올라가는데 달성률은 0%에 머물러 "달성했는데 반영이 안
+ * 된다"로 보인다. 완료면 100%가 사람이 기대하는 값이다.
+ */
+export function leafProgress(goal: { status: string; progress: number }): number {
+  return goal.status === "DONE" ? 100 : goal.progress;
+}
+
+/**
  * 형제 목표들의 가중평균. 가중치를 아무도 넣지 않았으면(전부 0) 동일
  * 가중으로 떨어지게 해서, 가중치 입력 전에도 숫자가 0으로 죽지 않게 한다.
  * 상위 목표의 롤업과 전사 종합 달성률이 같은 규칙을 쓰도록 공유한다.
@@ -111,7 +121,7 @@ export function weightedProgress(children: GoalNode[]): number {
 export function buildGoalTree(rows: GoalRow[]): GoalNode[] {
   const byId = new Map<string, GoalNode>();
   for (const row of rows) {
-    byId.set(row.id, { ...row, children: [], rollupProgress: row.progress });
+    byId.set(row.id, { ...row, children: [], rollupProgress: leafProgress(row) });
   }
 
   const roots: GoalNode[] = [];
@@ -141,7 +151,7 @@ export function buildGoalTree(rows: GoalRow[]): GoalNode[] {
   const computeRollup = (node: GoalNode): number => {
     node.children.forEach(computeRollup);
     const counted = node.children.filter(countsTowardProgress);
-    node.rollupProgress = counted.length > 0 ? weightedProgress(node.children) : node.progress;
+    node.rollupProgress = counted.length > 0 ? weightedProgress(node.children) : leafProgress(node);
     return node.rollupProgress;
   };
   roots.forEach(computeRollup);

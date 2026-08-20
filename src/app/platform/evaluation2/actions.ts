@@ -41,6 +41,14 @@ function parseNumber(value: FormDataEntryValue | null, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/**
+ * "완료"로 저장하면 달성률도 100으로 맞춘다. 상태만 완료로 바꾸고 달성률
+ * 칸을 안 채우면 완료 건수는 오르는데 달성률은 그대로라 숫자가 어긋난다.
+ */
+function progressForStatus(status: GoalStatus, progress: number): number {
+  return status === "DONE" ? 100 : progress;
+}
+
 function asLevel(value: FormDataEntryValue | null): GoalLevel | null {
   const s = str(value);
   return (GOAL_LEVELS as readonly string[]).includes(s) ? (s as GoalLevel) : null;
@@ -267,7 +275,10 @@ export async function createGoal(formData: FormData) {
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
       unit: str(formData.get("unit")) || null,
-      progress: clampProgress(parseNumber(formData.get("progress"), 0)),
+      progress: progressForStatus(
+        asStatus(formData.get("status")),
+        clampProgress(parseNumber(formData.get("progress"), 0))
+      ),
       status: asStatus(formData.get("status")),
       dueDate: parseDate(formData.get("dueDate")),
       sortOrder: parseNumber(formData.get("sortOrder"), 0),
@@ -318,7 +329,10 @@ export async function updateGoal(formData: FormData) {
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
       unit: str(formData.get("unit")) || null,
-      progress: clampProgress(parseNumber(formData.get("progress"), 0)),
+      progress: progressForStatus(
+        asStatus(formData.get("status")),
+        clampProgress(parseNumber(formData.get("progress"), 0))
+      ),
       status: asStatus(formData.get("status")),
       dueDate: parseDate(formData.get("dueDate")),
     },
