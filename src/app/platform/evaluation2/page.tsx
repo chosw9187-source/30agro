@@ -7,6 +7,8 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { activePrismaWhere } from "@/lib/hr-analytics";
 import { formatKSTDate } from "@/lib/format-kst";
 import {
+  GOAL_AGREEMENT_BADGE_CLASS,
+  GOAL_AGREEMENT_LABEL,
   GOAL_CYCLE_STATUS_LABEL,
   GOAL_LEVELS,
   GOAL_LEVEL_LABEL,
@@ -19,8 +21,10 @@ import {
   buildGoalTree,
   countsTowardProgress,
   flattenGoalTree,
+  asAgreementStatus,
   isAutoCalculated,
   isOverdue,
+  needsAgreement,
   ownerFlag,
   toDateInputValue,
   weightedProgress,
@@ -31,9 +35,13 @@ import {
 } from "@/lib/goals";
 import {
   addGoalCheckIn,
+  approveGoalAgreement,
   createGoal,
   createGoalCycle,
   deleteGoal,
+  reopenGoalAgreement,
+  requestGoalAgreement,
+  returnGoalAgreement,
   seedCompanyGoalTemplate,
   setGoalExcluded,
   updateGoal,
@@ -137,6 +145,16 @@ function ExcludedBadge({ reason }: { reason: string | null }) {
   );
 }
 
+/** 개인목표 합의 단계 배지. */
+function AgreementBadge({ status }: { status: string }) {
+  const s = asAgreementStatus(status);
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${GOAL_AGREEMENT_BADGE_CLASS[s]}`}>
+      {GOAL_AGREEMENT_LABEL[s]}
+    </span>
+  );
+}
+
 /** 담당자가 퇴사했거나 다른 팀으로 옮겼음을 알려주는 배지. */
 function OwnerFlagBadge({ label }: { label: string }) {
   return (
@@ -213,6 +231,10 @@ export default async function Evaluation2Page({
           status: true,
           excluded: true,
           excludeReason: true,
+          agreementStatus: true,
+          agreementNote: true,
+          agreedAt: true,
+          agreedBy: { select: { id: true, name: true } },
           dueDate: true,
           sortOrder: true,
           team: { select: { id: true, name: true } },
@@ -281,6 +303,17 @@ export default async function Evaluation2Page({
   const overdueCount = allNodes.filter((g) => isOverdue(g, now) && !g.excluded).length;
   // 담당자가 퇴사·부서이동했는데 아직 집계에 들어 있는 목표 — 눈에 띄게 알려준다.
   const needsReviewCount = allNodes.filter((g) => !g.excluded && ownerFlag(g, now)).length;
+  // 합의 현황. 내가 승인해야 할 건과, 아직 확정되지 않은 개인목표를 따로 센다.
+  const individualGoals = allNodes.filter((g) => needsAgreement(g.level) && !g.excluded);
+  const myTeamIdsForApproval = new Set(
+    teams.filter((t) => t.leaderId === session!.user.id).map((t) => t.id)
+  );
+  const awaitingMyApproval = individualGoals.filter(
+    (g) =>
+      g.agreementStatus === "REQUESTED" &&
+      (isAdmin || (g.teamId && myTeamIdsForApproval.has(g.teamId)))
+  ).length;
+  const notAgreedCount = individualGoals.filter((g) => g.agreementStatus !== "AGREED").length;
   const myGoals = allNodes.filter((g) => g.ownerId === session!.user.id);
   const noteLines = (cycle?.note ?? "")
     .split("\n")
@@ -459,7 +492,11 @@ export default async function Evaluation2Page({
           </div>
         )}
 
-        {(noteLines.length > 0 || focusGoal || unlinked.length > 0 || needsReviewCount > 0) && (
+        {(noteLines.length > 0 ||
+          focusGoal ||
+          unlinked.length > 0 ||
+          needsReviewCount > 0 ||
+          notAgreedCount > 0) && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/70 px-5 py-2.5">
             <div className="text-xs text-slate-500">
               {noteLines.map((line, i) => (
@@ -467,6 +504,18 @@ export default async function Evaluation2Page({
                   {["i)", "ii)", "iii)", "iv)", "v)"][i] ?? "·"} {line}
                 </p>
               ))}
+              {awaitingMyApproval > 0 && (
+                <p className="mt-1 font-medium text-brand-green-dark">
+                  합의를 기다리는 개인목표 {awaitingMyApproval}건이 있습니다 — 개인목표 탭에서
+                  승인하거나 되돌릴 수 있습니다.
+                </p>
+              )}
+              {notAgreedCount > 0 && (
+                <p className="mt-1 text-slate-500">
+                  아직 합의되지 않은 개인목표 {notAgreedCount}건 — 합의가 끝나야 성과평가 대상이
+                  됩니다.
+                </p>
+              )}
               {needsReviewCount > 0 && (
                 <p className="mt-1 text-amber-700">
                   담당자가 퇴사했거나 부서를 옮긴 목표 {needsReviewCount}건이 아직 집계에 들어
@@ -517,6 +566,9 @@ export default async function Evaluation2Page({
           {goal.dueDate && <span>~{formatKSTDate(goal.dueDate)}</span>}
           <StatusBadge status={goal.status} />
           {isOverdue(goal, now) && <OverdueBadge />}
+          {needsAgreement(goal.level) && goal.agreementStatus !== "AGREED" && (
+            <AgreementBadge status={goal.agreementStatus} />
+          )}
           {goal.excluded && <ExcludedBadge reason={goal.excludeReason} />}
         </div>
         <div className="mt-1.5">
@@ -764,6 +816,91 @@ export default async function Evaluation2Page({
     const parentLevel = GOAL_PARENT_LEVEL[level];
     const parentOptions = parentLevel ? byLevel(parentLevel) : [];
     const flag = ownerFlag(goal, now);
+    const agreement = asAgreementStatus(goal.agreementStatus);
+    const isOwner = goal.ownerId === session!.user.id;
+    const canApprove =
+      isAdmin || teams.some((t) => t.id === goal.teamId && t.leaderId === session!.user.id);
+    const agreementActions =
+      needsAgreement(goal.level) && (isOwner || canApprove) ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
+          <span className="text-[11px] font-medium text-slate-500">합의</span>
+          {isOwner && agreement !== "AGREED" && agreement !== "REQUESTED" && (
+            <ActionForm
+              action={requestGoalAgreement.bind(null, goal.id)}
+              successMessage="팀장에게 합의를 요청했습니다."
+            >
+              <button
+                type="submit"
+                className="rounded-md bg-brand-green px-3 py-1 text-xs font-medium text-white hover:bg-brand-green-dark"
+              >
+                팀장에게 합의 요청
+              </button>
+            </ActionForm>
+          )}
+          {isOwner && agreement === "REQUESTED" && (
+            <span className="text-[11px] text-slate-500">팀장 승인 대기 중입니다.</span>
+          )}
+          {canApprove && agreement === "REQUESTED" && (
+            <ActionForm
+              action={approveGoalAgreement.bind(null, goal.id)}
+              successMessage="합의를 완료했습니다."
+              className="flex items-center gap-1"
+            >
+              <input
+                name="agreementNote"
+                placeholder="합의 메모 (선택)"
+                aria-label="합의 메모"
+                className="w-36 rounded-md border border-slate-300 px-2 py-1 text-xs"
+              />
+              <button
+                type="submit"
+                className="rounded-md bg-brand-green px-3 py-1 text-xs font-medium text-white hover:bg-brand-green-dark"
+              >
+                합의 승인
+              </button>
+            </ActionForm>
+          )}
+          {canApprove && agreement === "REQUESTED" && (
+            <ActionForm
+              action={returnGoalAgreement.bind(null, goal.id)}
+              successMessage="담당자에게 되돌렸습니다."
+              className="flex items-center gap-1"
+            >
+              <input
+                name="agreementNote"
+                placeholder="되돌리는 사유"
+                aria-label="되돌리는 사유"
+                required
+                className="w-36 rounded-md border border-slate-300 px-2 py-1 text-xs"
+              />
+              <button
+                type="submit"
+                className="rounded-md border border-red-200 px-3 py-1 text-xs text-status-critical hover:bg-red-50"
+              >
+                되돌리기
+              </button>
+            </ActionForm>
+          )}
+          {canApprove && agreement === "AGREED" && (
+            <ActionForm
+              action={reopenGoalAgreement.bind(null, goal.id)}
+              successMessage="합의를 해제했습니다. 수정 후 다시 요청하면 됩니다."
+            >
+              <button
+                type="submit"
+                className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-white"
+              >
+                합의 해제
+              </button>
+            </ActionForm>
+          )}
+          {isOwner && agreement === "AGREED" && !canApprove && (
+            <span className="text-[11px] text-slate-500">
+              합의 완료 — 고치려면 팀장에게 합의 해제를 요청하세요.
+            </span>
+          )}
+        </div>
+      ) : null;
 
     return (
       <div
@@ -777,6 +914,7 @@ export default async function Evaluation2Page({
           <span className="text-xs text-slate-500">{scopeText(goal)}</span>
           <StatusBadge status={goal.status} />
           {isOverdue(goal, now) && <OverdueBadge />}
+          {needsAgreement(goal.level) && <AgreementBadge status={goal.agreementStatus} />}
           {goal.excluded && <ExcludedBadge reason={goal.excludeReason} />}
           {flag && !goal.excluded && <OwnerFlagBadge label={flag.label} />}
           <span className="ml-auto text-sm font-semibold tabular-nums text-slate-700">
@@ -810,6 +948,26 @@ export default async function Evaluation2Page({
         </div>
 
         {goal.description && <p className="mt-2 text-xs text-slate-600">{goal.description}</p>}
+
+        {needsAgreement(goal.level) && goal.agreementNote && (
+          <p
+            className={`mt-2 rounded-md px-2 py-1 text-xs ${
+              agreement === "RETURNED"
+                ? "bg-status-critical/10 text-status-critical"
+                : "bg-slate-50 text-slate-600"
+            }`}
+          >
+            {agreement === "RETURNED" ? "되돌린 사유: " : "합의 메모: "}
+            {goal.agreementNote}
+          </p>
+        )}
+        {agreement === "AGREED" && goal.agreedAt && (
+          <p className="mt-1 text-[11px] text-slate-400">
+            {goal.agreedBy?.name ?? "팀장"} 합의 · {formatKSTDate(goal.agreedAt)}
+          </p>
+        )}
+
+        {agreementActions}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {editable && !isAutoCalculated(level) && (

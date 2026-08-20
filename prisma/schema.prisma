@@ -129,6 +129,7 @@ model User {
   goalsOwned            Goal[]                 @relation("GoalOwner")
   goalsCreated          Goal[]                 @relation("GoalCreator")
   goalCheckIns          GoalCheckIn[]          @relation("GoalCheckInAuthor")
+  goalsAgreed           Goal[]                 @relation("GoalAgreedBy")
 }
 
 model AppointmentRecord {
@@ -855,6 +856,22 @@ enum GoalStatus {
   DROPPED
 }
 
+/**
+ * 개인목표 합의 단계. 팀원이 목표를 세워 합의를 요청하면 팀장이 승인하거나
+ * 되돌린다. 승인(AGREED)된 목표만 나중에 성과평가 대상이 된다 — 확정되지
+ * 않은 목표에 점수를 매기면 평가가 성립하지 않는다.
+ */
+enum GoalAgreementStatus {
+  /** 작성 중 — 아직 팀장에게 올리지 않음 */
+  DRAFT
+  /** 합의 요청 — 팀장 승인 대기 */
+  REQUESTED
+  /** 합의 완료 — 팀장 승인됨 */
+  AGREED
+  /** 되돌림 — 팀장이 사유를 달아 반려 */
+  RETURNED
+}
+
 enum GoalCycleStatus {
   DRAFT
   OPEN
@@ -927,6 +944,17 @@ model Goal {
    */
   excluded      Boolean @default(false)
   excludeReason String?
+
+  /**
+   * 합의 단계. 개인목표에만 의미가 있다 — 전사·책임·팀 목표는 관리자·팀장이
+   * 직접 세우는 값이라 합의 대상이 아니다.
+   */
+  agreementStatus GoalAgreementStatus @default(DRAFT)
+  /** 팀장이 되돌리며 남긴 사유, 또는 승인하며 남긴 메모. */
+  agreementNote   String?
+  agreedAt        DateTime?
+  agreedById      String?
+  agreedBy        User?               @relation("GoalAgreedBy", fields: [agreedById], references: [id])
   dueDate  DateTime?
   sortOrder Int       @default(0)
 

@@ -39,6 +39,38 @@ export const GOAL_STATUS_BADGE_CLASS: Record<GoalStatus, string> = {
   DROPPED: "bg-slate-100 text-slate-400 line-through",
 };
 
+/** 개인목표 합의 단계 — 팀원이 세우고 팀장이 승인한다. */
+export const GOAL_AGREEMENT_STATUSES = ["DRAFT", "REQUESTED", "AGREED", "RETURNED"] as const;
+export type GoalAgreementStatus = (typeof GOAL_AGREEMENT_STATUSES)[number];
+
+export const GOAL_AGREEMENT_LABEL: Record<GoalAgreementStatus, string> = {
+  DRAFT: "작성중",
+  REQUESTED: "합의요청",
+  AGREED: "합의완료",
+  RETURNED: "되돌림",
+};
+
+export const GOAL_AGREEMENT_BADGE_CLASS: Record<GoalAgreementStatus, string> = {
+  DRAFT: "bg-slate-100 text-slate-600",
+  REQUESTED: "bg-status-warning/20 text-amber-900",
+  AGREED: "bg-brand-green-light text-brand-green-dark",
+  RETURNED: "bg-status-critical/10 text-status-critical",
+};
+
+/**
+ * 합의가 필요한 목표인지. 개인목표만 팀원이 세워 팀장에게 올리는 구조이고,
+ * 전사·책임·팀 목표는 관리자·팀장이 직접 세우는 값이라 합의 대상이 아니다.
+ */
+export function needsAgreement(level: string): boolean {
+  return level === "INDIVIDUAL";
+}
+
+export function asAgreementStatus(value: string): GoalAgreementStatus {
+  return (GOAL_AGREEMENT_STATUSES as readonly string[]).includes(value)
+    ? (value as GoalAgreementStatus)
+    : "DRAFT";
+}
+
 export const GOAL_CYCLE_STATUSES = ["DRAFT", "OPEN", "CLOSED"] as const;
 export type GoalCycleStatus = (typeof GOAL_CYCLE_STATUSES)[number];
 
@@ -68,6 +100,10 @@ export type GoalRow = {
   status: string;
   excluded: boolean;
   excludeReason: string | null;
+  agreementStatus: string;
+  agreementNote: string | null;
+  agreedAt: Date | null;
+  agreedBy?: { id: string; name: string } | null;
   dueDate: Date | null;
   sortOrder: number;
   team?: { id: string; name: string } | null;

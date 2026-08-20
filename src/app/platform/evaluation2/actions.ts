@@ -7,6 +7,7 @@ import { requireRole } from "@/lib/auth-helpers";
 import { checkModuleAccess } from "@/lib/permissions";
 import {
   GOAL_CYCLE_STATUSES,
+  needsAgreement,
   GOAL_LEVELS,
   GOAL_PARENT_LEVEL,
   GOAL_STATUSES,
@@ -326,9 +327,21 @@ export async function updateGoal(formData: FormData) {
 
   const existing = await prisma.goal.findUnique({
     where: { id: goalId },
-    select: { level: true, cycleId: true, progress: true, status: true },
+    select: {
+      level: true,
+      cycleId: true,
+      progress: true,
+      status: true,
+      agreementStatus: true,
+    },
   });
   if (!existing) return;
+
+  // 합의가 끝난 목표는 담당자가 혼자 바꿀 수 없다. 바꾸려면 팀장이 합의를
+  // 해제하고 다시 받는 게 맞다 — 아니면 승인한 내용과 실제 목표가 달라진다.
+  if (existing.agreementStatus === "AGREED" && !(await canApproveGoal(goalId))) {
+    throw new Error("합의 완료된 목표입니다. 팀장에게 합의 해제를 요청해 주세요.");
+  }
 
   const synced = reconcileProgressAndStatus(
     {
@@ -382,6 +395,100 @@ export async function deleteGoal(goalId: string) {
   // 사라지는 일이 없게 한다.
   await prisma.goal.updateMany({ where: { parentId: goalId }, data: { parentId: null } });
   await prisma.goal.delete({ where: { id: goalId } });
+  revalidatePath(PATH);
+}
+
+/**
+ * 이 목표를 승인(합의)할 수 있는 사람인지. 팀장 승인까지만 받기로 했으므로,
+ * 목표가 걸린 팀의 팀장과 관리자만 승인·되돌림을 할 수 있다. 담당자 본인은
+ * 자기 목표를 스스로 승인하지 못한다 — 그러면 합의가 아니라 자기 선언이 된다.
+ */
+async function canApproveGoal(goalId: string): Promise<boolean> {
+  const session = await auth();
+  if (!session?.user) return false;
+  if (session.user.role === "ADMIN") return true;
+
+  const goal = await prisma.goal.findUnique({
+    where: { id: goalId },
+    select: { team: { select: { leaderId: true } } },
+  });
+  return !!goal?.team?.leaderId && goal.team.leaderId === session.user.id;
+}
+
+/** 담당자가 목표를 팀장에게 올린다. */
+export async function requestGoalAgreement(goalId: string) {
+  await requireGoalModule();
+  if (!(await canManageGoal(goalId))) throw new Error("이 목표를 올릴 권한이 없습니다.");
+
+  const goal = await prisma.goal.findUnique({
+    where: { id: goalId },
+    select: { level: true, agreementStatus: true },
+  });
+  if (!goal || !needsAgreement(goal.level)) return;
+  if (goal.agreementStatus === "AGREED") throw new Error("이미 합의된 목표입니다.");
+
+  await prisma.goal.update({
+    where: { id: goalId },
+    data: { agreementStatus: "REQUESTED", agreementNote: null },
+  });
+  revalidatePath(PATH);
+}
+
+/** 팀장이 승인한다. */
+export async function approveGoalAgreement(goalId: string, formData?: FormData) {
+  const session = await requireGoalModule();
+  if (!(await canApproveGoal(goalId))) {
+    throw new Error("팀장 또는 관리자만 합의할 수 있습니다.");
+  }
+
+  await prisma.goal.update({
+    where: { id: goalId },
+    data: {
+      agreementStatus: "AGREED",
+      agreementNote: str(formData?.get("agreementNote") ?? null) || null,
+      agreedAt: new Date(),
+      agreedById: session.user.id,
+    },
+  });
+  revalidatePath(PATH);
+}
+
+/** 팀장이 사유를 달아 되돌린다. 담당자가 고쳐서 다시 올리는 흐름. */
+export async function returnGoalAgreement(goalId: string, formData?: FormData) {
+  await requireGoalModule();
+  if (!(await canApproveGoal(goalId))) {
+    throw new Error("팀장 또는 관리자만 되돌릴 수 있습니다.");
+  }
+
+  const note = str(formData?.get("agreementNote") ?? null);
+  if (!note) throw new Error("되돌리는 사유를 적어 주세요.");
+
+  await prisma.goal.update({
+    where: { id: goalId },
+    data: {
+      agreementStatus: "RETURNED",
+      agreementNote: note,
+      agreedAt: null,
+      agreedById: null,
+    },
+  });
+  revalidatePath(PATH);
+}
+
+/**
+ * 합의 완료된 목표를 다시 작성 단계로 돌린다. 합의 후 사정이 바뀌어 목표를
+ * 고쳐야 할 때 쓰며, 고친 뒤에는 다시 팀장 승인을 받아야 한다.
+ */
+export async function reopenGoalAgreement(goalId: string) {
+  await requireGoalModule();
+  if (!(await canApproveGoal(goalId))) {
+    throw new Error("팀장 또는 관리자만 합의를 해제할 수 있습니다.");
+  }
+
+  await prisma.goal.update({
+    where: { id: goalId },
+    data: { agreementStatus: "DRAFT", agreedAt: null, agreedById: null },
+  });
   revalidatePath(PATH);
 }
 
