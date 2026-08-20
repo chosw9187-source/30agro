@@ -36,6 +36,7 @@ import {
   updateGoal,
 } from "./actions";
 import { CycleSelect } from "./cycle-select";
+import { ActionForm } from "@/components/action-form";
 
 export const dynamic = "force-dynamic";
 
@@ -322,11 +323,14 @@ export default async function Evaluation2Page({
             </p>
             {isAdmin && cycle && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <form action={seedCompanyGoalTemplate.bind(null, cycle.id)}>
+                <ActionForm
+                  action={seedCompanyGoalTemplate.bind(null, cycle.id)}
+                  successMessage="조직 목표 양식을 넣었습니다."
+                >
                   <button type="submit" className={PRIMARY_BUTTON_CLASS}>
                     조직 단위별 목표 양식으로 채우기
                   </button>
-                </form>
+                </ActionForm>
                 <Link
                   href={buildHref({ tab: "company" })}
                   className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
@@ -740,7 +744,11 @@ export default async function Evaluation2Page({
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {editable && goal.children.length === 0 && (
-            <form action={addGoalCheckIn} className="flex flex-wrap items-center gap-2">
+            <ActionForm
+              action={addGoalCheckIn}
+              successMessage="진척이 반영되었습니다."
+              className="flex flex-wrap items-center gap-2"
+            >
               <input type="hidden" name="goalId" value={goal.id} />
               <input
                 type="number"
@@ -769,7 +777,7 @@ export default async function Evaluation2Page({
               >
                 진척 반영
               </button>
-            </form>
+            </ActionForm>
           )}
           {editable && goal.children.length > 0 && (
             <span className="text-[11px] text-slate-400">
@@ -785,20 +793,21 @@ export default async function Evaluation2Page({
             </Link>
           )}
           {isAdmin && (
-            <form action={deleteGoal.bind(null, goal.id)}>
+            <ActionForm action={deleteGoal.bind(null, goal.id)} successMessage="삭제되었습니다.">
               <button
                 type="submit"
                 className="rounded-md border border-red-200 px-3 py-1 text-xs text-status-critical hover:bg-red-50"
               >
                 삭제
               </button>
-            </form>
+            </ActionForm>
           )}
         </div>
 
         {isEditing && (
-          <form
+          <ActionForm
             action={updateGoal}
+            successMessage="수정되었습니다."
             className="mt-4 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-2"
           >
             <input type="hidden" name="goalId" value={goal.id} />
@@ -808,7 +817,7 @@ export default async function Evaluation2Page({
                 저장
               </button>
             </div>
-          </form>
+          </ActionForm>
         )}
       </div>
     );
@@ -847,7 +856,11 @@ export default async function Evaluation2Page({
             <summary className="cursor-pointer text-sm font-medium text-brand-green-dark">
               + {GOAL_LEVEL_LABEL[level]} 등록
             </summary>
-            <form action={createGoal} className="mt-4 grid gap-3 md:grid-cols-2">
+            <ActionForm
+              action={createGoal}
+              successMessage="정상 등록되었습니다."
+              className="mt-4 grid gap-3 md:grid-cols-2"
+            >
               <input type="hidden" name="cycleId" value={cycle.id} />
               <input type="hidden" name="level" value={level} />
               <GoalFormFields level={level} parentOptions={parentOptions} />
@@ -856,7 +869,7 @@ export default async function Evaluation2Page({
                   등록
                 </button>
               </div>
-            </form>
+            </ActionForm>
           </details>
         )}
 
@@ -899,7 +912,11 @@ export default async function Evaluation2Page({
               : "관리자가 사이클을 열면 목표를 등록할 수 있습니다."}
           </p>
           {isAdmin && (
-            <form action={createGoalCycle} className="mt-4 grid gap-3 md:grid-cols-4">
+            <ActionForm
+              action={createGoalCycle}
+              successMessage="목표 사이클을 만들었습니다."
+              className="mt-4 grid gap-3 md:grid-cols-4"
+            >
               <div className="md:col-span-2">
                 <label className={LABEL_CLASS}>사이클명</label>
                 <input
@@ -938,7 +955,7 @@ export default async function Evaluation2Page({
                   구분 5개를 한 번에 넣을 수 있습니다.
                 </p>
               </div>
-            </form>
+            </ActionForm>
           )}
         </div>
       </div>

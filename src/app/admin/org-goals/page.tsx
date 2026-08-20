@@ -18,6 +18,7 @@ import {
 } from "@/app/platform/evaluation2/actions";
 import { addOrgGoal, deleteOrgGoal, saveOrgGoalNote, saveOrgGoals } from "./actions";
 import { CycleSelect } from "@/app/platform/evaluation2/cycle-select";
+import { ActionForm } from "@/components/action-form";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,11 @@ const LABEL_CLASS = "mb-1 block text-xs font-medium text-slate-500";
 const PRIMARY_BUTTON_CLASS =
   "rounded-md bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark";
 const CARD_CLASS = "rounded-xl border border-slate-200 bg-white shadow-sm";
+
+// 목표 카드마다 "이 목표 삭제" 폼이 따로 있어야 하는데, 카드가 일괄저장 폼
+// 안에 들어가면 폼이 중첩된다(HTML에서 불가). 그래서 입력칸들은 form 속성으로
+// 이 id를 가리키게 두고, 저장 폼은 카드 바깥에 따로 세운다.
+const ORG_FORM_ID = "org-goals-form";
 
 export default async function OrgGoalsAdminPage({
   searchParams,
@@ -117,7 +123,11 @@ export default async function OrgGoalsAdminPage({
           <p className="mt-1 text-sm text-slate-600">
             조직 목표는 사이클(운영 기간) 안에 들어갑니다. 아래 값은 올해 기준으로 채워뒀습니다.
           </p>
-          <form action={createGoalCycle} className="mt-4 grid gap-3 md:grid-cols-4">
+          <ActionForm
+            action={createGoalCycle}
+            successMessage="목표 사이클을 만들었습니다."
+            className="mt-4 grid gap-3 md:grid-cols-4"
+          >
             <div className="md:col-span-2">
               <label className={LABEL_CLASS}>사이클명</label>
               <input
@@ -152,7 +162,7 @@ export default async function OrgGoalsAdminPage({
                 사이클 만들기
               </button>
             </div>
-          </form>
+          </ActionForm>
         </section>
       ) : (
         <>
@@ -174,19 +184,22 @@ export default async function OrgGoalsAdminPage({
             {orgGoals.length === 0 ? (
               <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-6 text-center">
                 <p className="text-sm text-slate-500">등록된 조직 목표가 없습니다.</p>
-                <form action={seedCompanyGoalTemplate.bind(null, cycle.id)} className="mt-3">
+                <ActionForm
+                  action={seedCompanyGoalTemplate.bind(null, cycle.id)}
+                  successMessage="조직 목표 양식을 넣었습니다."
+                  className="mt-3"
+                >
                   <button type="submit" className={PRIMARY_BUTTON_CLASS}>
                     조직 단위별 목표 양식으로 채우기
                   </button>
-                </form>
+                </ActionForm>
                 <p className="mt-2 text-xs text-slate-500">
                   제품기획마케팅 · 영업고객관리 · 기술연구 · 생산 · 재무경영관리 5개 구분과 표
                   하단 안내문이 한 번에 들어갑니다.
                 </p>
               </div>
             ) : (
-              <form action={saveOrgGoals} className="mt-4 flex flex-col gap-3">
-                <input type="hidden" name="cycleId" value={cycle.id} />
+              <div className="mt-4 flex flex-col gap-3">
                 <div className="flex flex-col gap-3">
                   {orgGoals.map((g, i) => (
                     <div
@@ -199,6 +212,7 @@ export default async function OrgGoalsAdminPage({
                           <input
                             type="number"
                             name={`sortOrder:${g.id}`}
+                            form={ORG_FORM_ID}
                             defaultValue={g.sortOrder || i + 1}
                             className={INPUT_CLASS}
                           />
@@ -207,6 +221,7 @@ export default async function OrgGoalsAdminPage({
                           <label className={LABEL_CLASS}>구분</label>
                           <input
                             name={`category:${g.id}`}
+                            form={ORG_FORM_ID}
                             defaultValue={g.category ?? ""}
                             placeholder="영업고객관리"
                             className={INPUT_CLASS}
@@ -216,6 +231,7 @@ export default async function OrgGoalsAdminPage({
                           <label className={LABEL_CLASS}>목표</label>
                           <input
                             name={`title:${g.id}`}
+                            form={ORG_FORM_ID}
                             defaultValue={g.title}
                             required
                             className={INPUT_CLASS}
@@ -226,6 +242,7 @@ export default async function OrgGoalsAdminPage({
                           <label className={LABEL_CLASS}>측정지표</label>
                           <input
                             name={`metric:${g.id}`}
+                            form={ORG_FORM_ID}
                             defaultValue={g.metric ?? ""}
                             placeholder="연매출"
                             className={INPUT_CLASS}
@@ -235,6 +252,7 @@ export default async function OrgGoalsAdminPage({
                           <label className={LABEL_CLASS}>목표수준</label>
                           <input
                             name={`targetValue:${g.id}`}
+                            form={ORG_FORM_ID}
                             defaultValue={g.targetValue ?? ""}
                             className={INPUT_CLASS}
                           />
@@ -243,6 +261,7 @@ export default async function OrgGoalsAdminPage({
                           <label className={LABEL_CLASS}>현재수준</label>
                           <input
                             name={`currentValue:${g.id}`}
+                            form={ORG_FORM_ID}
                             defaultValue={g.currentValue ?? ""}
                             className={INPUT_CLASS}
                           />
@@ -251,6 +270,7 @@ export default async function OrgGoalsAdminPage({
                           <label className={LABEL_CLASS}>단위</label>
                           <input
                             name={`unit:${g.id}`}
+                            form={ORG_FORM_ID}
                             defaultValue={g.unit ?? ""}
                             placeholder="억원"
                             className={INPUT_CLASS}
@@ -261,6 +281,7 @@ export default async function OrgGoalsAdminPage({
                           <input
                             type="number"
                             name={`weight:${g.id}`}
+                            form={ORG_FORM_ID}
                             min={0}
                             max={100}
                             defaultValue={g.weight}
@@ -272,6 +293,7 @@ export default async function OrgGoalsAdminPage({
                           <input
                             type="number"
                             name={`progress:${g.id}`}
+                            form={ORG_FORM_ID}
                             min={0}
                             max={100}
                             defaultValue={g.progress}
@@ -284,6 +306,7 @@ export default async function OrgGoalsAdminPage({
                           <label className={LABEL_CLASS}>상태</label>
                           <select
                             name={`status:${g.id}`}
+                            form={ORG_FORM_ID}
                             defaultValue={g.status}
                             className={INPUT_CLASS}
                           >
@@ -299,6 +322,7 @@ export default async function OrgGoalsAdminPage({
                           <input
                             type="date"
                             name={`dueDate:${g.id}`}
+                            form={ORG_FORM_ID}
                             defaultValue={toDateInputValue(g.dueDate)}
                             className={INPUT_CLASS}
                           />
@@ -309,22 +333,31 @@ export default async function OrgGoalsAdminPage({
                               ? `하위 ${g.children.length}건이 달려 있어 달성률은 하위 가중평균(${g.rollupProgress}%)으로 자동 계산됩니다.`
                               : "하위 목표를 달면 달성률이 자동 계산으로 바뀝니다."}
                           </p>
-                          {/* 표 전체가 한 폼이라 중첩 폼을 못 쓴다. formAction으로
-                              이 버튼만 다른 서버 액션에 보낸다. */}
-                          <button
-                            type="submit"
-                            formAction={deleteOrgGoal.bind(null, g.id)}
-                            className="shrink-0 rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs text-status-critical hover:bg-red-50"
+                          <ActionForm
+                            action={deleteOrgGoal.bind(null, g.id)}
+                            successMessage="삭제되었습니다."
+                            className="shrink-0"
                           >
-                            이 목표 삭제
-                          </button>
+                            <button
+                              type="submit"
+                              className="rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs text-status-critical hover:bg-red-50"
+                            >
+                              이 목표 삭제
+                            </button>
+                          </ActionForm>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
+                <ActionForm
+                  id={ORG_FORM_ID}
+                  action={saveOrgGoals}
+                  successMessage="저장되었습니다."
+                  className="flex flex-wrap items-center gap-3"
+                >
+                  <input type="hidden" name="cycleId" value={cycle.id} />
                   <button type="submit" className={PRIMARY_BUTTON_CLASS}>
                     표 저장
                   </button>
@@ -336,15 +369,19 @@ export default async function OrgGoalsAdminPage({
                       </span>
                     )}
                   </span>
-                </div>
-              </form>
+                </ActionForm>
+              </div>
             )}
           </section>
 
           {orgGoals.length > 0 && (
             <section className={`${CARD_CLASS} p-5`}>
               <h2 className="text-base font-semibold">목표 추가</h2>
-              <form action={addOrgGoal} className="mt-3 grid gap-3 md:grid-cols-4">
+              <ActionForm
+                action={addOrgGoal}
+                successMessage="정상 등록되었습니다."
+                className="mt-3 grid gap-3 md:grid-cols-4"
+              >
                 <input type="hidden" name="cycleId" value={cycle.id} />
                 <div>
                   <label className={LABEL_CLASS}>구분</label>
@@ -359,13 +396,13 @@ export default async function OrgGoalsAdminPage({
                     추가
                   </button>
                 </div>
-              </form>
+              </ActionForm>
             </section>
           )}
 
           <section className={`${CARD_CLASS} p-5`}>
             <h2 className="text-base font-semibold">표 하단 안내문</h2>
-            <form action={saveOrgGoalNote} className="mt-3">
+            <ActionForm action={saveOrgGoalNote} successMessage="저장되었습니다." className="mt-3">
               <input type="hidden" name="cycleId" value={cycle.id} />
               <label className={LABEL_CLASS}>한 줄이 i), ii) 한 항목이 됩니다</label>
               <textarea
@@ -380,7 +417,7 @@ export default async function OrgGoalsAdminPage({
               <button type="submit" className={`${PRIMARY_BUTTON_CLASS} mt-2`}>
                 안내문 저장
               </button>
-            </form>
+            </ActionForm>
           </section>
 
           <section className={`${CARD_CLASS} p-5`}>
@@ -404,31 +441,38 @@ export default async function OrgGoalsAdminPage({
                   </span>
                   <div className="ml-auto flex gap-2">
                     {c.status !== "OPEN" && (
-                      <form action={setGoalCycleStatus.bind(null, c.id, "OPEN")}>
+                      <ActionForm
+                        action={setGoalCycleStatus.bind(null, c.id, "OPEN")}
+                        successMessage="진행중으로 바꿨습니다."
+                      >
                         <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">
                           진행중으로
                         </button>
-                      </form>
+                      </ActionForm>
                     )}
                     {c.status !== "CLOSED" && (
-                      <form action={setGoalCycleStatus.bind(null, c.id, "CLOSED")}>
+                      <ActionForm
+                        action={setGoalCycleStatus.bind(null, c.id, "CLOSED")}
+                        successMessage="사이클을 종료했습니다."
+                      >
                         <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">
                           종료
                         </button>
-                      </form>
+                      </ActionForm>
                     )}
-                    <form action={deleteGoalCycle.bind(null, c.id)}>
+                    <ActionForm action={deleteGoalCycle.bind(null, c.id)} successMessage="삭제되었습니다.">
                       <button className="rounded-md border border-red-200 bg-white px-2 py-1 text-xs text-status-critical hover:bg-red-50">
                         삭제
                       </button>
-                    </form>
+                    </ActionForm>
                   </div>
                 </div>
               ))}
             </div>
 
-            <form
+            <ActionForm
               action={createGoalCycle}
+              successMessage="목표 사이클을 추가했습니다."
               className="mt-4 grid gap-3 border-t border-slate-200 pt-4 md:grid-cols-4"
             >
               <div className="md:col-span-2">
@@ -448,7 +492,7 @@ export default async function OrgGoalsAdminPage({
                   사이클 추가
                 </button>
               </div>
-            </form>
+            </ActionForm>
           </section>
         </>
       )}
