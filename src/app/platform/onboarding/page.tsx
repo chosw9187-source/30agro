@@ -40,19 +40,19 @@ import { EmptyBox, INPUT_CLASS, LABEL_CLASS, PRIMARY_BUTTON_CLASS, programPeriod
 
 export const dynamic = "force-dynamic";
 
-// 실제 진행 순서대로 — 관리자가 기수를 만들고(일정 관리) 강사를 지정하면,
-// 그때부터 강사가 쓰는 화면(온보딩 일정 · 내 강의 일정)이 의미를 갖는다.
-// 관리자 전용 탭은 강사에게는 아예 보이지 않으므로, 강사 눈에는
-// [온보딩 일정][내 강의 일정] 둘만 남는다.
+// 확정된 결과([최종 스케줄])를 맨 앞에 둔다 — 이 화면을 가장 자주 여는 사람은
+// 기수를 만드는 관리자가 아니라 "내가 언제 뭘 듣는지"만 확인하면 되는
+// 교육생이기 때문. 뒤쪽은 만드는 순서(일정 관리 → 강사 지정 → 조율)대로다.
+// 관리자 전용 탭은 강사·교육생에게 아예 보이지 않으므로, 교육생 눈에는
+// [최종 스케줄][온보딩 일정] 둘만 남는다.
 const TABS = [
+  { key: "final", label: "최종 스케줄", role: "all" },
   { key: "manage", label: "일정 관리", role: "admin" },
   { key: "instructors", label: "강사 지정", role: "admin" },
   { key: "schedule", label: "온보딩 일정", role: "all" },
-  { key: "final", label: "최종 스케줄", role: "all" },
   { key: "my", label: "내 강의 일정", role: "instructor" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
-
 
 type BookingRow = {
   id: string;
@@ -103,7 +103,6 @@ function TabLink({ tab, active, programId }: { tab: (typeof TABS)[number]; activ
     </Link>
   );
 }
-
 
 /* ------------------------------------------------------------- 온보딩 일정 */
 
@@ -492,7 +491,6 @@ async function ScheduleSection({
       },
     },
   })) as SessionRow[];
-
 
   // 지난 일정은 카드에서 "종료"로 표시하고 예약 버튼을 감춘다 — 한 번
   // 지나간 시간대에 새로 예약이 들어오면 강사도 관리자도 혼란스럽다.
@@ -1237,9 +1235,10 @@ export default async function OnboardingPage({
     select: { id: true, name: true, active: true, startDate: true },
   });
 
-  // 평소에는 달력(온보딩 일정)으로 들어오는 게 맞지만, 기수가 아직 하나도
-  // 없는 관리자는 거기서 할 수 있는 게 없다 — 첫 순서인 [일정 관리]로 보낸다.
-  const defaultTab: TabKey = isAdmin && programs.length === 0 ? "manage" : "schedule";
+  // 평소에는 확정 시간표([최종 스케줄])로 들어온다 — 탭 순서상 맨 앞이기도 하고,
+  // 대부분의 방문은 "언제 뭘 듣는지" 확인이 목적이다. 다만 기수가 아직 하나도
+  // 없는 관리자는 거기서 할 수 있는 게 없으므로 [일정 관리]로 보낸다.
+  const defaultTab: TabKey = isAdmin && programs.length === 0 ? "manage" : "final";
   const tab: TabKey = visibleTabs.some((t) => t.key === tabParam) ? (tabParam as TabKey) : defaultTab;
   const selectedProgram =
     programs.find((p) => p.id === programIdParam) ?? programs.find((p) => p.active) ?? programs[0] ?? null;
