@@ -29,12 +29,8 @@ export default async function EmployeeDetailPage({
             접근 권한 없음
           </span>
           <p className="text-slate-500">
-            개인 상세 정보는 본인과 관리자, 그리고 본인이 맡은 조직
-            안의 구성원에 한해 열람할 수 있습니다.
-          </p>
-          <p className="text-xs text-slate-400">
-            운영책임은 본인 사업단위, 책임은 본인 부문, 팀장은 본인 팀까지
-            볼 수 있습니다.
+            이 직원의 상세 정보는 본인, 임원급, 인사팀 또는 같은 팀의
+            팀장만 볼 수 있습니다.
           </p>
         </div>
       </div>
