@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { checkModuleAccess } from "@/lib/permissions";
+import { checkModuleAccess, getVisibleCardUserIds } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { isActive, activePrismaWhere, regularOrExceptionTeamWhere } from "@/lib/hr-analytics";
 import { CeoBanner, LeaderBanner, OrgChartRoot } from "./tree-view";
@@ -74,13 +74,43 @@ export default async function OrgChartPage() {
     }),
   ]);
 
+  // 생년월일·만나이·근속·입사일은 개인정보다. 열람 권한이 없는 사람 것은
+  // 화면에서 지우는 게 아니라 서버에서 아예 실어보내지 않는다 — HTML을
+  // 뜯어봐도 나오지 않도록.
+  const cardVisibleIds = await getVisibleCardUserIds([
+    ...ceos.map((c) => c.id),
+    ...opsHeads.map((l) => l.id),
+    ...seniors.map((l) => l.id),
+  ]);
+
   ceos.sort((a, b) => execSortKey(a.jobGrade) - execSortKey(b.jobGrade));
   const ceoExecs: CeoExec[] = ceos.map((c) => ({
     id: c.id,
     name: c.name,
     jobGrade: c.jobGrade,
     hasPhoto: !!c.photo,
+    cardVisible: cardVisibleIds.has(c.id),
   }));
+
+  const toExec = (l: {
+    id: string;
+    name: string;
+    jobGrade: string | null;
+    photo: Uint8Array | null;
+    birthDate: Date | null;
+    hireDate: Date | null;
+  }): Exec => {
+    const cardVisible = cardVisibleIds.has(l.id);
+    return {
+      id: l.id,
+      name: l.name,
+      jobGrade: l.jobGrade,
+      hasPhoto: !!l.photo,
+      birthDate: cardVisible ? l.birthDate : null,
+      hireDate: cardVisible ? l.hireDate : null,
+      cardVisible,
+    };
+  };
 
   const toTeamLite = (t: (typeof teams)[number]): TeamLite => {
     const leader = t.leader && isActive(t.leader) ? t.leader : null;
@@ -140,25 +170,11 @@ export default async function OrgChartPage() {
   }
 
   for (const l of opsHeads) {
-    const leader: Exec = {
-      id: l.id,
-      name: l.name,
-      jobGrade: l.jobGrade,
-      hasPhoto: !!l.photo,
-      birthDate: l.birthDate,
-      hireDate: l.hireDate,
-    };
+    const leader = toExec(l);
     if (l.businessUnit) ensureUnit(l.businessUnit).leader = leader;
   }
   for (const l of seniors) {
-    const leader: Exec = {
-      id: l.id,
-      name: l.name,
-      jobGrade: l.jobGrade,
-      hasPhoto: !!l.photo,
-      birthDate: l.birthDate,
-      hireDate: l.hireDate,
-    };
+    const leader = toExec(l);
     if (l.businessUnit && l.division) {
       ensureDivisionIn(ensureUnit(l.businessUnit), l.division).leader = leader;
     } else if (l.division) {

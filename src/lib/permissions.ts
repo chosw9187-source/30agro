@@ -149,12 +149,12 @@ async function loadViewerContext(userId: string): Promise<ViewerContext | null> 
 }
 
 /**
- * 인사카드(개인 상세) 열람 권한.
+ * 인사카드 상세를 열 수 있는 사람을 고르는 Prisma `where` 조각 —
+ * 개인정보 열람 규칙의 **단일 출처**다. `null`이면 제한 없음(관리자).
  *
- * 조직도·직원정보조회에서 사람을 눌러 들어가는 개인 상세 화면(발령/학력/
- * 경력/자격/상벌 포함)의 단일 관문이다. 규칙은 세 줄로 끝난다:
+ * 규칙은 세 줄로 끝난다:
  *
- *   1. 본인 카드는 언제나 볼 수 있다.
+ *   1. 본인 정보는 언제나 볼 수 있다.
  *   2. 관리자 역할(role=ADMIN)은 전 직원을 볼 수 있다.
  *   3. 그 외에는 직책이 허용하는 본인 조직 범위 안의 사람만 볼 수 있다 —
  *      운영책임=본인 사업단위, 책임=본인 부문, 팀장=본인 팀, 담당=본인만
@@ -162,73 +162,108 @@ async function loadViewerContext(userId: string): Promise<ViewerContext | null> 
  *
  * 권한 매트릭스(직책별)와 사용자별 개별 설정은 이 상한을 넘지 못하고
  * **좁히는 방향으로만** 작동한다. 따라서 매트릭스에 아무 설정이 없어
- * 기본값이 FULL이어도 담당은 본인 카드만 보게 된다. 비관리자에게 전 직원
+ * 기본값이 FULL이어도 담당은 본인 정보만 보게 된다. 비관리자에게 전 직원
  * 열람을 열어주려면 그 사람의 역할을 ADMIN으로 올려야 한다.
  *
- * 회장/부회장/사장(Position.CEO)의 인사카드는 본인·관리자 외에는 누구에게도
+ * 회장/부회장/사장(Position.CEO)의 인사 정보는 본인·관리자 외에는 누구에게도
  * 보이지 않는다(상한과 무관한 별도의 차단).
  */
-export async function canViewEmployeeCard(targetUserId: string): Promise<boolean> {
-  const session = await auth();
-  if (!session?.user) return false;
-  if (session.user.id === targetUserId) return true;
-  if (session.user.role === "ADMIN") return true;
+export async function getCardScopeFilter(): Promise<Record<string, unknown> | null> {
+  const BLOCK_ALL = { id: "__no_access__" };
 
-  const [target, viewer] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: targetUserId },
-      select: { position: true },
-    }),
-    prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { position: true },
-    }),
-  ]);
-  if (!target || !viewer) return false;
-  if (target.position === "CEO") return false;
+  const session = await auth();
+  if (!session?.user) return BLOCK_ALL;
+  if (session.user.role === "ADMIN") return null;
+
+  const viewerId = session.user.id;
+  const viewer = await prisma.user.findUnique({
+    where: { id: viewerId },
+    select: { position: true },
+  });
+  if (!viewer) return BLOCK_ALL;
 
   const position = (viewer.position ?? "STAFF") as Position;
   const configured = await getEffectiveModuleScope(
-    session.user.id,
+    viewerId,
     session.user.role,
     position,
     "EMPLOYEES"
   );
   const scope = narrowerCardScope(configured, POSITION_CARD_SCOPE_CEILING[position] ?? "SELF");
 
-  if (scope === "FULL") return true;
-  if (scope === "NONE" || scope === "SELF") return false;
+  const onlySelf = { id: viewerId };
+  /** 본인 + (조건에 맞으면서 사장이 아닌 사람). */
+  const selfOr = (cond: Record<string, unknown>) => ({
+    OR: [onlySelf, { AND: [cond, { NOT: { position: "CEO" } }] }],
+  });
 
-  const [viewerCtx, targetCtx] = await Promise.all([
-    loadViewerContext(session.user.id),
-    loadViewerContext(targetUserId),
-  ]);
-  if (!viewerCtx || !targetCtx) return false;
+  if (scope === "FULL") return { OR: [onlySelf, { NOT: { position: "CEO" } }] };
+  if (scope === "NONE" || scope === "SELF") return onlySelf;
+
+  const ctx = await loadViewerContext(viewerId);
+  if (!ctx) return onlySelf;
 
   // 팀 범위(LIST_ONLY 포함): 같은 팀이거나, 내가 팀장으로 지정된 팀의
   // 구성원이면 "직속"으로 본다 — 팀장이 자기 팀에 소속돼 있지 않게 등록된
   // 경우까지 커버하기 위한 것.
   if (scope === "TEAM" || scope === "LIST_ONLY") {
-    if (viewerCtx.teamId && viewerCtx.teamId === targetCtx.teamId) return true;
-    if (!targetCtx.teamId) return false;
-    const ledTeam = await prisma.team.findFirst({
-      where: { id: targetCtx.teamId, leaderId: session.user.id },
-      select: { id: true },
-    });
-    return !!ledTeam;
+    const sameTeamOrLed: Record<string, unknown>[] = [{ team: { leaderId: viewerId } }];
+    if (ctx.teamId) sameTeamOrLed.push({ teamId: ctx.teamId });
+    return selfOr({ OR: sameTeamOrLed });
   }
+
+  // 팀이 없는 임원 등은 User 자신의 businessUnit/division을 쓰고, 팀이 있으면
+  // 팀에 붙은 값을 쓴다 — loadViewerContext와 같은 우선순위.
+  const belongsTo = (field: "division" | "businessUnit", value: string) => ({
+    OR: [{ team: { [field]: value } }, { AND: [{ teamId: null }, { [field]: value }] }],
+  });
 
   // 부문명은 사업단위가 다르면 겹칠 수 있으므로, 보는 사람에게 사업단위가
   // 있으면 그것까지 같아야 한다.
   if (scope === "DIVISION") {
-    if (!viewerCtx.division || viewerCtx.division !== targetCtx.division) return false;
-    return !viewerCtx.businessUnit || viewerCtx.businessUnit === targetCtx.businessUnit;
+    if (!ctx.division) return onlySelf;
+    const conds: Record<string, unknown>[] = [belongsTo("division", ctx.division)];
+    if (ctx.businessUnit) conds.push(belongsTo("businessUnit", ctx.businessUnit));
+    return selfOr({ AND: conds });
   }
 
-  if (scope === "BUSINESS_UNIT")
-    return !!viewerCtx.businessUnit && viewerCtx.businessUnit === targetCtx.businessUnit;
+  if (scope === "BUSINESS_UNIT") {
+    if (!ctx.businessUnit) return onlySelf;
+    return selfOr(belongsTo("businessUnit", ctx.businessUnit));
+  }
 
-  return false;
+  return onlySelf;
+}
+
+/** 한 사람의 인사카드 상세를 열 수 있는지. 규칙은 getCardScopeFilter 참고. */
+export async function canViewEmployeeCard(targetUserId: string): Promise<boolean> {
+  const filter = await getCardScopeFilter();
+  if (filter === null) return true;
+
+  const hit = await prisma.user.findFirst({
+    where: { AND: [{ id: targetUserId }, filter] },
+    select: { id: true },
+  });
+  return !!hit;
+}
+
+/**
+ * 여러 명을 한 번에 판정한다 — 조직도 팀 상세처럼 한 화면에 수십 명의
+ * 생년월일·근속 같은 개인정보를 그리는 곳에서, 사람마다 질의를 날리지 않고
+ * "이 중 누구의 정보를 보여줘도 되는지"를 한 번에 받아오기 위한 것.
+ */
+export async function getVisibleCardUserIds(userIds: string[]): Promise<Set<string>> {
+  const ids = [...new Set(userIds)];
+  if (ids.length === 0) return new Set();
+
+  const filter = await getCardScopeFilter();
+  if (filter === null) return new Set(ids);
+
+  const rows = await prisma.user.findMany({
+    where: { AND: [{ id: { in: ids } }, filter] },
+    select: { id: true },
+  });
+  return new Set(rows.map((r) => r.id));
 }
 
 /**

@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { checkModuleAccess, getEmployeeListScopeFilter } from "@/lib/permissions";
+import {
+  checkModuleAccess,
+  getEmployeeListScopeFilter,
+  getVisibleCardUserIds,
+} from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { POSITIONS, POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import { activePrismaWhere, ageInYears, tenureInYears } from "@/lib/hr-analytics";
@@ -72,6 +76,11 @@ export default async function EmployeeDirectoryPage({
     prisma.team.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
   ]);
 
+  // 목록에 이름은 뜨더라도 생년월일·만나이·근속·입사일은 개인정보다.
+  // 조직도와 같은 규칙(getCardScopeFilter)으로, 열람 권한이 있는 사람 것만
+  // 표시하고 나머지는 인사카드 링크도 걸지 않는다.
+  const visibleIds = await getVisibleCardUserIds(employees.map((e) => e.id));
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -118,40 +127,65 @@ export default async function EmployeeDirectoryPage({
         <>
           <p className="text-sm text-slate-500">총 {employees.length}명</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {employees.map((e) => (
-              <Link
-                key={e.id}
-                href={`/platform/employees/${e.id}`}
-                className="rounded-lg border border-slate-200 bg-white p-4 hover:border-brand-green"
-              >
-                <p className="font-medium text-brand-green-dark hover:underline">{e.name}</p>
-                <p className="mt-0.5 text-sm text-slate-500">{e.team?.name ?? "팀 미지정"}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-sm font-medium text-brand-green-dark">
-                    {POSITION_LABEL[e.position as Position]}
-                  </span>
-                  {e.birthDate && (
-                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-sm font-medium text-blue-700">
-                      만 {ageInYears(e.birthDate)}세 ({formatKSTDate(e.birthDate)})
+            {employees.map((e) => {
+              const canSee = visibleIds.has(e.id);
+              const cardClass = `rounded-lg border border-slate-200 bg-white p-4${
+                canSee ? " hover:border-brand-green" : ""
+              }`;
+              const body = (
+                <>
+                  <p
+                    className={`font-medium ${
+                      canSee ? "text-brand-green-dark hover:underline" : "text-slate-700"
+                    }`}
+                  >
+                    {e.name}
+                  </p>
+                  <p className="mt-0.5 text-sm text-slate-500">{e.team?.name ?? "팀 미지정"}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-sm font-medium text-brand-green-dark">
+                      {POSITION_LABEL[e.position as Position]}
                     </span>
-                  )}
-                  {e.hireDate ? (
-                    <>
-                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-sm font-medium text-amber-700">
-                        근속 {tenureInYears(e.hireDate).toFixed(1)}년
+                    {!canSee ? (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-500">
+                        개인정보 비공개
                       </span>
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-600">
-                        입사 {formatKSTDate(e.hireDate)}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-500">
-                      입사일 미입력
-                    </span>
-                  )}
+                    ) : (
+                      <>
+                        {e.birthDate && (
+                          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-sm font-medium text-blue-700">
+                            만 {ageInYears(e.birthDate)}세 ({formatKSTDate(e.birthDate)})
+                          </span>
+                        )}
+                        {e.hireDate ? (
+                          <>
+                            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-sm font-medium text-amber-700">
+                              근속 {tenureInYears(e.hireDate).toFixed(1)}년
+                            </span>
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-600">
+                              입사 {formatKSTDate(e.hireDate)}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-sm font-medium text-slate-500">
+                            입사일 미입력
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </>
+              );
+              return canSee ? (
+                <Link key={e.id} href={`/platform/employees/${e.id}`} className={cardClass}>
+                  {body}
+                </Link>
+              ) : (
+                <div key={e.id} className={cardClass}>
+                  {body}
                 </div>
-              </Link>
-            ))}
+              );
+            })}
             {employees.length === 0 && (
               <p className="text-slate-500">검색 결과가 없습니다.</p>
             )}
