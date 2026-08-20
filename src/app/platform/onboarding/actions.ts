@@ -250,3 +250,73 @@ export async function deleteBooking(bookingId: string) {
   await prisma.onboardingBooking.delete({ where: { id: bookingId } });
   revalidatePath(PATH);
 }
+
+/* ---------------------------------------------------------------- 교육생 */
+
+/**
+ * 기수에 교육생을 등록한다. 같은 사람을 두 번 넣어도 명단이 중복되지 않도록
+ * (programId, userId) 유니크에 기대어 조용히 넘긴다 — 명단을 여러 명이
+ * 나눠 입력하는 상황에서 중복 등록이 에러로 튀면 오히려 성가시다.
+ */
+export async function addTrainee(formData: FormData) {
+  const session = await requireRole("ADMIN");
+  const programId = text(formData, "programId");
+  const userId = text(formData, "userId");
+  if (!programId || !userId) return;
+
+  await prisma.onboardingTrainee.upsert({
+    where: { programId_userId: { programId, userId } },
+    create: {
+      programId,
+      userId,
+      note: text(formData, "note") || null,
+      addedById: session.user.id,
+    },
+    update: { note: text(formData, "note") || null },
+  });
+  revalidatePath(PATH);
+}
+
+export async function removeTrainee(traineeId: string) {
+  await requireRole("ADMIN");
+  await prisma.onboardingTrainee.delete({ where: { id: traineeId } });
+  revalidatePath(PATH);
+}
+
+/**
+ * 한 교육의 참석 대상을 지정한다. 아무도 체크하지 않으면 지정을 모두 지워
+ * "기수 전원 대상"으로 되돌린다 — 전원 대상이 기본값이므로 별도의 플래그를
+ * 두지 않고 명단이 비었는지로 구분한다.
+ *
+ * 넘어온 교육생이 정말 이 교육이 속한 기수의 명단인지 다시 확인한다. 폼은
+ * 관리자만 보지만, 값 자체는 얼마든지 바꿔 보낼 수 있기 때문.
+ */
+export async function setSessionAudience(sessionId: string, formData: FormData) {
+  await requireRole("ADMIN");
+
+  const target = await prisma.onboardingSession.findUnique({
+    where: { id: sessionId },
+    select: { programId: true },
+  });
+  if (!target) return;
+
+  const requested = formData.getAll("traineeIds").map((v) => String(v));
+  const valid = requested.length
+    ? await prisma.onboardingTrainee.findMany({
+        where: { id: { in: requested }, programId: target.programId },
+        select: { id: true },
+      })
+    : [];
+
+  await prisma.$transaction([
+    prisma.onboardingSessionAttendee.deleteMany({ where: { sessionId } }),
+    ...(valid.length
+      ? [
+          prisma.onboardingSessionAttendee.createMany({
+            data: valid.map((t) => ({ sessionId, traineeId: t.id })),
+          }),
+        ]
+      : []),
+  ]);
+  revalidatePath(PATH);
+}

@@ -4,6 +4,7 @@ import {
   MODULES,
   HOME_BLOCKS,
   SIDEBAR_MODULES,
+  ADMIN_ONLY_MODULES,
   DEFAULT_COMING_SOON_MODULES,
   type Position,
   type Module,
@@ -25,6 +26,7 @@ export {
   PERMISSION_SCOPE_LABEL,
   SIDEBAR_MODULES,
   ADMIN_MENU_ITEMS,
+  ADMIN_ONLY_MODULES,
   type Position,
   type Module,
   type HomeBlock,
@@ -61,6 +63,7 @@ export async function getEffectiveModuleScope(
   module: Module
 ): Promise<PermissionScope> {
   if (role === "ADMIN") return "FULL";
+  if (ADMIN_ONLY_MODULES.has(module)) return "NONE";
 
   const override = await prisma.userPermissionOverride.findUnique({
     where: { userId_module: { userId, module } },
@@ -91,7 +94,11 @@ export async function getVisibleModules(
   const scopeByModule = new Map(entries.map((e) => [e.module as Module, e.scope as PermissionScope]));
   for (const o of overrides) scopeByModule.set(o.module as Module, o.scope as PermissionScope);
 
-  return new Set(MODULES.filter((m) => (scopeByModule.get(m) ?? "FULL") !== "NONE"));
+  return new Set(
+    MODULES.filter(
+      (m) => !ADMIN_ONLY_MODULES.has(m) && (scopeByModule.get(m) ?? "FULL") !== "NONE"
+    )
+  );
 }
 
 /**

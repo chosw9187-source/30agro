@@ -5,7 +5,6 @@ import { checkModuleAccess, POSITION_LABEL, type Position } from "@/lib/permissi
 import { NoModuleAccess } from "@/components/no-module-access";
 import { SearchableSelect } from "@/components/searchable-select";
 import { activePrismaWhere } from "@/lib/hr-analytics";
-import { formatKSTDate } from "@/lib/format-kst";
 import {
   BOOKING_STATUS_BADGE_CLASS,
   BOOKING_STATUS_LABEL,
@@ -18,6 +17,7 @@ import {
   type BookingStatus,
 } from "@/lib/onboarding";
 import {
+  addTrainee,
   assignInstructor,
   bookSession,
   cancelMyBooking,
@@ -27,30 +27,44 @@ import {
   deleteProgram,
   deleteSession,
   removeInstructor,
+  removeTrainee,
   setBookingStatus,
+  setSessionAudience,
   toggleInstructorActive,
   toggleProgramActive,
   updateSession,
 } from "./actions";
+import { ProgramPeriodFields } from "./program-period-fields";
+import { FinalScheduleSection, finalHref } from "./final-schedule";
+import {
+  EmptyBox,
+  INPUT_CLASS,
+  LABEL_CLASS,
+  PRIMARY_BUTTON_CLASS,
+  WEEKDAY_LABEL,
+  monthCells,
+  monthKeyOf,
+  nextMonthOf,
+  parseMonthKey,
+  prevMonthOf,
+  programPeriod,
+} from "./ui";
 
 export const dynamic = "force-dynamic";
 
-// 실제 진행 순서대로 — 관리자가 기수를 만들고(일정 관리) 강사를 지정하면,
-// 그때부터 강사가 쓰는 화면(온보딩 일정 · 내 강의 일정)이 의미를 갖는다.
-// 관리자 전용 탭은 강사에게는 아예 보이지 않으므로, 강사 눈에는
-// [온보딩 일정][내 강의 일정] 둘만 남는다.
+// 확정된 결과([최종 스케줄])를 맨 앞에 둔다 — 이 화면을 가장 자주 여는 사람은
+// 기수를 만드는 관리자가 아니라 "내가 언제 뭘 듣는지"만 확인하면 되는
+// 교육생이기 때문. 뒤쪽은 만드는 순서(일정 관리 → 강사 지정 → 조율)대로다.
+// 관리자 전용 탭은 강사·교육생에게 아예 보이지 않으므로, 교육생 눈에는
+// [최종 스케줄][온보딩 일정] 둘만 남는다.
 const TABS = [
+  { key: "final", label: "최종 스케줄", role: "all" },
   { key: "manage", label: "일정 관리", role: "admin" },
   { key: "instructors", label: "강사 지정", role: "admin" },
   { key: "schedule", label: "온보딩 일정", role: "all" },
   { key: "my", label: "내 강의 일정", role: "instructor" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
-
-const INPUT_CLASS = "w-full rounded border border-slate-300 px-3 py-2 text-sm";
-const LABEL_CLASS = "mb-1 block text-xs font-medium text-slate-600";
-const PRIMARY_BUTTON_CLASS =
-  "rounded bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark";
 
 type BookingRow = {
   id: string;
@@ -100,20 +114,6 @@ function TabLink({ tab, active, programId }: { tab: (typeof TABS)[number]; activ
       {tab.label}
     </Link>
   );
-}
-
-function EmptyBox({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-500">
-      {children}
-    </div>
-  );
-}
-
-function programPeriod(p: { startDate: Date | null; endDate: Date | null }) {
-  if (!p.startDate && !p.endDate) return "";
-  const fmt = (d: Date | null) => (d ? formatKSTDate(d, { year: "numeric", month: "2-digit", day: "2-digit" }) : "");
-  return `${fmt(p.startDate)} ~ ${fmt(p.endDate)}`;
 }
 
 /* ------------------------------------------------------------- 온보딩 일정 */
@@ -251,19 +251,8 @@ function SessionCard({
   );
 }
 
-const WEEKDAY_LABEL = ["일", "월", "화", "수", "목", "금", "토"];
 
 type ScheduleView = "calendar" | "list";
-
-function monthKeyOf(year: number, monthIdx: number) {
-  return `${year}-${String(monthIdx + 1).padStart(2, "0")}`;
-}
-
-function parseMonthKey(value: string | undefined, fallback: string) {
-  const s = value && /^\d{4}-\d{2}$/.test(value) ? value : fallback;
-  const [year, month] = s.split("-").map(Number);
-  return { year, monthIdx: month - 1 };
-}
 
 function scheduleHref(opts: {
   programId: string | null;
@@ -305,15 +294,7 @@ function CalendarGrid({
   programId: string | null;
   now: Date;
 }) {
-  // 달력 격자는 순수 달력 계산이라 Date.UTC로 만든다 — 로컬 시간대가 끼면
-  // 서버 리전에 따라 1일이 밀린다.
-  const firstWeekday = new Date(Date.UTC(year, monthIdx, 1)).getUTCDay();
-  const daysInMonth = new Date(Date.UTC(year, monthIdx + 1, 0)).getUTCDate();
-  const cells: (number | null)[] = [
-    ...Array<null>(firstWeekday).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-  while (cells.length % 7 !== 0) cells.push(null);
+  const cells = monthCells(year, monthIdx);
 
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200">
@@ -504,7 +485,6 @@ async function ScheduleSection({
     },
   })) as SessionRow[];
 
-
   // 지난 일정은 카드에서 "종료"로 표시하고 예약 버튼을 감춘다 — 한 번
   // 지나간 시간대에 새로 예약이 들어오면 강사도 관리자도 혼란스럽다.
   const now = new Date();
@@ -543,8 +523,8 @@ async function ScheduleSection({
     (todayKey.startsWith(currentMonthKey) ? todayKey : `${currentMonthKey}-01`);
   const selectedSessions = byDay.get(selectedKey) ?? [];
 
-  const prev = monthIdx === 0 ? { year: year - 1, monthIdx: 11 } : { year, monthIdx: monthIdx - 1 };
-  const next = monthIdx === 11 ? { year: year + 1, monthIdx: 0 } : { year, monthIdx: monthIdx + 1 };
+  const prev = prevMonthOf(year, monthIdx);
+  const next = nextMonthOf(year, monthIdx);
   const navLinkClass = "rounded border border-slate-300 px-2.5 py-1 text-sm text-slate-600 hover:bg-slate-100";
 
   return (
@@ -914,10 +894,38 @@ async function ManageSection({ programId }: { programId: string | null }) {
           startAt: true,
           endAt: true,
           requiredInstructors: true,
+          attendees: { select: { traineeId: true } },
           _count: { select: { bookings: true } },
         },
       })
     : [];
+
+  // 교육생 명단 — 기수를 고르기 전에는 붙일 곳이 없으므로 건너뛴다.
+  const [trainees, employees] = programId
+    ? await Promise.all([
+        prisma.onboardingTrainee.findMany({
+          where: { programId },
+          orderBy: { user: { name: "asc" } },
+          select: {
+            id: true,
+            note: true,
+            user: {
+              select: { id: true, name: true, employeeNumber: true, team: { select: { name: true } } },
+            },
+          },
+        }),
+        prisma.user.findMany({
+          where: activePrismaWhere(),
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, employeeNumber: true, team: { select: { name: true } } },
+        }),
+      ])
+    : [[], []];
+
+  const enrolled = new Set(trainees.map((t) => t.user.id));
+  const traineeOptions = employees
+    .filter((e) => !enrolled.has(e.id))
+    .map((e) => ({ value: e.id, label: e.name, sublabel: e.team?.name ?? e.employeeNumber }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -929,14 +937,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
             <label className={LABEL_CLASS}>프로그램명</label>
             <input name="name" required placeholder="예: 2026년 상반기 신입 온보딩" className={INPUT_CLASS} />
           </div>
-          <div>
-            <label className={LABEL_CLASS}>시작일 (선택)</label>
-            <input type="date" name="startDate" className={INPUT_CLASS} />
-          </div>
-          <div>
-            <label className={LABEL_CLASS}>종료일 (선택)</label>
-            <input type="date" name="endDate" className={INPUT_CLASS} />
-          </div>
+          <ProgramPeriodFields inputClassName={INPUT_CLASS} labelClassName={LABEL_CLASS} />
           <div className="sm:col-span-4">
             <label className={LABEL_CLASS}>설명 (선택)</label>
             <input name="description" placeholder="대상·목적 등" className={INPUT_CLASS} />
@@ -1019,6 +1020,61 @@ async function ManageSection({ programId }: { programId: string | null }) {
         </Link>
       </div>
 
+      {programId && (
+        <div className="rounded-lg border border-slate-200 bg-white p-5">
+          <h2 className="text-lg font-semibold text-slate-800">교육생 명단</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            이 기수에 참석하는 교육생입니다. 명단에 오른 사람은 [최종 스케줄]에서 본인이 들어야 할 교육을 확인할 수
+            있습니다.
+          </p>
+          <form action={addTrainee} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <input type="hidden" name="programId" value={programId} />
+            <div>
+              <label className={LABEL_CLASS}>직원</label>
+              <SearchableSelect
+                name="userId"
+                options={traineeOptions}
+                placeholder="이름 검색..."
+                emptyLabel="선택 안 함"
+              />
+            </div>
+            <div>
+              <label className={LABEL_CLASS}>비고 (선택)</label>
+              <input name="note" placeholder="예: 중도 합류" className={INPUT_CLASS} />
+            </div>
+            <div className="flex items-end">
+              <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                교육생 등록
+              </button>
+            </div>
+          </form>
+
+          {trainees.length === 0 ? (
+            <p className="mt-4 rounded border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">
+              등록된 교육생이 없습니다.
+            </p>
+          ) : (
+            <ul className="mt-4 flex flex-wrap gap-2">
+              {trainees.map((t) => (
+                <li
+                  key={t.id}
+                  className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 py-1 pl-3 pr-2 text-xs"
+                >
+                  <span className="font-medium text-slate-700">{t.user.name}</span>
+                  <span className="text-slate-400">{t.user.team?.name ?? t.user.employeeNumber}</span>
+                  {t.note && <span className="text-slate-400">· {t.note}</span>}
+                  <form action={removeTrainee.bind(null, t.id)}>
+                    <button type="submit" className="text-red-500 hover:underline" aria-label={`${t.user.name} 명단에서 제거`}>
+                      ×
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-col gap-2">
         <h2 className="text-lg font-semibold text-slate-800">등록된 일정</h2>
         {sessions.length === 0 ? (
@@ -1035,7 +1091,8 @@ async function ManageSection({ programId }: { programId: string | null }) {
                     <p className="text-xs text-slate-500">
                       {formatSessionDay(s.startAt)} {formatSessionTimeRange(s.startAt, s.endAt)}
                       {s.location && ` · ${s.location}`} · 필요 강사 {s.requiredInstructors}명 · 예약{" "}
-                      {s._count.bookings}건
+                      {s._count.bookings}건 ·{" "}
+                      {s.attendees.length === 0 ? "교육생 전원" : `교육생 ${s.attendees.length}명 지정`}
                     </p>
                   </div>
                   <form action={deleteSession.bind(null, s.id)}>
@@ -1091,6 +1148,35 @@ async function ManageSection({ programId }: { programId: string | null }) {
                     </div>
                   </form>
                 </details>
+                {trainees.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-brand-green-dark">참석 대상 지정</summary>
+                    <form action={setSessionAudience.bind(null, s.id)} className="mt-3">
+                      <p className="text-xs text-slate-500">
+                        아무도 체크하지 않으면 기수 전원이 대상입니다. 일부만 듣는 교육일 때만 골라 주세요.
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+                        {trainees.map((t) => (
+                          <label key={t.id} className="flex items-center gap-1.5 text-xs text-slate-700">
+                            <input
+                              type="checkbox"
+                              name="traineeIds"
+                              value={t.id}
+                              defaultChecked={s.attendees.some((a) => a.traineeId === t.id)}
+                            />
+                            {t.user.name}
+                          </label>
+                        ))}
+                      </div>
+                      <button
+                        type="submit"
+                        className="mt-3 rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+                      >
+                        대상 저장
+                      </button>
+                    </form>
+                  </details>
+                )}
               </div>
             );
           })
@@ -1105,7 +1191,15 @@ async function ManageSection({ programId }: { programId: string | null }) {
 export default async function OnboardingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; programId?: string; view?: string; month?: string; date?: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    programId?: string;
+    view?: string;
+    month?: string;
+    date?: string;
+    only?: string;
+    sessionId?: string;
+  }>;
 }) {
   if (!(await checkModuleAccess("ONBOARDING"))) {
     return <NoModuleAccess title="온보딩 프로그램" />;
@@ -1122,6 +1216,8 @@ export default async function OnboardingPage({
     view: viewParam,
     month: monthParam,
     date: dateParam,
+    only: onlyParam,
+    sessionId: sessionIdParam,
   } = await searchParams;
   const view: ScheduleView = viewParam === "list" ? "list" : "calendar";
 
@@ -1134,9 +1230,10 @@ export default async function OnboardingPage({
     select: { id: true, name: true, active: true, startDate: true },
   });
 
-  // 평소에는 달력(온보딩 일정)으로 들어오는 게 맞지만, 기수가 아직 하나도
-  // 없는 관리자는 거기서 할 수 있는 게 없다 — 첫 순서인 [일정 관리]로 보낸다.
-  const defaultTab: TabKey = isAdmin && programs.length === 0 ? "manage" : "schedule";
+  // 평소에는 확정 시간표([최종 스케줄])로 들어온다 — 탭 순서상 맨 앞이기도 하고,
+  // 대부분의 방문은 "언제 뭘 듣는지" 확인이 목적이다. 다만 기수가 아직 하나도
+  // 없는 관리자는 거기서 할 수 있는 게 없으므로 [일정 관리]로 보낸다.
+  const defaultTab: TabKey = isAdmin && programs.length === 0 ? "manage" : "final";
   const tab: TabKey = visibleTabs.some((t) => t.key === tabParam) ? (tabParam as TabKey) : defaultTab;
   const selectedProgram =
     programs.find((p) => p.id === programIdParam) ?? programs.find((p) => p.active) ?? programs[0] ?? null;
@@ -1157,7 +1254,7 @@ export default async function OnboardingPage({
         ))}
       </div>
 
-      {(tab === "schedule" || tab === "manage") && programs.length > 0 && (
+      {(tab === "schedule" || tab === "manage" || tab === "final") && programs.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500">프로그램</span>
           {programs.map((p) => (
@@ -1166,7 +1263,13 @@ export default async function OnboardingPage({
               href={
                 tab === "schedule"
                   ? scheduleHref({ programId: p.id, view })
-                  : `/platform/onboarding?tab=${tab}&programId=${p.id}`
+                  : tab === "final"
+                    ? finalHref({
+                        programId: p.id,
+                        view: viewParam === "list" ? "list" : "calendar",
+                        onlyMine: onlyParam === "mine",
+                      })
+                    : `/platform/onboarding?tab=${tab}&programId=${p.id}`
               }
               className={`rounded-full border px-3 py-1 text-xs ${
                 p.id === programId
@@ -1191,6 +1294,16 @@ export default async function OnboardingPage({
           programStart={selectedProgram?.startDate ?? null}
           month={monthParam}
           date={dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : undefined}
+        />
+      )}
+      {tab === "final" && (
+        <FinalScheduleSection
+          programId={programId}
+          viewerId={viewerId}
+          onlyMine={onlyParam === "mine"}
+          view={viewParam === "list" ? "list" : "calendar"}
+          month={monthParam}
+          sessionId={sessionIdParam}
         />
       )}
       {tab === "my" && <MyBookingsSection viewerId={viewerId} />}

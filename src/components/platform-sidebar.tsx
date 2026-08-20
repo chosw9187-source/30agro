@@ -38,6 +38,7 @@ const MODULE_NAV: Record<string, { href: string; label: string }> = {
   LEGAL_LIBRARY: { href: "/platform/legal-library", label: "인사 규정 챗봇" },
   TALENT_ASSESSMENT: { href: "/platform/talent-assessment", label: "SG 인적성검사" },
   ONBOARDING: { href: "/platform/onboarding", label: "온보딩 프로그램" },
+  EVALUATION_V2: { href: "/platform/evaluation2", label: "평가2" },
 };
 
 function evaluationHref(role: Role): string {

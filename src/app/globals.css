@@ -18,6 +18,20 @@
   --color-brand-green-light: #e8f5eb;
   --color-brand-black: #000000;
   --color-brand-gray: #666666;
+
+  /* 목표 계층(전사>책임>팀>개인) 서열 램프 — 같은 초록 한 가지 색을 명도만
+     단계로 나눠서 색만 봐도 위아래가 읽히게 한다. 서열이 있는 값이라
+     색상이 서로 다른 카테고리 팔레트를 쓰면 안 된다. 각 단계는 흰 배경에서
+     최소 2:1 대비를 넘긴다(가장 옅은 goal-4가 2.44:1). */
+  --color-goal-1: #0d5226;
+  --color-goal-2: #157a34;
+  --color-goal-3: #1f9a44;
+  --color-goal-4: #5cb87a;
+
+  /* 상태색 — 계층 램프와 절대 섞어 쓰지 않고, 항상 글자 라벨과 함께 쓴다. */
+  --color-status-good: #0ca30c;
+  --color-status-warning: #fab219;
+  --color-status-critical: #d03b3b;
 }
 
 html {

@@ -124,6 +124,12 @@ model User {
   onboardingBookings    OnboardingBooking[]    @relation("OnboardingBookingInstructor")
   uploadedRegulations   Regulation[]           @relation("RegulationUploader")
   onboardingSessionsAdded OnboardingSession[]  @relation("OnboardingSessionCreator")
+  onboardingTrainee       OnboardingTrainee[]  @relation("OnboardingTrainee")
+  onboardingTraineesAdded OnboardingTrainee[]  @relation("OnboardingTraineeAdder")
+  goalsOwned            Goal[]                 @relation("GoalOwner")
+  goalsCreated          Goal[]                 @relation("GoalCreator")
+  goalCheckIns          GoalCheckIn[]          @relation("GoalCheckInAuthor")
+  goalsAgreed           Goal[]                 @relation("GoalAgreedBy")
 }
 
 model AppointmentRecord {
@@ -243,6 +249,7 @@ model Team {
   templateItems TemplateItem[]
   jobDescription JobDescription?
   tasks         Task[]
+  goals         Goal[]
 }
 
 model JobDescription {
@@ -410,6 +417,7 @@ enum Module {
   LEGAL_LIBRARY
   HR_REPORT
   EVALUATION
+  EVALUATION_V2
   TALENT_ASSESSMENT
   ONBOARDING
 }
@@ -660,6 +668,7 @@ model OnboardingProgram {
   createdAt   DateTime  @default(now())
 
   sessions OnboardingSession[]
+  trainees OnboardingTrainee[]
 }
 
 /**
@@ -685,7 +694,8 @@ model OnboardingSession {
   createdAt           DateTime          @default(now())
   updatedAt           DateTime          @updatedAt
 
-  bookings OnboardingBooking[]
+  bookings  OnboardingBooking[]
+  attendees OnboardingSessionAttendee[]
 
   @@index([programId, startAt])
 }
@@ -725,6 +735,44 @@ model OnboardingBooking {
 
   @@unique([sessionId, userId])
   @@index([userId])
+}
+
+/**
+ * 기수에 참석하는 교육생(신입사원) 명단. 강사(OnboardingInstructor)와 달리
+ * 기수마다 사람이 완전히 바뀌므로 프로그램에 묶는다 — 지난 기수 명단이
+ * 그대로 남아야 "누가 어느 기수를 들었는지"를 나중에 확인할 수 있다.
+ */
+model OnboardingTrainee {
+  id        String            @id @default(cuid())
+  programId String
+  program   OnboardingProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User              @relation("OnboardingTrainee", fields: [userId], references: [id], onDelete: Cascade)
+  note      String?
+  addedById String?
+  addedBy   User?             @relation("OnboardingTraineeAdder", fields: [addedById], references: [id])
+  createdAt DateTime          @default(now())
+
+  attendances OnboardingSessionAttendee[]
+
+  @@unique([programId, userId])
+  @@index([userId])
+}
+
+/**
+ * 특정 교육을 일부 교육생만 듣는 경우의 대상 지정. 한 건도 없으면 그 교육은
+ * 기수 전원이 대상이다 — 온보딩 교육은 대부분 전원 필수라 기본을 "전원"으로
+ * 두고, 예외인 교육에만 명단을 넣는 편이 관리 부담이 적다.
+ */
+model OnboardingSessionAttendee {
+  id        String            @id @default(cuid())
+  sessionId String
+  session   OnboardingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  traineeId String
+  trainee   OnboardingTrainee @relation(fields: [traineeId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, traineeId])
+  @@index([traineeId])
 }
 
 /**
@@ -780,4 +828,159 @@ model RegulationArticle {
 
   @@index([regulationId, order])
   @@index([articleNo])
+}
+
+// ---------------------------------------------------------------------------
+// 평가2 (목표관리) — 전사목표 → 책임목표 → 팀목표 → 개인목표 4단 캐스케이드
+// ---------------------------------------------------------------------------
+
+/**
+ * 목표가 걸리는 조직 계층. 조직도(사업단위 > 책임 > 팀 > 개인)와 같은
+ * 층위를 쓰되, 목표는 "책임"부터 나눠 내려가므로 사업단위 층은 두지 않는다.
+ */
+enum GoalLevel {
+  COMPANY
+  DIVISION
+  TEAM
+  INDIVIDUAL
+}
+
+enum GoalStatus {
+  /** 작성 중 — 상위에서 확정되기 전 */
+  DRAFT
+  /** 진행 중 */
+  ACTIVE
+  /** 달성 완료 */
+  DONE
+  /** 중단·폐기 */
+  DROPPED
+}
+
+/**
+ * 개인목표 합의 단계. 팀원이 목표를 세워 합의를 요청하면 팀장이 승인하거나
+ * 되돌린다. 승인(AGREED)된 목표만 나중에 성과평가 대상이 된다 — 확정되지
+ * 않은 목표에 점수를 매기면 평가가 성립하지 않는다.
+ */
+enum GoalAgreementStatus {
+  /** 작성 중 — 아직 팀장에게 올리지 않음 */
+  DRAFT
+  /** 합의 요청 — 팀장 승인 대기 */
+  REQUESTED
+  /** 합의 완료 — 팀장 승인됨 */
+  AGREED
+  /** 되돌림 — 팀장이 사유를 달아 반려 */
+  RETURNED
+}
+
+enum GoalCycleStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+/** 목표 운영 기간(예: 2026년 상반기). 모든 목표는 한 사이클에 속한다. */
+model GoalCycle {
+  id        String          @id @default(cuid())
+  name      String
+  year      Int
+  startDate DateTime
+  endDate   DateTime
+  status    GoalCycleStatus @default(DRAFT)
+  /** 전사목표 표 아래에 붙는 안내 문구. 줄바꿈 한 줄이 각주 한 항목. */
+  note      String?
+  createdAt DateTime        @default(now())
+
+  goals Goal[]
+
+  @@index([year])
+}
+
+/**
+ * 목표 한 건. parentId로 상위 목표에 연결해서 전사 → 책임 → 팀 → 개인으로
+ * 내려가는 정렬(cascade)을 만든다. 진척률은 하위 목표가 있으면 가중치
+ * 기준으로 굴려 올리고(rollup), 없으면 progress 입력값을 그대로 쓴다.
+ */
+model Goal {
+  id      String    @id @default(cuid())
+  cycleId String
+  cycle   GoalCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  level   GoalLevel
+
+  parentId String?
+  parent   Goal?   @relation("GoalCascade", fields: [parentId], references: [id])
+  children Goal[]  @relation("GoalCascade")
+
+  /** 표의 "구분" 칸. 예: 영업고객관리, 기술연구. 비우면 순번만 표기한다. */
+  category    String?
+  title       String
+  description String?
+
+  /** 책임목표가 속한 부문(책임) 이름. User.division / Team.division과 같은 값. */
+  division String?
+  /** 팀목표가 걸린 팀. */
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id])
+  /** 개인목표 담당자. 팀·책임 목표에서는 책임자(팀장·책임)를 가리킨다. */
+  ownerId String?
+  owner   User?   @relation("GoalOwner", fields: [ownerId], references: [id])
+
+  /** 같은 부모 아래 형제 목표들 사이의 가중치(%). 진척 롤업에 쓴다. */
+  weight Float @default(0)
+
+  /** 측정지표와 목표수준 — 서술형으로 받는다(예: "신규 거래처 20개"). */
+  metric      String?
+  targetValue String?
+  currentValue String?
+  unit        String?
+
+  progress Int        @default(0)
+  status   GoalStatus @default(ACTIVE)
+
+  /**
+   * 집계 제외. 담당자가 퇴사하거나 다른 부서로 옮겨서 이 목표를 더는 그 조직의
+   * 성과로 보기 어려울 때 켠다. 켜진 목표는 상위 목표 달성률 계산에서 빠지고,
+   * 완료·지연 건수에도 잡히지 않는다. 목표 자체는 남겨둬야 나중에 왜 빠졌는지
+   * 추적할 수 있어서 삭제 대신 이 플래그를 쓴다.
+   */
+  excluded      Boolean @default(false)
+  excludeReason String?
+
+  /**
+   * 합의 단계. 개인목표에만 의미가 있다 — 전사·책임·팀 목표는 관리자·팀장이
+   * 직접 세우는 값이라 합의 대상이 아니다.
+   */
+  agreementStatus GoalAgreementStatus @default(DRAFT)
+  /** 팀장이 되돌리며 남긴 사유, 또는 승인하며 남긴 메모. */
+  agreementNote   String?
+  agreedAt        DateTime?
+  agreedById      String?
+  agreedBy        User?               @relation("GoalAgreedBy", fields: [agreedById], references: [id])
+  dueDate  DateTime?
+  sortOrder Int       @default(0)
+
+  createdById String
+  createdBy   User     @relation("GoalCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  checkIns GoalCheckIn[]
+
+  @@index([cycleId, level])
+  @@index([parentId])
+  @@index([teamId])
+  @@index([ownerId])
+}
+
+/** 진척 업데이트 이력. 언제 몇 %로 올렸고 무슨 근거였는지 남긴다. */
+model GoalCheckIn {
+  id       String @id @default(cuid())
+  goalId   String
+  goal     Goal   @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  progress Int
+  note     String?
+  authorId String
+  author   User     @relation("GoalCheckInAuthor", fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([goalId, createdAt])
 }

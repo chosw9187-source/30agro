@@ -9,6 +9,7 @@ import {
   POSITION_LABEL,
   PERMISSION_SCOPES,
   PERMISSION_SCOPE_LABEL,
+  ADMIN_ONLY_MODULES,
   type PermissionScope,
 } from "@/lib/permission-constants";
 
@@ -44,8 +45,25 @@ export function MatrixForm({ scopeByKey }: { scopeByKey: Record<string, Permissi
           <tbody>
             {MODULES.map((m) => (
               <tr key={m} className="border-b border-slate-100 last:border-0">
-                <td className="px-4 py-3 font-medium">{MODULE_LABEL[m]}</td>
-                {POSITIONS.map((p) => {
+                <td className="px-4 py-3 font-medium">
+                  {MODULE_LABEL[m]}
+                  {ADMIN_ONLY_MODULES.has(m) && (
+                    <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-normal text-slate-600">
+                      관리자 전용
+                    </span>
+                  )}
+                </td>
+                {/* 관리자 전용 모듈은 직책 설정이 아무 효과가 없으므로, 값을
+                    고를 수 있게 두면 설정해도 안 열려서 혼란만 준다. */}
+                {ADMIN_ONLY_MODULES.has(m) ? (
+                  <td
+                    colSpan={POSITIONS.length}
+                    className="px-4 py-3 text-center text-xs text-slate-500"
+                  >
+                    관리자(역할)만 접근할 수 있는 메뉴입니다. 직책 설정은 적용되지 않습니다.
+                  </td>
+                ) : (
+                  POSITIONS.map((p) => {
                   const key = `${m}:${p}`;
                   const current = values[key] ?? "FULL";
                   return (
@@ -66,7 +84,8 @@ export function MatrixForm({ scopeByKey }: { scopeByKey: Record<string, Permissi
                       </select>
                     </td>
                   );
-                })}
+                  })
+                )}
               </tr>
             ))}
           </tbody>

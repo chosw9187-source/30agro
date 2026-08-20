@@ -32,6 +32,7 @@ export type Module =
   | "LEGAL_LIBRARY"
   | "HR_REPORT"
   | "EVALUATION"
+  | "EVALUATION_V2"
   | "TALENT_ASSESSMENT"
   | "ONBOARDING";
 
@@ -43,6 +44,7 @@ export const MODULES: Module[] = [
   "LEGAL_LIBRARY",
   "HR_REPORT",
   "EVALUATION",
+  "EVALUATION_V2",
   "TALENT_ASSESSMENT",
   "ONBOARDING",
 ];
@@ -55,6 +57,7 @@ export const MODULE_LABEL: Record<Module, string> = {
   LEGAL_LIBRARY: "인사 규정 챗봇",
   HR_REPORT: "HR REPORT",
   EVALUATION: "평가",
+  EVALUATION_V2: "평가2",
   TALENT_ASSESSMENT: "SG 인적성검사",
   ONBOARDING: "온보딩 프로그램",
 };
@@ -100,6 +103,7 @@ export const SIDEBAR_MODULES: Module[] = [
   "EMPLOYEES",
   "LEGAL_LIBRARY",
   "EVALUATION",
+  "EVALUATION_V2",
   "TALENT_ASSESSMENT",
   "ONBOARDING",
 ];
@@ -110,7 +114,17 @@ export const DEFAULT_COMING_SOON_MODULES = new Set<Module>([
   "HR_REPORT",
   "JOB_MANAGEMENT",
   "LEGAL_LIBRARY",
+  "EVALUATION_V2",
 ]);
+
+/**
+ * 권한 매트릭스와 무관하게 ADMIN에게만 열리는 모듈. 사이드바에서 감추는
+ * 것만으로는 URL을 직접 치고 들어오는 걸 막지 못하므로, 목록 계산
+ * (getVisibleModules)과 화면 진입 검사(checkModuleAccess) 양쪽에서 같이
+ * 막는다. 서버 액션도 checkModuleAccess를 거치므로 함께 잠긴다.
+ * 일반 사용자에게 열어줄 때가 되면 이 목록에서 빼면 된다.
+ */
+export const ADMIN_ONLY_MODULES = new Set<Module>(["EVALUATION_V2"]);
 
 export type ModuleUiConfigEntry = { order: number; comingSoon: boolean; hidden: boolean };
 
@@ -124,7 +138,8 @@ export type AdminMenuKey =
   | "REPORTS"
   | "PERMISSION_MATRIX"
   | "SCREEN_CONFIG"
-  | "TRAFFIC";
+  | "TRAFFIC"
+  | "ORG_GOALS";
 
 export const ADMIN_MENU_ITEMS: { key: AdminMenuKey; href: string; label: string }[] = [
   { key: "USERS", href: "/admin/users", label: "사용자 관리" },
@@ -136,6 +151,7 @@ export const ADMIN_MENU_ITEMS: { key: AdminMenuKey; href: string; label: string 
   { key: "PERMISSION_MATRIX", href: "/admin/permission-matrix", label: "권한 매트릭스" },
   { key: "SCREEN_CONFIG", href: "/admin/screen-config", label: "화면 구성" },
   { key: "TRAFFIC", href: "/admin/traffic", label: "일일 트래픽" },
+  { key: "ORG_GOALS", href: "/admin/org-goals", label: "조직 목표 관리" },
 ];
 
 export type HomeBlock = "TEAM_SUMMARY" | "OVERALL_SUMMARY" | "QUICK_LINKS";
