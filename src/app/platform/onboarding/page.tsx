@@ -5,7 +5,6 @@ import { checkModuleAccess, POSITION_LABEL, type Position } from "@/lib/permissi
 import { NoModuleAccess } from "@/components/no-module-access";
 import { SearchableSelect } from "@/components/searchable-select";
 import { activePrismaWhere } from "@/lib/hr-analytics";
-import { formatKSTDate } from "@/lib/format-kst";
 import {
   BOOKING_STATUS_BADGE_CLASS,
   BOOKING_STATUS_LABEL,
@@ -18,6 +17,7 @@ import {
   type BookingStatus,
 } from "@/lib/onboarding";
 import {
+  addTrainee,
   assignInstructor,
   bookSession,
   cancelMyBooking,
@@ -27,12 +27,16 @@ import {
   deleteProgram,
   deleteSession,
   removeInstructor,
+  removeTrainee,
   setBookingStatus,
+  setSessionAudience,
   toggleInstructorActive,
   toggleProgramActive,
   updateSession,
 } from "./actions";
 import { ProgramPeriodFields } from "./program-period-fields";
+import { FinalScheduleSection, finalHref } from "./final-schedule";
+import { EmptyBox, INPUT_CLASS, LABEL_CLASS, PRIMARY_BUTTON_CLASS, programPeriod } from "./ui";
 
 export const dynamic = "force-dynamic";
 
@@ -44,14 +48,11 @@ const TABS = [
   { key: "manage", label: "일정 관리", role: "admin" },
   { key: "instructors", label: "강사 지정", role: "admin" },
   { key: "schedule", label: "온보딩 일정", role: "all" },
+  { key: "final", label: "최종 스케줄", role: "all" },
   { key: "my", label: "내 강의 일정", role: "instructor" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
-const INPUT_CLASS = "w-full rounded border border-slate-300 px-3 py-2 text-sm";
-const LABEL_CLASS = "mb-1 block text-xs font-medium text-slate-600";
-const PRIMARY_BUTTON_CLASS =
-  "rounded bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark";
 
 type BookingRow = {
   id: string;
@@ -103,19 +104,6 @@ function TabLink({ tab, active, programId }: { tab: (typeof TABS)[number]; activ
   );
 }
 
-function EmptyBox({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-500">
-      {children}
-    </div>
-  );
-}
-
-function programPeriod(p: { startDate: Date | null; endDate: Date | null }) {
-  if (!p.startDate && !p.endDate) return "";
-  const fmt = (d: Date | null) => (d ? formatKSTDate(d, { year: "numeric", month: "2-digit", day: "2-digit" }) : "");
-  return `${fmt(p.startDate)} ~ ${fmt(p.endDate)}`;
-}
 
 /* ------------------------------------------------------------- 온보딩 일정 */
 
@@ -915,10 +903,38 @@ async function ManageSection({ programId }: { programId: string | null }) {
           startAt: true,
           endAt: true,
           requiredInstructors: true,
+          attendees: { select: { traineeId: true } },
           _count: { select: { bookings: true } },
         },
       })
     : [];
+
+  // 교육생 명단 — 기수를 고르기 전에는 붙일 곳이 없으므로 건너뛴다.
+  const [trainees, employees] = programId
+    ? await Promise.all([
+        prisma.onboardingTrainee.findMany({
+          where: { programId },
+          orderBy: { user: { name: "asc" } },
+          select: {
+            id: true,
+            note: true,
+            user: {
+              select: { id: true, name: true, employeeNumber: true, team: { select: { name: true } } },
+            },
+          },
+        }),
+        prisma.user.findMany({
+          where: activePrismaWhere(),
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, employeeNumber: true, team: { select: { name: true } } },
+        }),
+      ])
+    : [[], []];
+
+  const enrolled = new Set(trainees.map((t) => t.user.id));
+  const traineeOptions = employees
+    .filter((e) => !enrolled.has(e.id))
+    .map((e) => ({ value: e.id, label: e.name, sublabel: e.team?.name ?? e.employeeNumber }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -1013,6 +1029,61 @@ async function ManageSection({ programId }: { programId: string | null }) {
         </Link>
       </div>
 
+      {programId && (
+        <div className="rounded-lg border border-slate-200 bg-white p-5">
+          <h2 className="text-lg font-semibold text-slate-800">교육생 명단</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            이 기수에 참석하는 교육생입니다. 명단에 오른 사람은 [최종 스케줄]에서 본인이 들어야 할 교육을 확인할 수
+            있습니다.
+          </p>
+          <form action={addTrainee} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <input type="hidden" name="programId" value={programId} />
+            <div>
+              <label className={LABEL_CLASS}>직원</label>
+              <SearchableSelect
+                name="userId"
+                options={traineeOptions}
+                placeholder="이름 검색..."
+                emptyLabel="선택 안 함"
+              />
+            </div>
+            <div>
+              <label className={LABEL_CLASS}>비고 (선택)</label>
+              <input name="note" placeholder="예: 중도 합류" className={INPUT_CLASS} />
+            </div>
+            <div className="flex items-end">
+              <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                교육생 등록
+              </button>
+            </div>
+          </form>
+
+          {trainees.length === 0 ? (
+            <p className="mt-4 rounded border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">
+              등록된 교육생이 없습니다.
+            </p>
+          ) : (
+            <ul className="mt-4 flex flex-wrap gap-2">
+              {trainees.map((t) => (
+                <li
+                  key={t.id}
+                  className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 py-1 pl-3 pr-2 text-xs"
+                >
+                  <span className="font-medium text-slate-700">{t.user.name}</span>
+                  <span className="text-slate-400">{t.user.team?.name ?? t.user.employeeNumber}</span>
+                  {t.note && <span className="text-slate-400">· {t.note}</span>}
+                  <form action={removeTrainee.bind(null, t.id)}>
+                    <button type="submit" className="text-red-500 hover:underline" aria-label={`${t.user.name} 명단에서 제거`}>
+                      ×
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-col gap-2">
         <h2 className="text-lg font-semibold text-slate-800">등록된 일정</h2>
         {sessions.length === 0 ? (
@@ -1029,7 +1100,8 @@ async function ManageSection({ programId }: { programId: string | null }) {
                     <p className="text-xs text-slate-500">
                       {formatSessionDay(s.startAt)} {formatSessionTimeRange(s.startAt, s.endAt)}
                       {s.location && ` · ${s.location}`} · 필요 강사 {s.requiredInstructors}명 · 예약{" "}
-                      {s._count.bookings}건
+                      {s._count.bookings}건 ·{" "}
+                      {s.attendees.length === 0 ? "교육생 전원" : `교육생 ${s.attendees.length}명 지정`}
                     </p>
                   </div>
                   <form action={deleteSession.bind(null, s.id)}>
@@ -1085,6 +1157,35 @@ async function ManageSection({ programId }: { programId: string | null }) {
                     </div>
                   </form>
                 </details>
+                {trainees.length > 0 && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-brand-green-dark">참석 대상 지정</summary>
+                    <form action={setSessionAudience.bind(null, s.id)} className="mt-3">
+                      <p className="text-xs text-slate-500">
+                        아무도 체크하지 않으면 기수 전원이 대상입니다. 일부만 듣는 교육일 때만 골라 주세요.
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+                        {trainees.map((t) => (
+                          <label key={t.id} className="flex items-center gap-1.5 text-xs text-slate-700">
+                            <input
+                              type="checkbox"
+                              name="traineeIds"
+                              value={t.id}
+                              defaultChecked={s.attendees.some((a) => a.traineeId === t.id)}
+                            />
+                            {t.user.name}
+                          </label>
+                        ))}
+                      </div>
+                      <button
+                        type="submit"
+                        className="mt-3 rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+                      >
+                        대상 저장
+                      </button>
+                    </form>
+                  </details>
+                )}
               </div>
             );
           })
@@ -1099,7 +1200,14 @@ async function ManageSection({ programId }: { programId: string | null }) {
 export default async function OnboardingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; programId?: string; view?: string; month?: string; date?: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    programId?: string;
+    view?: string;
+    month?: string;
+    date?: string;
+    only?: string;
+  }>;
 }) {
   if (!(await checkModuleAccess("ONBOARDING"))) {
     return <NoModuleAccess title="온보딩 프로그램" />;
@@ -1116,6 +1224,7 @@ export default async function OnboardingPage({
     view: viewParam,
     month: monthParam,
     date: dateParam,
+    only: onlyParam,
   } = await searchParams;
   const view: ScheduleView = viewParam === "list" ? "list" : "calendar";
 
@@ -1151,7 +1260,7 @@ export default async function OnboardingPage({
         ))}
       </div>
 
-      {(tab === "schedule" || tab === "manage") && programs.length > 0 && (
+      {(tab === "schedule" || tab === "manage" || tab === "final") && programs.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500">프로그램</span>
           {programs.map((p) => (
@@ -1160,7 +1269,9 @@ export default async function OnboardingPage({
               href={
                 tab === "schedule"
                   ? scheduleHref({ programId: p.id, view })
-                  : `/platform/onboarding?tab=${tab}&programId=${p.id}`
+                  : tab === "final"
+                    ? finalHref(p.id, onlyParam === "mine")
+                    : `/platform/onboarding?tab=${tab}&programId=${p.id}`
               }
               className={`rounded-full border px-3 py-1 text-xs ${
                 p.id === programId
@@ -1186,6 +1297,9 @@ export default async function OnboardingPage({
           month={monthParam}
           date={dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : undefined}
         />
+      )}
+      {tab === "final" && (
+        <FinalScheduleSection programId={programId} viewerId={viewerId} onlyMine={onlyParam === "mine"} />
       )}
       {tab === "my" && <MyBookingsSection viewerId={viewerId} />}
       {tab === "instructors" && <InstructorsSection />}
