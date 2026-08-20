@@ -44,9 +44,38 @@ function parseNumber(value: FormDataEntryValue | null, fallback = 0): number {
 /**
  * "완료"로 저장하면 달성률도 100으로 맞춘다. 상태만 완료로 바꾸고 달성률
  * 칸을 안 채우면 완료 건수는 오르는데 달성률은 그대로라 숫자가 어긋난다.
+ * 새로 만들 때는 비교할 이전 값이 없으므로 이 단순 규칙을 쓴다.
  */
 function progressForStatus(status: GoalStatus, progress: number): number {
   return status === "DONE" ? 100 : progress;
+}
+
+/**
+ * 달성률과 상태를 서로 맞춘다. 둘이 한 폼에 같이 있어서, 규칙 없이 저장하면
+ * 서로를 덮어쓴다 — 100%로 한 번 완료된 목표의 달성률을 50으로 낮춰도 상태가
+ * "완료"로 남아 화면에는 계속 100%로 보이는 문제가 그것이다.
+ * 이번에 사람이 바꾼 쪽을 기준으로 삼고 나머지를 거기에 맞춘다.
+ */
+function reconcileProgressAndStatus(
+  next: { progress: number; status: GoalStatus },
+  prev: { progress: number; status: GoalStatus }
+): { progress: number; status: GoalStatus } {
+  // 상태를 완료로 바꿨다 → 달성률은 100.
+  if (next.status !== prev.status && next.status === "DONE") {
+    return { progress: 100, status: "DONE" };
+  }
+  // 달성률을 건드렸다 → 달성률이 기준. 100 미만으로 내렸는데 상태가 완료로
+  // 남아 있으면 화면이 계속 100%가 되므로 진행중으로 되돌린다.
+  if (next.progress !== prev.progress) {
+    if (next.progress >= 100) return { progress: 100, status: "DONE" };
+    return {
+      progress: next.progress,
+      status: next.status === "DONE" ? "ACTIVE" : next.status,
+    };
+  }
+  // 둘 다 그대로 → 완료면 100을 유지한다.
+  if (next.status === "DONE") return { progress: 100, status: "DONE" };
+  return next;
 }
 
 function asLevel(value: FormDataEntryValue | null): GoalLevel | null {
@@ -297,9 +326,17 @@ export async function updateGoal(formData: FormData) {
 
   const existing = await prisma.goal.findUnique({
     where: { id: goalId },
-    select: { level: true, cycleId: true },
+    select: { level: true, cycleId: true, progress: true, status: true },
   });
   if (!existing) return;
+
+  const synced = reconcileProgressAndStatus(
+    {
+      progress: clampProgress(parseNumber(formData.get("progress"), 0)),
+      status: asStatus(formData.get("status")),
+    },
+    { progress: existing.progress, status: existing.status as GoalStatus }
+  );
 
   const level = existing.level as GoalLevel;
   const admin = await isAdmin();
@@ -329,11 +366,8 @@ export async function updateGoal(formData: FormData) {
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
       unit: str(formData.get("unit")) || null,
-      progress: progressForStatus(
-        asStatus(formData.get("status")),
-        clampProgress(parseNumber(formData.get("progress"), 0))
-      ),
-      status: asStatus(formData.get("status")),
+      progress: synced.progress,
+      status: synced.status,
       dueDate: parseDate(formData.get("dueDate")),
     },
   });
@@ -388,13 +422,23 @@ export async function addGoalCheckIn(formData: FormData) {
   const note = str(formData.get("note"));
   const currentValue = str(formData.get("currentValue"));
 
+  const current = await prisma.goal.findUnique({
+    where: { id: goalId },
+    select: { status: true },
+  });
+
+  // 100%를 찍으면 완료로 올리고, 100% 아래로 내리면 완료를 풀어준다. 안 풀면
+  // 상태가 "완료"로 남아 화면에는 계속 100%로 보인다(완료 = 100%로 보므로).
+  const nextStatus =
+    progress >= 100 ? "DONE" : current?.status === "DONE" ? "ACTIVE" : undefined;
+
   await prisma.$transaction([
     prisma.goal.update({
       where: { id: goalId },
       data: {
         progress,
         ...(currentValue ? { currentValue } : {}),
-        ...(progress >= 100 ? { status: "DONE" as const } : {}),
+        ...(nextStatus ? { status: nextStatus } : {}),
       },
     }),
     prisma.goalCheckIn.create({
