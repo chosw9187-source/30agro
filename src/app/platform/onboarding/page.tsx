@@ -36,7 +36,19 @@ import {
 } from "./actions";
 import { ProgramPeriodFields } from "./program-period-fields";
 import { FinalScheduleSection, finalHref } from "./final-schedule";
-import { EmptyBox, INPUT_CLASS, LABEL_CLASS, PRIMARY_BUTTON_CLASS, programPeriod } from "./ui";
+import {
+  EmptyBox,
+  INPUT_CLASS,
+  LABEL_CLASS,
+  PRIMARY_BUTTON_CLASS,
+  WEEKDAY_LABEL,
+  monthCells,
+  monthKeyOf,
+  nextMonthOf,
+  parseMonthKey,
+  prevMonthOf,
+  programPeriod,
+} from "./ui";
 
 export const dynamic = "force-dynamic";
 
@@ -239,19 +251,8 @@ function SessionCard({
   );
 }
 
-const WEEKDAY_LABEL = ["일", "월", "화", "수", "목", "금", "토"];
 
 type ScheduleView = "calendar" | "list";
-
-function monthKeyOf(year: number, monthIdx: number) {
-  return `${year}-${String(monthIdx + 1).padStart(2, "0")}`;
-}
-
-function parseMonthKey(value: string | undefined, fallback: string) {
-  const s = value && /^\d{4}-\d{2}$/.test(value) ? value : fallback;
-  const [year, month] = s.split("-").map(Number);
-  return { year, monthIdx: month - 1 };
-}
 
 function scheduleHref(opts: {
   programId: string | null;
@@ -293,15 +294,7 @@ function CalendarGrid({
   programId: string | null;
   now: Date;
 }) {
-  // 달력 격자는 순수 달력 계산이라 Date.UTC로 만든다 — 로컬 시간대가 끼면
-  // 서버 리전에 따라 1일이 밀린다.
-  const firstWeekday = new Date(Date.UTC(year, monthIdx, 1)).getUTCDay();
-  const daysInMonth = new Date(Date.UTC(year, monthIdx + 1, 0)).getUTCDate();
-  const cells: (number | null)[] = [
-    ...Array<null>(firstWeekday).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-  while (cells.length % 7 !== 0) cells.push(null);
+  const cells = monthCells(year, monthIdx);
 
   return (
     <div className="overflow-hidden rounded-lg border border-slate-200">
@@ -530,8 +523,8 @@ async function ScheduleSection({
     (todayKey.startsWith(currentMonthKey) ? todayKey : `${currentMonthKey}-01`);
   const selectedSessions = byDay.get(selectedKey) ?? [];
 
-  const prev = monthIdx === 0 ? { year: year - 1, monthIdx: 11 } : { year, monthIdx: monthIdx - 1 };
-  const next = monthIdx === 11 ? { year: year + 1, monthIdx: 0 } : { year, monthIdx: monthIdx + 1 };
+  const prev = prevMonthOf(year, monthIdx);
+  const next = nextMonthOf(year, monthIdx);
   const navLinkClass = "rounded border border-slate-300 px-2.5 py-1 text-sm text-slate-600 hover:bg-slate-100";
 
   return (
@@ -1205,6 +1198,7 @@ export default async function OnboardingPage({
     month?: string;
     date?: string;
     only?: string;
+    sessionId?: string;
   }>;
 }) {
   if (!(await checkModuleAccess("ONBOARDING"))) {
@@ -1223,6 +1217,7 @@ export default async function OnboardingPage({
     month: monthParam,
     date: dateParam,
     only: onlyParam,
+    sessionId: sessionIdParam,
   } = await searchParams;
   const view: ScheduleView = viewParam === "list" ? "list" : "calendar";
 
@@ -1269,7 +1264,11 @@ export default async function OnboardingPage({
                 tab === "schedule"
                   ? scheduleHref({ programId: p.id, view })
                   : tab === "final"
-                    ? finalHref(p.id, onlyParam === "mine")
+                    ? finalHref({
+                        programId: p.id,
+                        view: viewParam === "list" ? "list" : "calendar",
+                        onlyMine: onlyParam === "mine",
+                      })
                     : `/platform/onboarding?tab=${tab}&programId=${p.id}`
               }
               className={`rounded-full border px-3 py-1 text-xs ${
@@ -1298,7 +1297,14 @@ export default async function OnboardingPage({
         />
       )}
       {tab === "final" && (
-        <FinalScheduleSection programId={programId} viewerId={viewerId} onlyMine={onlyParam === "mine"} />
+        <FinalScheduleSection
+          programId={programId}
+          viewerId={viewerId}
+          onlyMine={onlyParam === "mine"}
+          view={viewParam === "list" ? "list" : "calendar"}
+          month={monthParam}
+          sessionId={sessionIdParam}
+        />
       )}
       {tab === "my" && <MyBookingsSection viewerId={viewerId} />}
       {tab === "instructors" && <InstructorsSection />}
