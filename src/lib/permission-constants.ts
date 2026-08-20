@@ -167,3 +167,48 @@ export const HOME_BLOCK_LABEL: Record<HomeBlock, string> = {
   OVERALL_SUMMARY: "전체 요약 · 오늘 처리할 일",
   QUICK_LINKS: "바로가기",
 };
+
+/**
+ * 인사카드(개인 상세) 열람의 **직책별 상한**.
+ *
+ * 조직도에서 이름을 눌러 들어가는 개인 상세 화면은 발령·학력·경력·자격·
+ * 상벌까지 담고 있어서, 권한 매트릭스 설정과 무관하게 직책이 허용하는
+ * 범위를 절대 넘지 못하게 막는다. 상한은 조직도에 그려지는 계층을 그대로
+ * 따른다:
+ *
+ *   사장(CEO)          → 전사
+ *   운영책임            → 본인 사업단위
+ *   책임                → 본인 부문
+ *   팀장                → 본인 팀(본인이 이끄는 팀 포함)
+ *   담당                → 본인 정보만
+ *
+ * 관리자 역할(role=ADMIN)만 이 상한의 예외로 전 직원을 열람한다.
+ * 권한 매트릭스/사용자별 개별 설정은 이 상한보다 **좁게만** 만들 수 있다.
+ */
+export const POSITION_CARD_SCOPE_CEILING: Record<Position, PermissionScope> = {
+  CEO: "FULL",
+  OPERATIONS_HEAD: "BUSINESS_UNIT",
+  SENIOR_STAFF: "DIVISION",
+  TEAM_LEADER: "TEAM",
+  STAFF: "SELF",
+};
+
+/**
+ * 상세 열람 관점에서 본 범위의 넓이(클수록 넓음). LIST_ONLY는 "목록만
+ * 보이고 상세는 막힘"이라 상세 기준으로는 팀과 같은 칸에 둔다 — 같은 팀에
+ * 한해 상세를 허용하는 기존 예외를 그대로 유지하기 위해서다.
+ */
+const CARD_SCOPE_WIDTH: Record<PermissionScope, number> = {
+  NONE: 0,
+  SELF: 1,
+  LIST_ONLY: 2,
+  TEAM: 2,
+  DIVISION: 3,
+  BUSINESS_UNIT: 4,
+  FULL: 5,
+};
+
+/** 두 범위 중 더 좁은 쪽을 고른다(같은 넓이면 앞의 값). */
+export function narrowerCardScope(a: PermissionScope, b: PermissionScope): PermissionScope {
+  return CARD_SCOPE_WIDTH[a] <= CARD_SCOPE_WIDTH[b] ? a : b;
+}

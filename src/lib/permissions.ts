@@ -6,6 +6,8 @@ import {
   SIDEBAR_MODULES,
   ADMIN_ONLY_MODULES,
   DEFAULT_COMING_SOON_MODULES,
+  POSITION_CARD_SCOPE_CEILING,
+  narrowerCardScope,
   type Position,
   type Module,
   type HomeBlock,
@@ -27,6 +29,8 @@ export {
   SIDEBAR_MODULES,
   ADMIN_MENU_ITEMS,
   ADMIN_ONLY_MODULES,
+  POSITION_CARD_SCOPE_CEILING,
+  narrowerCardScope,
   type Position,
   type Module,
   type HomeBlock,
@@ -145,15 +149,24 @@ async function loadViewerContext(userId: string): Promise<ViewerContext | null> 
 }
 
 /**
- * 인사카드(개인 인사정보) 열람 권한: 본인·관리자·인사팀 소속은 항상 전체
- * 열람 가능. 회장/부회장/사장(Position.CEO)의 인사카드는 본인·관리자
- * 외에는 인사팀을 포함해 누구에게도 보이지 않는다. 그 외에는 권한
- * 매트릭스에서 설정한 EMPLOYEES 모듈 범위(전체/사업단위/부문/팀/본인/
- * 목록만/접근 불가)를 따르며, 사용자별로 개별 지정된 값이 있으면 직책
- * 기본값보다 우선한다(예: 특정 HR 임원은 부문장이라도 전체 열람 가능하도록
- * 개별 설정). LIST_ONLY는 목록 조회는 전 직원에게 열어두되 상세 카드는
- * 원래 막는 범위지만, 팀장이 자기 팀 구성원조차 못 보는 건 비실용적이라
- * 같은 팀에 한해서는 LIST_ONLY여도 상세 열람을 허용한다.
+ * 인사카드(개인 상세) 열람 권한.
+ *
+ * 조직도·직원정보조회에서 사람을 눌러 들어가는 개인 상세 화면(발령/학력/
+ * 경력/자격/상벌 포함)의 단일 관문이다. 규칙은 세 줄로 끝난다:
+ *
+ *   1. 본인 카드는 언제나 볼 수 있다.
+ *   2. 관리자 역할(role=ADMIN)은 전 직원을 볼 수 있다.
+ *   3. 그 외에는 직책이 허용하는 본인 조직 범위 안의 사람만 볼 수 있다 —
+ *      운영책임=본인 사업단위, 책임=본인 부문, 팀장=본인 팀, 담당=본인만
+ *      (POSITION_CARD_SCOPE_CEILING).
+ *
+ * 권한 매트릭스(직책별)와 사용자별 개별 설정은 이 상한을 넘지 못하고
+ * **좁히는 방향으로만** 작동한다. 따라서 매트릭스에 아무 설정이 없어
+ * 기본값이 FULL이어도 담당은 본인 카드만 보게 된다. 비관리자에게 전 직원
+ * 열람을 열어주려면 그 사람의 역할을 ADMIN으로 올려야 한다.
+ *
+ * 회장/부회장/사장(Position.CEO)의 인사카드는 본인·관리자 외에는 누구에게도
+ * 보이지 않는다(상한과 무관한 별도의 차단).
  */
 export async function canViewEmployeeCard(targetUserId: string): Promise<boolean> {
   const session = await auth();
@@ -161,27 +174,30 @@ export async function canViewEmployeeCard(targetUserId: string): Promise<boolean
   if (session.user.id === targetUserId) return true;
   if (session.user.role === "ADMIN") return true;
 
-  const target = await prisma.user.findUnique({
-    where: { id: targetUserId },
-    select: { position: true },
-  });
-  if (target?.position === "CEO") return false;
+  const [target, viewer] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { position: true },
+    }),
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { position: true },
+    }),
+  ]);
+  if (!target || !viewer) return false;
+  if (target.position === "CEO") return false;
 
-  const viewer = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { position: true, team: { select: { name: true } } },
-  });
-  if (!viewer) return false;
-  if (viewer.team?.name === "인사팀") return true;
-
-  const scope = await getEffectiveModuleScope(
+  const position = (viewer.position ?? "STAFF") as Position;
+  const configured = await getEffectiveModuleScope(
     session.user.id,
     session.user.role,
-    viewer.position as Position,
+    position,
     "EMPLOYEES"
   );
-  if (scope === "NONE" || scope === "SELF") return false;
+  const scope = narrowerCardScope(configured, POSITION_CARD_SCOPE_CEILING[position] ?? "SELF");
+
   if (scope === "FULL") return true;
+  if (scope === "NONE" || scope === "SELF") return false;
 
   const [viewerCtx, targetCtx] = await Promise.all([
     loadViewerContext(session.user.id),
@@ -189,9 +205,26 @@ export async function canViewEmployeeCard(targetUserId: string): Promise<boolean
   ]);
   if (!viewerCtx || !targetCtx) return false;
 
-  if (scope === "LIST_ONLY") return !!viewerCtx.teamId && viewerCtx.teamId === targetCtx.teamId;
-  if (scope === "TEAM") return !!viewerCtx.teamId && viewerCtx.teamId === targetCtx.teamId;
-  if (scope === "DIVISION") return !!viewerCtx.division && viewerCtx.division === targetCtx.division;
+  // 팀 범위(LIST_ONLY 포함): 같은 팀이거나, 내가 팀장으로 지정된 팀의
+  // 구성원이면 "직속"으로 본다 — 팀장이 자기 팀에 소속돼 있지 않게 등록된
+  // 경우까지 커버하기 위한 것.
+  if (scope === "TEAM" || scope === "LIST_ONLY") {
+    if (viewerCtx.teamId && viewerCtx.teamId === targetCtx.teamId) return true;
+    if (!targetCtx.teamId) return false;
+    const ledTeam = await prisma.team.findFirst({
+      where: { id: targetCtx.teamId, leaderId: session.user.id },
+      select: { id: true },
+    });
+    return !!ledTeam;
+  }
+
+  // 부문명은 사업단위가 다르면 겹칠 수 있으므로, 보는 사람에게 사업단위가
+  // 있으면 그것까지 같아야 한다.
+  if (scope === "DIVISION") {
+    if (!viewerCtx.division || viewerCtx.division !== targetCtx.division) return false;
+    return !viewerCtx.businessUnit || viewerCtx.businessUnit === targetCtx.businessUnit;
+  }
+
   if (scope === "BUSINESS_UNIT")
     return !!viewerCtx.businessUnit && viewerCtx.businessUnit === targetCtx.businessUnit;
 
