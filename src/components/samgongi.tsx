@@ -1,12 +1,13 @@
 /**
  * 삼공이 — 한국삼공 마스코트.
  *
- * 공식 캐릭터 이미지(비트맵) 대신 벡터로 그려둔 이유: 챗봇 화면에서
+ * 공식 캐릭터 원화(비트맵) 대신 벡터로 그려둔 이유: 챗봇 화면에서
  * 히어로(120px+)와 말풍선 아바타(28px)로 같은 그림을 쓰는데, 비트맵은
  * 둘 중 한쪽에서 반드시 뭉개진다. 또 public/에 바이너리를 두지 않아
  * 오프라인·저대역 환경에서도 추가 요청 없이 즉시 뜬다.
  *
- * 공식 원화 파일로 교체할 때는 이 컴포넌트 내부만 <Image>로 바꾸면 되고,
+ * 어디까지나 원화를 보고 옮긴 그림이라 완전히 같지는 않다. 공식 파일을
+ * 받으면 이 컴포넌트 내부만 <img src="/samgongi.svg">로 바꾸면 되고,
  * 호출부(size/className)는 그대로 두면 된다.
  */
 export function Samgongi({
@@ -28,96 +29,124 @@ export function Samgongi({
       aria-hidden={decorative || undefined}
     >
       <defs>
-        <radialGradient id="sg-body" cx="34%" cy="26%" r="80%">
-          <stop offset="0%" stopColor="#c2ee79" />
-          <stop offset="52%" stopColor="#7bc92a" />
-          <stop offset="100%" stopColor="#4a9410" />
+        {/* 왼쪽 위에서 빛을 받는 몸통. 원화의 광택감이 여기서 나온다. */}
+        <radialGradient id="sg-body" cx="34%" cy="20%" r="82%">
+          <stop offset="0%" stopColor="#cbf578" />
+          <stop offset="38%" stopColor="#95d92e" />
+          <stop offset="72%" stopColor="#63bb12" />
+          <stop offset="100%" stopColor="#3d8c05" />
         </radialGradient>
-        <radialGradient id="sg-ball" cx="32%" cy="26%" r="75%">
-          <stop offset="0%" stopColor="#ecfaff" />
-          <stop offset="50%" stopColor="#86d3ef" />
-          <stop offset="100%" stopColor="#2f9ec9" />
+        <radialGradient id="sg-limb" cx="35%" cy="25%" r="85%">
+          <stop offset="0%" stopColor="#9ade36" />
+          <stop offset="100%" stopColor="#4a9a08" />
         </radialGradient>
-        <linearGradient id="sg-leaf" x1="10%" y1="90%" x2="90%" y2="10%">
-          <stop offset="0%" stopColor="#4a9410" />
-          <stop offset="100%" stopColor="#a3e055" />
+        <radialGradient id="sg-bead" cx="32%" cy="26%" r="78%">
+          <stop offset="0%" stopColor="#eafaff" />
+          <stop offset="42%" stopColor="#8fd8f2" />
+          <stop offset="100%" stopColor="#2790c4" />
+        </radialGradient>
+        <linearGradient id="sg-leaf" x1="12%" y1="92%" x2="88%" y2="8%">
+          <stop offset="0%" stopColor="#2f7d10" />
+          <stop offset="55%" stopColor="#57ab1c" />
+          <stop offset="100%" stopColor="#8ccc42" />
         </linearGradient>
       </defs>
 
-      {/* 바닥 그림자 — 캐릭터가 떠 보이지 않게 잡아준다. */}
-      <ellipse cx="100" cy="187" rx="44" ry="7.5" fill="#111827" opacity="0.13" />
+      {/* 바닥 그림자 — 원화처럼 오른쪽으로 살짝 흘린다. */}
+      <ellipse cx="105" cy="192" rx="41" ry="6.5" fill="#1f2937" opacity="0.17" />
 
-      {/* 잎사귀: 몸통 뒤에서 오른쪽으로 뻗는다. */}
+      {/* 잎사귀: 몸통 오른쪽에서 위로 뻗는다. 몸통보다 뒤에 둬야 겹침이 자연스럽다. */}
       <g>
         <path
-          d="M136 108 C150 86 174 80 192 84 C188 108 166 124 138 116 Z"
+          d="M130 122 C132 96 152 70 186 58 C186 96 168 124 142 131 C136 132 131 129 130 122 Z"
           fill="url(#sg-leaf)"
         />
         <path
-          d="M141 113 C157 106 174 97 189 86"
+          d="M136 126 C146 108 162 86 183 63"
           fill="none"
-          stroke="#3d7d0c"
+          stroke="#24660b"
           strokeWidth="2.4"
           strokeLinecap="round"
-          opacity="0.55"
+          opacity="0.45"
         />
       </g>
 
-      {/* 뒤쪽 다리(걷는 자세라 살짝 뒤에 둔다) */}
-      <rect x="74" y="152" width="21" height="30" rx="10.5" fill="#4a9410" />
-      {/* 왼팔 */}
+      {/* 뒤쪽 팔·다리는 몸통 뒤에 깔아 걷는 자세를 만든다. */}
       <path
-        d="M62 116 C46 116 36 127 39 139 C50 143 60 135 66 125 Z"
-        fill="#5aa518"
+        d="M74 122 C58 126 44 138 41 152 C40 158 46 161 51 157 C60 149 69 138 78 130 Z"
+        fill="#4f9e0a"
       />
+      <rect x="73" y="150" width="26" height="36" rx="13" fill="#4a9608" />
 
-      {/* 몸통 + 머리 (한 덩어리) */}
+      {/* 몸통 + 머리 한 덩어리. 머리가 크고 몸이 살짝 좁은 조롱박 실루엣. */}
       <path
-        d="M100 28
-           C126 28 147 49 147 75
-           C147 92 139 106 127 115
-           C136 123 141 134 141 145
-           C141 160 123 170 100 170
-           C77 170 59 160 59 145
-           C59 134 64 123 73 115
-           C61 106 53 92 53 75
-           C53 49 74 28 100 28 Z"
+        d="M100 24
+           C129 24 149 47 149 75
+           C149 94 140 108 127 116
+           C133 123 136 133 135 143
+           C133 158 119 166 100 166
+           C81 166 67 158 65 143
+           C64 133 67 123 73 116
+           C60 108 51 94 51 75
+           C51 47 71 24 100 24 Z"
         fill="url(#sg-body)"
       />
 
-      {/* 머리 위 작은 뿔 */}
-      <path d="M70 41 C63 27 71 18 82 24 C82 32 77 38 70 41 Z" fill="#6cbb22" />
+      {/* 머리 위 뿔 — 원화의 왼쪽 뾰족한 돌기. */}
+      <path d="M71 36 C61 22 68 11 80 18 C81 27 78 33 71 36 Z" fill="#7ac71c" />
 
-      {/* 앞쪽 다리 */}
-      <rect x="104" y="155" width="23" height="30" rx="11.5" fill="#63b01d" />
-
-      {/* 광택 하이라이트 */}
-      <ellipse
-        cx="80"
-        cy="55"
-        rx="17"
-        ry="12"
-        fill="#ffffff"
-        opacity="0.34"
-        transform="rotate(-28 80 55)"
+      {/* 앞쪽 다리 — 뒤쪽보다 낮고 앞으로 나와 걷는 동작이 된다. */}
+      <rect x="103" y="153" width="27" height="37" rx="13.5" fill="url(#sg-limb)" />
+      {/* 앞쪽 팔 */}
+      <path
+        d="M126 124 C140 130 149 141 150 152 C150 158 144 160 140 155 C133 147 127 138 122 131 Z"
+        fill="url(#sg-limb)"
       />
 
-      {/* 머리 위 물방울 구슬 — 삼공이의 식별 포인트 */}
-      <circle cx="131" cy="35" r="15" fill="url(#sg-ball)" />
-      <ellipse cx="126" cy="29" rx="5" ry="3.4" fill="#ffffff" opacity="0.75" transform="rotate(-30 126 29)" />
+      {/* 광택 — 큰 덩어리 하나와 작고 밝은 점 하나로 유약 바른 느낌을 낸다. */}
+      <ellipse
+        cx="77"
+        cy="53"
+        rx="19"
+        ry="13"
+        fill="#ffffff"
+        opacity="0.34"
+        transform="rotate(-30 77 53)"
+      />
+      <ellipse
+        cx="70"
+        cy="46"
+        rx="7"
+        ry="4.5"
+        fill="#ffffff"
+        opacity="0.6"
+        transform="rotate(-30 70 46)"
+      />
 
-      {/* 얼굴 */}
-      <g fill="#173a0c">
-        <ellipse cx="85" cy="76" rx="5.4" ry="7" />
-        <ellipse cx="113" cy="76" rx="5.4" ry="7" />
+      {/* 머리 위 물방울 구슬 — 삼공이의 식별 포인트. */}
+      <circle cx="133" cy="37" r="16" fill="url(#sg-bead)" />
+      <ellipse
+        cx="127"
+        cy="30"
+        rx="5.5"
+        ry="3.6"
+        fill="#ffffff"
+        opacity="0.8"
+        transform="rotate(-32 127 30)"
+      />
+
+      {/* 얼굴 — 큰 눈 두 개와 넓고 순한 미소. */}
+      <g fill="#12300a">
+        <ellipse cx="84" cy="78" rx="6.2" ry="8" />
+        <ellipse cx="114" cy="78" rx="6.2" ry="8" />
       </g>
-      <circle cx="86.8" cy="73.4" r="1.8" fill="#ffffff" opacity="0.9" />
-      <circle cx="114.8" cy="73.4" r="1.8" fill="#ffffff" opacity="0.9" />
+      <circle cx="86" cy="74.6" r="2" fill="#ffffff" opacity="0.92" />
+      <circle cx="116" cy="74.6" r="2" fill="#ffffff" opacity="0.92" />
       <path
-        d="M89 92 Q100 102 111 92"
+        d="M83 94 Q99 106 115 94"
         fill="none"
-        stroke="#173a0c"
-        strokeWidth="3.2"
+        stroke="#12300a"
+        strokeWidth="3.4"
         strokeLinecap="round"
       />
     </svg>
