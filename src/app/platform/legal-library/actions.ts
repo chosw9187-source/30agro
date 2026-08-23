@@ -7,8 +7,12 @@ import { requireRole } from "@/lib/auth-helpers";
 import { checkModuleAccess } from "@/lib/permissions";
 import { extractRegulationText, detectFileType } from "@/lib/regulation-extract";
 import { parseRegulation, type ParsedArticle } from "@/lib/regulation-parse";
+import {
+  findArticleRows,
+  findMatchIndex,
+  stripSpaces,
+} from "@/lib/regulation-search";
 
-const SEARCH_RESULT_LIMIT = 50;
 const SNIPPET_LENGTH = 160;
 
 export type RegulationUploadResult = {
@@ -188,41 +192,21 @@ export type ArticleSearchHit = {
 };
 
 /**
- * 조문 검색. 한국어는 Postgres 기본 전문검색 사전이 없어 형태소 분석이
- * 안 되므로, 조문 제목·본문·조 번호에 대한 부분일치로 간다. 규정 전체가
- * 수천 조 규모라 인덱스 없이도 응답이 충분히 빠르다.
+ * 조문 검색. 실제 조회와 순수 계산은 lib/regulation-search에 있다 —
+ * "use server" 파일은 async 함수만 내보낼 수 있어 여기 두면 테스트에서
+ * 부를 수가 없다.
  */
 export async function searchArticles(query: string): Promise<ArticleSearchHit[]> {
   if (!(await checkModuleAccess("LEGAL_LIBRARY"))) return [];
 
-  const q = query.trim();
-  if (q.length < 2) return [];
+  const needle = stripSpaces(query);
+  if (needle.length < 2) return [];
 
-  const hits = await prisma.regulationArticle.findMany({
-    where: {
-      regulation: { isActive: true },
-      OR: [
-        { title: { contains: q, mode: "insensitive" } },
-        { body: { contains: q, mode: "insensitive" } },
-        { label: { contains: q } },
-        { chapter: { contains: q, mode: "insensitive" } },
-      ],
-    },
-    select: {
-      id: true,
-      label: true,
-      title: true,
-      chapter: true,
-      body: true,
-      regulation: { select: { title: true } },
-    },
-    orderBy: [{ regulationId: "asc" }, { order: "asc" }],
-    take: SEARCH_RESULT_LIMIT,
-  });
+  const hits = await findArticleRows(needle);
 
   return hits.map((hit) => {
     // 본문 첫머리 대신 검색어 주변을 보여줘야 왜 걸렸는지 알 수 있다.
-    const at = hit.body.toLowerCase().indexOf(q.toLowerCase());
+    const at = findMatchIndex(hit.body, needle);
     const from = at < 0 ? 0 : Math.max(0, at - 40);
     // 표 행의 칸 구분 문자는 미리보기에서 노이즈라 공백으로 편다.
     const snippet = hit.body
@@ -231,7 +215,7 @@ export async function searchArticles(query: string): Promise<ArticleSearchHit[]>
 
     return {
       id: hit.id,
-      regulationTitle: hit.regulation.title,
+      regulationTitle: hit.regulationTitle,
       label: hit.label,
       title: hit.title,
       chapter: hit.chapter,

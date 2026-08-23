@@ -42,6 +42,8 @@ export function UserOverrideForm({
       <p className="mb-3 text-xs text-slate-500">
         직책 기본값({POSITION_LABEL[userPosition]}의 권한 매트릭스 설정)을 그대로 쓰려면
         &quot;직책 기본값&quot;을 선택하세요. 그 외 값을 선택하면 직책 기본값보다 우선 적용됩니다.
+        단, 인사카드 상세 열람은 직책별 상한을 넘지 못해서 여기서 넓게 잡아도
+        {" "}{POSITION_LABEL[userPosition]}의 상한까지만 열립니다.
       </p>
       <form action={formAction} className="flex flex-col gap-2">
         {MODULES.filter((m) => !ADMIN_ONLY_MODULES.has(m)).map((m) => (

@@ -29,7 +29,7 @@ export default async function EmployeeDetailPage({
             접근 권한 없음
           </span>
           <p className="text-slate-500">
-            이 직원의 상세 정보는 본인, 임원급, 인사팀, 또는 같은 팀의
+            이 직원의 상세 정보는 본인, 임원급, 인사팀 또는 같은 팀의
             팀장만 볼 수 있습니다.
           </p>
         </div>
