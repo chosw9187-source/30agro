@@ -329,68 +329,92 @@ export default async function Evaluation2Page({
 
   // ---- 상단 고정 전사목표 표 ---------------------------------------------
 
+  /**
+   * 화면 맨 위에 늘 붙어 있는 얇은 바. 탭·평가 연도(사이클)·종합 달성률만
+   * 담아 높이를 최소로 줄인다 — 여기에 전사목표 표까지 붙여 두면 고정 영역이
+   * 화면의 절반을 먹어서 아래 내용이 가려진다.
+   */
+  function topBar() {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-t-xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
+        <h1 className="text-sm font-bold whitespace-nowrap text-slate-900">
+          {cycle ? `${cycle.year}년 전사 목표` : "목표관리"}
+        </h1>
+
+        <nav className="flex flex-wrap gap-1.5 text-xs">
+          {TABS.map((t) => (
+            <Link
+              key={t.key}
+              href={buildHref({ tab: t.key })}
+              className={`rounded-full px-3 py-1 transition-colors ${
+                tab === t.key
+                  ? "bg-brand-green text-white"
+                  : "border border-slate-300 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {t.label}
+            </Link>
+          ))}
+        </nav>
+
+        {cycles.length > 0 && cycle && (
+          <CycleSelect
+            value={cycle.id}
+            options={cycles.map((c) => ({
+              value: c.id,
+              label: `${c.name} (${GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]})`,
+            }))}
+          />
+        )}
+
+        <div className="ml-auto flex items-center gap-3 whitespace-nowrap">
+          <span className="text-[11px] text-slate-500">전사 종합</span>
+          <span className="text-xl leading-none font-semibold tabular-nums text-slate-900">
+            {overallProgress}
+            <span className="ml-0.5 text-xs font-normal text-slate-400">%</span>
+          </span>
+          {/* 바 높이를 한 줄로 유지하려고 라벨과 값을 가로로 붙인다. */}
+          <dl className="hidden items-center gap-2.5 text-xs text-slate-500 sm:flex">
+            <div className="flex items-center gap-1">
+              <dt>목표</dt>
+              <dd className="font-semibold text-slate-800">{allNodes.length}</dd>
+            </div>
+            <div className="flex items-center gap-1">
+              <dt>완료</dt>
+              <dd className="font-semibold text-slate-800">{doneCount}</dd>
+            </div>
+            <div className="flex items-center gap-1">
+              <dt>지연</dt>
+              <dd
+                className={`font-semibold ${
+                  overdueCount > 0 ? "text-status-critical" : "text-slate-800"
+                }`}
+              >
+                {overdueCount}
+              </dd>
+            </div>
+            {excludedCount > 0 && (
+              <div className="flex items-center gap-1">
+                <dt>제외</dt>
+                <dd className="font-semibold text-slate-400">{excludedCount}</dd>
+              </div>
+            )}
+          </dl>
+        </div>
+      </div>
+    );
+  }
+
   function companyGoalBoard() {
     return (
-      <section className={`${CARD_CLASS} overflow-hidden`}>
-        <div className="flex flex-wrap items-end justify-between gap-4 px-5 pt-3 pb-2">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-brand-green">
-              전사목표
-            </p>
-            <h1 className="mt-0.5 text-lg font-bold text-slate-900">
-              {cycle ? `${cycle.year}년 조직 목표` : "목표관리"}
-              <span className="ml-2 text-sm font-normal text-slate-400">
-                {cycle?.name}
-              </span>
-            </h1>
-          </div>
-
-          <div className="flex items-end gap-5">
-            <div className="text-right">
-              <p className="text-[11px] font-medium whitespace-nowrap text-slate-500">전사 종합 달성률</p>
-              <p className="text-3xl leading-none font-semibold text-slate-900">
-                {overallProgress}
-                <span className="ml-0.5 text-lg font-normal text-slate-400">%</span>
-              </p>
-            </div>
-            <dl className="hidden gap-4 text-right sm:flex">
-              <div>
-                <dt className="text-[11px] text-slate-500">목표</dt>
-                <dd className="text-base font-semibold text-slate-800">{allNodes.length}</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] text-slate-500">완료</dt>
-                <dd className="text-base font-semibold text-slate-800">{doneCount}</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] text-slate-500">지연</dt>
-                <dd
-                  className={`text-base font-semibold ${
-                    overdueCount > 0 ? "text-status-critical" : "text-slate-800"
-                  }`}
-                >
-                  {overdueCount}
-                </dd>
-              </div>
-              {excludedCount > 0 && (
-                <div>
-                  <dt className="text-[11px] text-slate-500">집계 제외</dt>
-                  <dd className="text-base font-semibold text-slate-400">{excludedCount}</dd>
-                </div>
-              )}
-            </dl>
-            {cycles.length > 0 && cycle && (
-              <CycleSelect
-                value={cycle.id}
-                options={cycles.map((c) => ({
-                  value: c.id,
-                  label: `${c.name} (${GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]})`,
-                }))}
-              />
-            )}
-          </div>
-        </div>
-
+      <section className="overflow-hidden rounded-b-xl border-x border-b border-slate-200 bg-white shadow-sm">
+        {/* 표와 안내문을 통째로 접을 수 있게 한다. 접으면 고정 영역이 바 한 줄로
+            줄어들어 아래 내용이 전혀 가려지지 않는다. */}
+        <details open>
+          <summary className="flex cursor-pointer items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-1.5 text-xs text-slate-600 hover:bg-slate-100">
+            <span className="font-medium">전사 목표 {companyGoals.length}건</span>
+            <span className="text-slate-400">· 눌러서 접기 / 펼치기</span>
+          </summary>
         {companyGoals.length === 0 ? (
           <div className="border-t border-slate-200 px-5 py-6">
             <p className="text-sm text-slate-500">
@@ -421,7 +445,7 @@ export default async function Evaluation2Page({
             )}
           </div>
         ) : (
-          <div className="max-h-[38vh] overflow-auto border-t border-slate-200">
+          <div className="max-h-[26vh] overflow-auto">
             <table className="w-full min-w-[860px] text-sm">
               <thead className="sticky top-0 z-10 bg-slate-100 text-slate-600">
                 <tr>
@@ -489,7 +513,7 @@ export default async function Evaluation2Page({
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
         )}
 
         {(noteLines.length > 0 ||
@@ -539,6 +563,7 @@ export default async function Evaluation2Page({
             )}
           </div>
         )}
+        </details>
       </section>
     );
   }
@@ -1218,26 +1243,12 @@ export default async function Evaluation2Page({
     <div className="flex flex-col gap-5">
       {/* 다른 사람이 목표를 고쳐도 이 화면이 알아서 최신 값을 받아온다. */}
       <AutoRefresh />
-      {/* 전사목표는 어느 탭에 있든 화면 맨 위에 붙어 모두에게 계속 보인다. */}
-      <div className="sticky -top-6 z-20 -mx-4 -mt-6 bg-slate-50 px-4 pt-6 pb-3 md:-top-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
+      {/* 얇은 바(탭·평가 연도·종합 달성률)와 전사 목표 표를 한 덩어리로 고정한다.
+          표는 접을 수 있어서, 아래 내용을 봐야 할 때는 바만 남길 수 있다. */}
+      <div className="sticky -top-6 z-30 -mx-4 -mt-6 bg-slate-50 px-4 pt-6 pb-3 md:-top-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
+        {topBar()}
         {companyGoalBoard()}
       </div>
-
-      <nav className="flex flex-wrap gap-2 text-sm">
-        {TABS.map((t) => (
-          <Link
-            key={t.key}
-            href={buildHref({ tab: t.key })}
-            className={`rounded-full px-3.5 py-1.5 transition-colors ${
-              tab === t.key
-                ? "bg-brand-green text-white"
-                : "border border-slate-300 text-slate-600 hover:bg-white"
-            }`}
-          >
-            {t.label}
-          </Link>
-        ))}
-      </nav>
 
       {tab === "dashboard" ? (
         <div className="flex flex-col gap-5">

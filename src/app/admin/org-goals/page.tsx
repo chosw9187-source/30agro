@@ -177,7 +177,7 @@ export default async function OrgGoalsAdminPage({
           <section className={`${CARD_CLASS} p-5`}>
             <div className="flex flex-wrap items-baseline gap-3">
               <h2 className="text-base font-semibold">
-                {cycle.year}년 조직 목표
+                {cycle.year}년 전사 목표
                 <span className="ml-2 text-sm font-normal text-slate-400">{cycle.name}</span>
               </h2>
               <span className="text-xs text-slate-500">
