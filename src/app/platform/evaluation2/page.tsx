@@ -185,11 +185,6 @@ export default async function Evaluation2Page({
 
   const session = await auth();
   const isAdmin = session!.user.role === "ADMIN";
-  const me = await prisma.user.findUnique({
-    where: { id: session!.user.id },
-    select: { name: true },
-  });
-
   const cycles = await prisma.goalCycle.findMany({
     orderBy: [{ year: "desc" }, { startDate: "desc" }],
   });
@@ -314,7 +309,6 @@ export default async function Evaluation2Page({
       (isAdmin || (g.teamId && myTeamIdsForApproval.has(g.teamId)))
   ).length;
   const notAgreedCount = individualGoals.filter((g) => g.agreementStatus !== "AGREED").length;
-  const myGoals = allNodes.filter((g) => g.ownerId === session!.user.id);
   const noteLines = (cycle?.note ?? "")
     .split("\n")
     .map((l) => l.trim())
@@ -368,6 +362,14 @@ export default async function Evaluation2Page({
         )}
 
         <div className="ml-auto flex items-center gap-3 whitespace-nowrap">
+          {isAdmin && (
+            <Link
+              href="/admin/org-goals"
+              className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            >
+              조직 목표 관리
+            </Link>
+          )}
           <span className="text-[11px] text-slate-500">전사 종합</span>
           <span className="text-xl leading-none font-semibold tabular-nums text-slate-900">
             {overallProgress}
@@ -595,6 +597,11 @@ export default async function Evaluation2Page({
             <AgreementBadge status={goal.agreementStatus} />
           )}
           {goal.excluded && <ExcludedBadge reason={goal.excludeReason} />}
+          {goal.ownerId === session!.user.id && (
+            <span className="rounded bg-brand-green-light px-1.5 py-0.5 text-[10px] font-medium text-brand-green-dark">
+              내 목표
+            </span>
+          )}
         </div>
         <div className="mt-1.5">
           <Meter value={goal.rollupProgress} />
@@ -609,6 +616,11 @@ export default async function Evaluation2Page({
   function BoardColumn({ level }: { level: GoalLevel }) {
     let rows = byLevel(level);
     if (focusedIds) rows = rows.filter((g) => focusedIds.has(g.id));
+    // 내가 담당인 목표를 맨 위로 — 화면 높이가 정해져 있어 아래로 밀리면 안 보인다.
+    rows = [...rows].sort((a, b) => {
+      const mine = (g: GoalNode) => (g.ownerId === session!.user.id ? 0 : 1);
+      return mine(a) - mine(b);
+    });
     if (level === "INDIVIDUAL" && !isAdmin) {
       const myTeamIds = new Set(
         teams.filter((t) => t.leaderId === session!.user.id).map((t) => t.id)
@@ -629,11 +641,11 @@ export default async function Evaluation2Page({
           </span>
         </header>
         {rows.length === 0 ? (
-          <p className="px-4 py-8 text-center text-xs text-slate-400">
+          <p className="min-h-0 flex-1 px-4 py-8 text-center text-xs text-slate-400">
             {focusedIds ? "이 갈래에는 없습니다." : `등록된 ${GOAL_LEVEL_LABEL[level]}가 없습니다.`}
           </p>
         ) : (
-          <ul className="max-h-[42vh] divide-y divide-slate-100 overflow-y-auto px-4 py-1">
+          <ul className="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto px-4 py-1">
             {rows.map((g) => (
               <BoardCard key={g.id} goal={g} />
             ))}
@@ -1239,60 +1251,33 @@ export default async function Evaluation2Page({
     );
   }
 
+  const isDashboard = tab === "dashboard";
+
   return (
-    <div className="flex flex-col gap-5">
+    // 대시보드는 화면 높이에 딱 맞춘다. 페이지가 통째로 스크롤되면 아래 세 열이
+    // 고정된 전사 목표 뒤로 밀려 들어가 안 보이게 되므로, 페이지는 스크롤하지
+    // 않고 각 열이 자기 안에서만 스크롤하게 한다. 층별 탭은 목록이 길어질 수
+    // 있어 지금처럼 페이지 스크롤을 그대로 둔다.
+    <div className={`flex flex-col gap-4 ${isDashboard ? "h-full min-h-0" : ""}`}>
       {/* 다른 사람이 목표를 고쳐도 이 화면이 알아서 최신 값을 받아온다. */}
       <AutoRefresh />
-      {/* 얇은 바(탭·평가 연도·종합 달성률)와 전사 목표 표를 한 덩어리로 고정한다.
-          표는 접을 수 있어서, 아래 내용을 봐야 할 때는 바만 남길 수 있다. */}
-      <div className="sticky -top-6 z-30 -mx-4 -mt-6 bg-slate-50 px-4 pt-6 pb-3 md:-top-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
+      {/* 얇은 바(탭·평가 연도·종합 달성률)와 전사 목표 표. 표는 접을 수 있다. */}
+      <div
+        className={
+          isDashboard
+            ? "shrink-0"
+            : "sticky -top-6 z-30 -mx-4 -mt-6 bg-slate-50 px-4 pt-6 pb-3 md:-top-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8"
+        }
+      >
         {topBar()}
         {companyGoalBoard()}
       </div>
 
-      {tab === "dashboard" ? (
-        <div className="flex flex-col gap-5">
-          <div className="grid gap-4 lg:grid-cols-3">
-            {BOARD_LEVELS.map((level) => (
-              <BoardColumn key={level} level={level} />
-            ))}
-          </div>
-
-          <section className={`${CARD_CLASS} p-5`}>
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-base font-semibold">내 목표</h2>
-              <span className="text-xs text-slate-500">
-                {me?.name}님이 담당자로 지정된 목표
-              </span>
-            </div>
-            {myGoals.length === 0 ? (
-              <p className="mt-3 text-sm text-slate-500">담당으로 지정된 목표가 없습니다.</p>
-            ) : (
-              <ul className="mt-3 grid gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
-                {myGoals.map((g) => (
-                  <BoardCard key={g.id} goal={g} />
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {isAdmin && (
-            <section className={`${CARD_CLASS} flex flex-wrap items-center gap-3 p-5`}>
-              <div>
-                <h2 className="text-base font-semibold">조직 목표 · 사이클 관리</h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  맨 위 표의 구분 · 목표 · 지표 · 가중치와 표 하단 안내문, 목표 사이클은
-                  관리자 화면에서 한 번에 고칩니다.
-                </p>
-              </div>
-              <Link
-                href="/admin/org-goals"
-                className={`${PRIMARY_BUTTON_CLASS} ml-auto shrink-0`}
-              >
-                조직 목표 관리 열기 →
-              </Link>
-            </section>
-          )}
+      {isDashboard ? (
+        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-3">
+          {BOARD_LEVELS.map((level) => (
+            <BoardColumn key={level} level={level} />
+          ))}
         </div>
       ) : (
         levelTab(TAB_TO_LEVEL[tab])
