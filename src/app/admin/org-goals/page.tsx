@@ -91,6 +91,9 @@ export default async function OrgGoalsAdminPage({
   const totalWeight = orgGoals.reduce((sum, g) => sum + (g.weight > 0 ? g.weight : 0), 0);
 
   const nextYear = cycles[0]?.year ?? new Date().getFullYear();
+  // 새 사이클은 대개 "내년치 목표설정"을 미리 여는 경우라, 이름과 기간을
+  // 미리 채워 두고 버튼만 누르면 되게 한다.
+  const upcomingYear = Math.max(...cycles.map((c) => c.year), new Date().getFullYear()) + 1;
 
   function cycleHref(id: string) {
     return `/admin/org-goals?cycleId=${id}`;
@@ -481,15 +484,32 @@ export default async function OrgGoalsAdminPage({
             >
               <div className="md:col-span-2">
                 <label className={LABEL_CLASS}>새 사이클명</label>
-                <input name="name" required placeholder={`${nextYear}년 하반기`} className={INPUT_CLASS} />
+                <input
+                  name="name"
+                  required
+                  defaultValue={`${upcomingYear}년 목표설정`}
+                  className={INPUT_CLASS}
+                />
               </div>
               <div>
                 <label className={LABEL_CLASS}>시작일</label>
-                <input type="date" name="startDate" required className={INPUT_CLASS} />
+                <input
+                  type="date"
+                  name="startDate"
+                  required
+                  defaultValue={`${upcomingYear}-01-01`}
+                  className={INPUT_CLASS}
+                />
               </div>
               <div>
                 <label className={LABEL_CLASS}>종료일</label>
-                <input type="date" name="endDate" required className={INPUT_CLASS} />
+                <input
+                  type="date"
+                  name="endDate"
+                  required
+                  defaultValue={`${upcomingYear}-12-31`}
+                  className={INPUT_CLASS}
+                />
               </div>
               <div className="md:col-span-4">
                 <button type="submit" className={PRIMARY_BUTTON_CLASS}>

@@ -10,7 +10,6 @@ import {
   GOAL_AGREEMENT_BADGE_CLASS,
   GOAL_AGREEMENT_LABEL,
   GOAL_CYCLE_STATUS_LABEL,
-  GOAL_LEVELS,
   GOAL_LEVEL_LABEL,
   GOAL_LEVEL_RAMP,
   GOAL_LEVEL_RAMP_BORDER,
@@ -52,20 +51,26 @@ import { AutoRefresh } from "@/components/auto-refresh";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * 탭에는 전사목표를 두지 않는다. 전사 목표는 어느 탭에서든 화면 위에 표로
+ * 늘 떠 있고, 편집은 관리자 화면(조직 목표 관리)에서 하기 때문에 탭까지
+ * 두면 같은 걸 세 군데서 보게 된다.
+ */
+const TAB_LEVELS: GoalLevel[] = ["DIVISION", "TEAM", "INDIVIDUAL"];
+
 const TABS = [
   { key: "dashboard", label: "대시보드" },
-  ...GOAL_LEVELS.map((level) => ({ key: level.toLowerCase(), label: GOAL_LEVEL_LABEL[level] })),
+  ...TAB_LEVELS.map((level) => ({ key: level.toLowerCase(), label: GOAL_LEVEL_LABEL[level] })),
 ] as const;
 
 const TAB_TO_LEVEL: Record<string, GoalLevel> = {
-  company: "COMPANY",
   division: "DIVISION",
   team: "TEAM",
   individual: "INDIVIDUAL",
 };
 
-/** 대시보드 하단 보드에 한 줄로 나란히 세우는 층. 전사목표는 상단 고정이라 뺀다. */
-const BOARD_LEVELS: GoalLevel[] = ["DIVISION", "TEAM", "INDIVIDUAL"];
+/** 대시보드에 달성률 요약 카드로 세우는 층. */
+const DASHBOARD_LEVELS: GoalLevel[] = ["COMPANY", "DIVISION", "TEAM", "INDIVIDUAL"];
 
 const INPUT_CLASS =
   "w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-green focus:outline-none";
@@ -100,6 +105,51 @@ function Meter({ value, size = "sm" }: { value: number; size?: "sm" | "md" }) {
         style={{ width: `${clamped}%` }}
       />
     </div>
+  );
+}
+
+/**
+ * 달성률 도넛. 채움은 브랜드 초록 한 색(크기 = 값), 트랙은 같은 초록의 옅은
+ * 단계다 — 막대와 같은 규칙이라 화면 안에서 색이 따로 놀지 않는다. 값에 따라
+ * 색을 바꾸지 않는 이유도 같다: 호의 길이가 이미 값을 보여준다.
+ */
+function ProgressDonut({ value, size = 132, stroke = 13 }: { value: number; size?: number; stroke?: number }) {
+  const v = Math.min(100, Math.max(0, value));
+  const r = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * r;
+  const filled = (v / 100) * circumference;
+  const center = size / 2;
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      role="img"
+      aria-label={`달성률 ${v}퍼센트`}
+    >
+      <circle
+        cx={center}
+        cy={center}
+        r={r}
+        fill="none"
+        stroke="var(--color-brand-green-light)"
+        strokeWidth={stroke}
+      />
+      {v > 0 && (
+        <circle
+          cx={center}
+          cy={center}
+          r={r}
+          fill="none"
+          stroke="var(--color-brand-green)"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={`${filled} ${circumference - filled}`}
+          transform={`rotate(-90 ${center} ${center})`}
+        />
+      )}
+    </svg>
   );
 }
 
@@ -294,7 +344,10 @@ export default async function Evaluation2Page({
   function buildHref(next: { tab?: string; focus?: string | null; edit?: string | null }) {
     const qs = new URLSearchParams();
     qs.set("tab", next.tab ?? tab);
-    if (cycle) qs.set("cycleId", cycle.id);
+    // 사용자가 실제로 고른 인사평가만 URL에 남긴다. 기본값으로 잡아둔 사이클을
+    // 여기서 붙이면, 탭을 누르는 순간 "인사평가 선택" 상태가 돼 목표관리 화면이
+    // 빈 평가 화면으로 바뀌어 버린다.
+    if (selectedCycleId) qs.set("cycleId", selectedCycleId);
     const focus = next.focus === undefined ? params.focus : next.focus;
     if (focus) qs.set("focus", focus);
     const edit = next.edit === undefined ? undefined : next.edit;
@@ -495,9 +548,13 @@ export default async function Evaluation2Page({
                       </td>
                       <td className="px-4 py-2">
                         <Link
-                          href={buildHref({ tab: "dashboard", focus: focused ? null : g.id })}
+                          href={
+                            focused
+                              ? buildHref({ focus: null })
+                              : buildHref({ tab: "division", focus: g.id })
+                          }
                           className="group flex items-start gap-1.5"
-                          title={focused ? "전체 보기" : "이 목표의 하위 목표만 보기"}
+                          title={focused ? "전체 보기" : "이 목표에 달린 책임목표만 보기"}
                         >
                           <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-400" />
                           <span className="font-medium text-slate-800 group-hover:text-brand-green-dark group-hover:underline">
@@ -580,7 +637,7 @@ export default async function Evaluation2Page({
             </div>
             {focusGoal && (
               <Link
-                href={buildHref({ tab: "dashboard", focus: null })}
+                href={buildHref({ focus: null })}
                 className="shrink-0 rounded-full border border-brand-green px-3 py-1 text-xs font-medium text-brand-green-dark hover:bg-brand-green-light"
               >
                 「{focusGoal.title}」 갈래만 보는 중 · 전체 보기 ✕
@@ -595,96 +652,77 @@ export default async function Evaluation2Page({
 
   // ---- 한 줄 보드: 책임 · 팀 · 개인 ---------------------------------------
 
-  function BoardCard({ goal }: { goal: GoalNode }) {
-    const level = goal.level as GoalLevel;
-    const parent = goal.parentId ? nodeById.get(goal.parentId) : null;
-    return (
-      <li
-        className={`border-l-2 py-2.5 pl-3 ${GOAL_LEVEL_RAMP_BORDER[level]} ${
-          goal.status === "DROPPED" || goal.excluded ? "opacity-50" : ""
-        }`}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <p className="min-w-0 text-sm font-medium text-slate-800">{goal.title}</p>
-          <span className="shrink-0 text-sm font-semibold tabular-nums text-slate-700">
-            {goal.rollupProgress}%
-          </span>
-        </div>
-        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
-          <span className="font-medium text-slate-600">{scopeText(goal)}</span>
-          {goal.weight > 0 && <span>가중치 {goal.weight}%</span>}
-          {goal.dueDate && <span>~{formatKSTDate(goal.dueDate)}</span>}
-          <StatusBadge status={goal.status} />
-          {isOverdue(goal, now) && <OverdueBadge />}
-          {needsAgreement(goal.level) && goal.agreementStatus !== "AGREED" && (
-            <AgreementBadge status={goal.agreementStatus} />
-          )}
-          {goal.excluded && <ExcludedBadge reason={goal.excludeReason} />}
-          {goal.ownerId === session!.user.id && (
-            <span className="rounded bg-brand-green-light px-1.5 py-0.5 text-[10px] font-medium text-brand-green-dark">
-              내 목표
-            </span>
-          )}
-        </div>
-        <div className="mt-1.5">
-          <Meter value={goal.rollupProgress} />
-        </div>
-        {parent && (
-          <p className="mt-1 truncate text-[11px] text-slate-400">↖ {parent.title}</p>
-        )}
-      </li>
-    );
-  }
+  function LevelSummaryCard({ level }: { level: GoalLevel }) {
+    const nodes = byLevel(level);
+    const counted = nodes.filter(countsTowardProgress);
+    const done = nodes.filter((g) => g.status === "DONE" && !g.excluded).length;
+    const overdue = nodes.filter((g) => isOverdue(g, now) && !g.excluded).length;
+    // 전사 목표는 사이클 전체를 대표하는 값이라 가중평균, 나머지 층은 그 층에
+    // 속한 목표들의 평균을 쓴다.
+    const percent =
+      level === "COMPANY"
+        ? nodes.length > 0
+          ? weightedProgress(nodes)
+          : 0
+        : averageProgress(nodes);
 
-  function BoardColumn({ level }: { level: GoalLevel }) {
-    let rows = byLevel(level);
-    if (focusedIds) rows = rows.filter((g) => focusedIds.has(g.id));
-    // 내가 담당인 목표를 맨 위로 — 화면 높이가 정해져 있어 아래로 밀리면 안 보인다.
-    rows = [...rows].sort((a, b) => {
-      const mine = (g: GoalNode) => (g.ownerId === session!.user.id ? 0 : 1);
-      return mine(a) - mine(b);
-    });
-    if (level === "INDIVIDUAL" && !isAdmin) {
-      const myTeamIds = new Set(
-        teams.filter((t) => t.leaderId === session!.user.id).map((t) => t.id)
-      );
-      rows = rows.filter(
-        (g) => g.ownerId === session!.user.id || (g.teamId && myTeamIds.has(g.teamId))
-      );
-    }
+    const href =
+      level === "COMPANY" ? "/admin/org-goals" : buildHref({ tab: level.toLowerCase(), focus: null });
+    const linkable = level !== "COMPANY" || isAdmin;
 
-    return (
-      <section className={`${CARD_CLASS} flex min-h-0 flex-col`}>
-        <header className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
+    const body = (
+      <>
+        <div className="flex items-center gap-2">
           <LevelDot level={level} />
           <h2 className="text-sm font-semibold text-slate-800">{GOAL_LEVEL_LABEL[level]}</h2>
-          <span className="text-xs text-slate-400">{rows.length}건</span>
-          <span className="ml-auto text-sm font-semibold tabular-nums text-slate-700">
-            {averageProgress(rows)}%
-          </span>
-        </header>
-        {rows.length === 0 ? (
-          <p className="min-h-0 flex-1 px-4 py-8 text-center text-xs text-slate-400">
-            {focusedIds ? "이 갈래에는 없습니다." : `등록된 ${GOAL_LEVEL_LABEL[level]}가 없습니다.`}
-          </p>
-        ) : (
-          <ul className="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto px-4 py-1">
-            {rows.map((g) => (
-              <BoardCard key={g.id} goal={g} />
-            ))}
-          </ul>
-        )}
-        <Link
-          href={buildHref({ tab: level.toLowerCase(), focus: null })}
-          className="border-t border-slate-200 px-4 py-2 text-xs text-brand-green-dark hover:bg-slate-50"
-        >
-          {GOAL_LEVEL_LABEL[level]} 관리 →
-        </Link>
-      </section>
+        </div>
+
+        <div className="relative mt-4 flex items-center justify-center">
+          <ProgressDonut value={percent} />
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-3xl leading-none font-semibold tabular-nums text-slate-900">
+              {percent}
+              <span className="ml-0.5 text-base font-normal text-slate-400">%</span>
+            </span>
+            <span className="mt-1 text-[11px] text-slate-500">
+              {level === "COMPANY" ? "가중평균" : "평균 달성률"}
+            </span>
+          </div>
+        </div>
+
+        <dl className="mt-4 grid grid-cols-3 gap-1 border-t border-slate-100 pt-3 text-center">
+          <div>
+            <dt className="text-[11px] text-slate-500">전체</dt>
+            <dd className="text-lg font-semibold tabular-nums text-slate-800">{counted.length}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] text-slate-500">완료</dt>
+            <dd className="text-lg font-semibold tabular-nums text-brand-green-dark">{done}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] text-slate-500">지연</dt>
+            <dd
+              className={`text-lg font-semibold tabular-nums ${
+                overdue > 0 ? "text-status-critical" : "text-slate-400"
+              }`}
+            >
+              {overdue}
+            </dd>
+          </div>
+        </dl>
+      </>
+    );
+
+    const className = `${CARD_CLASS} flex flex-col p-5`;
+
+    return linkable ? (
+      <Link href={href} className={`${className} transition-colors hover:border-brand-green`}>
+        {body}
+      </Link>
+    ) : (
+      <div className={className}>{body}</div>
     );
   }
-
-  // ---- 목표 입력 폼 -------------------------------------------------------
 
   function GoalFormFields({
     level,
@@ -1139,6 +1177,8 @@ export default async function Evaluation2Page({
     const parentLevel = GOAL_PARENT_LEVEL[level];
     const parentOptions = parentLevel ? byLevel(parentLevel) : [];
     let rows = byLevel(level);
+    // 전사 목표 표에서 한 줄을 고르면 그 갈래에 속한 목표만 남긴다.
+    if (focusedIds) rows = rows.filter((g) => focusedIds.has(g.id));
 
     if (level === "INDIVIDUAL" && !isAdmin) {
       const myTeamIds = new Set(
@@ -1306,10 +1346,12 @@ export default async function Evaluation2Page({
           <div className="shrink-0">{companyGoalBoard()}</div>
 
           {isDashboard ? (
-            <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-3">
-              {BOARD_LEVELS.map((level) => (
-                <BoardColumn key={level} level={level} />
-              ))}
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {DASHBOARD_LEVELS.map((level) => (
+                  <LevelSummaryCard key={level} level={level} />
+                ))}
+              </div>
             </div>
           ) : (
             // 층별 탭도 목록만 안에서 스크롤시켜, 배너와 전사 목표가 밀려
