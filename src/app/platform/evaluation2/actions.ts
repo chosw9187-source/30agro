@@ -160,7 +160,7 @@ async function canExcludeGoal(goalId: string): Promise<boolean> {
  *
  * `kind`는 두 가지다 — "goal"은 목표의 **내용**(제목·지표·가중치·담당·구조),
  * "progress"는 진척과 합의. 목표를 확정(마감)하면 내용만 잠기고 진척은
- * 계속 올릴 수 있다. 사이클을 종료하면 둘 다 잠긴다.
+ * 계속 올릴 수 있다. 사이클을 완료로 바꾸면 둘 다 잠긴다.
  *
  * 관리자도 통과시키지 않는다. 마감을 눌러 놓고도 관리자만 몰래 고칠 수 있으면
  * "마감"이라는 말이 화면에서 거짓이 된다. 고쳐야 하면 마감을 풀고 고친다.
@@ -207,6 +207,37 @@ export async function createGoalCycle(formData: FormData) {
     data: { name, year, startDate, endDate, status: "OPEN" },
   });
   revalidatePath(PATH);
+}
+
+/**
+ * 인사평가의 이름과 기간을 고친다.
+ *
+ * 이름이 틀렸다고 지웠다 다시 만들면 그 안에 달린 목표가 통째로 사라진다.
+ * 이름은 운영하면서 계속 바뀌는 값이라("2026년 하반기" → "2026년 목표설정")
+ * 고칠 수 있어야 한다.
+ */
+export async function renameGoalCycle(formData: FormData) {
+  await requireGoalModule();
+  if (!(await isAdmin())) throw new Error("인사평가는 관리자만 고칠 수 있습니다.");
+
+  const cycleId = str(formData.get("cycleId"));
+  const name = str(formData.get("name"));
+  if (!cycleId || !name) throw new Error("이름을 적어 주세요.");
+
+  const startDate = parseDate(formData.get("startDate"));
+  const endDate = parseDate(formData.get("endDate"));
+
+  await prisma.goalCycle.update({
+    where: { id: cycleId },
+    data: {
+      name,
+      // 연도는 시작일에서 뽑는다. 사람이 따로 적게 하면 이름과 어긋난 값이 남는다.
+      ...(startDate ? { startDate, year: startDate.getFullYear() } : {}),
+      ...(endDate ? { endDate } : {}),
+    },
+  });
+  revalidatePath(PATH);
+  revalidatePath(ADMIN_PATH);
 }
 
 export async function setGoalCycleStatus(cycleId: string, status: GoalCycleStatus) {
@@ -679,7 +710,7 @@ function requireGoalFields(level: GoalLevel, formData: FormData) {
     ["status", "상태"],
     ["dueDate", "마감일"],
   ];
-  if (level === "DIVISION") need.splice(2, 0, ["division", "책임(부문)"]);
+  if (level === "DIVISION") need.splice(2, 0, ["division", "책임"]);
   if (level === "TEAM" || level === "INDIVIDUAL") need.splice(2, 0, ["teamId", "팀"]);
   // 책임목표에는 가중치·측정지표·단위 칸이 없다 — 화면에 없는 걸 요구하면
   // 저장이 안 되는 이유를 아무도 알 수 없다.
@@ -800,7 +831,7 @@ export async function updateGoal(formData: FormData) {
 
   // 목표 확정(마감) 이후에는 내용은 그대로 두고 진척과 상태만 받는다. 여기서
   // 통째로 막지 않는 이유는, 마감한 뒤에도 "완료" 처리는 계속 해야 하기
-  // 때문이다. 사이클이 종료(CLOSED)되면 그것마저 막힌다.
+  // 때문이다. 사이클이 완료(CLOSED)되면 그것마저 막힌다.
   const cycle = await prisma.goalCycle.findUnique({
     where: { id: existing.cycleId },
     select: { status: true, goalsLockedAt: true },

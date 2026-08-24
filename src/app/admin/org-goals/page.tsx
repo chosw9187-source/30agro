@@ -18,6 +18,7 @@ import {
   deleteGoalCheckpoint,
   deleteGoalCycle,
   lockGoalSetting,
+  renameGoalCycle,
   seedCompanyGoalTemplate,
   setGoalCycleStatus,
   unlockGoalSetting,
@@ -219,7 +220,7 @@ export default async function OrgGoalsAdminPage({
           {lock.message && (
             <div className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-600">
               <span className="font-medium text-slate-800">
-                {cycle.status === "CLOSED" ? "종료됨" : "목표 확정됨"}
+                {cycle.status === "CLOSED" ? "완료됨" : "목표 확정됨"}
               </span>
               <span className="ml-2">{lock.message}</span>
               {cycle.goalsLockedAt && cycle.status !== "CLOSED" && (
@@ -561,12 +562,49 @@ export default async function OrgGoalsAdminPage({
                     c.id === cycle.id ? "border-brand-green bg-brand-green-light" : "border-slate-200"
                   }`}
                 >
-                  <Link href={cycleHref(c.id)} className="font-medium hover:underline">
-                    {c.name}
+                  {/*
+                    이름과 기간을 그 자리에서 고친다. 지웠다 다시 만들면 그 안에
+                    달린 목표가 통째로 사라지는데, 이름은 운영하면서 계속 바뀐다
+                    ("2026년 하반기" → "2026년 목표설정").
+                  */}
+                  <ActionForm
+                    action={renameGoalCycle}
+                    successMessage="저장되었습니다."
+                    className="flex flex-wrap items-center gap-1.5"
+                  >
+                    <input type="hidden" name="cycleId" value={c.id} />
+                    <input
+                      name="name"
+                      defaultValue={c.name}
+                      required
+                      aria-label="인사평가 이름"
+                      className="w-44 rounded-md border border-slate-300 px-2 py-1 text-sm font-medium"
+                    />
+                    <input
+                      type="date"
+                      name="startDate"
+                      defaultValue={toDateInputValue(c.startDate)}
+                      aria-label="시작일"
+                      className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                    />
+                    <span className="text-xs text-slate-400">~</span>
+                    <input
+                      type="date"
+                      name="endDate"
+                      defaultValue={toDateInputValue(c.endDate)}
+                      aria-label="종료일"
+                      className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                    />
+                    <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">
+                      이름·기간 저장
+                    </button>
+                  </ActionForm>
+                  <Link
+                    href={cycleHref(c.id)}
+                    className="text-xs text-brand-green-dark hover:underline"
+                  >
+                    이 사이클 열기
                   </Link>
-                  <span className="text-xs text-slate-500">
-                    {formatKSTDate(c.startDate)} ~ {formatKSTDate(c.endDate)}
-                  </span>
                   <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] text-slate-600">
                     {GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]}
                   </span>
@@ -608,10 +646,10 @@ export default async function OrgGoalsAdminPage({
                     {c.status !== "CLOSED" && (
                       <ActionForm
                         action={setGoalCycleStatus.bind(null, c.id, "CLOSED")}
-                        successMessage="사이클을 종료했습니다."
+                        successMessage="완료로 바꿨습니다."
                       >
                         <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">
-                          종료
+                          완료 처리
                         </button>
                       </ActionForm>
                     )}

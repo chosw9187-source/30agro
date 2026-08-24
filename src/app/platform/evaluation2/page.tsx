@@ -81,11 +81,23 @@ function tabsFor(levels: GoalLevel[]) {
 const DASHBOARD_LEVELS: GoalLevel[] = ["COMPANY", "DIVISION", "TEAM", "INDIVIDUAL"];
 
 /**
- * 조직도에서 끌어오지 못하는 책임(부문). 아래에 팀이 달려 있지 않으면 팀
- * 목록에서 유추할 수가 없어서, 책임목표를 세울 자리 자체가 없어진다.
- * 조직도에 팀이 생기면 그때부터는 자동으로 잡히고 여기서 중복돼도 무해하다.
+ * 책임 목록의 기준 순서. 보고서에 쓰는 순서 그대로다 — 가나다순으로 늘어놓으면
+ * 실제 조직을 아는 사람 눈에는 뒤죽박죽으로 보인다.
+ *
+ * 조직도에 팀이 달려 있지 않은 책임(사업개발 등)은 팀 목록에서 유추할 수가
+ * 없어서 이 목록이 없으면 책임목표를 세울 자리 자체가 사라진다. 그래서 여기
+ * 적힌 것은 조직도에 없더라도 항상 고를 수 있게 둔다. 조직도나 기존 목표에만
+ * 있는 이름은 이 뒤에 가나다순으로 붙는다.
  */
-const EXTRA_DIVISIONS = ["재무경영관리", "사업개발", "기타부서"];
+const DIVISION_ORDER = [
+  "제품기획마케팅",
+  "영업고객관리",
+  "기술연구",
+  "생산",
+  "재무경영관리",
+  "사업개발",
+  "기타부서",
+];
 
 /** 층 식별색. globals.css의 --color-goal-* 와 같은 값을 가리킨다. */
 const LEVEL_COLOR: Record<GoalLevel, string> = {
@@ -403,11 +415,19 @@ export default async function Evaluation2Page({
 
   const divisions = Array.from(
     new Set([
+      ...DIVISION_ORDER,
       ...teams.map((t) => t.division).filter((d): d is string => !!d),
       ...goals.map((g) => g.division).filter((d): d is string => !!d),
-      ...EXTRA_DIVISIONS,
     ])
-  ).sort((a, b) => a.localeCompare(b));
+  ).sort((a, b) => {
+    const ai = DIVISION_ORDER.indexOf(a);
+    const bi = DIVISION_ORDER.indexOf(b);
+    // 기준 순서에 없는 이름은 뒤로 밀고 자기들끼리 가나다순.
+    if (ai === -1 && bi === -1) return a.localeCompare(b);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
 
   const teamOptions = teams.map((t) => ({
     value: t.id,
@@ -529,56 +549,68 @@ export default async function Evaluation2Page({
    * 담아 높이를 최소로 줄인다 — 여기에 전사목표 표까지 붙여 두면 고정 영역이
    * 화면의 절반을 먹어서 아래 내용이 가려진다.
    */
-  function topBar() {
+  /**
+   * 인사평가 선택 줄. 탭보다 위에 따로 둔다 — 어느 해를 보는지가 먼저이고,
+   * 탭은 그 해 안에서 어느 층을 볼지의 문제다. 한 줄에 섞어 두면 둘이 같은
+   * 무게로 보여서 순서가 읽히지 않는다.
+   */
+  function cycleBar() {
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
-        <nav className="flex flex-wrap gap-1.5 text-xs">
-          {TABS.map((t) => (
-            <Link
-              key={t.key}
-              href={buildHref({ tab: t.key })}
-              className={`rounded-full px-3 py-1 transition-colors ${
-                tab === t.key
-                  ? "bg-brand-green text-white"
-                  : "border border-slate-300 text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              {t.label}
-            </Link>
-          ))}
-        </nav>
+        <span className="text-xs font-medium text-slate-500">인사평가</span>
+        {cycles.length > 0 ? (
+          <CycleSelect
+            value={selectedCycleId}
+            options={[
+              { value: "", label: "선택" },
+              ...cycles.map((c) => ({
+                value: c.id,
+                label: `${c.name} (${GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]})`,
+              })),
+            ]}
+          />
+        ) : (
+          <span className="text-xs text-slate-400">등록된 인사평가가 없습니다</span>
+        )}
 
-        <div className="ml-auto flex items-center gap-2 whitespace-nowrap">
-          {isAdmin && (
-            <>
-              <Link
-                href="/admin/org-goals"
-                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
-              >
-                조직 목표 관리
-              </Link>
-              <Link
-                href="/admin/eval-targets"
-                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
-              >
-                평가대상자 관리
-              </Link>
-            </>
-          )}
-          {cycles.length > 0 && (
-            <CycleSelect
-              value={selectedCycleId}
-              options={[
-                { value: "", label: "선택" },
-                ...cycles.map((c) => ({
-                  value: c.id,
-                  label: `${c.name} (${GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]})`,
-                })),
-              ]}
-            />
-          )}
-        </div>
+        {isAdmin && (
+          <div className="ml-auto flex items-center gap-2 whitespace-nowrap">
+            <Link
+              href="/admin/org-goals"
+              className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            >
+              조직 목표 관리
+            </Link>
+            <Link
+              href="/admin/eval-targets"
+              className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+            >
+              평가대상자 관리
+            </Link>
+          </div>
+        )}
       </div>
+    );
+  }
+
+  /** 층 선택 탭. 고른 인사평가 안에서 어느 층을 볼지 정한다. */
+  function tabBar() {
+    return (
+      <nav className="flex flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs shadow-sm">
+        {TABS.map((t) => (
+          <Link
+            key={t.key}
+            href={buildHref({ tab: t.key })}
+            className={`rounded-full px-3 py-1 transition-colors ${
+              tab === t.key
+                ? "bg-brand-green text-white"
+                : "border border-slate-300 text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </nav>
     );
   }
 
@@ -907,7 +939,7 @@ export default async function Evaluation2Page({
 
         {level === "DIVISION" && (
           <div>
-            <label className={LABEL_CLASS}>책임(부문)</label>
+            <label className={LABEL_CLASS}>책임</label>
             <select
               name="division"
               defaultValue={goal?.division ?? ""}
@@ -1510,14 +1542,15 @@ export default async function Evaluation2Page({
       {/* 다른 사람이 목표를 고쳐도 이 화면이 알아서 최신 값을 받아온다. */}
       <AutoRefresh />
 
-      {/* 배너 — 탭과 인사평가 선택. */}
-      {topBar()}
+      {/* 인사평가 선택이 먼저, 층 선택 탭이 그 아래. */}
+      {cycleBar()}
+      {tabBar()}
 
       {/* 마감 안내 — 왜 수정 버튼이 사라졌는지 화면에서 바로 읽히게 한다. */}
       {lock.message && (
         <div className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-600">
           <span className="font-medium text-slate-800">
-            {cycle?.status === "CLOSED" ? "종료됨" : "목표 확정됨"}
+            {cycle?.status === "CLOSED" ? "완료됨" : "목표 확정됨"}
           </span>
           <span className="ml-2">{lock.message}</span>
           {cycle?.goalsLockedAt && cycle.status !== "CLOSED" && (

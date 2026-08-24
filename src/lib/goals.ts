@@ -77,7 +77,8 @@ export type GoalCycleStatus = (typeof GOAL_CYCLE_STATUSES)[number];
 export const GOAL_CYCLE_STATUS_LABEL: Record<GoalCycleStatus, string> = {
   DRAFT: "준비중",
   OPEN: "진행중",
-  CLOSED: "종료",
+  // "종료"가 아니라 "완료" — 이 화면에서 쓰는 말이 그쪽이다.
+  CLOSED: "완료",
 };
 
 /** 화면에서 다루는 목표 한 건의 최소 형태 — Prisma 조회 결과를 그대로 받는다. */
@@ -469,7 +470,7 @@ export type CycleLock = {
  *     목표를 다 세워 합의까지 끝낸 뒤에 목표가 슬그머니 바뀌면 평가의 기준
  *     자체가 흔들리기 때문이다. 진척은 계속 올려야 하므로 같이 막지 않는다.
  *
- *   사이클 종료(status=CLOSED) — 진척까지 잠겨 완전 읽기 전용이 된다.
+ *   사이클 완료(status=CLOSED) — 진척까지 잠겨 완전 읽기 전용이 된다.
  *     평가가 끝난 뒤 숫자가 움직이면 이미 나간 결과와 화면이 어긋난다.
  *
  * 관리자도 예외가 아니다. 마감을 풀어야 고칠 수 있게 해야 "언제 무엇이
@@ -483,7 +484,7 @@ export function cycleLock(
     return {
       canEditGoals: false,
       canEditProgress: false,
-      message: "종료된 인사평가입니다 — 목표와 진척 모두 읽기 전용입니다.",
+      message: "완료된 인사평가입니다 — 목표와 진척 모두 읽기 전용입니다.",
     };
   }
   if (cycle.goalsLockedAt) {
