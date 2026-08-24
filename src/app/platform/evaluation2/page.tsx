@@ -625,10 +625,11 @@ export default async function Evaluation2Page({
           </div>
         </div>
 
-        {/* 표와 안내문을 통째로 접을 수 있게 한다. 층별 목록 탭에서는 기본으로
-            접어 둔다 — 펼친 채로 두면 고정 영역이 400px를 넘어, 화면이 낮은
-            노트북에서는 정작 봐야 할 목록이 200~300px밖에 안 남는다. */}
-        <details open={tab === "dashboard"}>
+        {/* 어느 탭에서든 표를 펼친 채로 연다. 전사 목표는 늘 보이는 게 이 화면의
+            요구사항이라서다. 표 자체가 max-h-[26vh] 안에서만 스크롤되므로 목록이
+            차지할 자리를 무한정 잡아먹지는 않는다. 자리가 더 필요하면 머리글을
+            눌러 접을 수 있다. */}
+        <details open>
           <summary className="flex cursor-pointer items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-1.5 text-xs text-slate-600 hover:bg-slate-100">
             <span className="font-medium">전사 목표 {companyGoals.length}건</span>
             <span className="text-slate-400">· 눌러서 접기 / 펼치기</span>
