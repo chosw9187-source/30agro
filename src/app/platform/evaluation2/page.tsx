@@ -52,6 +52,7 @@ import {
   updateGoal,
 } from "./actions";
 import { CycleSelect } from "./cycle-select";
+import { ScrollCollapse } from "./scroll-collapse";
 import { ActionForm } from "@/components/action-form";
 import { AutoRefresh } from "@/components/auto-refresh";
 
@@ -87,6 +88,9 @@ const LEVEL_COLOR: Record<GoalLevel, string> = {
   TEAM: "var(--color-goal-3)",
   INDIVIDUAL: "var(--color-goal-4)",
 };
+
+/** 목록 스크롤 영역의 id. 전사 목표 표가 이 스크롤을 보고 접힌다. */
+const LIST_SCROLL_ID = "goal-list-scroll";
 
 const INPUT_CLASS =
   "w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-green focus:outline-none";
@@ -617,10 +621,12 @@ export default async function Evaluation2Page({
           </div>
         </div>
 
-        {/* 어느 탭에서든 표를 펼친 채로 연다. 전사 목표는 늘 보이는 게 이 화면의
-            요구사항이라서다. 표 자체가 max-h-[26vh] 안에서만 스크롤되므로 목록이
-            차지할 자리를 무한정 잡아먹지는 않는다. 자리가 더 필요하면 머리글을
-            눌러 접을 수 있다. */}
+        {/* 어느 탭에서든 표를 펼친 채로 연다. 다만 아래 목록을 스크롤하기
+            시작하면 ScrollCollapse가 표를 접어 자리를 내주고, 맨 위로 올리면
+            되돌려 준다 — 펼친 채로 고정해 두면 세로가 짧은 화면에서 정작 봐야
+            할 목록이 잘린다. 머리글(연도 · 전사 종합)은 이 바깥이라 접힌
+            동안에도 계속 보인다. */}
+        <ScrollCollapse targetId={LIST_SCROLL_ID}>
         <details open>
           <summary className="flex cursor-pointer items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-1.5 text-xs text-slate-600 hover:bg-slate-100">
             <span className="font-medium">전사 목표 {companyGoals.length}건</span>
@@ -771,6 +777,7 @@ export default async function Evaluation2Page({
           </div>
         )}
         </details>
+        </ScrollCollapse>
       </section>
     );
   }
@@ -1518,7 +1525,7 @@ export default async function Evaluation2Page({
           <div className="shrink-0">{companyGoalBoard()}</div>
 
           {isDashboard ? (
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div id={LIST_SCROLL_ID} className="min-h-0 flex-1 overflow-y-auto pr-1">
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {DASHBOARD_LEVELS.map((level) => (
                   <LevelSummaryCard key={level} level={level} />
@@ -1532,7 +1539,11 @@ export default async function Evaluation2Page({
             // key에 탭을 넣어 탭을 옮길 때마다 이 안을 새로 그린다. 안 그러면
             // React가 같은 자리의 등록 폼을 재사용해서, 개인목표에 쳐 넣던
             // 목표명이 팀목표 탭 입력칸에 그대로 남아 있는다.
-            <div key={tab} className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div
+              key={tab}
+              id={LIST_SCROLL_ID}
+              className="min-h-0 flex-1 overflow-y-auto pr-1"
+            >
               {levelTab(TAB_TO_LEVEL[tab])}
             </div>
           )}
