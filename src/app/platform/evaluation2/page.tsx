@@ -80,6 +80,13 @@ function tabsFor(levels: GoalLevel[]) {
 /** 대시보드에 달성률 요약 카드로 세우는 층. */
 const DASHBOARD_LEVELS: GoalLevel[] = ["COMPANY", "DIVISION", "TEAM", "INDIVIDUAL"];
 
+/**
+ * 조직도에서 끌어오지 못하는 책임(부문). 아래에 팀이 달려 있지 않으면 팀
+ * 목록에서 유추할 수가 없어서, 책임목표를 세울 자리 자체가 없어진다.
+ * 조직도에 팀이 생기면 그때부터는 자동으로 잡히고 여기서 중복돼도 무해하다.
+ */
+const EXTRA_DIVISIONS = ["재무경영관리", "사업개발", "기타부서"];
+
 /** 층 식별색. globals.css의 --color-goal-* 와 같은 값을 가리킨다. */
 const LEVEL_COLOR: Record<GoalLevel, string> = {
   COMPANY: "var(--color-goal-1)",
@@ -398,6 +405,7 @@ export default async function Evaluation2Page({
     new Set([
       ...teams.map((t) => t.division).filter((d): d is string => !!d),
       ...goals.map((g) => g.division).filter((d): d is string => !!d),
+      ...EXTRA_DIVISIONS,
     ])
   ).sort((a, b) => a.localeCompare(b));
 
@@ -856,6 +864,8 @@ export default async function Evaluation2Page({
     parentOptions: GoalNode[];
   }) {
     const parentLevel = GOAL_PARENT_LEVEL[level];
+    // 이 사이클이 속한 해의 말일. 마감일 기본값이자 책임목표의 고정값.
+    const yearEnd = `${cycle?.year ?? new Date().getFullYear()}-12-31`;
     return (
       <>
         <div className="md:col-span-2">
@@ -938,30 +948,40 @@ export default async function Evaluation2Page({
           />
         </div>
 
-        <div>
-          <label className={LABEL_CLASS}>가중치(%)</label>
-          <input
-            type="number"
-            name="weight"
-            min={0}
-            max={100}
-            step={1}
-            defaultValue={goal?.weight ?? 0}
-            required={level !== "COMPANY"}
-            className={INPUT_CLASS}
-          />
-        </div>
+        {/*
+          책임목표에는 가중치·측정지표·단위를 두지 않는다. 책임목표는 아래 팀
+          목표가 굴러 올라온 값이라 지표를 따로 적을 일이 없고, 가중치를 비우면
+          가중평균이 형제끼리 동일가중으로 떨어져서 부문 간 비중이 저절로
+          같아진다 — 지금은 그게 맞는 기본값이다.
+        */}
+        {level !== "DIVISION" && (
+          <div>
+            <label className={LABEL_CLASS}>가중치(%)</label>
+            <input
+              type="number"
+              name="weight"
+              min={0}
+              max={100}
+              step={1}
+              defaultValue={goal?.weight ?? 0}
+              required={level !== "COMPANY"}
+              className={INPUT_CLASS}
+            />
+          </div>
+        )}
 
-        <div>
-          <label className={LABEL_CLASS}>측정지표</label>
-          <input
-            name="metric"
-            defaultValue={goal?.metric ?? ""}
-            placeholder="예: 신규 거래처 수"
-            required={level !== "COMPANY"}
-            className={INPUT_CLASS}
-          />
-        </div>
+        {level !== "DIVISION" && (
+          <div>
+            <label className={LABEL_CLASS}>측정지표</label>
+            <input
+              name="metric"
+              defaultValue={goal?.metric ?? ""}
+              placeholder="예: 신규 거래처 수"
+              required={level !== "COMPANY"}
+              className={INPUT_CLASS}
+            />
+          </div>
+        )}
 
         <div>
           <label className={LABEL_CLASS}>목표수준</label>
@@ -984,16 +1004,18 @@ export default async function Evaluation2Page({
           />
         </div>
 
-        <div>
-          <label className={LABEL_CLASS}>단위</label>
-          <input
-            name="unit"
-            defaultValue={goal?.unit ?? ""}
-            placeholder="건, %, 억원"
-            required={level !== "COMPANY"}
-            className={INPUT_CLASS}
-          />
-        </div>
+        {level !== "DIVISION" && (
+          <div>
+            <label className={LABEL_CLASS}>단위</label>
+            <input
+              name="unit"
+              defaultValue={goal?.unit ?? ""}
+              placeholder="건, %, 억원"
+              required={level !== "COMPANY"}
+              className={INPUT_CLASS}
+            />
+          </div>
+        )}
 
         <div>
           <label className={LABEL_CLASS}>달성률(%)</label>
@@ -1026,15 +1048,29 @@ export default async function Evaluation2Page({
           </select>
         </div>
 
+        {/*
+          마감일은 그 해 말일이 기본이다. 목표는 한 해 단위로 세우고 연말에
+          결산하므로, 열에 아홉은 12월 31일을 다시 고르게 된다. 책임목표는
+          아예 연말로 못박는다 — 부문 목표를 연중에 끝내고 마는 일은 없다.
+        */}
         <div>
           <label className={LABEL_CLASS}>마감일</label>
-          <input
-            type="date"
-            name="dueDate"
-            defaultValue={toDateInputValue(goal?.dueDate ?? null)}
-            required={level !== "COMPANY"}
-            className={INPUT_CLASS}
-          />
+          {level === "DIVISION" ? (
+            <>
+              <input type="hidden" name="dueDate" value={yearEnd} />
+              <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-600">
+                {yearEnd} <span className="text-xs text-slate-400">(연말 고정)</span>
+              </p>
+            </>
+          ) : (
+            <input
+              type="date"
+              name="dueDate"
+              defaultValue={toDateInputValue(goal?.dueDate ?? null) || yearEnd}
+              required={level !== "COMPANY"}
+              className={INPUT_CLASS}
+            />
+          )}
         </div>
 
         <div className="md:col-span-2">

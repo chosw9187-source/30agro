@@ -598,6 +598,31 @@ async function ensureOtherGoal(
   return created.id;
 }
 
+/**
+ * 책임목표에는 가중치 칸이 없으므로 0으로 둔다 — 폼에 없는 값을 우연히 0으로
+ * 떨어뜨리는 게 아니라 일부러 0이다. 가중평균은 형제가 전부 0이면 동일가중으로
+ * 떨어지므로, 부문끼리는 비중을 따지지 않고 똑같이 센다는 뜻이 된다.
+ */
+function weightFor(level: GoalLevel, formData: FormData): number {
+  if (level === "DIVISION") return 0;
+  return parseNumber(formData.get("weight"), 0);
+}
+
+/**
+ * 책임목표의 마감일은 그 해 12월 31일로 못박는다. 화면에서도 고정값으로
+ * 보여주지만, 폼을 우회해 서버 액션을 부르면 아무 날짜나 들어올 수 있어서
+ * 여기서 한 번 더 덮어쓴다.
+ */
+async function resolveDueDate(level: GoalLevel, cycleId: string, raw: FormDataEntryValue | null) {
+  if (level !== "DIVISION") return parseDate(raw);
+  const cycle = await prisma.goalCycle.findUnique({
+    where: { id: cycleId },
+    select: { year: true },
+  });
+  const year = cycle?.year ?? new Date().getFullYear();
+  return new Date(`${year}-12-31T00:00:00+09:00`);
+}
+
 /** 기타 사슬을 만들 때 쓸 소속. 부문이 비어 있으면 팀에서 끌어온다. */
 async function resolveOtherScope(scope: { division?: string | null; teamId?: string | null }) {
   let division = scope.division ?? null;
@@ -649,16 +674,18 @@ function requireGoalFields(level: GoalLevel, formData: FormData) {
     ["title", "목표명"],
     ["parentId", `상위 ${GOAL_LEVEL_LABEL[GOAL_PARENT_LEVEL[level]!]}`],
     ["ownerId", level === "INDIVIDUAL" ? "담당자" : "책임자"],
-    ["weight", "가중치"],
-    ["metric", "측정지표"],
     ["targetValue", "목표수준"],
     ["currentValue", "현재수준"],
-    ["unit", "단위"],
     ["status", "상태"],
     ["dueDate", "마감일"],
   ];
   if (level === "DIVISION") need.splice(2, 0, ["division", "책임(부문)"]);
   if (level === "TEAM" || level === "INDIVIDUAL") need.splice(2, 0, ["teamId", "팀"]);
+  // 책임목표에는 가중치·측정지표·단위 칸이 없다 — 화면에 없는 걸 요구하면
+  // 저장이 안 되는 이유를 아무도 알 수 없다.
+  if (level !== "DIVISION") {
+    need.splice(3, 0, ["weight", "가중치"], ["metric", "측정지표"], ["unit", "단위"]);
+  }
   // 책임·팀 목표의 달성률은 하위에서 자동 계산되므로 입력칸 자체가 없다.
   if (level === "INDIVIDUAL") need.push(["progress", "달성률"]);
 
@@ -715,7 +742,7 @@ export async function createGoal(formData: FormData) {
       title,
       description: str(formData.get("description")) || null,
       ...scope,
-      weight: parseNumber(formData.get("weight"), 0),
+      weight: weightFor(level, formData),
       metric: str(formData.get("metric")) || null,
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
@@ -725,7 +752,7 @@ export async function createGoal(formData: FormData) {
         clampProgress(parseNumber(formData.get("progress"), 0))
       ),
       status: asStatus(formData.get("status")),
-      dueDate: parseDate(formData.get("dueDate")),
+      dueDate: await resolveDueDate(level, cycleId, formData.get("dueDate")),
       sortOrder: parseNumber(formData.get("sortOrder"), 0),
       createdById: session.user.id,
     },
@@ -812,7 +839,7 @@ export async function updateGoal(formData: FormData) {
               await resolveOtherScope(scopeFieldsFor(level, formData)),
               session.user.id
             ),
-            weight: parseNumber(formData.get("weight"), 0),
+            weight: weightFor(level, formData),
             sortOrder: parseNumber(formData.get("sortOrder"), 0),
           }
         : {}),
@@ -822,7 +849,7 @@ export async function updateGoal(formData: FormData) {
       unit: str(formData.get("unit")) || null,
       progress: synced.progress,
       status: synced.status,
-      dueDate: parseDate(formData.get("dueDate")),
+      dueDate: await resolveDueDate(level, existing.cycleId, formData.get("dueDate")),
     },
   });
   revalidatePath(PATH);
