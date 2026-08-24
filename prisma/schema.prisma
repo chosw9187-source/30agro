@@ -890,8 +890,6 @@ model GoalCycle {
   startDate DateTime
   endDate   DateTime
   status    GoalCycleStatus @default(DRAFT)
-  /** 전사목표 표 아래에 붙는 안내 문구. 줄바꿈 한 줄이 각주 한 항목. */
-  note      String?
 
   /**
    * 입사일 기준일. 이 날짜 **이후** 입사자는 이번 평가 대상에서 자동으로

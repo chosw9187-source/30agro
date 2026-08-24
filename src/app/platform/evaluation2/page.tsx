@@ -501,13 +501,7 @@ export default async function Evaluation2Page({
       g.agreementStatus === "REQUESTED" &&
       (isAdmin || (g.teamId && myTeamIdsForApproval.has(g.teamId)))
   ).length;
-  const notAgreedCount = individualGoals.filter((g) => g.agreementStatus !== "AGREED").length;
-  // 팀원에게는 "내 목표"라고 말해야 무엇을 하라는 건지 바로 읽힌다.
-  const notAgreedIsMine = individualGoals.every((g) => g.ownerId === session!.user.id);
-  const noteLines = (cycle?.note ?? "")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
+
 
   function canManage(goal: GoalNode): boolean {
     if (isAdmin) return true;
@@ -743,44 +737,29 @@ export default async function Evaluation2Page({
             </div>
         )}
 
-        {(noteLines.length > 0 ||
-          focusGoal ||
-          unlinked.length > 0 ||
-          needsReviewCount > 0 ||
-          notAgreedCount > 0) && (
+        {/*
+          여기 남는 건 "지금 뭔가 어긋나 있고, 이렇게 고치면 된다"는 세 줄뿐이다.
+          설명문·안내문 종류는 전부 뺐다 — 아무도 손댈 게 없는 문장이 표 아래
+          붙어 있으면 읽히지도 않으면서 고정 영역만 먹는다. 세 줄 모두 읽는
+          사람이 실제로 할 수 있는 일일 때만, 그 사람 범위의 건수로만 뜬다.
+        */}
+        {(focusGoal || unlinked.length > 0 || needsReviewCount > 0 || awaitingMyApproval > 0) && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/70 px-5 py-2.5">
-            <div className="text-xs text-slate-500">
-              {noteLines.map((line, i) => (
-                <p key={i}>
-                  {["i)", "ii)", "iii)", "iv)", "v)"][i] ?? "·"} {line}
-                </p>
-              ))}
+            <div className="space-y-1 text-xs text-slate-500">
               {awaitingMyApproval > 0 && (
-                <p className="mt-1 font-medium text-brand-green-dark">
+                <p className="font-medium text-brand-green-dark">
                   합의를 기다리는 개인목표 {awaitingMyApproval}건이 있습니다 — 개인목표 탭에서
                   승인하거나 되돌릴 수 있습니다.
                 </p>
               )}
-              {notAgreedCount > 0 &&
-                (notAgreedIsMine ? (
-                  <p className="mt-1 text-slate-500">
-                    내 개인목표 {notAgreedCount}건이 아직 합의 전입니다 — 개인목표 탭에서 「합의
-                    요청」을 눌러 팀장 승인을 받으세요.
-                  </p>
-                ) : (
-                  <p className="mt-1 text-slate-500">
-                    아직 합의되지 않은 개인목표 {notAgreedCount}건 — 합의가 끝나야 성과평가 대상이
-                    됩니다.
-                  </p>
-                ))}
               {needsReviewCount > 0 && (
-                <p className="mt-1 text-amber-700">
+                <p className="text-amber-700">
                   담당자가 퇴사했거나 부서를 옮긴 목표 {needsReviewCount}건이 아직 집계에 들어
                   있습니다 — 해당 목표에서 「집계 제외」를 눌러 빼실 수 있습니다.
                 </p>
               )}
               {unlinked.length > 0 && (
-                <p className="mt-1 text-status-critical">
+                <p className="text-status-critical">
                   상위 목표에 연결되지 않은 목표 {unlinked.length}건은 전사 달성률에 반영되지
                   않습니다 — 해당 목표를 열어 「상위 목표」를 지정해 주세요.
                 </p>

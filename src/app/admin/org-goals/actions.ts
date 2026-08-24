@@ -141,16 +141,3 @@ export async function deleteOrgGoal(goalId: string) {
   revalidateBoth();
 }
 
-/** 표 아래 안내문. 줄바꿈 한 줄이 i), ii) 한 항목이 된다. */
-export async function saveOrgGoalNote(formData: FormData) {
-  await requireRole("ADMIN");
-
-  const cycleId = str(formData.get("cycleId"));
-  if (!cycleId) return;
-
-  await prisma.goalCycle.update({
-    where: { id: cycleId },
-    data: { note: str(formData.get("note")) || null },
-  });
-  revalidateBoth();
-}

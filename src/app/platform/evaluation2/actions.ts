@@ -264,10 +264,6 @@ export async function seedCompanyGoalTemplate(cycleId: string) {
     })),
   });
 
-  // 안내문은 비워 둔다. 처음에는 보고서 표 아래에 있던 문구("핵심 과제는 내부
-  // 공유 통해…")를 같이 깔았는데, 그건 그 표 한 장에 딸린 그때의 메모지 해마다
-  // 참인 규칙이 아니다. 남겨 두면 아무도 안 고친 채 화면에 계속 붙어 있게 된다.
-  // 필요하면 조직 목표 관리의 「표 하단 안내문」에서 직접 적는다.
   revalidatePath(PATH);
 }
 
@@ -302,8 +298,8 @@ export async function copyGoalsFromCycle(formData: FormData) {
   }
 
   const [source, target] = await Promise.all([
-    prisma.goalCycle.findUnique({ where: { id: sourceCycleId }, select: { id: true, note: true } }),
-    prisma.goalCycle.findUnique({ where: { id: targetCycleId }, select: { id: true, note: true } }),
+    prisma.goalCycle.findUnique({ where: { id: sourceCycleId }, select: { id: true } }),
+    prisma.goalCycle.findUnique({ where: { id: targetCycleId }, select: { id: true } }),
   ]);
   if (!source || !target) throw new Error("사이클을 찾을 수 없습니다.");
 
@@ -356,27 +352,8 @@ export async function copyGoalsFromCycle(formData: FormData) {
     }
   }
 
-  if (!target.note && source.note) {
-    await prisma.goalCycle.update({ where: { id: targetCycleId }, data: { note: source.note } });
-  }
-
   revalidatePath(PATH);
   revalidatePath("/admin/org-goals");
-}
-
-/** 전사목표 표 아래 안내문. 줄바꿈 한 줄이 각주 한 항목이 된다. */
-export async function updateGoalCycleNote(formData: FormData) {
-  await requireGoalModule();
-  if (!(await isAdmin())) throw new Error("안내문은 관리자만 고칠 수 있습니다.");
-
-  const cycleId = str(formData.get("cycleId"));
-  if (!cycleId) return;
-
-  await prisma.goalCycle.update({
-    where: { id: cycleId },
-    data: { note: str(formData.get("note")) || null },
-  });
-  revalidatePath(PATH);
 }
 
 /**
