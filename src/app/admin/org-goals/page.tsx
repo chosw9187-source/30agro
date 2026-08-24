@@ -11,6 +11,7 @@ import {
   type GoalCycleStatus,
 } from "@/lib/goals";
 import {
+  copyGoalsFromCycle,
   createGoalCycle,
   deleteGoalCycle,
   seedCompanyGoalTemplate,
@@ -45,6 +46,8 @@ export default async function OrgGoalsAdminPage({
     orderBy: [{ year: "desc" }, { startDate: "desc" }],
   });
   const cycle = cycles.find((c) => c.id === params.cycleId) ?? cycles[0] ?? null;
+  // 목표를 가져올 수 있는 다른 사이클 — 최근 것부터.
+  const otherCycles = cycles.filter((c) => c.id !== cycle?.id);
 
   const goals = cycle
     ? await prisma.goal.findMany({
@@ -208,6 +211,42 @@ export default async function OrgGoalsAdminPage({
                   제품기획마케팅 · 영업고객관리 · 기술연구 · 생산 · 재무경영관리 5개 구분과 표
                   하단 안내문이 한 번에 들어갑니다.
                 </p>
+
+                {otherCycles.length > 0 && (
+                  <div className="mt-5 border-t border-slate-200 pt-4">
+                    <p className="text-sm text-slate-600">
+                      또는 지난 사이클의 목표 체계를 그대로 가져옵니다.
+                    </p>
+                    <ActionForm
+                      action={copyGoalsFromCycle}
+                      successMessage="목표를 가져왔습니다."
+                      className="mt-3 flex flex-wrap items-center justify-center gap-2"
+                    >
+                      <input type="hidden" name="targetCycleId" value={cycle.id} />
+                      <select
+                        name="sourceCycleId"
+                        defaultValue={otherCycles[0].id}
+                        className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                      >
+                        {otherCycles.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="submit"
+                        className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                      >
+                        이 사이클의 목표 가져오기
+                      </button>
+                    </ActionForm>
+                    <p className="mt-2 text-xs text-slate-500">
+                      전사 · 책임 · 팀 · 개인 목표와 그 연결이 그대로 복사됩니다. 달성률 · 상태 ·
+                      합의 · 기한은 복사하지 않습니다 — 새 사이클은 0%에서 시작해야 합니다.
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="mt-4 flex flex-col gap-3">

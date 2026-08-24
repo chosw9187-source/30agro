@@ -21,13 +21,16 @@ import {
   countsTowardProgress,
   flattenGoalTree,
   asAgreementStatus,
+  canViewGoalRow,
   isAutoCalculated,
   isOverdue,
   needsAgreement,
   ownerFlag,
   toDateInputValue,
+  visibleGoalLevels,
   weightedProgress,
   type GoalCycleStatus,
+  type GoalViewer,
   type GoalLevel,
   type GoalNode,
   type GoalStatus,
@@ -54,20 +57,22 @@ export const dynamic = "force-dynamic";
 /**
  * 탭에는 전사목표를 두지 않는다. 전사 목표는 어느 탭에서든 화면 위에 표로
  * 늘 떠 있고, 편집은 관리자 화면(조직 목표 관리)에서 하기 때문에 탭까지
- * 두면 같은 걸 세 군데서 보게 된다.
+ * 두면 같은 걸 세 군데서 보게 된다. 나머지 세 층 중 어디까지 보이는지는
+ * 보는 사람의 직책이 정한다(visibleGoalLevels) — 팀원에게는 책임목표가
+ * 뜨지 않는다.
  */
-const TAB_LEVELS: GoalLevel[] = ["DIVISION", "TEAM", "INDIVIDUAL"];
-
-const TABS = [
-  { key: "dashboard", label: "대시보드" },
-  ...TAB_LEVELS.map((level) => ({ key: level.toLowerCase(), label: GOAL_LEVEL_LABEL[level] })),
-] as const;
-
 const TAB_TO_LEVEL: Record<string, GoalLevel> = {
   division: "DIVISION",
   team: "TEAM",
   individual: "INDIVIDUAL",
 };
+
+function tabsFor(levels: GoalLevel[]) {
+  return [
+    { key: "dashboard", label: "대시보드" },
+    ...levels.map((level) => ({ key: level.toLowerCase(), label: GOAL_LEVEL_LABEL[level] })),
+  ];
+}
 
 /** 대시보드에 달성률 요약 카드로 세우는 층. */
 const DASHBOARD_LEVELS: GoalLevel[] = ["COMPANY", "DIVISION", "TEAM", "INDIVIDUAL"];
@@ -250,17 +255,46 @@ export default async function Evaluation2Page({
   }
 
   const params = await searchParams;
-  const tab = TABS.some((t) => t.key === params.tab) ? params.tab! : "dashboard";
 
   const session = await auth();
   const isAdmin = session!.user.role === "ADMIN";
+
+  // 보는 사람의 소속·직책. 어떤 탭이 뜨는지, 목록에 어느 조직의 목표가
+  // 들어오는지가 여기서 갈린다.
+  const me = await prisma.user.findUnique({
+    where: { id: session!.user.id },
+    select: {
+      id: true,
+      position: true,
+      teamId: true,
+      businessUnit: true,
+      division: true,
+      team: { select: { businessUnit: true, division: true } },
+      ledTeams: { select: { id: true } },
+    },
+  });
+  const viewer: GoalViewer = {
+    id: session!.user.id,
+    isAdmin,
+    position: me?.position ?? "STAFF",
+    teamId: me?.teamId ?? null,
+    ledTeamIds: (me?.ledTeams ?? []).map((t) => t.id),
+    division: me?.team?.division ?? me?.division ?? null,
+    businessUnit: me?.team?.businessUnit ?? me?.businessUnit ?? null,
+  };
+  const myLevels = visibleGoalLevels(viewer);
+  const TABS = tabsFor(myLevels);
+  // 볼 수 없는 층을 URL로 직접 치고 들어와도 대시보드로 되돌린다.
+  const tab = TABS.some((t) => t.key === params.tab) ? params.tab! : "dashboard";
+
   const cycles = await prisma.goalCycle.findMany({
     orderBy: [{ year: "desc" }, { startDate: "desc" }],
   });
   /**
    * 상단 배너의 인사평가 선택. 아무것도 안 고른 상태("선택")가 기본이고, 그때는
-   * 지금까지의 목표관리 화면(전사 목표 + 책임·팀·개인)을 최신 사이클 기준으로
-   * 보여준다. 특정 인사평가를 고르면 그 평가 전용 화면으로 들어간다.
+   * 오늘이 속한 사이클을 기준으로 보여준다. 특정 인사평가를 고르면 화면 구성은
+   * 그대로 두고 그 사이클의 목표로만 갈아 끼운다 — 고르는 순간 대시보드가
+   * 사라지면 연도만 바꿔 보려던 사람이 갈 곳이 없어진다.
    */
   const pickedCycle = params.cycleId
     ? (cycles.find((c) => c.id === params.cycleId) ?? null)
@@ -281,7 +315,7 @@ export default async function Evaluation2Page({
     prisma.team.findMany({
       where: { active: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, division: true, leaderId: true },
+      select: { id: true, name: true, division: true, businessUnit: true, leaderId: true },
     }),
     prisma.user.findMany({
       where: activePrismaWhere(),
@@ -351,6 +385,23 @@ export default async function Evaluation2Page({
     sublabel: p.team?.name ?? p.division ?? undefined,
   }));
 
+  // 조직도(본부 > 책임 > 팀)를 되짚는 표. 목표에는 팀만 붙어 있어서, 이 사람이
+  // 볼 수 있는 범위인지 따지려면 팀에서 부문·본부로 거슬러 올라가야 한다.
+  const teamById = new Map(teams.map((t) => [t.id, t]));
+  const unitByDivision = new Map<string, string>();
+  for (const t of teams) {
+    if (t.division && t.businessUnit && !unitByDivision.has(t.division)) {
+      unitByDivision.set(t.division, t.businessUnit);
+    }
+  }
+  const org = {
+    teamDivision: (teamId: string) => teamById.get(teamId)?.division ?? null,
+    teamUnit: (teamId: string) => teamById.get(teamId)?.businessUnit ?? null,
+    divisionUnit: (division: string) => unitByDivision.get(division) ?? null,
+  };
+  /** 이 사람에게 목록으로 보여 줄 목표만 남긴다. */
+  const visibleRows = (rows: GoalNode[]) => rows.filter((g) => canViewGoalRow(g, viewer, org));
+
   const editingGoal = params.edit ? nodeById.get(params.edit) ?? null : null;
 
   // 전사목표 한 건을 고르면 아래 세 칸이 그 목표의 갈래만 보여준다 — 한 화면
@@ -411,6 +462,17 @@ export default async function Evaluation2Page({
     return !!team && team.leaderId === session!.user.id;
   }
 
+  /**
+   * 집계 제외는 관리자와 팀장만 — 본인은 못 건다. 진척이 안 나오는 자기
+   * 목표를 스스로 빼면 팀·책임·전사 달성률이 조용히 올라간다.
+   * 서버 액션(setGoalExcluded)도 같은 규칙으로 한 번 더 막는다.
+   */
+  function canExclude(goal: GoalNode): boolean {
+    if (isAdmin) return true;
+    const team = teams.find((t) => t.id === goal.teamId);
+    return !!team && team.leaderId === session!.user.id;
+  }
+
   // ---- 상단 고정 전사목표 표 ---------------------------------------------
 
   /**
@@ -439,12 +501,20 @@ export default async function Evaluation2Page({
 
         <div className="ml-auto flex items-center gap-2 whitespace-nowrap">
           {isAdmin && (
-            <Link
-              href="/admin/org-goals"
-              className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
-            >
-              조직 목표 관리
-            </Link>
+            <>
+              <Link
+                href="/admin/org-goals"
+                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+              >
+                조직 목표 관리
+              </Link>
+              <Link
+                href="/admin/eval-targets"
+                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+              >
+                평가대상자 관리
+              </Link>
+            </>
           )}
           {cycles.length > 0 && (
             <CycleSelect
@@ -933,7 +1003,8 @@ export default async function Evaluation2Page({
     const editable = canManage(goal);
     const isEditing = editingGoal?.id === goal.id;
     const parentLevel = GOAL_PARENT_LEVEL[level];
-    const parentOptions = parentLevel ? byLevel(parentLevel) : [];
+    // 상위 목표 후보도 볼 수 있는 범위 안에서만 고르게 한다.
+    const parentOptions = parentLevel ? visibleRows(byLevel(parentLevel)) : [];
     const flag = ownerFlag(goal, now);
     const agreement = asAgreementStatus(goal.agreementStatus);
     const isOwner = goal.ownerId === session!.user.id;
@@ -1140,7 +1211,7 @@ export default async function Evaluation2Page({
               {isEditing ? "수정 닫기" : "수정"}
             </Link>
           )}
-          {editable && (
+          {canExclude(goal) && (
             <ActionForm
               action={setGoalExcluded.bind(null, goal.id, !goal.excluded)}
               successMessage={goal.excluded ? "집계에 다시 포함했습니다." : "집계에서 제외했습니다."}
@@ -1196,19 +1267,12 @@ export default async function Evaluation2Page({
 
   function levelTab(level: GoalLevel) {
     const parentLevel = GOAL_PARENT_LEVEL[level];
-    const parentOptions = parentLevel ? byLevel(parentLevel) : [];
-    let rows = byLevel(level);
+    // 상위 목표 후보도 볼 수 있는 범위 안에서만 고르게 한다.
+    const parentOptions = parentLevel ? visibleRows(byLevel(parentLevel)) : [];
+    // 직책에 따라 볼 수 있는 조직 범위로 먼저 줄인다(관리자·사장은 전부).
+    let rows = visibleRows(byLevel(level));
     // 전사 목표 표에서 한 줄을 고르면 그 갈래에 속한 목표만 남긴다.
     if (focusedIds) rows = rows.filter((g) => focusedIds.has(g.id));
-
-    if (level === "INDIVIDUAL" && !isAdmin) {
-      const myTeamIds = new Set(
-        teams.filter((t) => t.leaderId === session!.user.id).map((t) => t.id)
-      );
-      rows = rows.filter(
-        (g) => g.ownerId === session!.user.id || (g.teamId && myTeamIds.has(g.teamId))
-      );
-    }
 
     const canCreate =
       isAdmin ||
@@ -1348,40 +1412,21 @@ export default async function Evaluation2Page({
       {/* 배너 — 탭과 인사평가 선택. 어느 화면에서도 맨 위에 그대로 남는다. */}
       <div className="shrink-0">{topBar()}</div>
 
-      {pickedCycle ? (
-        // 인사평가를 고르면 목표관리 화면 대신 그 평가 전용 화면으로 들어간다.
-        // 안에 들어갈 내용(성과·역량·종합평가)은 아직 만들지 않았다.
-        <section className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white">
-          <p className="text-base font-semibold text-slate-700">{pickedCycle.name}</p>
-          <p className="mt-1 text-sm text-slate-500">
-            {formatKSTDate(pickedCycle.startDate)} ~ {formatKSTDate(pickedCycle.endDate)}
-          </p>
-          <p className="mt-4 text-sm text-slate-400">이 인사평가 화면은 준비 중입니다.</p>
-          <p className="mt-1 text-xs text-slate-400">
-            위 선택에서 「선택」으로 되돌리면 목표관리 화면으로 돌아갑니다.
-          </p>
-        </section>
-      ) : (
-        <>
-          {/* 전사 목표 — 배너와 줄을 나눠 그 아래에 놓는다. 표는 접을 수 있다. */}
-          <div className="shrink-0">{companyGoalBoard()}</div>
+      {/* 전사 목표 — 배너와 줄을 나눠 그 아래에 놓는다. 표는 접을 수 있다. */}
+      <div className="shrink-0">{companyGoalBoard()}</div>
 
-          {isDashboard ? (
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {DASHBOARD_LEVELS.map((level) => (
-                  <LevelSummaryCard key={level} level={level} />
-                ))}
-              </div>
-            </div>
-          ) : (
-            // 층별 탭도 목록만 안에서 스크롤시켜, 배너와 전사 목표가 밀려
-            // 올라가 사라지지 않게 한다.
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-              {levelTab(TAB_TO_LEVEL[tab])}
-            </div>
-          )}
-        </>
+      {isDashboard ? (
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {DASHBOARD_LEVELS.map((level) => (
+              <LevelSummaryCard key={level} level={level} />
+            ))}
+          </div>
+        </div>
+      ) : (
+        // 층별 탭도 목록만 안에서 스크롤시켜, 배너와 전사 목표가 밀려
+        // 올라가 사라지지 않게 한다.
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">{levelTab(TAB_TO_LEVEL[tab])}</div>
       )}
     </div>
   );

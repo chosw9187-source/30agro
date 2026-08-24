@@ -130,6 +130,8 @@ model User {
   goalsCreated          Goal[]                 @relation("GoalCreator")
   goalCheckIns          GoalCheckIn[]          @relation("GoalCheckInAuthor")
   goalsAgreed           Goal[]                 @relation("GoalAgreedBy")
+  goalCycleTargets      GoalCycleTarget[]      @relation("GoalCycleTargetUser")
+  goalCycleTargetsSet   GoalCycleTarget[]      @relation("GoalCycleTargetSetter")
 }
 
 model AppointmentRecord {
@@ -890,7 +892,8 @@ model GoalCycle {
   note      String?
   createdAt DateTime        @default(now())
 
-  goals Goal[]
+  goals   Goal[]
+  targets GoalCycleTarget[]
 
   @@index([year])
 }
@@ -983,4 +986,34 @@ model GoalCheckIn {
   createdAt DateTime @default(now())
 
   @@index([goalId, createdAt])
+}
+
+/**
+ * 평가대상자. 사이클마다 "이 사람을 이번 목표관리에 넣는지"를 남긴다.
+ *
+ * 행이 없으면 대상이다 — 재직 중인 사람은 기본적으로 전원 대상이고, 빼야 할
+ * 사람만 included=false 로 행을 만든다. 그래야 입사자가 들어올 때마다 누가
+ * 명단에 넣어주지 않아도 자동으로 대상에 잡힌다.
+ *
+ * 제외로 바꾸면 그 사람이 이 사이클에서 가진 목표의 Goal.excluded 도 같이
+ * 켜서 상위 달성률 집계에서 빠지게 한다 — 명단과 집계가 따로 놀면 "명단에서
+ * 뺐는데 달성률은 그대로"가 된다.
+ */
+model GoalCycleTarget {
+  id      String    @id @default(cuid())
+  cycleId String
+  cycle   GoalCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User      @relation("GoalCycleTargetUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  included Boolean @default(true)
+  /** 제외 사유(퇴사, 부서이동, 휴직 등). 화면과 집계 제외 사유에 같이 쓴다. */
+  reason   String?
+
+  setById String?
+  setBy   User?    @relation("GoalCycleTargetSetter", fields: [setById], references: [id])
+  updatedAt DateTime @updatedAt
+
+  @@unique([cycleId, userId])
+  @@index([cycleId, included])
 }

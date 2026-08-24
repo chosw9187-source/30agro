@@ -122,9 +122,12 @@ export const DEFAULT_COMING_SOON_MODULES = new Set<Module>([
  * 것만으로는 URL을 직접 치고 들어오는 걸 막지 못하므로, 목록 계산
  * (getVisibleModules)과 화면 진입 검사(checkModuleAccess) 양쪽에서 같이
  * 막는다. 서버 액션도 checkModuleAccess를 거치므로 함께 잠긴다.
- * 일반 사용자에게 열어줄 때가 되면 이 목록에서 빼면 된다.
+ *
+ * 지금은 비어 있다 — 평가2(목표관리)를 팀장·팀원까지 열면서 뺐다. 평가2 안의
+ * 층별 노출과 목록 범위는 직책으로 갈리고(lib/goals.ts), 편집 화면
+ * (조직 목표 관리 / 평가대상자 관리)만 관리자로 남는다.
  */
-export const ADMIN_ONLY_MODULES = new Set<Module>(["EVALUATION_V2"]);
+export const ADMIN_ONLY_MODULES = new Set<Module>([]);
 
 export type ModuleUiConfigEntry = { order: number; comingSoon: boolean; hidden: boolean };
 
@@ -139,7 +142,8 @@ export type AdminMenuKey =
   | "PERMISSION_MATRIX"
   | "SCREEN_CONFIG"
   | "TRAFFIC"
-  | "ORG_GOALS";
+  | "ORG_GOALS"
+  | "EVAL_TARGETS";
 
 export const ADMIN_MENU_ITEMS: { key: AdminMenuKey; href: string; label: string }[] = [
   { key: "USERS", href: "/admin/users", label: "사용자 관리" },
@@ -152,6 +156,7 @@ export const ADMIN_MENU_ITEMS: { key: AdminMenuKey; href: string; label: string 
   { key: "SCREEN_CONFIG", href: "/admin/screen-config", label: "화면 구성" },
   { key: "TRAFFIC", href: "/admin/traffic", label: "일일 트래픽" },
   { key: "ORG_GOALS", href: "/admin/org-goals", label: "조직 목표 관리" },
+  { key: "EVAL_TARGETS", href: "/admin/eval-targets", label: "평가대상자 관리" },
 ];
 
 export type HomeBlock = "TEAM_SUMMARY" | "OVERALL_SUMMARY" | "QUICK_LINKS";

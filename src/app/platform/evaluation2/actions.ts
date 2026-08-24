@@ -125,6 +125,25 @@ async function canManageGoal(goalId: string): Promise<boolean> {
   return goal.team?.leaderId === session.user.id;
 }
 
+/**
+ * 집계 제외를 걸 수 있는 사람 — 관리자와 그 팀의 팀장뿐이다.
+ *
+ * 목표를 고칠 권한(canManageGoal)에는 본인도 들어가지만, 제외는 그 목표를
+ * 상위 달성률 계산에서 빼는 일이라 본인에게 맡길 수 없다. 진척이 안 나오는
+ * 목표를 담당자가 스스로 빼 버리면 팀·책임·전사 달성률이 조용히 올라간다.
+ */
+async function canExcludeGoal(goalId: string): Promise<boolean> {
+  const session = await auth();
+  if (!session?.user) return false;
+  if (session.user.role === "ADMIN") return true;
+
+  const goal = await prisma.goal.findUnique({
+    where: { id: goalId },
+    select: { team: { select: { leaderId: true } } },
+  });
+  return !!goal && goal.team?.leaderId === session.user.id;
+}
+
 // --- 목표 사이클 -----------------------------------------------------------
 
 export async function createGoalCycle(formData: FormData) {
@@ -215,6 +234,98 @@ export async function seedCompanyGoalTemplate(cycleId: string) {
     });
   }
   revalidatePath(PATH);
+}
+
+/**
+ * 다른 사이클의 목표를 통째로 이 사이클로 복사한다 — 해마다 목표 체계를 처음부터
+ * 다시 짜지 않도록.
+ *
+ * 복사되는 것: 층·구분·제목·설명·부문/팀/담당자·가중치·지표·목표수준, 그리고
+ * 상하 연결(parentId)까지. 새 부모 id로 갈아 끼워야 하므로 층 순서대로
+ * 만들면서 옛 id → 새 id 대응표를 쌓아간다.
+ *
+ * 복사되지 않는 것: 달성률·상태·체크인 이력·합의 상태·집계 제외. 지난해 성과를
+ * 새해 목표에 얹으면 시작부터 숫자가 거짓이 된다. 기한도 옮기지 않는다 —
+ * 지난 사이클 날짜가 그대로 넘어오면 만드는 즉시 전부 "지연"으로 뜬다.
+ *
+ * 이미 목표가 있는 사이클에는 넣지 않는다. 두 번 눌러 같은 목표가 두 벌
+ * 생기면 가중치 합이 무너져 달성률이 통째로 어긋난다.
+ */
+export async function copyGoalsFromCycle(formData: FormData) {
+  const session = await requireGoalModule();
+  if (!(await isAdmin())) throw new Error("목표 복사는 관리자만 할 수 있습니다.");
+
+  const targetCycleId = str(formData.get("targetCycleId"));
+  const sourceCycleId = str(formData.get("sourceCycleId"));
+  if (!targetCycleId || !sourceCycleId) throw new Error("가져올 사이클을 골라 주세요.");
+  if (targetCycleId === sourceCycleId) throw new Error("같은 사이클끼리는 복사할 수 없습니다.");
+
+  const existing = await prisma.goal.count({ where: { cycleId: targetCycleId } });
+  if (existing > 0) {
+    throw new Error("이미 목표가 있는 사이클입니다. 비운 뒤에 다시 시도해 주세요.");
+  }
+
+  const [source, target] = await Promise.all([
+    prisma.goalCycle.findUnique({ where: { id: sourceCycleId }, select: { id: true, note: true } }),
+    prisma.goalCycle.findUnique({ where: { id: targetCycleId }, select: { id: true, note: true } }),
+  ]);
+  if (!source || !target) throw new Error("사이클을 찾을 수 없습니다.");
+
+  const rows = await prisma.goal.findMany({
+    where: { cycleId: sourceCycleId },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    select: {
+      id: true,
+      level: true,
+      parentId: true,
+      category: true,
+      title: true,
+      description: true,
+      division: true,
+      teamId: true,
+      ownerId: true,
+      weight: true,
+      metric: true,
+      targetValue: true,
+      unit: true,
+      sortOrder: true,
+    },
+  });
+
+  const newIdByOldId = new Map<string, string>();
+  // 위층부터 만들어야 아래층이 붙을 부모의 새 id가 이미 준비돼 있다.
+  for (const level of GOAL_LEVELS) {
+    for (const row of rows.filter((r) => r.level === level)) {
+      const created = await prisma.goal.create({
+        data: {
+          cycleId: targetCycleId,
+          level: row.level,
+          parentId: row.parentId ? (newIdByOldId.get(row.parentId) ?? null) : null,
+          category: row.category,
+          title: row.title,
+          description: row.description,
+          division: row.division,
+          teamId: row.teamId,
+          ownerId: row.ownerId,
+          weight: row.weight,
+          metric: row.metric,
+          targetValue: row.targetValue,
+          unit: row.unit,
+          sortOrder: row.sortOrder,
+          createdById: session.user.id,
+        },
+        select: { id: true },
+      });
+      newIdByOldId.set(row.id, created.id);
+    }
+  }
+
+  if (!target.note && source.note) {
+    await prisma.goalCycle.update({ where: { id: targetCycleId }, data: { note: source.note } });
+  }
+
+  revalidatePath(PATH);
+  revalidatePath("/admin/org-goals");
 }
 
 /** 전사목표 표 아래 안내문. 줄바꿈 한 줄이 각주 한 항목이 된다. */
@@ -503,7 +614,9 @@ export async function setGoalExcluded(
   formData?: FormData
 ) {
   await requireGoalModule();
-  if (!(await canManageGoal(goalId))) throw new Error("이 목표의 집계 여부를 바꿀 권한이 없습니다.");
+  if (!(await canExcludeGoal(goalId))) {
+    throw new Error("집계 제외는 관리자와 팀장만 할 수 있습니다.");
+  }
 
   const reason = str(formData?.get("excludeReason") ?? null);
 

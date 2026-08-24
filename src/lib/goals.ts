@@ -301,3 +301,93 @@ export function ownerFlag(
   }
   return null;
 }
+
+// ---- 보는 사람에 따른 범위 -----------------------------------------------
+
+/** 평가2를 여는 사람. 직책과 소속만 있으면 무엇을 볼지 정할 수 있다. */
+export type GoalViewer = {
+  id: string;
+  isAdmin: boolean;
+  position: string;
+  teamId: string | null;
+  /** 본인이 팀장으로 있는 팀들(소속 팀과 다를 수 있다). */
+  ledTeamIds: string[];
+  division: string | null;
+  businessUnit: string | null;
+};
+
+/**
+ * 이 사람에게 보여 줄 층. 팀원(담당)은 책임목표를 보지 않는다 — 본부 단위
+ * 목표는 팀원이 손댈 것도, 자기 성과와 이어지는 것도 아니라서 탭만 늘린다.
+ * 팀장·책임·운영책임·사장·관리자는 네 층을 다 본다.
+ */
+export function visibleGoalLevels(viewer: { isAdmin: boolean; position: string }): GoalLevel[] {
+  if (!viewer.isAdmin && viewer.position === "STAFF") return ["TEAM", "INDIVIDUAL"];
+  return ["DIVISION", "TEAM", "INDIVIDUAL"];
+}
+
+/**
+ * 목록에 이 목표를 보여 줄지. 대시보드의 층별 달성률은 조직 전체 숫자라
+ * 누구에게나 그대로 두고, 목표 한 건 한 건이 나오는 **목록**에만 이 규칙을
+ * 건다. 범위는 플랫폼이 이미 쓰는 인사카드 열람 상한과 같게 맞췄다:
+ *
+ *   관리자·사장  → 전부
+ *   운영책임      → 본인 본부
+ *   책임          → 본인 부문(책임)
+ *   팀장          → 본인 팀(이끄는 팀 포함)
+ *   담당(팀원)    → 본인 팀의 팀목표 + 본인 개인목표
+ *
+ * 소속 정보가 비어 있어 판단할 수 없는 목표는 감추지 않고 보여 준다. 데이터가
+ * 덜 채워졌다는 이유로 목표가 사라지면 왜 안 보이는지 알 길이 없다.
+ */
+export function canViewGoalRow(
+  goal: { level: string; division: string | null; teamId: string | null; ownerId: string | null },
+  viewer: GoalViewer,
+  org: {
+    /** 팀이 속한 부문(책임). */
+    teamDivision: (teamId: string) => string | null;
+    /** 팀이 속한 본부. */
+    teamUnit: (teamId: string) => string | null;
+    /** 부문(책임)이 속한 본부. */
+    divisionUnit: (division: string) => string | null;
+  }
+): boolean {
+  if (viewer.isAdmin || viewer.position === "CEO") return true;
+
+  const goalDivision = goal.division ?? (goal.teamId ? org.teamDivision(goal.teamId) : null);
+  const goalUnit = goal.teamId
+    ? org.teamUnit(goal.teamId)
+    : goalDivision
+      ? org.divisionUnit(goalDivision)
+      : null;
+  const myTeams = new Set([...(viewer.teamId ? [viewer.teamId] : []), ...viewer.ledTeamIds]);
+
+  switch (viewer.position) {
+    case "OPERATIONS_HEAD":
+      if (!goalUnit || !viewer.businessUnit) return true;
+      return goalUnit === viewer.businessUnit;
+    case "SENIOR_STAFF":
+      if (!goalDivision || !viewer.division) return true;
+      return goalDivision === viewer.division;
+    case "TEAM_LEADER":
+      if (goal.level === "DIVISION") {
+        if (!goalDivision || !viewer.division) return true;
+        return goalDivision === viewer.division;
+      }
+      if (!goal.teamId) return true;
+      return myTeams.has(goal.teamId);
+    default: {
+      // 담당(팀원) — 우리 팀의 팀목표와 내 개인목표까지.
+      if (goal.level === "INDIVIDUAL") return goal.ownerId === viewer.id;
+      if (!goal.teamId) return true;
+      return myTeams.has(goal.teamId);
+    }
+  }
+}
+
+/**
+ * 평가대상자 관리 화면이 건 집계 제외임을 표시하는 머리말. 담당자가 목표
+ * 화면에서 손수 건 제외와 구분해야, 명단을 되돌릴 때 손으로 건 제외까지
+ * 같이 풀려버리는 일이 없다.
+ */
+export const TARGET_EXCLUDE_TAG = "평가대상 제외";
