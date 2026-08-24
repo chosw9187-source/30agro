@@ -52,7 +52,6 @@ import {
   updateGoal,
 } from "./actions";
 import { CycleSelect } from "./cycle-select";
-import { ScrollCollapse } from "./scroll-collapse";
 import { ActionForm } from "@/components/action-form";
 import { AutoRefresh } from "@/components/auto-refresh";
 
@@ -88,9 +87,6 @@ const LEVEL_COLOR: Record<GoalLevel, string> = {
   TEAM: "var(--color-goal-3)",
   INDIVIDUAL: "var(--color-goal-4)",
 };
-
-/** 목록 스크롤 영역의 id. 전사 목표 표가 이 스크롤을 보고 접힌다. */
-const LIST_SCROLL_ID = "goal-list-scroll";
 
 const INPUT_CLASS =
   "w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-green focus:outline-none";
@@ -621,12 +617,7 @@ export default async function Evaluation2Page({
           </div>
         </div>
 
-        {/* 어느 탭에서든 표를 펼친 채로 연다. 다만 아래 목록을 스크롤하기
-            시작하면 ScrollCollapse가 표를 접어 자리를 내주고, 맨 위로 올리면
-            되돌려 준다 — 펼친 채로 고정해 두면 세로가 짧은 화면에서 정작 봐야
-            할 목록이 잘린다. 머리글(연도 · 전사 종합)은 이 바깥이라 접힌
-            동안에도 계속 보인다. */}
-        <ScrollCollapse targetId={LIST_SCROLL_ID}>
+        {/* 표는 펼친 채로 연다. 자리가 아깝다 싶으면 머리글을 눌러 접는다. */}
         <details open>
           <summary className="flex cursor-pointer items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-1.5 text-xs text-slate-600 hover:bg-slate-100">
             <span className="font-medium">전사 목표 {companyGoals.length}건</span>
@@ -662,9 +653,9 @@ export default async function Evaluation2Page({
             )}
           </div>
         ) : (
-          <div className="max-h-[26vh] overflow-auto">
+          <div className="overflow-x-auto">
             <table className="w-full min-w-[860px] text-sm">
-              <thead className="sticky top-0 z-10 bg-slate-100 text-slate-600">
+              <thead className="bg-slate-100 text-slate-600">
                 <tr>
                   <th className="px-4 py-1.5 text-left text-xs font-semibold">목표</th>
                   <th className="w-56 px-4 py-1.5 text-left text-xs font-semibold">달성률</th>
@@ -777,7 +768,6 @@ export default async function Evaluation2Page({
           </div>
         )}
         </details>
-        </ScrollCollapse>
       </section>
     );
   }
@@ -1473,19 +1463,23 @@ export default async function Evaluation2Page({
   const isDashboard = tab === "dashboard";
 
   return (
-    // 화면 높이에 딱 맞춘다. 페이지가 통째로 스크롤되면 위에 고정한 것들이
-    // 아래 내용을 가려서 안 보이게 되므로, 페이지는 스크롤하지 않고 본문이
-    // 자기 안에서만 스크롤한다.
-    <div className="flex h-full min-h-0 flex-col gap-3">
+    // 배너 · 전사 목표 표 · 목록이 한 덩어리로 함께 스크롤된다.
+    //
+    // 한때는 위를 고정하고 목록만 안에서 굴렸는데, 그러면 "책임목표 0건" 같은
+    // 목록 머리글이 고정된 표 밑으로 들어가 사라진다. 위를 얼려 둘수록 아래에서
+    // 볼 수 있는 자리가 줄고, 그 자리를 벗어난 것은 어디로 갔는지 알 수 없게
+    // 된다. 지금은 평범한 스크롤 한 벌만 있고, 화면 밖으로 나간 것은 위로
+    // 올리면 그대로 돌아온다.
+    <div className="flex flex-col gap-3">
       {/* 다른 사람이 목표를 고쳐도 이 화면이 알아서 최신 값을 받아온다. */}
       <AutoRefresh />
 
-      {/* 배너 — 탭과 인사평가 선택. 어느 화면에서도 맨 위에 그대로 남는다. */}
-      <div className="shrink-0">{topBar()}</div>
+      {/* 배너 — 탭과 인사평가 선택. */}
+      {topBar()}
 
       {/* 마감 안내 — 왜 수정 버튼이 사라졌는지 화면에서 바로 읽히게 한다. */}
       {lock.message && (
-        <div className="shrink-0 rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+        <div className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-600">
           <span className="font-medium text-slate-800">
             {cycle?.status === "CLOSED" ? "종료됨" : "목표 확정됨"}
           </span>
@@ -1506,7 +1500,7 @@ export default async function Evaluation2Page({
       {!cycle ? (
         // 인사평가를 고르기 전에는 어느 탭이든 비워 둔다. 어느 해 숫자인지
         // 모르는 채로 목표를 읽게 두지 않는다.
-        <section className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white">
+        <section className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white py-24">
           <p className="text-base font-semibold text-slate-700">인사평가를 선택해 주세요</p>
           <p className="mt-1 text-sm text-slate-500">
             오른쪽 위 목록에서 연도를 고르면 그 해의 전사 · 책임 · 팀 · 개인 목표가 보입니다.
@@ -1522,30 +1516,19 @@ export default async function Evaluation2Page({
       ) : (
         <>
           {/* 전사 목표 — 배너와 줄을 나눠 그 아래에 놓는다. 표는 접을 수 있다. */}
-          <div className="shrink-0">{companyGoalBoard()}</div>
+          {companyGoalBoard()}
 
           {isDashboard ? (
-            <div id={LIST_SCROLL_ID} className="min-h-0 flex-1 overflow-y-auto pr-1">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {DASHBOARD_LEVELS.map((level) => (
-                  <LevelSummaryCard key={level} level={level} />
-                ))}
-              </div>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {DASHBOARD_LEVELS.map((level) => (
+                <LevelSummaryCard key={level} level={level} />
+              ))}
             </div>
           ) : (
-            // 층별 탭도 목록만 안에서 스크롤시켜, 배너와 전사 목표가 밀려
-            // 올라가 사라지지 않게 한다.
-            //
             // key에 탭을 넣어 탭을 옮길 때마다 이 안을 새로 그린다. 안 그러면
             // React가 같은 자리의 등록 폼을 재사용해서, 개인목표에 쳐 넣던
             // 목표명이 팀목표 탭 입력칸에 그대로 남아 있는다.
-            <div
-              key={tab}
-              id={LIST_SCROLL_ID}
-              className="min-h-0 flex-1 overflow-y-auto pr-1"
-            >
-              {levelTab(TAB_TO_LEVEL[tab])}
-            </div>
+            <div key={tab}>{levelTab(TAB_TO_LEVEL[tab])}</div>
           )}
         </>
       )}
