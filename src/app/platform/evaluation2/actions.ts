@@ -235,9 +235,6 @@ const COMPANY_GOAL_TEMPLATE = [
   { category: "재무경영관리", title: "사업 경쟁력 강화를 위한 전략적 재무관리와 성과중심 조직문화 구축" },
 ] as const;
 
-const COMPANY_GOAL_TEMPLATE_NOTE =
-  "각 조직별 목표 달성을 위한 핵심 과제는 내부 공유 통해 정보 획득 및 실행 필요.\n사업개발의 경우 추후 확정 예정.";
-
 /**
  * 전사목표가 아직 하나도 없는 사이클에 위 양식을 깔아준다. 이미 한 건이라도
  * 있으면 아무것도 하지 않는다 — 두 번 눌러서 열 줄이 되는 사고를 막는다.
@@ -252,7 +249,7 @@ export async function seedCompanyGoalTemplate(cycleId: string) {
 
   const cycle = await prisma.goalCycle.findUnique({
     where: { id: cycleId },
-    select: { id: true, note: true },
+    select: { id: true },
   });
   if (!cycle) return;
 
@@ -267,12 +264,10 @@ export async function seedCompanyGoalTemplate(cycleId: string) {
     })),
   });
 
-  if (!cycle.note) {
-    await prisma.goalCycle.update({
-      where: { id: cycleId },
-      data: { note: COMPANY_GOAL_TEMPLATE_NOTE },
-    });
-  }
+  // 안내문은 비워 둔다. 처음에는 보고서 표 아래에 있던 문구("핵심 과제는 내부
+  // 공유 통해…")를 같이 깔았는데, 그건 그 표 한 장에 딸린 그때의 메모지 해마다
+  // 참인 규칙이 아니다. 남겨 두면 아무도 안 고친 채 화면에 계속 붙어 있게 된다.
+  // 필요하면 조직 목표 관리의 「표 하단 안내문」에서 직접 적는다.
   revalidatePath(PATH);
 }
 

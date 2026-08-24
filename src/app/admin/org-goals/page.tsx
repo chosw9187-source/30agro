@@ -504,6 +504,10 @@ export default async function OrgGoalsAdminPage({
 
           <section className={`${CARD_CLASS} p-5`}>
             <h2 className="text-base font-semibold">표 하단 안내문</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              전사 목표 표 아래에 i), ii)로 붙는 문구입니다. <b>비워 두면 아무것도 안 나옵니다</b> —
+              꼭 필요한 안내가 아니면 비워 두시는 편이 화면이 깔끔합니다.
+            </p>
             <ActionForm action={saveOrgGoalNote} successMessage="저장되었습니다." className="mt-3">
               <input type="hidden" name="cycleId" value={cycle.id} />
               <label className={LABEL_CLASS}>한 줄이 i), ii) 한 항목이 됩니다</label>
@@ -511,9 +515,7 @@ export default async function OrgGoalsAdminPage({
                 name="note"
                 rows={3}
                 defaultValue={cycle.note ?? ""}
-                placeholder={
-                  "각 조직별 목표 달성을 위한 핵심 과제는 내부 공유 통해 정보 획득 및 실행 필요.\n사업개발의 경우 추후 확정 예정."
-                }
+                placeholder="비워 두면 표 아래에 아무것도 표시되지 않습니다."
                 className={INPUT_CLASS}
               />
               <button type="submit" className={`${PRIMARY_BUTTON_CLASS} mt-2`}>

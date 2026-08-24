@@ -468,13 +468,31 @@ export default async function Evaluation2Page({
   // 상위에 안 매달린 목표는 아무리 달성해도 전사 달성률을 못 움직인다.
   // 숫자가 안 오르는 가장 흔한 이유라 화면에 대놓고 알려준다.
   const unlinked = allNodes.filter(
-    (g) => GOAL_PARENT_LEVEL[g.level as GoalLevel] !== null && !g.parentId
+    (g) =>
+      GOAL_PARENT_LEVEL[g.level as GoalLevel] !== null && !g.parentId && canViewGoalRow(g, viewer, org)
   );
   const overdueCount = allNodes.filter((g) => isOverdue(g, now) && !g.excluded).length;
-  // 담당자가 퇴사·부서이동했는데 아직 집계에 들어 있는 목표 — 눈에 띄게 알려준다.
-  const needsReviewCount = allNodes.filter((g) => !g.excluded && ownerFlag(g, now)).length;
-  // 합의 현황. 내가 승인해야 할 건과, 아직 확정되지 않은 개인목표를 따로 센다.
-  const individualGoals = allNodes.filter((g) => needsAgreement(g.level) && !g.excluded);
+
+  /**
+   * 아래 안내문들은 **읽는 사람이 손댈 수 있는 것만** 센다.
+   *
+   * 전사 숫자를 그대로 띄우면 팀원 화면에 "합의 안 된 개인목표 12건" 같은 줄이
+   * 뜨는데, 남의 목표라 할 수 있는 게 없다. 읽고 넘길 수밖에 없는 문장은
+   * 안내가 아니라 화면을 먹는 글자다. 그래서 자기 범위(canViewGoalRow)로
+   * 줄이고, 셀 게 없으면 줄 자체를 띄우지 않는다.
+   */
+  const myNodes = visibleRows(allNodes);
+
+  // 담당자가 퇴사·부서이동했는데 아직 집계에 들어 있는 목표 — 빼는 건 관리자·팀장
+  // 몫이라 그 사람들에게만 알린다.
+  const needsReviewCount = myNodes.filter(
+    (g) => !g.excluded && !g.targetExcluded && ownerFlag(g, now) && canExclude(g)
+  ).length;
+
+  // 합의 현황. 내가 승인해야 할 건과, 내 범위에서 아직 확정되지 않은 개인목표.
+  const individualGoals = myNodes.filter(
+    (g) => needsAgreement(g.level) && !g.excluded && !g.targetExcluded
+  );
   const myTeamIdsForApproval = new Set(
     teams.filter((t) => t.leaderId === session!.user.id).map((t) => t.id)
   );
@@ -484,6 +502,8 @@ export default async function Evaluation2Page({
       (isAdmin || (g.teamId && myTeamIdsForApproval.has(g.teamId)))
   ).length;
   const notAgreedCount = individualGoals.filter((g) => g.agreementStatus !== "AGREED").length;
+  // 팀원에게는 "내 목표"라고 말해야 무엇을 하라는 건지 바로 읽힌다.
+  const notAgreedIsMine = individualGoals.every((g) => g.ownerId === session!.user.id);
   const noteLines = (cycle?.note ?? "")
     .split("\n")
     .map((l) => l.trim())
@@ -741,12 +761,18 @@ export default async function Evaluation2Page({
                   승인하거나 되돌릴 수 있습니다.
                 </p>
               )}
-              {notAgreedCount > 0 && (
-                <p className="mt-1 text-slate-500">
-                  아직 합의되지 않은 개인목표 {notAgreedCount}건 — 합의가 끝나야 성과평가 대상이
-                  됩니다.
-                </p>
-              )}
+              {notAgreedCount > 0 &&
+                (notAgreedIsMine ? (
+                  <p className="mt-1 text-slate-500">
+                    내 개인목표 {notAgreedCount}건이 아직 합의 전입니다 — 개인목표 탭에서 「합의
+                    요청」을 눌러 팀장 승인을 받으세요.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-slate-500">
+                    아직 합의되지 않은 개인목표 {notAgreedCount}건 — 합의가 끝나야 성과평가 대상이
+                    됩니다.
+                  </p>
+                ))}
               {needsReviewCount > 0 && (
                 <p className="mt-1 text-amber-700">
                   담당자가 퇴사했거나 부서를 옮긴 목표 {needsReviewCount}건이 아직 집계에 들어
