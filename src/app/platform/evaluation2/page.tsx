@@ -879,7 +879,10 @@ export default async function Evaluation2Page({
               <option value="">선택</option>
               {parentOptions.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.title} ({scopeText(p)})
+                  {/* 소속은 그게 어느 조직 목표인지 갈라 줄 때만 붙인다.
+                      전사목표는 전부 "(전사)"가 되어 아무것도 구별해 주지
+                      못하면서 제목만 길게 만든다. */}
+                  {p.level === "COMPANY" ? p.title : `${p.title} (${scopeText(p)})`}
                 </option>
               ))}
               {/*
@@ -887,7 +890,10 @@ export default async function Evaluation2Page({
                 아무리 달성해도 전사 달성률이 안 움직이므로, 층마다 「기타」
                 한 칸을 두고 거기에 매단다(없으면 자동으로 만들어진다).
               */}
-              <option value={OTHER_PARENT_VALUE}>기타 (딱 맞는 상위 목표가 없을 때)</option>
+              {/* 자동으로 만들어지는 기타 묶음도 위 목록에 "기타"로 뜨므로, 이
+                  항목은 고르는 행위임이 드러나게 적는다. 둘 다 결과는 같지만
+                  같은 이름이 두 줄 나란히 있으면 어느 쪽인지 헷갈린다. */}
+              <option value={OTHER_PARENT_VALUE}>＋ 기타로 묶기 (딱 맞는 상위 목표가 없을 때)</option>
             </select>
           </div>
         )}
