@@ -325,6 +325,16 @@ export default async function Evaluation2Page({
     : null;
   const selectedCycleId = pickedCycle?.id ?? "";
   const cycle = pickedCycle;
+  /**
+   * 목표를 실제로 담고 있는 사이클. 어떤 평가는 자기 목표를 갖지 않고 다른
+   * 평가의 목표를 그대로 본다 — "2026년 상반기"와 "2026년 최종평가"가
+   * "2026년 목표설정"의 목표를 함께 쓰는 식이다. 복사가 아니라 참조라서
+   * 한쪽에서 진척을 올리면 다른 쪽에도 그대로 반영된다.
+   */
+  const goalCycleId = cycle?.sourceCycleId ?? cycle?.id ?? null;
+  const sharedFrom = cycle?.sourceCycleId
+    ? (cycles.find((c) => c.id === cycle.sourceCycleId) ?? null)
+    : null;
 
   const [teams, people] = await Promise.all([
     prisma.team.findMany({
@@ -339,9 +349,9 @@ export default async function Evaluation2Page({
     }),
   ]);
 
-  const goals = cycle
+  const goals = goalCycleId
     ? await prisma.goal.findMany({
-        where: { cycleId: cycle.id },
+        where: { cycleId: goalCycleId },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
         select: {
           id: true,
@@ -382,9 +392,9 @@ export default async function Evaluation2Page({
     : [];
 
   // 이번 사이클에서 손으로 정해 둔 평가대상 지정. 규칙(입사일 기준일)보다 우선한다.
-  const manualTargets = cycle
+  const manualTargets = goalCycleId
     ? await prisma.goalCycleTarget.findMany({
-        where: { cycleId: cycle.id },
+        where: { cycleId: goalCycleId },
         select: { userId: true, included: true, reason: true },
       })
     : [];
@@ -406,7 +416,9 @@ export default async function Evaluation2Page({
     return { ...g, targetExcluded: true, targetExcludeReason: state.reason };
   });
 
-  const lock = cycleLock(cycle);
+  // 잠금은 목표를 실제로 담고 있는 사이클을 따른다 — 서버 액션도 그 사이클로
+  // 판단하므로, 여기서 다른 기준을 쓰면 눌리는데 저장은 안 되는 버튼이 생긴다.
+  const lock = cycleLock(sharedFrom ?? cycle);
   const tree = buildGoalTree(goalsWithTarget);
   const allNodes = flattenGoalTree(tree);
   const nodeById = new Map(allNodes.map((n) => [n.id, n]));
@@ -573,6 +585,12 @@ export default async function Evaluation2Page({
           <span className="text-xs text-slate-400">등록된 인사평가가 없습니다</span>
         )}
 
+        {sharedFrom && (
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+            목표는 「{sharedFrom.name}」과 함께 씁니다
+          </span>
+        )}
+
         {isAdmin && (
           <div className="ml-auto flex items-center gap-2 whitespace-nowrap">
             <Link
@@ -672,7 +690,7 @@ export default async function Evaluation2Page({
             {isAdmin && cycle && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <ActionForm
-                  action={seedCompanyGoalTemplate.bind(null, cycle.id)}
+                  action={seedCompanyGoalTemplate.bind(null, goalCycleId ?? cycle.id)}
                   successMessage="조직 목표 양식을 넣었습니다."
                 >
                   <button type="submit" className={PRIMARY_BUTTON_CLASS}>
@@ -1025,16 +1043,19 @@ export default async function Evaluation2Page({
           />
         </div>
 
-        <div>
-          <label className={LABEL_CLASS}>현재수준</label>
-          <input
-            name="currentValue"
-            defaultValue={goal?.currentValue ?? ""}
-            placeholder="아직 없으면 0"
-            required={level !== "COMPANY"}
-            className={INPUT_CLASS}
-          />
-        </div>
+        {/* 책임목표는 아래 팀목표가 굴러 올라온 값이라 현재수준을 따로 적을 일이 없다. */}
+        {level !== "DIVISION" && (
+          <div>
+            <label className={LABEL_CLASS}>현재수준</label>
+            <input
+              name="currentValue"
+              defaultValue={goal?.currentValue ?? ""}
+              placeholder="아직 없으면 0"
+              required={level !== "COMPANY"}
+              className={INPUT_CLASS}
+            />
+          </div>
+        )}
 
         {level !== "DIVISION" && (
           <div>
@@ -1081,28 +1102,19 @@ export default async function Evaluation2Page({
         </div>
 
         {/*
-          마감일은 그 해 말일이 기본이다. 목표는 한 해 단위로 세우고 연말에
-          결산하므로, 열에 아홉은 12월 31일을 다시 고르게 된다. 책임목표는
-          아예 연말로 못박는다 — 부문 목표를 연중에 끝내고 마는 일은 없다.
+          마감일은 그 해 12월 31일이 기본값이되 고칠 수 있다. 목표는 한 해
+          단위로 세우고 연말에 결산하므로 열에 아홉은 12월 31일인데, 연중에
+          끝나는 목표도 있으니 못박지는 않는다.
         */}
         <div>
           <label className={LABEL_CLASS}>마감일</label>
-          {level === "DIVISION" ? (
-            <>
-              <input type="hidden" name="dueDate" value={yearEnd} />
-              <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-600">
-                {yearEnd} <span className="text-xs text-slate-400">(연말 고정)</span>
-              </p>
-            </>
-          ) : (
-            <input
-              type="date"
-              name="dueDate"
-              defaultValue={toDateInputValue(goal?.dueDate ?? null) || yearEnd}
-              required={level !== "COMPANY"}
-              className={INPUT_CLASS}
-            />
-          )}
+          <input
+            type="date"
+            name="dueDate"
+            defaultValue={toDateInputValue(goal?.dueDate ?? null) || yearEnd}
+            required={level !== "COMPANY"}
+            className={INPUT_CLASS}
+          />
         </div>
 
         <div className="md:col-span-2">
@@ -1425,7 +1437,7 @@ export default async function Evaluation2Page({
               successMessage="정상 등록되었습니다."
               className="mt-4 grid gap-3 md:grid-cols-2"
             >
-              <input type="hidden" name="cycleId" value={cycle.id} />
+              <input type="hidden" name="cycleId" value={goalCycleId ?? cycle.id} />
               <input type="hidden" name="level" value={level} />
               <GoalFormFields level={level} parentOptions={parentOptions} />
               <div className="md:col-span-2">

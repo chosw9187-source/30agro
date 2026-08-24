@@ -910,6 +910,22 @@ model GoalCycle {
   goalsLockedById String?
   goalsLockedBy   User?     @relation("GoalCycleLockedBy", fields: [goalsLockedById], references: [id])
 
+  /**
+   * 목표를 빌려오는 사이클. 같은 해 목표 한 벌을 여러 평가가 나눠 볼 때 쓴다 —
+   * "2026년 상반기"와 "2026년 최종평가"는 "2026년 목표설정"의 목표를 그대로
+   * 보고, 목표를 각자 한 벌씩 들고 있지 않는다.
+   *
+   * 복사가 아니라 참조다. 복사하면 어느 쪽이 진짜인지가 생기고, 한쪽에서 목표를
+   * 고치면 다른 쪽과 어긋난다. 여기서는 화면만 여러 개고 목표는 한 벌이다.
+   * 연도가 바뀔 때는 참조가 아니라 복사가 맞다(copyGoalsFromCycle).
+   *
+   * 한 단계만 허용한다 — 빌려온 사이클을 또 빌려주면 어디가 원본인지 따라가기
+   * 어려워진다.
+   */
+  sourceCycleId String?
+  sourceCycle   GoalCycle?  @relation("GoalCycleShare", fields: [sourceCycleId], references: [id])
+  sharedBy      GoalCycle[] @relation("GoalCycleShare")
+
   createdAt DateTime        @default(now())
 
   goals       Goal[]

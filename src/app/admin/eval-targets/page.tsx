@@ -54,6 +54,12 @@ export default async function EvalTargetsPage({
     orderBy: [{ year: "desc" }, { startDate: "desc" }],
   });
   const cycle = cycles.find((c) => c.id === params.cycleId) ?? cycles[0] ?? null;
+  // 목표를 빌려 쓰는 평가라면 평가대상 명단도 원본 쪽에 저장한다 — 같은 목표를
+  // 보면서 명단만 따로 두면 어느 쪽 기준으로 집계된 건지 알 수 없다.
+  const targetCycleId = cycle?.sourceCycleId ?? cycle?.id ?? null;
+  const sharedFrom = cycle?.sourceCycleId
+    ? (cycles.find((c) => c.id === cycle.sourceCycleId) ?? null)
+    : null;
 
   const [teams, users, targets, goals] = await Promise.all([
     prisma.team.findMany({
@@ -79,16 +85,16 @@ export default async function EvalTargetsPage({
         team: { select: { id: true, name: true, division: true, businessUnit: true } },
       },
     }),
-    cycle
+    targetCycleId
       ? prisma.goalCycleTarget.findMany({
-          where: { cycleId: cycle.id },
+          where: { cycleId: targetCycleId },
           select: { userId: true, included: true, reason: true },
         })
       : Promise.resolve([]),
-    cycle
+    targetCycleId
       ? prisma.goal.groupBy({
           by: ["ownerId"],
-          where: { cycleId: cycle.id, level: "INDIVIDUAL" },
+          where: { cycleId: targetCycleId, level: "INDIVIDUAL" },
           _count: { _all: true },
         })
       : Promise.resolve([]),
@@ -111,7 +117,7 @@ export default async function EvalTargetsPage({
     businessUnit: u.team?.businessUnit ?? u.businessUnit ?? null,
     isLeader: leaderIds.has(u.id),
     goalCount: goalCountByUser.get(u.id) ?? 0,
-    target: evalTargetState(u, cycle, manualByUser.get(u.id) ?? null),
+    target: evalTargetState(u, sharedFrom ?? cycle, manualByUser.get(u.id) ?? null),
   }));
 
   // 본부 > 책임(부문) > 팀 순으로 묶는다. 조직도 화면과 같은 계층이다.
@@ -196,7 +202,7 @@ export default async function EvalTargetsPage({
                 successMessage="기준일을 반영했습니다."
                 className="flex flex-wrap items-end gap-2"
               >
-                <input type="hidden" name="cycleId" value={cycle.id} />
+                <input type="hidden" name="cycleId" value={targetCycleId ?? cycle.id} />
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-500">
                     입사일 기준일 — 이 날짜 <b>이후</b> 입사자는 자동 제외
@@ -204,7 +210,7 @@ export default async function EvalTargetsPage({
                   <input
                     type="date"
                     name="hireCutoff"
-                    defaultValue={toDateInputValue(cycle.hireCutoff)}
+                    defaultValue={toDateInputValue((sharedFrom ?? cycle).hireCutoff)}
                     className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:border-brand-green focus:outline-none"
                   />
                 </div>
@@ -231,7 +237,7 @@ export default async function EvalTargetsPage({
                 </span>
                 {manualCount > 0 && (
                   <ActionForm action={resetAllEvalTargets} successMessage="정상 반영되었습니다.">
-                    <input type="hidden" name="cycleId" value={cycle.id} />
+                    <input type="hidden" name="cycleId" value={targetCycleId ?? cycle.id} />
                     <button type="submit" className={SMALL_BUTTON_CLASS}>
                       개별 지정 전체 해제
                     </button>
@@ -289,7 +295,7 @@ export default async function EvalTargetsPage({
                       <div className="ml-auto flex items-center gap-1.5">
                         {p.target.source === "manual" && (
                           <ActionForm action={resetEvalTarget} successMessage="정상 반영되었습니다.">
-                            <input type="hidden" name="cycleId" value={cycle.id} />
+                            <input type="hidden" name="cycleId" value={targetCycleId ?? cycle.id} />
                             <input type="hidden" name="userId" value={p.id} />
                             <button
                               type="submit"
@@ -306,7 +312,7 @@ export default async function EvalTargetsPage({
                             successMessage="정상 반영되었습니다."
                             className="flex items-center gap-1.5"
                           >
-                            <input type="hidden" name="cycleId" value={cycle.id} />
+                            <input type="hidden" name="cycleId" value={targetCycleId ?? cycle.id} />
                             <input type="hidden" name="userId" value={p.id} />
                             <input type="hidden" name="included" value="false" />
                             <input
@@ -321,7 +327,7 @@ export default async function EvalTargetsPage({
                           </ActionForm>
                         ) : (
                           <ActionForm action={setEvalTarget} successMessage="정상 반영되었습니다.">
-                            <input type="hidden" name="cycleId" value={cycle.id} />
+                            <input type="hidden" name="cycleId" value={targetCycleId ?? cycle.id} />
                             <input type="hidden" name="userId" value={p.id} />
                             <input type="hidden" name="included" value="true" />
                             <button

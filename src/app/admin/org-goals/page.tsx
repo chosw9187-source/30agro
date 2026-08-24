@@ -54,10 +54,15 @@ export default async function OrgGoalsAdminPage({
   const cycle = cycles.find((c) => c.id === params.cycleId) ?? cycles[0] ?? null;
   // 목표를 가져올 수 있는 다른 사이클 — 최근 것부터.
   const otherCycles = cycles.filter((c) => c.id !== cycle?.id);
+  // 목표를 실제로 담고 있는 사이클. 남의 목표를 빌려 쓰는 평가라면 그쪽을 본다.
+  const goalCycleId = cycle?.sourceCycleId ?? cycle?.id ?? null;
+  const sharedFrom = cycle?.sourceCycleId
+    ? (cycles.find((c) => c.id === cycle.sourceCycleId) ?? null)
+    : null;
 
-  const goals = cycle
+  const goals = goalCycleId
     ? await prisma.goal.findMany({
-        where: { cycleId: cycle.id },
+        where: { cycleId: goalCycleId },
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
         select: {
           id: true,
@@ -128,7 +133,8 @@ export default async function OrgGoalsAdminPage({
     };
   });
 
-  const lock = cycleLock(cycle);
+  // 잠금은 목표를 담고 있는 사이클을 따른다 — 서버도 그 사이클로 판단한다.
+  const lock = cycleLock(sharedFrom ?? cycle);
 
   const nextYear = cycles[0]?.year ?? new Date().getFullYear();
   // 새 사이클은 대개 "내년치 목표설정"을 미리 여는 경우라, 이름과 기간을
@@ -167,6 +173,13 @@ export default async function OrgGoalsAdminPage({
           </Link>
         </div>
       </div>
+
+      {sharedFrom && (
+        <div className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+          이 평가는 <b className="text-slate-800">「{sharedFrom.name}」</b>의 목표를 그대로 씁니다 —
+          여기서 고치면 두 화면에 함께 반영됩니다.
+        </div>
+      )}
 
       {!cycle ? (
         <section className={`${CARD_CLASS} p-5`}>
@@ -448,7 +461,7 @@ export default async function OrgGoalsAdminPage({
                     successMessage="저장되었습니다."
                     className="flex flex-wrap items-center gap-3"
                   >
-                    <input type="hidden" name="cycleId" value={cycle.id} />
+                    <input type="hidden" name="cycleId" value={goalCycleId ?? cycle.id} />
                     <button type="submit" className={PRIMARY_BUTTON_CLASS}>
                       표 저장
                     </button>
@@ -474,7 +487,7 @@ export default async function OrgGoalsAdminPage({
                 successMessage="정상 등록되었습니다."
                 className="mt-3 grid gap-3 md:grid-cols-4"
               >
-                <input type="hidden" name="cycleId" value={cycle.id} />
+                <input type="hidden" name="cycleId" value={goalCycleId ?? cycle.id} />
                 <div className="md:col-span-3">
                   <label className={LABEL_CLASS}>목표</label>
                   <input name="newTitle" required className={INPUT_CLASS} />
@@ -696,6 +709,20 @@ export default async function OrgGoalsAdminPage({
                   defaultValue={`${upcomingYear}-12-31`}
                   className={INPUT_CLASS}
                 />
+              </div>
+              <div className="md:col-span-2">
+                <label className={LABEL_CLASS}>목표 공유 (선택)</label>
+                <select name="sourceCycleId" defaultValue="" className={INPUT_CLASS}>
+                  <option value="">자기 목표 사용</option>
+                  {cycles
+                    .filter((o) => !o.sourceCycleId)
+                    .map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}의 목표를 그대로 사용
+                      </option>
+                    ))}
+
+                </select>
               </div>
               <div className="md:col-span-4">
                 <button type="submit" className={PRIMARY_BUTTON_CLASS}>

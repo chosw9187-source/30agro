@@ -204,9 +204,61 @@ export async function createGoalCycle(formData: FormData) {
   const year = parseNumber(str(formData.get("startDate")).slice(0, 4), startDate.getFullYear());
 
   await prisma.goalCycle.create({
-    data: { name, year, startDate, endDate, status: "OPEN" },
+    data: {
+      name,
+      year,
+      startDate,
+      endDate,
+      status: "OPEN",
+      sourceCycleId: await resolveShareSource(str(formData.get("sourceCycleId")), null),
+    },
   });
   revalidatePath(PATH);
+  revalidatePath(ADMIN_PATH);
+}
+
+/**
+ * 목표를 빌려올 사이클을 확인한다. 빈 값이면 자기 목표를 쓴다는 뜻이다.
+ *
+ * 두 가지를 막는다 — 자기 자신을 가리키는 것과, 이미 남의 목표를 빌려 쓰는
+ * 사이클을 또 빌리는 것. 사슬이 길어지면 어디가 원본인지 따라가기 어려워지고,
+ * 원본을 지울 때 무엇이 함께 비는지도 알 수 없게 된다.
+ */
+async function resolveShareSource(raw: string, selfId: string | null): Promise<string | null> {
+  if (!raw) return null;
+  if (raw === selfId) throw new Error("자기 자신의 목표를 빌려올 수는 없습니다.");
+
+  const source = await prisma.goalCycle.findUnique({
+    where: { id: raw },
+    select: { id: true, name: true, sourceCycleId: true },
+  });
+  if (!source) throw new Error("빌려올 인사평가를 찾을 수 없습니다.");
+  if (source.sourceCycleId) {
+    throw new Error(`「${source.name}」도 다른 평가의 목표를 빌려 쓰고 있어 고를 수 없습니다.`);
+  }
+  return source.id;
+}
+
+/** 이미 만들어 둔 사이클의 목표 공유 대상을 바꾼다. */
+export async function setGoalCycleSource(formData: FormData) {
+  await requireGoalModule();
+  if (!(await isAdmin())) throw new Error("목표 공유는 관리자만 바꿀 수 있습니다.");
+
+  const cycleId = str(formData.get("cycleId"));
+  if (!cycleId) return;
+
+  const sourceCycleId = await resolveShareSource(str(formData.get("sourceCycleId")), cycleId);
+  if (sourceCycleId) {
+    // 이 사이클의 목표를 빌려 쓰는 다른 사이클이 있으면, 그것들이 갈 곳을 잃는다.
+    const dependents = await prisma.goalCycle.count({ where: { sourceCycleId: cycleId } });
+    if (dependents > 0) {
+      throw new Error("다른 평가가 이 평가의 목표를 빌려 쓰고 있어 바꿀 수 없습니다.");
+    }
+  }
+
+  await prisma.goalCycle.update({ where: { id: cycleId }, data: { sourceCycleId } });
+  revalidatePath(PATH);
+  revalidatePath(ADMIN_PATH);
 }
 
 /**
@@ -460,13 +512,16 @@ export async function createGoalCheckpoint(formData: FormData) {
 
   const cycle = await prisma.goalCycle.findUnique({
     where: { id: cycleId },
-    select: { id: true, hireCutoff: true },
+    select: { id: true, hireCutoff: true, sourceCycleId: true },
   });
   if (!cycle) throw new Error("인사평가를 찾을 수 없습니다.");
+  // 남의 목표를 빌려 쓰는 평가라면 그쪽 목표를 찍는다. 시점 자체는 이 평가에
+  // 남아서, 같은 목표를 상반기·최종평가로 나눠 결산할 수 있다.
+  const goalCycleId = cycle.sourceCycleId ?? cycle.id;
 
   const [rows, targets] = await Promise.all([
     prisma.goal.findMany({
-      where: { cycleId },
+      where: { cycleId: goalCycleId },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
       select: {
         id: true,
@@ -495,7 +550,7 @@ export async function createGoalCheckpoint(formData: FormData) {
       },
     }),
     prisma.goalCycleTarget.findMany({
-      where: { cycleId },
+      where: { cycleId: goalCycleId },
       select: { userId: true, included: true, reason: true },
     }),
   ]);
@@ -639,21 +694,6 @@ function weightFor(level: GoalLevel, formData: FormData): number {
   return parseNumber(formData.get("weight"), 0);
 }
 
-/**
- * 책임목표의 마감일은 그 해 12월 31일로 못박는다. 화면에서도 고정값으로
- * 보여주지만, 폼을 우회해 서버 액션을 부르면 아무 날짜나 들어올 수 있어서
- * 여기서 한 번 더 덮어쓴다.
- */
-async function resolveDueDate(level: GoalLevel, cycleId: string, raw: FormDataEntryValue | null) {
-  if (level !== "DIVISION") return parseDate(raw);
-  const cycle = await prisma.goalCycle.findUnique({
-    where: { id: cycleId },
-    select: { year: true },
-  });
-  const year = cycle?.year ?? new Date().getFullYear();
-  return new Date(`${year}-12-31T00:00:00+09:00`);
-}
-
 /** 기타 사슬을 만들 때 쓸 소속. 부문이 비어 있으면 팀에서 끌어온다. */
 async function resolveOtherScope(scope: { division?: string | null; teamId?: string | null }) {
   let division = scope.division ?? null;
@@ -706,10 +746,11 @@ function requireGoalFields(level: GoalLevel, formData: FormData) {
     ["parentId", `상위 ${GOAL_LEVEL_LABEL[GOAL_PARENT_LEVEL[level]!]}`],
     ["ownerId", level === "INDIVIDUAL" ? "담당자" : "책임자"],
     ["targetValue", "목표수준"],
-    ["currentValue", "현재수준"],
     ["status", "상태"],
     ["dueDate", "마감일"],
   ];
+  // 책임목표에는 현재수준 칸이 없다 — 아래 팀목표가 굴러 올라온 값이다.
+  if (level !== "DIVISION") need.push(["currentValue", "현재수준"]);
   if (level === "DIVISION") need.splice(2, 0, ["division", "책임"]);
   if (level === "TEAM" || level === "INDIVIDUAL") need.splice(2, 0, ["teamId", "팀"]);
   // 책임목표에는 가중치·측정지표·단위 칸이 없다 — 화면에 없는 걸 요구하면
@@ -783,7 +824,7 @@ export async function createGoal(formData: FormData) {
         clampProgress(parseNumber(formData.get("progress"), 0))
       ),
       status: asStatus(formData.get("status")),
-      dueDate: await resolveDueDate(level, cycleId, formData.get("dueDate")),
+      dueDate: parseDate(formData.get("dueDate")),
       sortOrder: parseNumber(formData.get("sortOrder"), 0),
       createdById: session.user.id,
     },
@@ -880,7 +921,7 @@ export async function updateGoal(formData: FormData) {
       unit: str(formData.get("unit")) || null,
       progress: synced.progress,
       status: synced.status,
-      dueDate: await resolveDueDate(level, existing.cycleId, formData.get("dueDate")),
+      dueDate: parseDate(formData.get("dueDate")),
     },
   });
   revalidatePath(PATH);
