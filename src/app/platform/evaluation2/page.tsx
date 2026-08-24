@@ -188,7 +188,25 @@ export default async function Evaluation2Page({
   const cycles = await prisma.goalCycle.findMany({
     orderBy: [{ year: "desc" }, { startDate: "desc" }],
   });
-  const cycle = cycles.find((c) => c.id === params.cycleId) ?? cycles[0] ?? null;
+  /**
+   * 상단 배너의 인사평가 선택. 아무것도 안 고른 상태("선택")가 기본이고, 그때는
+   * 지금까지의 목표관리 화면(전사 목표 + 책임·팀·개인)을 최신 사이클 기준으로
+   * 보여준다. 특정 인사평가를 고르면 그 평가 전용 화면으로 들어간다.
+   */
+  const pickedCycle = params.cycleId
+    ? (cycles.find((c) => c.id === params.cycleId) ?? null)
+    : null;
+  const selectedCycleId = pickedCycle?.id ?? "";
+  // 안 골랐을 때 기준이 되는 사이클: 오늘이 기간 안에 든 것 → 없으면 이미
+  // 시작한 것 중 가장 최근 → 그것도 없으면 목록의 첫 번째(가장 최신).
+  // 그냥 최신을 잡으면 내년치를 미리 만들어 둔 순간 화면이 빈 채로 뜬다.
+  const today = new Date();
+  const defaultCycleForGoals =
+    cycles.find((c) => c.startDate <= today && today <= c.endDate) ??
+    cycles.find((c) => c.startDate <= today) ??
+    cycles[0] ??
+    null;
+  const cycle = pickedCycle ?? defaultCycleForGoals;
 
   const [teams, people] = await Promise.all([
     prisma.team.findMany({
@@ -330,11 +348,7 @@ export default async function Evaluation2Page({
    */
   function topBar() {
     return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-t-xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
-        <h1 className="text-sm font-bold whitespace-nowrap text-slate-900">
-          {cycle ? `${cycle.year}년 전사 목표` : "목표관리"}
-        </h1>
-
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
         <nav className="flex flex-wrap gap-1.5 text-xs">
           {TABS.map((t) => (
             <Link
@@ -351,17 +365,7 @@ export default async function Evaluation2Page({
           ))}
         </nav>
 
-        {cycles.length > 0 && cycle && (
-          <CycleSelect
-            value={cycle.id}
-            options={cycles.map((c) => ({
-              value: c.id,
-              label: `${c.name} (${GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]})`,
-            }))}
-          />
-        )}
-
-        <div className="ml-auto flex items-center gap-3 whitespace-nowrap">
+        <div className="ml-auto flex items-center gap-2 whitespace-nowrap">
           {isAdmin && (
             <Link
               href="/admin/org-goals"
@@ -370,38 +374,18 @@ export default async function Evaluation2Page({
               조직 목표 관리
             </Link>
           )}
-          <span className="text-[11px] text-slate-500">전사 종합</span>
-          <span className="text-xl leading-none font-semibold tabular-nums text-slate-900">
-            {overallProgress}
-            <span className="ml-0.5 text-xs font-normal text-slate-400">%</span>
-          </span>
-          {/* 바 높이를 한 줄로 유지하려고 라벨과 값을 가로로 붙인다. */}
-          <dl className="hidden items-center gap-2.5 text-xs text-slate-500 sm:flex">
-            <div className="flex items-center gap-1">
-              <dt>목표</dt>
-              <dd className="font-semibold text-slate-800">{allNodes.length}</dd>
-            </div>
-            <div className="flex items-center gap-1">
-              <dt>완료</dt>
-              <dd className="font-semibold text-slate-800">{doneCount}</dd>
-            </div>
-            <div className="flex items-center gap-1">
-              <dt>지연</dt>
-              <dd
-                className={`font-semibold ${
-                  overdueCount > 0 ? "text-status-critical" : "text-slate-800"
-                }`}
-              >
-                {overdueCount}
-              </dd>
-            </div>
-            {excludedCount > 0 && (
-              <div className="flex items-center gap-1">
-                <dt>제외</dt>
-                <dd className="font-semibold text-slate-400">{excludedCount}</dd>
-              </div>
-            )}
-          </dl>
+          {cycles.length > 0 && (
+            <CycleSelect
+              value={selectedCycleId}
+              options={[
+                { value: "", label: "선택" },
+                ...cycles.map((c) => ({
+                  value: c.id,
+                  label: `${c.name} (${GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]})`,
+                })),
+              ]}
+            />
+          )}
         </div>
       </div>
     );
@@ -409,9 +393,48 @@ export default async function Evaluation2Page({
 
   function companyGoalBoard() {
     return (
-      <section className="overflow-hidden rounded-b-xl border-x border-b border-slate-200 bg-white shadow-sm">
-        {/* 표와 안내문을 통째로 접을 수 있게 한다. 접으면 고정 영역이 바 한 줄로
-            줄어들어 아래 내용이 전혀 가려지지 않는다. */}
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2">
+          <h1 className="text-sm font-bold whitespace-nowrap text-slate-900">
+            {cycle ? `${cycle.year}년 전사 목표` : "전사 목표"}
+          </h1>
+          <div className="ml-auto flex items-center gap-3 whitespace-nowrap">
+            <span className="text-[11px] text-slate-500">전사 종합</span>
+            <span className="text-xl leading-none font-semibold tabular-nums text-slate-900">
+              {overallProgress}
+              <span className="ml-0.5 text-xs font-normal text-slate-400">%</span>
+            </span>
+            {/* 한 줄을 유지하려고 라벨과 값을 가로로 붙인다. */}
+            <dl className="hidden items-center gap-2.5 text-xs text-slate-500 sm:flex">
+              <div className="flex items-center gap-1">
+                <dt>목표</dt>
+                <dd className="font-semibold text-slate-800">{allNodes.length}</dd>
+              </div>
+              <div className="flex items-center gap-1">
+                <dt>완료</dt>
+                <dd className="font-semibold text-slate-800">{doneCount}</dd>
+              </div>
+              <div className="flex items-center gap-1">
+                <dt>지연</dt>
+                <dd
+                  className={`font-semibold ${
+                    overdueCount > 0 ? "text-status-critical" : "text-slate-800"
+                  }`}
+                >
+                  {overdueCount}
+                </dd>
+              </div>
+              {excludedCount > 0 && (
+                <div className="flex items-center gap-1">
+                  <dt>제외</dt>
+                  <dd className="font-semibold text-slate-400">{excludedCount}</dd>
+                </div>
+              )}
+            </dl>
+          </div>
+        </div>
+
+        {/* 표와 안내문을 통째로 접을 수 있게 한다. */}
         <details open>
           <summary className="flex cursor-pointer items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-1.5 text-xs text-slate-600 hover:bg-slate-100">
             <span className="font-medium">전사 목표 {companyGoals.length}건</span>
@@ -1254,33 +1277,48 @@ export default async function Evaluation2Page({
   const isDashboard = tab === "dashboard";
 
   return (
-    // 대시보드는 화면 높이에 딱 맞춘다. 페이지가 통째로 스크롤되면 아래 세 열이
-    // 고정된 전사 목표 뒤로 밀려 들어가 안 보이게 되므로, 페이지는 스크롤하지
-    // 않고 각 열이 자기 안에서만 스크롤하게 한다. 층별 탭은 목록이 길어질 수
-    // 있어 지금처럼 페이지 스크롤을 그대로 둔다.
-    <div className={`flex flex-col gap-4 ${isDashboard ? "h-full min-h-0" : ""}`}>
+    // 화면 높이에 딱 맞춘다. 페이지가 통째로 스크롤되면 위에 고정한 것들이
+    // 아래 내용을 가려서 안 보이게 되므로, 페이지는 스크롤하지 않고 본문이
+    // 자기 안에서만 스크롤한다.
+    <div className="flex h-full min-h-0 flex-col gap-3">
       {/* 다른 사람이 목표를 고쳐도 이 화면이 알아서 최신 값을 받아온다. */}
       <AutoRefresh />
-      {/* 얇은 바(탭·평가 연도·종합 달성률)와 전사 목표 표. 표는 접을 수 있다. */}
-      <div
-        className={
-          isDashboard
-            ? "shrink-0"
-            : "sticky -top-6 z-30 -mx-4 -mt-6 bg-slate-50 px-4 pt-6 pb-3 md:-top-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8"
-        }
-      >
-        {topBar()}
-        {companyGoalBoard()}
-      </div>
 
-      {isDashboard ? (
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-3">
-          {BOARD_LEVELS.map((level) => (
-            <BoardColumn key={level} level={level} />
-          ))}
-        </div>
+      {/* 배너 — 탭과 인사평가 선택. 어느 화면에서도 맨 위에 그대로 남는다. */}
+      <div className="shrink-0">{topBar()}</div>
+
+      {pickedCycle ? (
+        // 인사평가를 고르면 목표관리 화면 대신 그 평가 전용 화면으로 들어간다.
+        // 안에 들어갈 내용(성과·역량·종합평가)은 아직 만들지 않았다.
+        <section className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white">
+          <p className="text-base font-semibold text-slate-700">{pickedCycle.name}</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {formatKSTDate(pickedCycle.startDate)} ~ {formatKSTDate(pickedCycle.endDate)}
+          </p>
+          <p className="mt-4 text-sm text-slate-400">이 인사평가 화면은 준비 중입니다.</p>
+          <p className="mt-1 text-xs text-slate-400">
+            위 선택에서 「선택」으로 되돌리면 목표관리 화면으로 돌아갑니다.
+          </p>
+        </section>
       ) : (
-        levelTab(TAB_TO_LEVEL[tab])
+        <>
+          {/* 전사 목표 — 배너와 줄을 나눠 그 아래에 놓는다. 표는 접을 수 있다. */}
+          <div className="shrink-0">{companyGoalBoard()}</div>
+
+          {isDashboard ? (
+            <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-3">
+              {BOARD_LEVELS.map((level) => (
+                <BoardColumn key={level} level={level} />
+              ))}
+            </div>
+          ) : (
+            // 층별 탭도 목록만 안에서 스크롤시켜, 배너와 전사 목표가 밀려
+            // 올라가 사라지지 않게 한다.
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              {levelTab(TAB_TO_LEVEL[tab])}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
