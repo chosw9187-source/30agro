@@ -7,9 +7,13 @@ import { requireRole } from "@/lib/auth-helpers";
 import { checkModuleAccess } from "@/lib/permissions";
 import {
   GOAL_CYCLE_STATUSES,
+  GOAL_LEVEL_LABEL,
+  OTHER_GOAL_TITLE,
+  OTHER_PARENT_VALUE,
   buildGoalTree,
   countsTowardProgress,
   cycleLock,
+  defaultOtherWeight,
   evalTargetState,
   flattenGoalTree,
   needsAgreement,
@@ -541,10 +545,94 @@ function scopeFieldsFor(level: GoalLevel, formData: FormData) {
   return { division: division || null, teamId: teamId || null, ownerId: ownerId || null };
 }
 
+/**
+ * 그 층·그 조직의 "기타" 묶음 목표를 찾고, 없으면 만든다.
+ *
+ * 위 층까지 거슬러 올라가며 만든다 — 팀 기타를 만들려면 그 팀이 속한 책임의
+ * 기타가 있어야 하고, 그건 다시 전사 기타에 매달려야 한다. 이 사슬이 끊기면
+ * 기타에 담은 일이 전사 달성률까지 굴러 올라가지 못해서, 기타를 만든 의미가
+ * 없어진다.
+ *
+ * scope는 그 층에서 기타를 몇 개 둘지를 정한다: 전사 기타는 사이클에 하나,
+ * 책임 기타는 부문마다 하나, 팀 기타는 팀마다 하나.
+ */
+async function ensureOtherGoal(
+  level: GoalLevel,
+  cycleId: string,
+  scope: { division: string | null; teamId: string | null },
+  createdById: string
+): Promise<string | null> {
+  const where = {
+    cycleId,
+    level,
+    isOther: true,
+    ...(level === "DIVISION" ? { division: scope.division } : {}),
+    ...(level === "TEAM" ? { teamId: scope.teamId } : {}),
+  };
+  const existing = await prisma.goal.findFirst({ where, select: { id: true } });
+  if (existing) return existing.id;
+
+  // 위 층 기타를 먼저 확보한다. 전사는 위가 없으므로 여기서 멈춘다.
+  const parentLevel = GOAL_PARENT_LEVEL[level];
+  const parentId = parentLevel
+    ? await ensureOtherGoal(parentLevel, cycleId, scope, createdById)
+    : null;
+
+  const siblings = await prisma.goal.findMany({
+    where: { cycleId, level, parentId },
+    select: { weight: true },
+  });
+
+  const created = await prisma.goal.create({
+    data: {
+      cycleId,
+      level,
+      parentId,
+      isOther: true,
+      title: OTHER_GOAL_TITLE,
+      description: "위 층 목표에 직접 붙지 않는 일을 모아 두는 자리입니다.",
+      // 전사목표 표의 왼쪽 "구분" 칸. 비워 두면 그 자리에 "전사"가 찍혀서,
+      // 제품기획마케팅·영업고객관리처럼 조직 이름이 늘어선 칸에 혼자 튄다.
+      category: level === "COMPANY" ? OTHER_GOAL_TITLE : null,
+      division: level === "DIVISION" || level === "TEAM" ? scope.division : null,
+      teamId: level === "TEAM" ? scope.teamId : null,
+      weight: defaultOtherWeight(siblings),
+      sortOrder: 9999,
+      createdById,
+    },
+    select: { id: true },
+  });
+  return created.id;
+}
+
+/** 기타 사슬을 만들 때 쓸 소속. 부문이 비어 있으면 팀에서 끌어온다. */
+async function resolveOtherScope(scope: { division?: string | null; teamId?: string | null }) {
+  let division = scope.division ?? null;
+  if (!division && scope.teamId) {
+    const team = await prisma.team.findUnique({
+      where: { id: scope.teamId },
+      select: { division: true },
+    });
+    division = team?.division ?? null;
+  }
+  return { division, teamId: scope.teamId ?? null };
+}
+
 /** 상위 목표는 반드시 바로 윗 층이어야 캐스케이드가 어긋나지 않는다. */
-async function resolveParentId(level: GoalLevel, rawParentId: string, cycleId: string) {
+async function resolveParentId(
+  level: GoalLevel,
+  rawParentId: string,
+  cycleId: string,
+  scope: { division: string | null; teamId: string | null },
+  createdById: string
+) {
   const expected = GOAL_PARENT_LEVEL[level];
   if (!expected || !rawParentId) return null;
+
+  // "기타"를 고르면 그 층의 기타 묶음에 매단다(없으면 사슬째 만든다).
+  if (rawParentId === OTHER_PARENT_VALUE) {
+    return ensureOtherGoal(expected, cycleId, scope, createdById);
+  }
 
   const parent = await prisma.goal.findUnique({
     where: { id: rawParentId },
@@ -552,6 +640,39 @@ async function resolveParentId(level: GoalLevel, rawParentId: string, cycleId: s
   });
   if (!parent || parent.level !== expected || parent.cycleId !== cycleId) return null;
   return rawParentId;
+}
+
+/**
+ * 등록·수정 폼의 필수값 검사. 브라우저의 required만 믿으면 안 된다 — 폼을
+ * 우회해 서버 액션을 부르면 그냥 통과한다.
+ *
+ * 전사목표는 제외한다. 관리자가 조직 목표 관리 화면에서 표를 채우는 방식이라
+ * 담당자·팀 같은 칸이 애초에 없다.
+ */
+function requireGoalFields(level: GoalLevel, formData: FormData) {
+  if (level === "COMPANY") return;
+
+  const need: [string, string][] = [
+    ["title", "목표명"],
+    ["parentId", `상위 ${GOAL_LEVEL_LABEL[GOAL_PARENT_LEVEL[level]!]}`],
+    ["ownerId", level === "INDIVIDUAL" ? "담당자" : "책임자"],
+    ["weight", "가중치"],
+    ["metric", "측정지표"],
+    ["targetValue", "목표수준"],
+    ["currentValue", "현재수준"],
+    ["unit", "단위"],
+    ["status", "상태"],
+    ["dueDate", "마감일"],
+  ];
+  if (level === "DIVISION") need.splice(2, 0, ["division", "책임(부문)"]);
+  if (level === "TEAM" || level === "INDIVIDUAL") need.splice(2, 0, ["teamId", "팀"]);
+  // 책임·팀 목표의 달성률은 하위에서 자동 계산되므로 입력칸 자체가 없다.
+  if (level === "INDIVIDUAL") need.push(["progress", "달성률"]);
+
+  const missing = need.filter(([field]) => !str(formData.get(field))).map(([, label]) => label);
+  if (missing.length > 0) {
+    throw new Error(`필수 항목을 입력해 주세요: ${missing.join(", ")}`);
+  }
 }
 
 export async function createGoal(formData: FormData) {
@@ -563,8 +684,13 @@ export async function createGoal(formData: FormData) {
   if (!level || !cycleId || !title) return;
   await requireCycleEditable(cycleId, "goal");
 
+  requireGoalFields(level, formData);
+
   const admin = await isAdmin();
   const scope = scopeFieldsFor(level, formData);
+  // 개인·팀 목표 폼에는 부문 칸이 없다. 기타 사슬(전사 → 책임 → 팀)을 만들려면
+  // 어느 책임 아래인지 알아야 하므로 팀에서 끌어온다.
+  const otherScope = await resolveOtherScope(scope);
 
   // 관리자가 아니면 자기 개인목표만 새로 만들 수 있다. 팀장은 자기 팀
   // 팀목표까지 허용한다 — 그 위(책임·전사)는 인사팀이 내려주는 값이다.
@@ -586,7 +712,13 @@ export async function createGoal(formData: FormData) {
     data: {
       cycleId,
       level,
-      parentId: await resolveParentId(level, str(formData.get("parentId")), cycleId),
+      parentId: await resolveParentId(
+        level,
+        str(formData.get("parentId")),
+        cycleId,
+        otherScope,
+        session.user.id
+      ),
       category: str(formData.get("category")) || null,
       title,
       description: str(formData.get("description")) || null,
@@ -610,7 +742,7 @@ export async function createGoal(formData: FormData) {
 }
 
 export async function updateGoal(formData: FormData) {
-  await requireGoalModule();
+  const session = await requireGoalModule();
 
   const goalId = str(formData.get("goalId"));
   if (!goalId) return;
@@ -633,6 +765,8 @@ export async function updateGoal(formData: FormData) {
   if (existing.agreementStatus === "AGREED" && !(await canApproveGoal(goalId))) {
     throw new Error("합의 완료된 목표입니다. 팀장에게 합의 해제를 요청해 주세요.");
   }
+
+  requireGoalFields(existing.level as GoalLevel, formData);
 
   const synced = reconcileProgressAndStatus(
     {
@@ -683,7 +817,9 @@ export async function updateGoal(formData: FormData) {
             parentId: await resolveParentId(
               level,
               str(formData.get("parentId")),
-              existing.cycleId
+              existing.cycleId,
+              await resolveOtherScope(scopeFieldsFor(level, formData)),
+              session.user.id
             ),
             weight: parseNumber(formData.get("weight"), 0),
             sortOrder: parseNumber(formData.get("sortOrder"), 0),

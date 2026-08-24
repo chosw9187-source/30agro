@@ -10,18 +10,34 @@ export function SearchableSelect({
   defaultValue = "",
   placeholder = "검색...",
   emptyLabel = "없음",
+  required = false,
 }: {
   name: string;
   options: Option[];
   defaultValue?: string;
   placeholder?: string;
   emptyLabel?: string;
+  /** 목록에서 실제로 하나를 고르지 않으면 폼 제출을 막는다. */
+  required?: boolean;
 }) {
   const initial = options.find((o) => o.value === defaultValue) ?? null;
   const [value, setValue] = useState(defaultValue);
   const [query, setQuery] = useState(initial?.label ?? "");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  /*
+    실제 값은 hidden input에 들어 있는데, 브라우저는 hidden input에 required를
+    걸어도 검사하지 않는다. 그래서 보이는 검색칸에 required를 걸고, "글자는
+    쳤는데 목록에서 고르지는 않은" 상태를 따로 막는다 — 그대로 두면 화면에는
+    이름이 적혀 있는데 저장되는 값은 비어 있다.
+  */
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.setCustomValidity(required && !value ? "목록에서 하나를 골라 주세요." : "");
+  }, [required, value]);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -45,8 +61,10 @@ export function SearchableSelect({
     <div ref={containerRef} className="relative">
       <input type="hidden" name={name} value={value} />
       <input
+        ref={inputRef}
         type="text"
         value={query}
+        required={required}
         placeholder={placeholder}
         onFocus={() => setOpen(true)}
         onChange={(e) => {

@@ -100,6 +100,8 @@ export type GoalRow = {
   status: string;
   excluded: boolean;
   excludeReason: string | null;
+  /** "기타" 묶음 목표인지 — 위 층에 딱 붙지 않는 일을 모아 두는 자리. */
+  isOther?: boolean;
   /**
    * 담당자가 이번 사이클 평가대상이 아니라서 빠지는 경우. 목표에 저장하는
    * 값이 아니라 조회할 때 계산해서 붙인다(evalTargetState) — 그래야 조직도가
@@ -493,4 +495,28 @@ export function cycleLock(
     };
   }
   return { canEditGoals: true, canEditProgress: true, message: null };
+}
+
+// ---- "기타" 묶음 ---------------------------------------------------------
+
+/** 상위 목표 선택칸에서 "기타"를 고를 때 넘어오는 값. */
+export const OTHER_PARENT_VALUE = "__OTHER__";
+
+/** 자동으로 만들어지는 기타 목표의 이름. 층마다 하나씩 생긴다. */
+export const OTHER_GOAL_TITLE = "기타";
+
+/**
+ * 새로 만드는 기타 목표에 줄 가중치. 형제들이 이미 가중치를 나눠 가지고 있으면
+ * 그 평균을 준다.
+ *
+ * 0으로 두면 안 된다 — 가중평균은 가중치가 0인 목표를 분모에서도 빼기 때문에,
+ * 기타에 담긴 일을 아무리 해내도 상위 달성률이 1%도 안 움직인다. "여기 담으면
+ * 반영이 안 된다"는 건 이 기능을 만든 이유와 정반대다. 형제가 전부 0이면
+ * 0으로 둬도 되는데, 그때는 가중평균이 동일가중으로 떨어져서 어차피 같이 센다.
+ * 정확한 비중은 어차피 사람이 정할 값이라, 여기서는 "일단 세어지는" 값을 준다.
+ */
+export function defaultOtherWeight(siblings: { weight: number }[]): number {
+  const positive = siblings.map((s) => s.weight).filter((w) => w > 0);
+  if (positive.length === 0) return 0;
+  return Math.round(positive.reduce((sum, w) => sum + w, 0) / positive.length);
 }

@@ -16,6 +16,7 @@ import {
   GOAL_PARENT_LEVEL,
   GOAL_STATUSES,
   GOAL_STATUS_LABEL,
+  OTHER_PARENT_VALUE,
   averageProgress,
   buildGoalTree,
   countsTowardProgress,
@@ -719,15 +720,17 @@ export default async function Evaluation2Page({
                             {g.rollupProgress}%
                           </span>
                         </div>
-                        <div className="mt-1 flex items-center gap-1">
-                          <StatusBadge status={g.status} />
-                          {isOverdue(g, now) && <OverdueBadge />}
-                          {g.children.length > 0 && (
-                            <span className="text-[10px] text-slate-400">
-                              하위 {g.children.length}건 가중평균
-                            </span>
-                          )}
-                        </div>
+                        {/*
+                          막대와 % 말고는 지연 배지만 남긴다. "완료" 배지는 막대가
+                          이미 100%로 말하고 있고, "하위 N건 가중평균"은 어차피
+                          모든 전사목표가 그렇게 계산되는 값이라 줄마다 반복할
+                          이유가 없다. 표는 구분·목표·달성률 세 칸이 전부다.
+                        */}
+                        {isOverdue(g, now) && (
+                          <div className="mt-1">
+                            <OverdueBadge />
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -871,28 +874,47 @@ export default async function Evaluation2Page({
           <input name="title" defaultValue={goal?.title ?? ""} required className={INPUT_CLASS} />
         </div>
 
-        <div>
-          <label className={LABEL_CLASS}>
-            구분 <span className="text-slate-400">(표의 왼쪽 칸)</span>
-          </label>
-          <input
-            name="category"
-            defaultValue={goal?.category ?? ""}
-            placeholder="예: 영업고객관리"
-            className={INPUT_CLASS}
-          />
-        </div>
+        {/*
+          구분은 전사목표에만 둔다. 전사목표 표에서는 이게 왼쪽 칸이라 꼭
+          필요한데(위에 팀이 없어서 어느 조직 얘기인지 알 방법이 없다),
+          책임·팀·개인 목표는 부문·팀·담당자가 이미 그 역할을 한다. 같은 걸
+          한 번 더 손으로 적게 하면 조직도와 어긋나는 값만 쌓인다.
+        */}
+        {level === "COMPANY" && (
+          <div>
+            <label className={LABEL_CLASS}>
+              구분 <span className="text-slate-400">(표의 왼쪽 칸)</span>
+            </label>
+            <input
+              name="category"
+              defaultValue={goal?.category ?? ""}
+              placeholder="예: 영업고객관리"
+              className={INPUT_CLASS}
+            />
+          </div>
+        )}
 
         {parentLevel && (
           <div>
             <label className={LABEL_CLASS}>상위 {GOAL_LEVEL_LABEL[parentLevel]}</label>
-            <select name="parentId" defaultValue={goal?.parentId ?? ""} className={INPUT_CLASS}>
-              <option value="">연결 안 함</option>
+            <select
+              name="parentId"
+              defaultValue={goal?.parentId ?? ""}
+              required
+              className={INPUT_CLASS}
+            >
+              <option value="">선택</option>
               {parentOptions.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.title} ({scopeText(p)})
                 </option>
               ))}
+              {/*
+                위 층 어디에도 딱 붙지 않는 일을 담는 자리. 상위를 비워 두면
+                아무리 달성해도 전사 달성률이 안 움직이므로, 층마다 「기타」
+                한 칸을 두고 거기에 매단다(없으면 자동으로 만들어진다).
+              */}
+              <option value={OTHER_PARENT_VALUE}>기타 (딱 맞는 상위 목표가 없을 때)</option>
             </select>
           </div>
         )}
@@ -900,7 +922,12 @@ export default async function Evaluation2Page({
         {level === "DIVISION" && (
           <div>
             <label className={LABEL_CLASS}>책임(부문)</label>
-            <select name="division" defaultValue={goal?.division ?? ""} className={INPUT_CLASS}>
+            <select
+              name="division"
+              defaultValue={goal?.division ?? ""}
+              required
+              className={INPUT_CLASS}
+            >
               <option value="">선택</option>
               {divisions.map((d) => (
                 <option key={d} value={d}>
@@ -919,20 +946,19 @@ export default async function Evaluation2Page({
               options={teamOptions}
               defaultValue={goal?.teamId ?? ""}
               placeholder="팀 검색"
+              required
             />
           </div>
         )}
 
         <div>
-          <label className={LABEL_CLASS}>
-            {level === "INDIVIDUAL" ? "담당자" : "책임자"}
-            {level !== "INDIVIDUAL" && <span className="text-slate-400"> (선택)</span>}
-          </label>
+          <label className={LABEL_CLASS}>{level === "INDIVIDUAL" ? "담당자" : "책임자"}</label>
           <SearchableSelect
             name="ownerId"
             options={personOptions}
             defaultValue={goal?.ownerId ?? ""}
             placeholder="이름 검색"
+            required={level !== "COMPANY"}
           />
         </div>
 
@@ -945,6 +971,7 @@ export default async function Evaluation2Page({
             max={100}
             step={1}
             defaultValue={goal?.weight ?? 0}
+            required={level !== "COMPANY"}
             className={INPUT_CLASS}
           />
         </div>
@@ -955,13 +982,19 @@ export default async function Evaluation2Page({
             name="metric"
             defaultValue={goal?.metric ?? ""}
             placeholder="예: 신규 거래처 수"
+            required={level !== "COMPANY"}
             className={INPUT_CLASS}
           />
         </div>
 
         <div>
           <label className={LABEL_CLASS}>목표수준</label>
-          <input name="targetValue" defaultValue={goal?.targetValue ?? ""} className={INPUT_CLASS} />
+          <input
+            name="targetValue"
+            defaultValue={goal?.targetValue ?? ""}
+            required={level !== "COMPANY"}
+            className={INPUT_CLASS}
+          />
         </div>
 
         <div>
@@ -969,6 +1002,8 @@ export default async function Evaluation2Page({
           <input
             name="currentValue"
             defaultValue={goal?.currentValue ?? ""}
+            placeholder="아직 없으면 0"
+            required={level !== "COMPANY"}
             className={INPUT_CLASS}
           />
         </div>
@@ -979,6 +1014,7 @@ export default async function Evaluation2Page({
             name="unit"
             defaultValue={goal?.unit ?? ""}
             placeholder="건, %, 억원"
+            required={level !== "COMPANY"}
             className={INPUT_CLASS}
           />
         </div>
@@ -997,6 +1033,7 @@ export default async function Evaluation2Page({
               max={100}
               step={1}
               defaultValue={goal?.progress ?? 0}
+              required
               className={INPUT_CLASS}
             />
           )}
@@ -1019,6 +1056,7 @@ export default async function Evaluation2Page({
             type="date"
             name="dueDate"
             defaultValue={toDateInputValue(goal?.dueDate ?? null)}
+            required={level !== "COMPANY"}
             className={INPUT_CLASS}
           />
         </div>
