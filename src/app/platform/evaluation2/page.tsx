@@ -72,6 +72,14 @@ const TAB_TO_LEVEL: Record<string, GoalLevel> = {
 /** 대시보드에 달성률 요약 카드로 세우는 층. */
 const DASHBOARD_LEVELS: GoalLevel[] = ["COMPANY", "DIVISION", "TEAM", "INDIVIDUAL"];
 
+/** 층 식별색. globals.css의 --color-goal-* 와 같은 값을 가리킨다. */
+const LEVEL_COLOR: Record<GoalLevel, string> = {
+  COMPANY: "var(--color-goal-1)",
+  DIVISION: "var(--color-goal-2)",
+  TEAM: "var(--color-goal-3)",
+  INDIVIDUAL: "var(--color-goal-4)",
+};
+
 const INPUT_CLASS =
   "w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-green focus:outline-none";
 const LABEL_CLASS = "mb-1 block text-xs font-medium text-slate-500";
@@ -109,11 +117,21 @@ function Meter({ value, size = "sm" }: { value: number; size?: "sm" | "md" }) {
 }
 
 /**
- * 달성률 도넛. 채움은 브랜드 초록 한 색(크기 = 값), 트랙은 같은 초록의 옅은
- * 단계다 — 막대와 같은 규칙이라 화면 안에서 색이 따로 놀지 않는다. 값에 따라
- * 색을 바꾸지 않는 이유도 같다: 호의 길이가 이미 값을 보여준다.
+ * 달성률 도넛. 색은 그 목표가 어느 층인지를 나타내고(전사·책임·팀·개인),
+ * 값은 호의 길이가 나타낸다. 트랙은 같은 색을 옅게 깐 것이라 층 색이 링 전체에
+ * 유지된다. 값에 따라 색을 바꾸지는 않는다 — 호의 길이가 이미 값이다.
  */
-function ProgressDonut({ value, size = 132, stroke = 13 }: { value: number; size?: number; stroke?: number }) {
+function ProgressDonut({
+  value,
+  color,
+  size = 132,
+  stroke = 13,
+}: {
+  value: number;
+  color: string;
+  size?: number;
+  stroke?: number;
+}) {
   const v = Math.min(100, Math.max(0, value));
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
@@ -133,7 +151,8 @@ function ProgressDonut({ value, size = 132, stroke = 13 }: { value: number; size
         cy={center}
         r={r}
         fill="none"
-        stroke="var(--color-brand-green-light)"
+        stroke={color}
+        strokeOpacity={0.15}
         strokeWidth={stroke}
       />
       {v > 0 && (
@@ -142,7 +161,7 @@ function ProgressDonut({ value, size = 132, stroke = 13 }: { value: number; size
           cy={center}
           r={r}
           fill="none"
-          stroke="var(--color-brand-green)"
+          stroke={color}
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={`${filled} ${circumference - filled}`}
@@ -487,8 +506,10 @@ export default async function Evaluation2Page({
           </div>
         </div>
 
-        {/* 표와 안내문을 통째로 접을 수 있게 한다. */}
-        <details open>
+        {/* 표와 안내문을 통째로 접을 수 있게 한다. 층별 목록 탭에서는 기본으로
+            접어 둔다 — 펼친 채로 두면 고정 영역이 400px를 넘어, 화면이 낮은
+            노트북에서는 정작 봐야 할 목록이 200~300px밖에 안 남는다. */}
+        <details open={tab === "dashboard"}>
           <summary className="flex cursor-pointer items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-1.5 text-xs text-slate-600 hover:bg-slate-100">
             <span className="font-medium">전사 목표 {companyGoals.length}건</span>
             <span className="text-slate-400">· 눌러서 접기 / 펼치기</span>
@@ -678,7 +699,7 @@ export default async function Evaluation2Page({
         </div>
 
         <div className="relative mt-4 flex items-center justify-center">
-          <ProgressDonut value={percent} />
+          <ProgressDonut value={percent} color={LEVEL_COLOR[level]} />
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-3xl leading-none font-semibold tabular-nums text-slate-900">
               {percent}
