@@ -5,6 +5,7 @@ import {
   GOAL_CYCLE_STATUS_LABEL,
   GOAL_STATUSES,
   GOAL_STATUS_LABEL,
+  cycleLock,
   toDateInputValue,
   weightedProgress,
   buildGoalTree,
@@ -12,10 +13,14 @@ import {
 } from "@/lib/goals";
 import {
   copyGoalsFromCycle,
+  createGoalCheckpoint,
   createGoalCycle,
+  deleteGoalCheckpoint,
   deleteGoalCycle,
+  lockGoalSetting,
   seedCompanyGoalTemplate,
   setGoalCycleStatus,
+  unlockGoalSetting,
 } from "@/app/platform/evaluation2/actions";
 import { addOrgGoal, deleteOrgGoal, saveOrgGoalNote, saveOrgGoals } from "./actions";
 import { CycleSelect } from "@/app/platform/evaluation2/cycle-select";
@@ -92,6 +97,38 @@ export default async function OrgGoalsAdminPage({
   const orgGoals = roots.filter((g) => g.level === "COMPANY");
   const overall = orgGoals.length > 0 ? weightedProgress(orgGoals) : 0;
   const totalWeight = orgGoals.reduce((sum, g) => sum + (g.weight > 0 ? g.weight : 0), 0);
+
+  // 이 사이클에 찍어 둔 평가 시점들. 목록에는 그 시점의 전사 종합 달성률을
+  // 같이 보여준다 — 시점을 왜 남겼는지가 숫자로 바로 읽히도록.
+  const checkpointRows = cycle
+    ? await prisma.goalCheckpoint.findMany({
+        where: { cycleId: cycle.id },
+        orderBy: { takenAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          note: true,
+          takenAt: true,
+          entries: { select: { level: true, progress: true, excluded: true } },
+        },
+      })
+    : [];
+  const checkpoints = checkpointRows.map((cp) => {
+    const company = cp.entries.filter((e) => e.level === "COMPANY" && !e.excluded);
+    return {
+      id: cp.id,
+      name: cp.name,
+      note: cp.note,
+      takenAt: cp.takenAt,
+      entryCount: cp.entries.length,
+      companyProgress:
+        company.length > 0
+          ? Math.round(company.reduce((sum, e) => sum + e.progress, 0) / company.length)
+          : 0,
+    };
+  });
+
+  const lock = cycleLock(cycle);
 
   const nextYear = cycles[0]?.year ?? new Date().getFullYear();
   // 새 사이클은 대개 "내년치 목표설정"을 미리 여는 경우라, 이름과 기간을
@@ -180,6 +217,21 @@ export default async function OrgGoalsAdminPage({
         </section>
       ) : (
         <>
+          {lock.message && (
+            <div className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+              <span className="font-medium text-slate-800">
+                {cycle.status === "CLOSED" ? "종료됨" : "목표 확정됨"}
+              </span>
+              <span className="ml-2">{lock.message}</span>
+              {cycle.goalsLockedAt && cycle.status !== "CLOSED" && (
+                <span className="ml-2 text-xs text-slate-400">
+                  {formatKSTDate(cycle.goalsLockedAt)} 마감 · 아래 「목표 사이클」에서 마감을 풀면
+                  다시 고칠 수 있습니다.
+                </span>
+              )}
+            </div>
+          )}
+
           <section className={`${CARD_CLASS} p-5`}>
             <div className="flex flex-wrap items-baseline gap-3">
               <h2 className="text-base font-semibold">
@@ -379,6 +431,7 @@ export default async function OrgGoalsAdminPage({
                               ? `하위 ${g.children.length}건의 가중평균으로 자동 계산 중 (${g.rollupProgress}%).`
                               : "연결된 하위 목표가 없어 0%입니다. 책임·팀·개인목표를 만들어 이 목표에 연결하세요."}
                           </p>
+                          {lock.canEditGoals && (
                           <ActionForm
                             action={deleteOrgGoal.bind(null, g.id)}
                             successMessage="삭제되었습니다."
@@ -391,36 +444,39 @@ export default async function OrgGoalsAdminPage({
                               이 목표 삭제
                             </button>
                           </ActionForm>
+                          )}
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                <ActionForm
-                  id={ORG_FORM_ID}
-                  action={saveOrgGoals}
-                  successMessage="저장되었습니다."
-                  className="flex flex-wrap items-center gap-3"
-                >
-                  <input type="hidden" name="cycleId" value={cycle.id} />
-                  <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-                    표 저장
-                  </button>
-                  <span className="text-xs text-slate-500">
-                    가중치 합계 {totalWeight}%
-                    {totalWeight !== 100 && orgGoals.length > 0 && (
-                      <span className="ml-1 text-status-critical">
-                        — 100%로 맞추면 종합 달성률이 의도대로 계산됩니다
-                      </span>
-                    )}
-                  </span>
-                </ActionForm>
+                {lock.canEditGoals && (
+                  <ActionForm
+                    id={ORG_FORM_ID}
+                    action={saveOrgGoals}
+                    successMessage="저장되었습니다."
+                    className="flex flex-wrap items-center gap-3"
+                  >
+                    <input type="hidden" name="cycleId" value={cycle.id} />
+                    <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                      표 저장
+                    </button>
+                    <span className="text-xs text-slate-500">
+                      가중치 합계 {totalWeight}%
+                      {totalWeight !== 100 && orgGoals.length > 0 && (
+                        <span className="ml-1 text-status-critical">
+                          — 100%로 맞추면 종합 달성률이 의도대로 계산됩니다
+                        </span>
+                      )}
+                    </span>
+                  </ActionForm>
+                )}
               </div>
             )}
           </section>
 
-          {orgGoals.length > 0 && (
+          {orgGoals.length > 0 && lock.canEditGoals && (
             <section className={`${CARD_CLASS} p-5`}>
               <h2 className="text-base font-semibold">목표 추가</h2>
               <ActionForm
@@ -467,6 +523,70 @@ export default async function OrgGoalsAdminPage({
           </section>
 
           <section className={`${CARD_CLASS} p-5`}>
+            <h2 className="text-base font-semibold">평가 시점</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              같은 목표로 상반기·하반기를 나눠 평가할 때 씁니다. 목표를 복사해 사이클을 새로 만들면
+              같은 목표가 두 벌이 되고 어느 쪽이 진짜인지가 생깁니다. 목표는 한 벌로 두고 그 시점의
+              달성률만 얼려 두면, 하반기에 숫자가 더 올라가도 상반기 성적은 그대로 남습니다.
+            </p>
+
+            <ActionForm
+              action={createGoalCheckpoint}
+              successMessage="평가 시점을 확정했습니다."
+              className="mt-3 flex flex-wrap items-end gap-2"
+            >
+              <input type="hidden" name="cycleId" value={cycle.id} />
+              <div className="min-w-56 flex-1">
+                <label className={LABEL_CLASS}>평가 시점 이름</label>
+                <input
+                  name="name"
+                  required
+                  defaultValue={`${cycle.year}년 상반기 평가`}
+                  className={INPUT_CLASS}
+                />
+              </div>
+              <div className="min-w-56 flex-1">
+                <label className={LABEL_CLASS}>메모 (선택)</label>
+                <input name="note" className={INPUT_CLASS} />
+              </div>
+              <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                지금 시점으로 확정
+              </button>
+            </ActionForm>
+
+            {checkpoints.length === 0 ? (
+              <p className="mt-3 text-xs text-slate-500">아직 확정한 평가 시점이 없습니다.</p>
+            ) : (
+              <div className="mt-3 flex flex-col gap-2">
+                {checkpoints.map((cp) => (
+                  <div
+                    key={cp.id}
+                    className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-slate-200 p-3 text-sm"
+                  >
+                    <span className="font-medium">{cp.name}</span>
+                    <span className="text-xs text-slate-500">{formatKSTDate(cp.takenAt)}</span>
+                    <span className="text-xs text-slate-500">목표 {cp.entryCount}건</span>
+                    <span className="text-xs text-slate-600">
+                      그 시점 전사 종합{" "}
+                      <b className="tabular-nums">{cp.companyProgress}%</b>
+                    </span>
+                    {cp.note && <span className="text-xs text-slate-400">{cp.note}</span>}
+                    <ActionForm
+                      action={deleteGoalCheckpoint.bind(null, cp.id)}
+                      successMessage="삭제되었습니다."
+                      className="ml-auto"
+                    >
+                      <button className="rounded-md border border-red-200 bg-white px-2 py-1 text-xs text-status-critical hover:bg-red-50">
+                        삭제
+                      </button>
+                    </ActionForm>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className={`${CARD_CLASS} p-5`}>
             <h2 className="text-base font-semibold">목표 사이클</h2>
             <div className="mt-3 flex flex-col gap-2">
               {cycles.map((c) => (
@@ -485,7 +605,31 @@ export default async function OrgGoalsAdminPage({
                   <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] text-slate-600">
                     {GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]}
                   </span>
+                  {c.goalsLockedAt && (
+                    <span className="rounded-full bg-slate-700 px-2 py-0.5 text-[11px] text-white">
+                      목표 마감 · {formatKSTDate(c.goalsLockedAt)}
+                    </span>
+                  )}
                   <div className="ml-auto flex gap-2">
+                    {c.goalsLockedAt ? (
+                      <ActionForm
+                        action={unlockGoalSetting.bind(null, c.id)}
+                        successMessage="목표 마감을 풀었습니다."
+                      >
+                        <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">
+                          목표 마감 해제
+                        </button>
+                      </ActionForm>
+                    ) : (
+                      <ActionForm
+                        action={lockGoalSetting.bind(null, c.id)}
+                        successMessage="목표를 마감했습니다."
+                      >
+                        <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">
+                          목표 마감
+                        </button>
+                      </ActionForm>
+                    )}
                     {c.status !== "OPEN" && (
                       <ActionForm
                         action={setGoalCycleStatus.bind(null, c.id, "OPEN")}

@@ -100,6 +100,13 @@ export type GoalRow = {
   status: string;
   excluded: boolean;
   excludeReason: string | null;
+  /**
+   * 담당자가 이번 사이클 평가대상이 아니라서 빠지는 경우. 목표에 저장하는
+   * 값이 아니라 조회할 때 계산해서 붙인다(evalTargetState) — 그래야 조직도가
+   * 바뀌거나 기준일을 고치면 다시 반영을 눌러줄 필요 없이 바로 맞는다.
+   */
+  targetExcluded?: boolean;
+  targetExcludeReason?: string | null;
   agreementStatus: string;
   agreementNote: string | null;
   agreedAt: Date | null;
@@ -122,12 +129,17 @@ export type GoalNode = GoalRow & {
 };
 
 /**
- * 집계에 넣을 목표인지. 중단(DROPPED)된 목표와 "집계 제외"로 표시한 목표
- * (담당자 퇴사·부서이동 등)는 상위 달성률 계산에서 통째로 빠진다. 화면에는
+ * 집계에 넣을 목표인지. 세 가지가 상위 달성률 계산에서 통째로 빠진다 —
+ * 중단(DROPPED)된 목표, 목표 하나를 콕 집어 "집계 제외"한 것(excluded),
+ * 그리고 담당자가 이번 사이클 평가대상이 아닌 것(targetExcluded). 화면에는
  * 흐리게 남겨서 왜 빠졌는지 볼 수 있게 한다.
  */
-export function countsTowardProgress(g: { status: string; excluded?: boolean }) {
-  return g.status !== "DROPPED" && !g.excluded;
+export function countsTowardProgress(g: {
+  status: string;
+  excluded?: boolean;
+  targetExcluded?: boolean;
+}) {
+  return g.status !== "DROPPED" && !g.excluded && !g.targetExcluded;
 }
 
 /**
@@ -391,3 +403,94 @@ export function canViewGoalRow(
  * 같이 풀려버리는 일이 없다.
  */
 export const TARGET_EXCLUDE_TAG = "평가대상 제외";
+
+// ---- 평가대상자 판정 -----------------------------------------------------
+
+/** 이번 사이클에서 이 사람을 평가대상으로 볼지, 뺀다면 왜 빼는지. */
+export type EvalTargetState = {
+  included: boolean;
+  reason: string | null;
+  /** 규칙(입사일 기준일)으로 자동 판정된 것인지, 사람이 직접 정한 것인지. */
+  source: "manual" | "hireCutoff" | "default";
+};
+
+/**
+ * 평가대상 판정. 순서가 곧 규칙이다.
+ *
+ *   1. 사람이 직접 정한 게 있으면(GoalCycleTarget 행) 그게 이긴다 —
+ *      기준일에 걸렸어도 관리자가 "이 사람은 넣는다"고 하면 넣는다.
+ *   2. 없으면 입사일 기준일을 본다. 기준일 **이후** 입사면 뺀다.
+ *      (기준일 당일 입사는 대상이다 — "6월 이후 입사자 제외"라고 하면
+ *       6월 1일자로 들어온 사람은 보통 포함으로 읽힌다.)
+ *   3. 그것도 아니면 대상이다. 아무것도 저장돼 있지 않은 사람이 기본으로
+ *      대상이 되므로, 조직도에 새 입사자가 들어오면 그냥 잡힌다.
+ */
+export function evalTargetState(
+  person: { hireDate?: Date | null },
+  cycle: { hireCutoff?: Date | null } | null,
+  manual?: { included: boolean; reason: string | null } | null
+): EvalTargetState {
+  if (manual) {
+    return { included: manual.included, reason: manual.reason, source: "manual" };
+  }
+  const cutoff = cycle?.hireCutoff ?? null;
+  if (cutoff && person.hireDate && person.hireDate > cutoff) {
+    return {
+      included: false,
+      reason: `${formatCutoff(cutoff)} 이후 입사`,
+      source: "hireCutoff",
+    };
+  }
+  return { included: true, reason: null, source: "default" };
+}
+
+/** 기준일을 사유 문구에 넣을 yyyy-mm-dd 로. 서울 기준으로 뽑는다. */
+function formatCutoff(d: Date): string {
+  return toDateInputValue(d);
+}
+
+// ---- 마감(잠금) ----------------------------------------------------------
+
+/** 사이클에 걸린 잠금 상태. */
+export type CycleLock = {
+  /** 목표 내용(제목·지표·가중치·담당·구조)을 고칠 수 있는가. */
+  canEditGoals: boolean;
+  /** 진척·합의를 올릴 수 있는가. */
+  canEditProgress: boolean;
+  /** 화면에 띄울 안내 문구. 잠긴 게 없으면 null. */
+  message: string | null;
+};
+
+/**
+ * 두 단계로 잠근다.
+ *
+ *   목표 확정(goalsLockedAt) — 목표 **내용**은 못 고치고 진척만 올린다.
+ *     목표를 다 세워 합의까지 끝낸 뒤에 목표가 슬그머니 바뀌면 평가의 기준
+ *     자체가 흔들리기 때문이다. 진척은 계속 올려야 하므로 같이 막지 않는다.
+ *
+ *   사이클 종료(status=CLOSED) — 진척까지 잠겨 완전 읽기 전용이 된다.
+ *     평가가 끝난 뒤 숫자가 움직이면 이미 나간 결과와 화면이 어긋난다.
+ *
+ * 관리자도 예외가 아니다. 마감을 풀어야 고칠 수 있게 해야 "언제 무엇이
+ * 바뀌었나"가 남는다.
+ */
+export function cycleLock(
+  cycle: { status: string; goalsLockedAt?: Date | null } | null
+): CycleLock {
+  if (!cycle) return { canEditGoals: false, canEditProgress: false, message: null };
+  if (cycle.status === "CLOSED") {
+    return {
+      canEditGoals: false,
+      canEditProgress: false,
+      message: "종료된 인사평가입니다 — 목표와 진척 모두 읽기 전용입니다.",
+    };
+  }
+  if (cycle.goalsLockedAt) {
+    return {
+      canEditGoals: false,
+      canEditProgress: true,
+      message: "목표가 확정(마감)되었습니다 — 내용은 고칠 수 없고 진척만 올릴 수 있습니다.",
+    };
+  }
+  return { canEditGoals: true, canEditProgress: true, message: null };
+}

@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
-import { GOAL_STATUSES, type GoalStatus } from "@/lib/goals";
+import { GOAL_STATUSES, cycleLock, type GoalStatus } from "@/lib/goals";
+
 
 const ADMIN_PATH = "/admin/org-goals";
 const VIEW_PATH = "/platform/evaluation2";
@@ -38,6 +39,21 @@ function revalidateBoth() {
 }
 
 /**
+ * 마감된 사이클의 목표는 관리자도 못 고친다. 마감을 눌러 놓고 관리자만 몰래
+ * 고칠 수 있으면 "마감"이라는 말이 화면에서 거짓이 된다 — 고쳐야 하면 목표
+ * 사이클 목록에서 마감을 풀고 고친다.
+ */
+async function requireCycleUnlocked(cycleId: string) {
+  const cycle = await prisma.goalCycle.findUnique({
+    where: { id: cycleId },
+    select: { status: true, goalsLockedAt: true },
+  });
+  if (!cycle) throw new Error("인사평가를 찾을 수 없습니다.");
+  const lock = cycleLock(cycle);
+  if (!lock.canEditGoals) throw new Error(lock.message ?? "지금은 고칠 수 없습니다.");
+}
+
+/**
  * 조직 목표 표를 통째로 저장한다. 행마다 저장 버튼을 두면 다섯 줄 고치는 데
  * 다섯 번 눌러야 해서, 표 하나에 저장 한 번으로 맞춘다. 넘어온 id 중
  * 이 사이클의 전사목표가 아닌 건 무시한다.
@@ -47,6 +63,7 @@ export async function saveOrgGoals(formData: FormData) {
 
   const cycleId = str(formData.get("cycleId"));
   if (!cycleId) return;
+  await requireCycleUnlocked(cycleId);
 
   const rows = await prisma.goal.findMany({
     where: { cycleId, level: "COMPANY" },
@@ -84,6 +101,7 @@ export async function addOrgGoal(formData: FormData) {
   const cycleId = str(formData.get("cycleId"));
   const title = str(formData.get("newTitle"));
   if (!cycleId || !title) return;
+  await requireCycleUnlocked(cycleId);
 
   const last = await prisma.goal.findFirst({
     where: { cycleId, level: "COMPANY" },
@@ -113,9 +131,10 @@ export async function deleteOrgGoal(goalId: string) {
 
   const goal = await prisma.goal.findUnique({
     where: { id: goalId },
-    select: { level: true },
+    select: { level: true, cycleId: true },
   });
   if (goal?.level !== "COMPANY") return;
+  await requireCycleUnlocked(goal.cycleId);
 
   await prisma.goal.updateMany({ where: { parentId: goalId }, data: { parentId: null } });
   await prisma.goal.delete({ where: { id: goalId } });

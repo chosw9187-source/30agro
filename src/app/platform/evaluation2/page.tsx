@@ -22,6 +22,8 @@ import {
   flattenGoalTree,
   asAgreementStatus,
   canViewGoalRow,
+  cycleLock,
+  evalTargetState,
   isAutoCalculated,
   isOverdue,
   needsAgreement,
@@ -355,13 +357,45 @@ export default async function Evaluation2Page({
           sortOrder: true,
           team: { select: { id: true, name: true } },
           owner: {
-            select: { id: true, name: true, teamId: true, terminationDate: true },
+            select: {
+              id: true,
+              name: true,
+              teamId: true,
+              terminationDate: true,
+              hireDate: true,
+            },
           },
         },
       })
     : [];
 
-  const tree = buildGoalTree(goals);
+  // 이번 사이클에서 손으로 정해 둔 평가대상 지정. 규칙(입사일 기준일)보다 우선한다.
+  const manualTargets = cycle
+    ? await prisma.goalCycleTarget.findMany({
+        where: { cycleId: cycle.id },
+        select: { userId: true, included: true, reason: true },
+      })
+    : [];
+  const manualByUser = new Map(manualTargets.map((t) => [t.userId, t]));
+
+  /**
+   * 담당자가 이번 평가 대상인지를 목표마다 붙인다. 저장하지 않고 여기서
+   * 계산하는 이유는, 조직도에 사람이 드나들거나 기준일을 고쳐도 따로 반영을
+   * 눌러줄 필요 없이 바로 맞아야 하기 때문이다.
+   */
+  const goalsWithTarget = goals.map((g) => {
+    if (!g.ownerId) return g;
+    const state = evalTargetState(
+      { hireDate: g.owner?.hireDate ?? null },
+      cycle,
+      manualByUser.get(g.ownerId) ?? null
+    );
+    if (state.included) return g;
+    return { ...g, targetExcluded: true, targetExcludeReason: state.reason };
+  });
+
+  const lock = cycleLock(cycle);
+  const tree = buildGoalTree(goalsWithTarget);
   const allNodes = flattenGoalTree(tree);
   const nodeById = new Map(allNodes.map((n) => [n.id, n]));
   const byLevel = (level: GoalLevel) => allNodes.filter((n) => n.level === level);
@@ -430,7 +464,7 @@ export default async function Evaluation2Page({
   const overallProgress =
     companyGoals.length > 0 ? weightedProgress(companyGoals) : averageProgress(counted);
   const doneCount = allNodes.filter((g) => g.status === "DONE" && !g.excluded).length;
-  const excludedCount = allNodes.filter((g) => g.excluded).length;
+  const excludedCount = allNodes.filter((g) => g.excluded || g.targetExcluded).length;
   // 상위에 안 매달린 목표는 아무리 달성해도 전사 달성률을 못 움직인다.
   // 숫자가 안 오르는 가장 흔한 이유라 화면에 대놓고 알려준다.
   const unlinked = allNodes.filter(
@@ -1000,7 +1034,10 @@ export default async function Evaluation2Page({
   function GoalRowCard({ goal }: { goal: GoalNode }) {
     const level = goal.level as GoalLevel;
     const parent = goal.parentId ? nodeById.get(goal.parentId) : null;
-    const editable = canManage(goal);
+    // 마감 상태를 여기서 한 번에 반영한다. 진척은 목표 확정 뒤에도 올리고,
+    // 목표 내용·삭제·집계 제외는 확정되면 잠긴다.
+    const canTouchProgress = canManage(goal) && lock.canEditProgress;
+    const editable = canManage(goal) && lock.canEditGoals;
     const isEditing = editingGoal?.id === goal.id;
     const parentLevel = GOAL_PARENT_LEVEL[level];
     // 상위 목표 후보도 볼 수 있는 범위 안에서만 고르게 한다.
@@ -1095,7 +1132,7 @@ export default async function Evaluation2Page({
     return (
       <div
         className={`${CARD_CLASS} border-l-2 p-4 ${GOAL_LEVEL_RAMP_BORDER[level]} ${
-          goal.excluded ? "opacity-60" : ""
+          goal.excluded || goal.targetExcluded ? "opacity-60" : ""
         }`}
       >
         <div className="flex flex-wrap items-center gap-2">
@@ -1106,7 +1143,10 @@ export default async function Evaluation2Page({
           {isOverdue(goal, now) && <OverdueBadge />}
           {needsAgreement(goal.level) && <AgreementBadge status={goal.agreementStatus} />}
           {goal.excluded && <ExcludedBadge reason={goal.excludeReason} />}
-          {flag && !goal.excluded && <OwnerFlagBadge label={flag.label} />}
+          {!goal.excluded && goal.targetExcluded && (
+            <ExcludedBadge reason={goal.targetExcludeReason ?? "평가대상 아님"} />
+          )}
+          {flag && !goal.excluded && !goal.targetExcluded && <OwnerFlagBadge label={flag.label} />}
           <span className="ml-auto text-sm font-semibold tabular-nums text-slate-700">
             {goal.rollupProgress}%
           </span>
@@ -1160,7 +1200,7 @@ export default async function Evaluation2Page({
         {agreementActions}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {editable && !isAutoCalculated(level) && (
+          {canTouchProgress && !isAutoCalculated(level) && (
             <ActionForm
               action={addGoalCheckIn}
               successMessage="진척이 반영되었습니다."
@@ -1211,7 +1251,7 @@ export default async function Evaluation2Page({
               {isEditing ? "수정 닫기" : "수정"}
             </Link>
           )}
-          {canExclude(goal) && (
+          {canExclude(goal) && lock.canEditProgress && (
             <ActionForm
               action={setGoalExcluded.bind(null, goal.id, !goal.excluded)}
               successMessage={goal.excluded ? "집계에 다시 포함했습니다." : "집계에서 제외했습니다."}
@@ -1234,7 +1274,7 @@ export default async function Evaluation2Page({
               </button>
             </ActionForm>
           )}
-          {isAdmin && (
+          {isAdmin && lock.canEditGoals && (
             <ActionForm action={deleteGoal.bind(null, goal.id)} successMessage="삭제되었습니다.">
               <button
                 type="submit"
@@ -1275,9 +1315,10 @@ export default async function Evaluation2Page({
     if (focusedIds) rows = rows.filter((g) => focusedIds.has(g.id));
 
     const canCreate =
-      isAdmin ||
-      level === "INDIVIDUAL" ||
-      (level === "TEAM" && teams.some((t) => t.leaderId === session!.user.id));
+      lock.canEditGoals &&
+      (isAdmin ||
+        level === "INDIVIDUAL" ||
+        (level === "TEAM" && teams.some((t) => t.leaderId === session!.user.id)));
 
     return (
       <div className="flex flex-col gap-4">
@@ -1411,6 +1452,26 @@ export default async function Evaluation2Page({
 
       {/* 배너 — 탭과 인사평가 선택. 어느 화면에서도 맨 위에 그대로 남는다. */}
       <div className="shrink-0">{topBar()}</div>
+
+      {/* 마감 안내 — 왜 수정 버튼이 사라졌는지 화면에서 바로 읽히게 한다. */}
+      {lock.message && (
+        <div className="shrink-0 rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-600">
+          <span className="font-medium text-slate-800">
+            {cycle?.status === "CLOSED" ? "종료됨" : "목표 확정됨"}
+          </span>
+          <span className="ml-2">{lock.message}</span>
+          {cycle?.goalsLockedAt && cycle.status !== "CLOSED" && (
+            <span className="ml-2 text-xs text-slate-400">
+              {formatKSTDate(cycle.goalsLockedAt)} 마감
+            </span>
+          )}
+          {isAdmin && (
+            <Link href="/admin/org-goals" className="ml-2 text-xs text-brand-green-dark underline">
+              {cycle?.status === "CLOSED" ? "관리 화면에서 되돌리기" : "관리 화면에서 마감 해제"}
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* 전사 목표 — 배너와 줄을 나눠 그 아래에 놓는다. 표는 접을 수 있다. */}
       <div className="shrink-0">{companyGoalBoard()}</div>
