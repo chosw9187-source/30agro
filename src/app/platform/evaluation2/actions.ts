@@ -227,16 +227,16 @@ export async function deleteGoalCycle(cycleId: string) {
 }
 
 /**
- * 사내 "조직 단위별 목표" 보고 양식의 구분 5개. 새 사이클을 열면 이 뼈대를
+ * 사내 "조직 단위별 목표" 보고 양식의 다섯 줄. 새 사이클을 열면 이 뼈대를
  * 한 번에 깔아두고 목표 문구만 손보는 쪽이, 매번 빈 화면에서 다섯 줄을
  * 새로 만드는 것보다 빠르다. 문구는 등록 후 전사목표 탭에서 수정한다.
  */
 const COMPANY_GOAL_TEMPLATE = [
-  { category: "제품기획마케팅", title: "VISION 2028을 위한 신규시장 개척 및 대형 품목 육성" },
-  { category: "영업고객관리", title: "매출 목표 달성" },
-  { category: "기술연구", title: "신규제형 및 약제 효과 개선제품 개발과 판매제품의 안전성 자료 확보" },
-  { category: "생산", title: "생산성 향상을 위한 자동화 공정 구축과 신제형 생산라인 신설 타당성 확보" },
-  { category: "재무경영관리", title: "사업 경쟁력 강화를 위한 전략적 재무관리와 성과중심 조직문화 구축" },
+  { title: "VISION 2028을 위한 신규시장 개척 및 대형 품목 육성" },
+  { title: "매출 목표 달성" },
+  { title: "신규제형 및 약제 효과 개선제품 개발과 판매제품의 안전성 자료 확보" },
+  { title: "생산성 향상을 위한 자동화 공정 구축과 신제형 생산라인 신설 타당성 확보" },
+  { title: "사업 경쟁력 강화를 위한 전략적 재무관리와 성과중심 조직문화 구축" },
 ] as const;
 
 /**
@@ -261,7 +261,6 @@ export async function seedCompanyGoalTemplate(cycleId: string) {
     data: COMPANY_GOAL_TEMPLATE.map((row, i) => ({
       cycleId,
       level: "COMPANY" as const,
-      category: row.category,
       title: row.title,
       sortOrder: i + 1,
       createdById: session.user.id,
@@ -275,7 +274,7 @@ export async function seedCompanyGoalTemplate(cycleId: string) {
  * 다른 사이클의 목표를 통째로 이 사이클로 복사한다 — 해마다 목표 체계를 처음부터
  * 다시 짜지 않도록.
  *
- * 복사되는 것: 층·구분·제목·설명·부문/팀/담당자·가중치·지표·목표수준, 그리고
+ * 복사되는 것: 층·제목·설명·부문/팀/담당자·가중치·지표·목표수준, 그리고
  * 상하 연결(parentId)까지. 새 부모 id로 갈아 끼워야 하므로 층 순서대로
  * 만들면서 옛 id → 새 id 대응표를 쌓아간다.
  *
@@ -314,7 +313,6 @@ export async function copyGoalsFromCycle(formData: FormData) {
       id: true,
       level: true,
       parentId: true,
-      category: true,
       title: true,
       description: true,
       division: true,
@@ -337,8 +335,7 @@ export async function copyGoalsFromCycle(formData: FormData) {
           cycleId: targetCycleId,
           level: row.level,
           parentId: row.parentId ? (newIdByOldId.get(row.parentId) ?? null) : null,
-          category: row.category,
-          title: row.title,
+              title: row.title,
           description: row.description,
           division: row.division,
           teamId: row.teamId,
@@ -444,8 +441,7 @@ export async function createGoalCheckpoint(formData: FormData) {
         id: true,
         level: true,
         parentId: true,
-        category: true,
-        title: true,
+          title: true,
         description: true,
         division: true,
         teamId: true,
@@ -591,9 +587,6 @@ async function ensureOtherGoal(
       isOther: true,
       title: OTHER_GOAL_TITLE,
       description: "위 층 목표에 직접 붙지 않는 일을 모아 두는 자리입니다.",
-      // 전사목표 표의 왼쪽 "구분" 칸. 비워 두면 그 자리에 "전사"가 찍혀서,
-      // 제품기획마케팅·영업고객관리처럼 조직 이름이 늘어선 칸에 혼자 튄다.
-      category: level === "COMPANY" ? OTHER_GOAL_TITLE : null,
       division: level === "DIVISION" || level === "TEAM" ? scope.division : null,
       teamId: level === "TEAM" ? scope.teamId : null,
       weight: defaultOtherWeight(siblings),
@@ -719,7 +712,6 @@ export async function createGoal(formData: FormData) {
         otherScope,
         session.user.id
       ),
-      category: str(formData.get("category")) || null,
       title,
       description: str(formData.get("description")) || null,
       ...scope,
@@ -809,7 +801,6 @@ export async function updateGoal(formData: FormData) {
     where: { id: goalId },
     data: {
       title: str(formData.get("title")) || undefined,
-      category: str(formData.get("category")) || null,
       description: str(formData.get("description")) || null,
       ...scope,
       ...(admin

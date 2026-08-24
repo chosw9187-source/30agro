@@ -294,25 +294,18 @@ export default async function Evaluation2Page({
     orderBy: [{ year: "desc" }, { startDate: "desc" }],
   });
   /**
-   * 상단 배너의 인사평가 선택. 아무것도 안 고른 상태("선택")가 기본이고, 그때는
-   * 오늘이 속한 사이클을 기준으로 보여준다. 특정 인사평가를 고르면 화면 구성은
-   * 그대로 두고 그 사이클의 목표로만 갈아 끼운다 — 고르는 순간 대시보드가
-   * 사라지면 연도만 바꿔 보려던 사람이 갈 곳이 없어진다.
+   * 상단 배너의 인사평가 선택. 평가2에 처음 들어오면 아무것도 안 고른
+   * "선택" 상태이고, 그때는 **어떤 목표도 보여주지 않는다**.
+   *
+   * 예전에는 오늘이 속한 사이클을 알아서 잡아 줬는데, 그러면 화면에 뜬 숫자가
+   * 몇 년도 것인지 모르는 채로 읽게 된다. 2026과 2027이 나란히 열려 있는
+   * 기간에는 특히 위험하다. 어느 해를 보는지는 사람이 고르게 한다.
    */
   const pickedCycle = params.cycleId
     ? (cycles.find((c) => c.id === params.cycleId) ?? null)
     : null;
   const selectedCycleId = pickedCycle?.id ?? "";
-  // 안 골랐을 때 기준이 되는 사이클: 오늘이 기간 안에 든 것 → 없으면 이미
-  // 시작한 것 중 가장 최근 → 그것도 없으면 목록의 첫 번째(가장 최신).
-  // 그냥 최신을 잡으면 내년치를 미리 만들어 둔 순간 화면이 빈 채로 뜬다.
-  const today = new Date();
-  const defaultCycleForGoals =
-    cycles.find((c) => c.startDate <= today && today <= c.endDate) ??
-    cycles.find((c) => c.startDate <= today) ??
-    cycles[0] ??
-    null;
-  const cycle = pickedCycle ?? defaultCycleForGoals;
+  const cycle = pickedCycle;
 
   const [teams, people] = await Promise.all([
     prisma.team.findMany({
@@ -335,7 +328,6 @@ export default async function Evaluation2Page({
           id: true,
           level: true,
           parentId: true,
-          category: true,
           title: true,
           description: true,
           division: true,
@@ -657,8 +649,8 @@ export default async function Evaluation2Page({
                   하나씩 직접 등록
                 </Link>
                 <span className="text-xs text-slate-500">
-                  제품기획마케팅 · 영업고객관리 · 기술연구 · 생산 · 재무경영관리 5개 구분과 표
-                  하단 안내문이 한 번에 들어갑니다. 문구는 등록 후 수정하세요.
+                  제품기획마케팅 · 영업고객관리 · 기술연구 · 생산 · 재무경영관리 다섯 줄이 한 번에
+                  들어갑니다. 내용은 등록 후 수정하세요.
                 </span>
               </div>
             )}
@@ -668,7 +660,6 @@ export default async function Evaluation2Page({
             <table className="w-full min-w-[860px] text-sm">
               <thead className="sticky top-0 z-10 bg-slate-100 text-slate-600">
                 <tr>
-                  <th className="w-44 px-4 py-1.5 text-left text-xs font-semibold">구분</th>
                   <th className="px-4 py-1.5 text-left text-xs font-semibold">목표</th>
                   <th className="w-56 px-4 py-1.5 text-left text-xs font-semibold">달성률</th>
                 </tr>
@@ -684,10 +675,6 @@ export default async function Evaluation2Page({
                       }`}
                     >
                       <td className="px-4 py-2">
-                        <span className="text-xs text-slate-400">{i + 1}.</span>{" "}
-                        <span className="font-medium text-slate-700">{g.category ?? "전사"}</span>
-                      </td>
-                      <td className="px-4 py-2">
                         <Link
                           href={
                             focused
@@ -697,13 +684,17 @@ export default async function Evaluation2Page({
                           className="group flex items-start gap-1.5"
                           title={focused ? "전체 보기" : "이 목표에 달린 책임목표만 보기"}
                         >
-                          <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-slate-400" />
+                          {/* 구분 칸을 없앤 대신 순번만 남긴다. 표가 목표와 달성률
+                              두 칸이라, 몇 번째 줄인지는 여기서 붙여 준다. */}
+                          <span className="w-5 shrink-0 pt-0.5 text-xs text-slate-400">
+                            {i + 1}.
+                          </span>
                           <span className="font-medium text-slate-800 group-hover:text-brand-green-dark group-hover:underline">
                             {g.title}
                           </span>
                         </Link>
                         {(g.metric || g.targetValue || g.description) && (
-                          <p className="mt-0.5 pl-3 text-xs text-slate-500">
+                          <p className="mt-0.5 pl-5 text-xs text-slate-500">
                             {[
                               g.metric,
                               g.targetValue ? `목표 ${g.targetValue}${g.unit ?? ""}` : null,
@@ -725,7 +716,7 @@ export default async function Evaluation2Page({
                           막대와 % 말고는 지연 배지만 남긴다. "완료" 배지는 막대가
                           이미 100%로 말하고 있고, "하위 N건 가중평균"은 어차피
                           모든 전사목표가 그렇게 계산되는 값이라 줄마다 반복할
-                          이유가 없다. 표는 구분·목표·달성률 세 칸이 전부다.
+                          이유가 없다. 표는 목표와 달성률 두 칸이 전부다.
                         */}
                         {isOverdue(g, now) && (
                           <div className="mt-1">
@@ -875,25 +866,6 @@ export default async function Evaluation2Page({
           <input name="title" defaultValue={goal?.title ?? ""} required className={INPUT_CLASS} />
         </div>
 
-        {/*
-          구분은 전사목표에만 둔다. 전사목표 표에서는 이게 왼쪽 칸이라 꼭
-          필요한데(위에 팀이 없어서 어느 조직 얘기인지 알 방법이 없다),
-          책임·팀·개인 목표는 부문·팀·담당자가 이미 그 역할을 한다. 같은 걸
-          한 번 더 손으로 적게 하면 조직도와 어긋나는 값만 쌓인다.
-        */}
-        {level === "COMPANY" && (
-          <div>
-            <label className={LABEL_CLASS}>
-              구분 <span className="text-slate-400">(표의 왼쪽 칸)</span>
-            </label>
-            <input
-              name="category"
-              defaultValue={goal?.category ?? ""}
-              placeholder="예: 영업고객관리"
-              className={INPUT_CLASS}
-            />
-          </div>
-        )}
 
         {parentLevel && (
           <div>
@@ -1201,7 +1173,6 @@ export default async function Evaluation2Page({
         </div>
 
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-          {goal.category && <span>구분: {goal.category}</span>}
           {parent && (
             <span>
               상위: {parent.title} ({GOAL_LEVEL_LABEL[parent.level as GoalLevel]})
@@ -1422,7 +1393,9 @@ export default async function Evaluation2Page({
     ? { name: `${thisYear}년 상반기`, startDate: `${thisYear}-01-01`, endDate: `${thisYear}-06-30` }
     : { name: `${thisYear}년 하반기`, startDate: `${thisYear}-07-01`, endDate: `${thisYear}-12-31` };
 
-  if (!cycle) {
+  // 사이클이 하나도 없을 때만 이 첫 실행 화면을 보여준다. "아직 안 고른 것"과
+  // "아예 없는 것"은 다르다 — 안 고른 상태는 아래 본문에서 선택을 안내한다.
+  if (cycles.length === 0) {
     return (
       <div className="flex flex-col gap-6">
         <h1 className="text-2xl font-semibold">평가2 · 목표관리</h1>
@@ -1474,7 +1447,7 @@ export default async function Evaluation2Page({
                 </button>
                 <p className="mt-2 text-xs text-slate-500">
                   만들고 나면 상단 전사목표 표에서 「조직 단위별 목표 양식으로 채우기」 버튼으로
-                  구분 5개를 한 번에 넣을 수 있습니다.
+                  다섯 줄을 한 번에 넣을 수 있습니다.
                 </p>
               </div>
             </ActionForm>
@@ -1517,21 +1490,47 @@ export default async function Evaluation2Page({
         </div>
       )}
 
-      {/* 전사 목표 — 배너와 줄을 나눠 그 아래에 놓는다. 표는 접을 수 있다. */}
-      <div className="shrink-0">{companyGoalBoard()}</div>
-
-      {isDashboard ? (
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {DASHBOARD_LEVELS.map((level) => (
-              <LevelSummaryCard key={level} level={level} />
-            ))}
-          </div>
-        </div>
+      {!cycle ? (
+        // 인사평가를 고르기 전에는 어느 탭이든 비워 둔다. 어느 해 숫자인지
+        // 모르는 채로 목표를 읽게 두지 않는다.
+        <section className="flex min-h-0 flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white">
+          <p className="text-base font-semibold text-slate-700">인사평가를 선택해 주세요</p>
+          <p className="mt-1 text-sm text-slate-500">
+            오른쪽 위 목록에서 연도를 고르면 그 해의 전사 · 책임 · 팀 · 개인 목표가 보입니다.
+          </p>
+          {cycles.length === 0 && (
+            <p className="mt-4 text-xs text-slate-400">
+              {isAdmin
+                ? "아직 만들어진 인사평가가 없습니다 — 「조직 목표 관리」에서 먼저 만들어 주세요."
+                : "아직 열린 인사평가가 없습니다. 관리자에게 문의해 주세요."}
+            </p>
+          )}
+        </section>
       ) : (
-        // 층별 탭도 목록만 안에서 스크롤시켜, 배너와 전사 목표가 밀려
-        // 올라가 사라지지 않게 한다.
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1">{levelTab(TAB_TO_LEVEL[tab])}</div>
+        <>
+          {/* 전사 목표 — 배너와 줄을 나눠 그 아래에 놓는다. 표는 접을 수 있다. */}
+          <div className="shrink-0">{companyGoalBoard()}</div>
+
+          {isDashboard ? (
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {DASHBOARD_LEVELS.map((level) => (
+                  <LevelSummaryCard key={level} level={level} />
+                ))}
+              </div>
+            </div>
+          ) : (
+            // 층별 탭도 목록만 안에서 스크롤시켜, 배너와 전사 목표가 밀려
+            // 올라가 사라지지 않게 한다.
+            //
+            // key에 탭을 넣어 탭을 옮길 때마다 이 안을 새로 그린다. 안 그러면
+            // React가 같은 자리의 등록 폼을 재사용해서, 개인목표에 쳐 넣던
+            // 목표명이 팀목표 탭 입력칸에 그대로 남아 있는다.
+            <div key={tab} className="min-h-0 flex-1 overflow-y-auto pr-1">
+              {levelTab(TAB_TO_LEVEL[tab])}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

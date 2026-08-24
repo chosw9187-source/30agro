@@ -75,7 +75,6 @@ export async function saveOrgGoals(formData: FormData) {
       prisma.goal.update({
         where: { id: row.id },
         data: {
-          category: str(formData.get(`category:${row.id}`)) || null,
           title: str(formData.get(`title:${row.id}`)) || undefined,
           metric: str(formData.get(`metric:${row.id}`)) || null,
           targetValue: str(formData.get(`targetValue:${row.id}`)) || null,
@@ -113,7 +112,6 @@ export async function addOrgGoal(formData: FormData) {
     data: {
       cycleId,
       level: "COMPANY",
-      category: str(formData.get("newCategory")) || null,
       title,
       sortOrder: (last?.sortOrder ?? 0) + 1,
       createdById: session.user.id,

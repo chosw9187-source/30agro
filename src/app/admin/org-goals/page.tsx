@@ -62,7 +62,6 @@ export default async function OrgGoalsAdminPage({
           id: true,
           level: true,
           parentId: true,
-          category: true,
           title: true,
           description: true,
           division: true,
@@ -260,8 +259,8 @@ export default async function OrgGoalsAdminPage({
                   </button>
                 </ActionForm>
                 <p className="mt-2 text-xs text-slate-500">
-                  제품기획마케팅 · 영업고객관리 · 기술연구 · 생산 · 재무경영관리 5개 구분과 표
-                  하단 안내문이 한 번에 들어갑니다.
+                  제품기획마케팅 · 영업고객관리 · 기술연구 · 생산 · 재무경영관리 다섯 줄이 한 번에
+                  들어갑니다.
                 </p>
 
                 {otherCycles.length > 0 && (
@@ -319,17 +318,7 @@ export default async function OrgGoalsAdminPage({
                             className={INPUT_CLASS}
                           />
                         </div>
-                        <div className="md:col-span-3">
-                          <label className={LABEL_CLASS}>구분</label>
-                          <input
-                            name={`category:${g.id}`}
-                            form={ORG_FORM_ID}
-                            defaultValue={g.category ?? ""}
-                            placeholder="영업고객관리"
-                            className={INPUT_CLASS}
-                          />
-                        </div>
-                        <div className="md:col-span-8">
+                        <div className="md:col-span-11">
                           <label className={LABEL_CLASS}>목표</label>
                           <input
                             name={`title:${g.id}`}
@@ -485,11 +474,7 @@ export default async function OrgGoalsAdminPage({
                 className="mt-3 grid gap-3 md:grid-cols-4"
               >
                 <input type="hidden" name="cycleId" value={cycle.id} />
-                <div>
-                  <label className={LABEL_CLASS}>구분</label>
-                  <input name="newCategory" placeholder="사업개발" className={INPUT_CLASS} />
-                </div>
-                <div className="md:col-span-2">
+                <div className="md:col-span-3">
                   <label className={LABEL_CLASS}>목표</label>
                   <input name="newTitle" required className={INPUT_CLASS} />
                 </div>

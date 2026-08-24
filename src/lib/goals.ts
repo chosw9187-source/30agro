@@ -85,7 +85,6 @@ export type GoalRow = {
   id: string;
   level: string;
   parentId: string | null;
-  category: string | null;
   title: string;
   description: string | null;
   division: string | null;
