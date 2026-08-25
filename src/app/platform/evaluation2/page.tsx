@@ -6,6 +6,7 @@ import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { SearchableSelect } from "@/components/searchable-select";
 import { activePrismaWhere } from "@/lib/hr-analytics";
+import { POSITION_LABEL } from "@/lib/permission-constants";
 import { formatKSTDate } from "@/lib/format-kst";
 import {
   GOAL_AGREEMENT_BADGE_CLASS,
@@ -321,7 +322,7 @@ function scopeText(goal: GoalNode): string {
 export default async function Evaluation2Page({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; cycleId?: string; edit?: string; focus?: string }>;
+  searchParams: Promise<{ tab?: string; cycleId?: string; edit?: string }>;
 }) {
   if (!(await checkModuleAccess("EVALUATION_V2"))) {
     return <NoModuleAccess title="평가2" />;
@@ -396,7 +397,13 @@ export default async function Evaluation2Page({
     prisma.user.findMany({
       where: activePrismaWhere(),
       orderBy: { name: "asc" },
-      select: { id: true, name: true, division: true, team: { select: { name: true } } },
+      select: {
+        id: true,
+        name: true,
+        position: true,
+        division: true,
+        team: { select: { name: true } },
+      },
     }),
   ]);
 
@@ -511,10 +518,16 @@ export default async function Evaluation2Page({
     label: t.name,
     sublabel: t.division ?? undefined,
   }));
+  /*
+    사람을 고르는 칸은 «오동률 책임(재무경영관리)»처럼 이름 · 직책 · 소속을 함께
+    보여 준다. 이름만 있으면 동명이인을 가릴 수 없고, 무엇보다 누구를 골라야
+    하는지가 직책에서 읽힌다. 검색은 라벨을 훑으므로 «책임»이나 «팀장»으로도
+    찾을 수 있다.
+  */
   const personOptions = people.map((p) => ({
     value: p.id,
-    label: p.name,
-    sublabel: p.team?.name ?? p.division ?? undefined,
+    label: `${p.name} ${POSITION_LABEL[p.position]}`,
+    sublabel: p.team?.name ? `(${p.team.name})` : p.division ? `(${p.division})` : undefined,
   }));
 
   // 조직도(본부 > 책임 > 팀)를 되짚는 표. 목표에는 팀만 붙어 있어서, 이 사람이
@@ -536,22 +549,13 @@ export default async function Evaluation2Page({
 
   const editingGoal = params.edit ? nodeById.get(params.edit) ?? null : null;
 
-  // 전사목표 한 건을 고르면 아래 세 칸이 그 목표의 갈래만 보여준다 — 한 화면
-  // 안에서 "이 전사목표가 어디까지 내려가 있나"를 훑을 수 있게.
-  const focusGoal = params.focus ? nodeById.get(params.focus) ?? null : null;
-  const focusedIds = focusGoal
-    ? new Set(flattenGoalTree([focusGoal]).map((n) => n.id))
-    : null;
-
-  function buildHref(next: { tab?: string; focus?: string | null; edit?: string | null }) {
+  function buildHref(next: { tab?: string; edit?: string | null }) {
     const qs = new URLSearchParams();
     qs.set("tab", next.tab ?? tab);
     // 사용자가 실제로 고른 인사평가만 URL에 남긴다. 기본값으로 잡아둔 사이클을
     // 여기서 붙이면, 탭을 누르는 순간 "인사평가 선택" 상태가 돼 목표관리 화면이
     // 빈 평가 화면으로 바뀌어 버린다.
     if (selectedCycleId) qs.set("cycleId", selectedCycleId);
-    const focus = next.focus === undefined ? params.focus : next.focus;
-    if (focus) qs.set("focus", focus);
     const edit = next.edit === undefined ? undefined : next.edit;
     if (edit) qs.set("edit", edit);
     return `/platform/evaluation2?${qs.toString()}`;
@@ -561,15 +565,21 @@ export default async function Evaluation2Page({
   const counted = allNodes.filter(countsTowardProgress);
   const overallProgress =
     companyGoals.length > 0 ? weightedProgress(companyGoals) : averageProgress(counted);
-  const doneCount = allNodes.filter((g) => g.status === "DONE" && !g.excluded).length;
-  const excludedCount = allNodes.filter((g) => g.excluded || g.targetExcluded).length;
+  /*
+    머리글의 건수는 «전사 목표»라는 제목 아래 붙으므로 전사목표만 센다.
+    예전에는 네 층을 전부 세서, 전사목표 6건은 하나도 완료가 아닌데 «완료 1»이
+    떴다 — 아래층 어딘가의 개인목표 한 건이었다. 옆의 «전사 종합 %»도 전사목표
+    기준이라 이제 한 줄이 같은 것을 말한다.
+  */
+  const doneCount = companyGoals.filter((g) => g.status === "DONE" && !g.excluded).length;
+  const excludedCount = companyGoals.filter((g) => g.excluded || g.targetExcluded).length;
   // 상위에 안 매달린 목표는 아무리 달성해도 전사 달성률을 못 움직인다.
   // 숫자가 안 오르는 가장 흔한 이유라 화면에 대놓고 알려준다.
   const unlinked = allNodes.filter(
     (g) =>
       GOAL_PARENT_LEVEL[g.level as GoalLevel] !== null && !g.parentId && canViewGoalRow(g, viewer, org)
   );
-  const overdueCount = allNodes.filter((g) => isOverdue(g, now) && !g.excluded).length;
+  const overdueCount = companyGoals.filter((g) => isOverdue(g, now) && !g.excluded).length;
 
   /**
    * 아래 안내문들은 **읽는 사람이 손댈 수 있는 것만** 센다.
@@ -720,7 +730,7 @@ export default async function Evaluation2Page({
             <dl className="hidden items-center gap-2.5 text-xs text-slate-500 sm:flex">
               <div className="flex items-center gap-1">
                 <dt>목표</dt>
-                <dd className="font-semibold text-slate-800">{allNodes.length}</dd>
+                <dd className="font-semibold text-slate-800">{companyGoals.length}</dd>
               </div>
               <div className="flex items-center gap-1">
                 <dt>완료</dt>
@@ -792,33 +802,30 @@ export default async function Evaluation2Page({
               </thead>
               <tbody>
                 {companyGoals.map((g, i) => {
-                  const focused = focusGoal?.id === g.id;
                   return (
                     <tr
                       key={g.id}
                       className={`border-t border-slate-100 align-top ${
-                        focused ? "bg-brand-green-light" : i % 2 === 1 ? "bg-slate-50/70" : ""
+                        i % 2 === 1 ? "bg-slate-50/70" : ""
                       }`}
                     >
                       <td className="px-4 py-2">
-                        <Link
-                          href={
-                            focused
-                              ? buildHref({ focus: null })
-                              : buildHref({ tab: "division", focus: g.id })
-                          }
-                          className="group flex items-start gap-1.5"
-                          title={focused ? "전체 보기" : "이 목표에 달린 책임목표만 보기"}
-                        >
+                        {/*
+                          전사목표 줄은 누르는 자리가 아니다. 한때 눌러서 «이
+                          갈래만 보기»로 걸러 줬는데, 한 번 누르면 아직 아무것도
+                          안 달린 책임목표가 나와 비어 보이고 다시 눌러야 원래
+                          화면으로 돌아와서, 화면이 왜 바뀌었는지 알기 어려웠다.
+                          아래 층과의 연결(달성률이 굴러 올라오는 것)은 그대로다.
+                          전사목표를 고치는 일은 관리자 화면에서 한다.
+                        */}
+                        <div className="flex items-start gap-1.5">
                           {/* 구분 칸을 없앤 대신 순번만 남긴다. 표가 목표와 달성률
                               두 칸이라, 몇 번째 줄인지는 여기서 붙여 준다. */}
                           <span className="w-5 shrink-0 pt-0.5 text-xs text-slate-400">
                             {i + 1}.
                           </span>
-                          <span className="font-medium text-slate-800 group-hover:text-brand-green-dark group-hover:underline">
-                            {goalTitle(g)}
-                          </span>
-                        </Link>
+                          <span className="font-medium text-slate-800">{goalTitle(g)}</span>
+                        </div>
                         {/* 기타 자리에는 지표도 설명도 붙이지 않는다 — 담아 두는
                             칸이지 그 자체로 세운 목표가 아니다. */}
                         {!g.isOther && (g.metric || g.targetValue || g.description) && (
@@ -866,7 +873,7 @@ export default async function Evaluation2Page({
           붙어 있으면 읽히지도 않으면서 고정 영역만 먹는다. 세 줄 모두 읽는
           사람이 실제로 할 수 있는 일일 때만, 그 사람 범위의 건수로만 뜬다.
         */}
-        {(focusGoal || unlinked.length > 0 || needsReviewCount > 0 || awaitingMyApproval > 0) && (
+        {(unlinked.length > 0 || needsReviewCount > 0 || awaitingMyApproval > 0) && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/70 px-5 py-2.5">
             <div className="space-y-1 text-xs text-slate-500">
               {awaitingMyApproval > 0 && (
@@ -888,14 +895,6 @@ export default async function Evaluation2Page({
                 </p>
               )}
             </div>
-            {focusGoal && (
-              <Link
-                href={buildHref({ focus: null })}
-                className="shrink-0 rounded-full border border-brand-green px-3 py-1 text-xs font-medium text-brand-green-dark hover:bg-brand-green-light"
-              >
-                「{focusGoal.title}」 갈래만 보는 중 · 전체 보기 ✕
-              </Link>
-            )}
           </div>
         )}
         </details>
@@ -920,7 +919,7 @@ export default async function Evaluation2Page({
         : averageProgress(nodes);
 
     const href =
-      level === "COMPANY" ? "/admin/org-goals" : buildHref({ tab: level.toLowerCase(), focus: null });
+      level === "COMPANY" ? "/admin/org-goals" : buildHref({ tab: level.toLowerCase() });
     const linkable = level !== "COMPANY" || isAdmin;
 
     const body = (
@@ -1489,7 +1488,12 @@ export default async function Evaluation2Page({
             이름은 남긴다 — 여러 팀·여러 사람 것이 한 목록에 섞여 나오므로 그건
             누구 목표인지 가려 주는 유일한 표시다.
           */}
-          {level !== "DIVISION" && (
+          {/*
+            소속은 개인목표에만 붙인다 — 한 목록에 여러 사람 것이 섞여 나오므로
+            누구 목표인지 가려 주는 유일한 표시다. 책임목표·팀목표는 그 탭 자체가
+            부문별·팀별 목록이라 줄마다 같은 이름이 되풀이될 뿐이다.
+          */}
+          {level === "INDIVIDUAL" && (
             <span className="text-xs text-slate-500">{scopeText(goal)}</span>
           )}
           <StatusBadge status={goal.status} />
@@ -1509,8 +1513,18 @@ export default async function Evaluation2Page({
             <ExcludedBadge reason={goal.targetExcludeReason ?? "평가대상 아님"} />
           )}
           {flag && !goal.excluded && !goal.targetExcluded && <OwnerFlagBadge label={flag.label} />}
-          <span className="ml-auto text-sm font-semibold tabular-nums text-slate-700">
-            {goal.rollupProgress}%
+          <span className="ml-auto flex items-center gap-2">
+            {/*
+              «왜 0%인지»는 숫자 바로 옆에 있어야 읽힌다. 아래 버튼 줄에 두면
+              숫자와 설명이 멀어서 0%만 보고 «고장인가»가 된다. 0%가 아닐 때는
+              설명할 것이 없으므로 띄우지 않는다.
+            */}
+            {isAutoCalculated(level) && goal.rollupProgress === 0 && (
+              <span className="text-xs font-normal text-slate-500">하위 목표가 없어 0%입니다</span>
+            )}
+            <span className="text-sm font-semibold tabular-nums text-slate-700">
+              {goal.rollupProgress}%
+            </span>
           </span>
         </div>
 
@@ -1535,18 +1549,11 @@ export default async function Evaluation2Page({
               가중치 {usesDerivedWeight(level) ? Math.round(goal.rollupWeight) : goal.weight}%
             </span>
           )}
-          {goal.metric && <span>지표: {goal.metric}</span>}
-          {goal.targetValue && (
-            <span>
-              목표 {goal.targetValue}
-              {goal.currentValue && ` / 현재 ${goal.currentValue}`}
-            </span>
-          )}
-          {goal.formula && <span>산출식: {goal.formula}</span>}
           {/*
-            마감일과 하위 건수는 여기서 뺐다. 목표마다 거의 다 «마감 12. 31.»
-            이라 줄만 길어지고, 하위 건수는 아래 달성률 안내가 이미 말해 준다.
-            늦은 목표는 제목 옆 «지연» 배지가 따로 알려 준다.
+            이 줄에는 «상위 목표»와 «가중치»만 둔다. 지표·목표수준·현수준·산출식·
+            마감일·하위 건수까지 늘어놓으면 한 줄이 화면을 가로질러서, 정작 이
+            목표가 무엇에 딸려 있고 얼마나 무거운지가 안 읽힌다. 자세한 값은
+            «수정»을 눌러 폼에서 본다. 늦은 목표는 제목 옆 «지연» 배지가 알려 준다.
           */}
         </div>
 
@@ -1662,17 +1669,15 @@ export default async function Evaluation2Page({
               </button>
             </ActionForm>
           )}
-          {isAutoCalculated(level) && (
-            <span className="text-[11px] text-slate-400">
-              {goal.children.length > 0
-                ? `하위 ${goal.children.length}건의 가중평균으로 자동 계산됩니다`
-                : "하위 목표가 없어 0%입니다 — 아래 층 목표를 만들고 상위로 연결하세요"}
-            </span>
-          )}
+          {/*
+            고치고 지우는 버튼은 오른쪽 끝에 모은다 — 왼쪽은 «지금 어떤 상태인가»
+            (합의·진척)를 읽는 자리이고, 오른쪽은 «내가 무엇을 할 수 있나»를
+            누르는 자리다. 섞여 있으면 읽는 도중에 버튼이 끼어든다.
+          */}
           {editable && (
             <Link
               href={buildHref({ edit: isEditing ? null : goal.id })}
-              className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
+              className="ml-auto rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
             >
               {isEditing ? "수정 닫기" : "수정"}
             </Link>
@@ -1740,9 +1745,7 @@ export default async function Evaluation2Page({
     // 상위 목표 후보도 볼 수 있는 범위 안에서만 고르게 한다.
     const parentOptions = parentLevel ? visibleRows(byLevel(parentLevel)) : [];
     // 직책에 따라 볼 수 있는 조직 범위로 먼저 줄인다(관리자·사장은 전부).
-    let rows = visibleRows(byLevel(level));
-    // 전사 목표 표에서 한 줄을 고르면 그 갈래에 속한 목표만 남긴다.
-    if (focusedIds) rows = rows.filter((g) => focusedIds.has(g.id));
+    const rows = visibleRows(byLevel(level));
 
     /*
       사내 양식의 «소계». 사람이 적어 넣은 값(`weight`)으로 센다 — 화면이 집계에
