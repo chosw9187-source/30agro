@@ -79,7 +79,6 @@ export async function saveOrgGoals(formData: FormData) {
           metric: str(formData.get(`metric:${row.id}`)) || null,
           targetValue: str(formData.get(`targetValue:${row.id}`)) || null,
           currentValue: str(formData.get(`currentValue:${row.id}`)) || null,
-          unit: str(formData.get(`unit:${row.id}`)) || null,
           weight: parseNumber(formData.get(`weight:${row.id}`), 0),
           // 조직 목표 달성률은 하위에서 자동 계산되는 값이라 여기서 건드리지
           // 않는다. 폼에도 입력칸이 없다.

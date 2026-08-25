@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
@@ -378,7 +379,6 @@ export default async function Evaluation2Page({
           metric: true,
           targetValue: true,
           currentValue: true,
-          unit: true,
           scaleS: true,
           scaleA: true,
           scaleB: true,
@@ -778,7 +778,7 @@ export default async function Evaluation2Page({
                           <p className="mt-0.5 pl-5 text-xs text-slate-500">
                             {[
                               g.metric,
-                              g.targetValue ? `목표 ${g.targetValue}${g.unit ?? ""}` : null,
+                              g.targetValue ? `목표 ${g.targetValue}` : null,
                               g.description,
                             ]
                               .filter(Boolean)
@@ -942,19 +942,305 @@ export default async function Evaluation2Page({
     const parentLevel = GOAL_PARENT_LEVEL[level];
     const isTeam = usesScales(level);
     const isOkr = usesKeyResults(level);
+    const req = level !== "COMPANY";
     // 이 사이클이 속한 해의 말일. 마감일 기본값이다.
     const yearEnd = `${cycle?.year ?? new Date().getFullYear()}-12-31`;
+
+    /*
+      팀과 책임자는 로그인한 사람에게서 끌어온다. 목표를 세우는 사람은 거의
+      언제나 자기 팀 것을 세우는데, 이미 누구인지 아는 정보를 매번 두 번씩
+      고르게 하면 그만큼 등록이 느려지고 엉뚱한 팀을 고르는 실수도 생긴다.
+      남의 팀 것을 대신 등록할 일은 있으므로 칸을 없애지는 않고 접어 둔다.
+
+      팀목표의 책임자는 그 팀의 팀장이다 — 팀 전체가 지는 목표라 팀원 이름이
+      올라가면 나중에 누가 답할 자리인지 흐려진다. 팀장을 못 찾으면(명부에
+      없거나 공석) 로그인한 사람으로 둔다.
+    */
+    const autoTeamId = viewer.teamId ?? viewer.ledTeamIds[0] ?? "";
+    const leaderId = teams.find((t) => t.id === autoTeamId)?.leaderId ?? null;
+    const knownPerson = (id: string | null) => !!id && personOptions.some((p) => p.value === id);
+    const autoOwnerId =
+      level === "TEAM" && knownPerson(leaderId) ? leaderId! : session!.user.id;
+    const autoTeamName = teamOptions.find((t) => t.value === autoTeamId)?.label ?? null;
+    const autoOwnerName = personOptions.find((p) => p.value === autoOwnerId)?.label ?? null;
+    const needsTeam = level === "TEAM" || level === "INDIVIDUAL";
+    /*
+      자동으로 채우지 못했으면 접지 않고 펼친 채로 연다. 접힌 <details> 안의
+      필수 칸이 비어 있으면 브라우저가 "여기를 채우라"고 가리킬 자리를 찾지
+      못해서, 저장 버튼을 눌러도 아무 일도 안 일어난 것처럼 보인다.
+      이미 있는 목표를 고칠 때 배정이 기본값과 다르면 그때도 펼친다 — 접어
+      두면 화면에는 "기본값: 내 팀"만 보이는데 실제로는 다른 팀 목표다.
+    */
+    const autoFilled = (!needsTeam || !!autoTeamId) && !!autoOwnerName;
+    const assignmentOpen =
+      !autoFilled ||
+      (!!goal &&
+        (((goal.teamId ?? "") !== autoTeamId && needsTeam) ||
+          (goal.ownerId ?? "") !== autoOwnerId));
+
+    const ownerLabel = level === "INDIVIDUAL" ? "담당자" : "책임자";
+    const assignment = (
+      <details open={assignmentOpen} className="md:col-span-2 rounded-md bg-slate-50 p-3">
+        <summary className="cursor-pointer text-xs font-medium text-slate-500">
+          담당 지정
+          {autoFilled && (
+            <span className="ml-1 font-normal text-slate-400">
+              — 기본값 {needsTeam && autoTeamName ? `${autoTeamName} · ` : ""}
+              {autoOwnerName}
+              {" (다른 팀·다른 사람 것을 등록할 때만 펼치세요)"}
+            </span>
+          )}
+        </summary>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          {needsTeam && (
+            <div>
+              <label className={LABEL_CLASS}>팀</label>
+              <SearchableSelect
+                name="teamId"
+                options={teamOptions}
+                defaultValue={goal?.teamId ?? autoTeamId}
+                placeholder="팀 검색"
+                required
+              />
+            </div>
+          )}
+          <div>
+            <label className={LABEL_CLASS}>{ownerLabel}</label>
+            <SearchableSelect
+              name="ownerId"
+              options={personOptions}
+              defaultValue={goal?.ownerId ?? autoOwnerId}
+              placeholder="이름 검색"
+              required={req}
+            />
+          </div>
+        </div>
+      </details>
+    );
+
+    const title = (
+      <div className={isTeam ? undefined : "md:col-span-2"}>
+        {/* 팀목표는 사내 "팀 목표 설정" 양식의 칸 이름을 그대로 쓴다 — 화면과
+            보고서에서 다른 말을 쓰면 옮겨 적을 때마다 짝을 맞춰야 한다. */}
+        <label className={LABEL_CLASS}>
+          {isTeam ? "핵심 업무 목표" : isOkr ? "Objective (목표)" : "목표명"}
+        </label>
+        <input name="title" defaultValue={goal?.title ?? ""} required className={INPUT_CLASS} />
+      </div>
+    );
+
+    const parent = parentLevel && (
+      <div className={isTeam ? "md:col-span-2" : undefined}>
+        <label className={LABEL_CLASS}>상위 {GOAL_LEVEL_LABEL[parentLevel]}</label>
+        <select name="parentId" defaultValue={goal?.parentId ?? ""} required className={INPUT_CLASS}>
+          <option value="">선택</option>
+          {parentOptions.map((p) => (
+            <option key={p.id} value={p.id}>
+              {/* 소속은 그게 어느 조직 목표인지 갈라 줄 때만 붙인다.
+                  전사목표는 전부 "(전사)"가 되어 아무것도 구별해 주지
+                  못하면서 제목만 길게 만든다. */}
+              {p.level === "COMPANY" ? p.title : `${p.title} (${scopeText(p)})`}
+            </option>
+          ))}
+          {/*
+            위 층 어디에도 딱 붙지 않는 일을 담는 자리. 상위를 비워 두면
+            아무리 달성해도 전사 달성률이 안 움직이므로, 층마다 「기타」
+            한 칸을 두고 거기에 매단다(없으면 자동으로 만들어진다).
+          */}
+          {/* 자동으로 만들어지는 기타 묶음도 위 목록에 "기타"로 뜨므로, 이
+              항목은 고르는 행위임이 드러나게 적는다. 둘 다 결과는 같지만
+              같은 이름이 두 줄 나란히 있으면 어느 쪽인지 헷갈린다. */}
+          <option value={OTHER_PARENT_VALUE}>＋ 기타로 묶기 (딱 맞는 상위 목표가 없을 때)</option>
+        </select>
+      </div>
+    );
+
+    const metric = (
+      <div>
+        <label className={LABEL_CLASS}>{isTeam ? "성과지표(KPI)" : "측정지표"}</label>
+        <input
+          name="metric"
+          defaultValue={goal?.metric ?? ""}
+          placeholder="예: 신규 거래처 수"
+          required={req}
+          className={INPUT_CLASS}
+        />
+      </div>
+    );
+
+    const currentValue = (
+      <div>
+        <label className={LABEL_CLASS}>{isTeam ? "목표수준 · 현수준" : "현재수준"}</label>
+        <input
+          name="currentValue"
+          defaultValue={goal?.currentValue ?? ""}
+          placeholder="아직 없으면 0"
+          required={req}
+          className={INPUT_CLASS}
+        />
+      </div>
+    );
+
+    const targetValue = (
+      <div>
+        <label className={LABEL_CLASS}>{isTeam ? "목표수준 · 목표치" : "목표수준"}</label>
+        <input
+          name="targetValue"
+          defaultValue={goal?.targetValue ?? ""}
+          required={req}
+          className={INPUT_CLASS}
+        />
+      </div>
+    );
+
+    const weight = (
+      <div>
+        <label className={LABEL_CLASS}>{isTeam || isOkr ? "가중치(비중, %)" : "가중치(%)"}</label>
+        <input
+          type="number"
+          name="weight"
+          min={0}
+          max={100}
+          step={1}
+          defaultValue={goal?.weight ?? 0}
+          required={req}
+          className={INPUT_CLASS}
+        />
+      </div>
+    );
+
+    const scales = (
+      <div className="md:col-span-2">
+        {/* 등급별로 "어디까지 해야 그 등급인지"를 목표 세울 때 못박는다.
+            연말에 가서 정하면 사람마다 다르게 읽는다. */}
+        <label className={LABEL_CLASS}>
+          평가척도 <span className="text-slate-400">(등급이 되려면 어디까지 해야 하는지)</span>
+        </label>
+        <div className="grid gap-2 sm:grid-cols-5">
+          {GOAL_SCALES.map((sc) => (
+            <div key={sc.field}>
+              <div className="mb-1 rounded-t-md bg-slate-100 px-2 py-1 text-center text-xs font-semibold text-slate-700">
+                {sc.grade}
+                <span className="ml-0.5 font-normal text-slate-500">({sc.score})</span>
+              </div>
+              <textarea
+                name={sc.field}
+                rows={2}
+                defaultValue={goal?.[sc.field] ?? ""}
+                className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:border-brand-green focus:outline-none"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+
+    const formula = (
+      <div className="md:col-span-2">
+        <label className={LABEL_CLASS}>산출식/방안</label>
+        <input
+          name="formula"
+          defaultValue={goal?.formula ?? ""}
+          placeholder="예: = 절감액, = 만족도Survey, = 연내 최종 승인 보고서"
+          className={INPUT_CLASS}
+        />
+      </div>
+    );
+
+    const status = (
+      <div>
+        <label className={LABEL_CLASS}>상태</label>
+        <select name="status" defaultValue={goal?.status ?? "ACTIVE"} className={INPUT_CLASS}>
+          {GOAL_STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {GOAL_STATUS_LABEL[s]}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+
+    const progress = (
+      <div>
+        <label className={LABEL_CLASS}>달성률(%)</label>
+        {isAutoCalculated(level) ? (
+          <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
+            하위 목표에서 자동 계산됩니다 (직접 입력하지 않습니다)
+          </p>
+        ) : (
+          <input
+            type="number"
+            name="progress"
+            min={0}
+            max={100}
+            step={1}
+            defaultValue={goal?.progress ?? 0}
+            required
+            className={INPUT_CLASS}
+          />
+        )}
+      </div>
+    );
+
+    /*
+      마감일은 그 해 12월 31일이 기본값이되 고칠 수 있다. 목표는 한 해
+      단위로 세우고 연말에 결산하므로 열에 아홉은 12월 31일인데, 연중에
+      끝나는 목표도 있으니 못박지는 않는다.
+    */
+    const dueDate = (
+      <div>
+        <label className={LABEL_CLASS}>마감일</label>
+        <input
+          type="date"
+          name="dueDate"
+          defaultValue={toDateInputValue(goal?.dueDate ?? null) || yearEnd}
+          required={req}
+          className={INPUT_CLASS}
+        />
+      </div>
+    );
+
+    const description = (
+      <div className="md:col-span-2">
+        <label className={LABEL_CLASS}>설명</label>
+        <textarea
+          name="description"
+          rows={2}
+          defaultValue={goal?.description ?? ""}
+          className={INPUT_CLASS}
+        />
+      </div>
+    );
+
+    /*
+      사내 「팀 목표 설정」 양식이 읽히는 차례 그대로 줄을 나눈다. 상위
+      책임목표가 맨 위인 건 "무엇에 딸린 일인지"를 먼저 정하고 내용을 적는
+      순서라서다 — 아래에 있으면 다 적고 나서야 상위를 고르게 된다.
+    */
+    if (isTeam) {
+      const line = (key: string, children: ReactNode) => (
+        <div key={key} className="grid gap-3 md:col-span-2 md:grid-cols-2">
+          {children}
+        </div>
+      );
+      return (
+        <>
+          {line("parent", parent)}
+          {line("what", <>{title}{metric}</>)}
+          {line("level", <>{currentValue}{targetValue}</>)}
+          {line("weight", weight)}
+          {line("scale", <>{scales}{formula}</>)}
+          {line("progress", <>{status}{progress}</>)}
+          {line("due", dueDate)}
+          {line("assign", assignment)}
+          {line("desc", description)}
+        </>
+      );
+    }
+
     return (
       <>
-        <div className="md:col-span-2">
-          {/* 팀목표는 사내 "팀 목표 설정" 양식의 칸 이름을 그대로 쓴다 — 화면과
-              보고서에서 다른 말을 쓰면 옮겨 적을 때마다 짝을 맞춰야 한다. */}
-          <label className={LABEL_CLASS}>
-            {isTeam ? "핵심 업무 목표" : isOkr ? "Objective (목표)" : "목표명"}
-          </label>
-          <input name="title" defaultValue={goal?.title ?? ""} required className={INPUT_CLASS} />
-        </div>
-
+        {title}
 
         {isOkr && (
           <div>
@@ -992,36 +1278,7 @@ export default async function Evaluation2Page({
           </div>
         )}
 
-        {parentLevel && (
-          <div>
-            <label className={LABEL_CLASS}>상위 {GOAL_LEVEL_LABEL[parentLevel]}</label>
-            <select
-              name="parentId"
-              defaultValue={goal?.parentId ?? ""}
-              required
-              className={INPUT_CLASS}
-            >
-              <option value="">선택</option>
-              {parentOptions.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {/* 소속은 그게 어느 조직 목표인지 갈라 줄 때만 붙인다.
-                      전사목표는 전부 "(전사)"가 되어 아무것도 구별해 주지
-                      못하면서 제목만 길게 만든다. */}
-                  {p.level === "COMPANY" ? p.title : `${p.title} (${scopeText(p)})`}
-                </option>
-              ))}
-              {/*
-                위 층 어디에도 딱 붙지 않는 일을 담는 자리. 상위를 비워 두면
-                아무리 달성해도 전사 달성률이 안 움직이므로, 층마다 「기타」
-                한 칸을 두고 거기에 매단다(없으면 자동으로 만들어진다).
-              */}
-              {/* 자동으로 만들어지는 기타 묶음도 위 목록에 "기타"로 뜨므로, 이
-                  항목은 고르는 행위임이 드러나게 적는다. 둘 다 결과는 같지만
-                  같은 이름이 두 줄 나란히 있으면 어느 쪽인지 헷갈린다. */}
-              <option value={OTHER_PARENT_VALUE}>＋ 기타로 묶기 (딱 맞는 상위 목표가 없을 때)</option>
-            </select>
-          </div>
-        )}
+        {parent}
 
         {level === "DIVISION" && (
           <div>
@@ -1042,201 +1299,25 @@ export default async function Evaluation2Page({
           </div>
         )}
 
-        {(level === "TEAM" || level === "INDIVIDUAL") && (
-          <div>
-            <label className={LABEL_CLASS}>팀</label>
-            <SearchableSelect
-              name="teamId"
-              options={teamOptions}
-              defaultValue={goal?.teamId ?? ""}
-              placeholder="팀 검색"
-              required
-            />
-          </div>
-        )}
-
-        <div>
-          <label className={LABEL_CLASS}>{level === "INDIVIDUAL" ? "담당자" : "책임자"}</label>
-          <SearchableSelect
-            name="ownerId"
-            options={personOptions}
-            defaultValue={goal?.ownerId ?? ""}
-            placeholder="이름 검색"
-            required={level !== "COMPANY"}
-          />
-        </div>
+        {assignment}
 
         {/*
-          책임목표에는 가중치·측정지표·단위를 두지 않는다. 책임목표는 아래 팀
+          책임목표에는 가중치·측정지표를 두지 않는다. 책임목표는 아래 팀
           목표가 굴러 올라온 값이라 지표를 따로 적을 일이 없고, 가중치를 비우면
           가중평균이 형제끼리 동일가중으로 떨어져서 부문 간 비중이 저절로
           같아진다 — 지금은 그게 맞는 기본값이다.
         */}
-        {level !== "DIVISION" && (
-          <div>
-            <label className={LABEL_CLASS}>
-              {isTeam || isOkr ? "가중치(비중, %)" : "가중치(%)"}
-            </label>
-            <input
-              type="number"
-              name="weight"
-              min={0}
-              max={100}
-              step={1}
-              defaultValue={goal?.weight ?? 0}
-              required={level !== "COMPANY"}
-              className={INPUT_CLASS}
-            />
-          </div>
-        )}
+        {level !== "DIVISION" && weight}
+        {level !== "DIVISION" && metric}
+        {/* 책임목표는 아래 팀목표가 굴러 올라온 값이라 목표수준·현재수준도
+            따로 적지 않는다. */}
+        {level !== "DIVISION" && targetValue}
+        {level !== "DIVISION" && currentValue}
 
-        {level !== "DIVISION" && (
-          <div>
-            <label className={LABEL_CLASS}>{isTeam ? "성과지표(KPI)" : "측정지표"}</label>
-            <input
-              name="metric"
-              defaultValue={goal?.metric ?? ""}
-              placeholder="예: 신규 거래처 수"
-              required={level !== "COMPANY"}
-              className={INPUT_CLASS}
-            />
-          </div>
-        )}
-
-        {/* 책임목표는 아래 팀목표가 굴러 올라온 값이라 목표수준도 따로 적지 않는다. */}
-        {level !== "DIVISION" && (
-          <div>
-            <label className={LABEL_CLASS}>{isTeam ? "목표수준 · 목표치" : "목표수준"}</label>
-            <input
-              name="targetValue"
-              defaultValue={goal?.targetValue ?? ""}
-              required={level !== "COMPANY"}
-              className={INPUT_CLASS}
-            />
-          </div>
-        )}
-
-        {/* 책임목표는 아래 팀목표가 굴러 올라온 값이라 현재수준을 따로 적을 일이 없다. */}
-        {level !== "DIVISION" && (
-          <div>
-            <label className={LABEL_CLASS}>{isTeam ? "목표수준 · 현수준" : "현재수준"}</label>
-            <input
-              name="currentValue"
-              defaultValue={goal?.currentValue ?? ""}
-              placeholder="아직 없으면 0"
-              required={level !== "COMPANY"}
-              className={INPUT_CLASS}
-            />
-          </div>
-        )}
-
-        {level !== "DIVISION" && (
-          <div>
-            <label className={LABEL_CLASS}>단위</label>
-            <input
-              name="unit"
-              defaultValue={goal?.unit ?? ""}
-              placeholder="건, %, 억원"
-              required={level !== "COMPANY"}
-              className={INPUT_CLASS}
-            />
-          </div>
-        )}
-
-        <div>
-          <label className={LABEL_CLASS}>달성률(%)</label>
-          {isAutoCalculated(level) ? (
-            <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
-              하위 목표에서 자동 계산됩니다 (직접 입력하지 않습니다)
-            </p>
-          ) : (
-            <input
-              type="number"
-              name="progress"
-              min={0}
-              max={100}
-              step={1}
-              defaultValue={goal?.progress ?? 0}
-              required
-              className={INPUT_CLASS}
-            />
-          )}
-        </div>
-
-        <div>
-          <label className={LABEL_CLASS}>상태</label>
-          <select name="status" defaultValue={goal?.status ?? "ACTIVE"} className={INPUT_CLASS}>
-            {GOAL_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {GOAL_STATUS_LABEL[s]}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/*
-          마감일은 그 해 12월 31일이 기본값이되 고칠 수 있다. 목표는 한 해
-          단위로 세우고 연말에 결산하므로 열에 아홉은 12월 31일인데, 연중에
-          끝나는 목표도 있으니 못박지는 않는다.
-        */}
-        <div>
-          <label className={LABEL_CLASS}>마감일</label>
-          <input
-            type="date"
-            name="dueDate"
-            defaultValue={toDateInputValue(goal?.dueDate ?? null) || yearEnd}
-            required={level !== "COMPANY"}
-            className={INPUT_CLASS}
-          />
-        </div>
-
-        {isTeam && (
-          <>
-            <div className="md:col-span-2">
-              <label className={LABEL_CLASS}>산출식/방안</label>
-              <input
-                name="formula"
-                defaultValue={goal?.formula ?? ""}
-                placeholder="예: = 절감액, = 만족도Survey, = 연내 최종 승인 보고서"
-                className={INPUT_CLASS}
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              {/* 등급별로 "어디까지 해야 그 등급인지"를 목표 세울 때 못박는다.
-                  연말에 가서 정하면 사람마다 다르게 읽는다. */}
-              <label className={LABEL_CLASS}>
-                평가척도 <span className="text-slate-400">(등급이 되려면 어디까지 해야 하는지)</span>
-              </label>
-              <div className="grid gap-2 sm:grid-cols-5">
-                {GOAL_SCALES.map((sc) => (
-                  <div key={sc.field}>
-                    <div className="mb-1 rounded-t-md bg-slate-100 px-2 py-1 text-center text-xs font-semibold text-slate-700">
-                      {sc.grade}
-                      <span className="ml-0.5 font-normal text-slate-500">({sc.score})</span>
-                    </div>
-                    <textarea
-                      name={sc.field}
-                      rows={2}
-                      defaultValue={goal?.[sc.field] ?? ""}
-                      className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:border-brand-green focus:outline-none"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
-        <div className="md:col-span-2">
-          <label className={LABEL_CLASS}>설명</label>
-          <textarea
-            name="description"
-            rows={2}
-            defaultValue={goal?.description ?? ""}
-            className={INPUT_CLASS}
-          />
-        </div>
+        {progress}
+        {status}
+        {dueDate}
+        {description}
       </>
     );
   }
@@ -1387,8 +1468,7 @@ export default async function Evaluation2Page({
           {goal.targetValue && (
             <span>
               목표 {goal.targetValue}
-              {goal.unit ?? ""}
-              {goal.currentValue && ` / 현재 ${goal.currentValue}${goal.unit ?? ""}`}
+              {goal.currentValue && ` / 현재 ${goal.currentValue}`}
             </span>
           )}
           {goal.formula && <span>산출식: {goal.formula}</span>}

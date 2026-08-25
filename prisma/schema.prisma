@@ -1033,7 +1033,6 @@ model Goal {
   metric      String?
   targetValue String?
   currentValue String?
-  unit        String?
 
   /**
    * 평가척도. 사내 "팀 목표 설정" 양식의 S(110)~D(70) 다섯 칸을 그대로 받는다.

@@ -95,7 +95,6 @@ export type GoalRow = {
   metric: string | null;
   targetValue: string | null;
   currentValue: string | null;
-  unit: string | null;
   scaleS?: string | null;
   scaleA?: string | null;
   scaleB?: string | null;

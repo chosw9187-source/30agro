@@ -462,7 +462,6 @@ export async function copyGoalsFromCycle(formData: FormData) {
       weight: true,
       metric: true,
       targetValue: true,
-      unit: true,
       scaleS: true,
       scaleA: true,
       scaleB: true,
@@ -492,7 +491,6 @@ export async function copyGoalsFromCycle(formData: FormData) {
           weight: row.weight,
           metric: row.metric,
           targetValue: row.targetValue,
-          unit: row.unit,
           scaleS: row.scaleS,
           scaleA: row.scaleA,
           scaleB: row.scaleB,
@@ -610,8 +608,7 @@ export async function createGoalCheckpoint(formData: FormData) {
         metric: true,
         targetValue: true,
         currentValue: true,
-        unit: true,
-        progress: true,
+          progress: true,
         status: true,
         excluded: true,
         excludeReason: true,
@@ -842,10 +839,10 @@ function requireGoalFields(level: GoalLevel, formData: FormData) {
   if (level !== "DIVISION") need.push(["targetValue", "목표수준"], ["currentValue", "현재수준"]);
   if (level === "DIVISION") need.splice(2, 0, ["division", "책임"]);
   if (level === "TEAM" || level === "INDIVIDUAL") need.splice(2, 0, ["teamId", "팀"]);
-  // 책임목표에는 가중치·측정지표·단위 칸이 없다 — 화면에 없는 걸 요구하면
+  // 책임목표에는 가중치·측정지표 칸이 없다 — 화면에 없는 걸 요구하면
   // 저장이 안 되는 이유를 아무도 알 수 없다.
   if (level !== "DIVISION") {
-    need.splice(3, 0, ["weight", "가중치"], ["metric", "측정지표"], ["unit", "단위"]);
+    need.splice(3, 0, ["weight", "가중치"], ["metric", "측정지표"]);
   }
   // 책임·팀 목표의 달성률은 하위에서 자동 계산되므로 입력칸 자체가 없다.
   if (level === "INDIVIDUAL") {
@@ -909,7 +906,6 @@ export async function createGoal(formData: FormData) {
       metric: str(formData.get("metric")) || null,
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
-      unit: str(formData.get("unit")) || null,
       ...formFields(formData),
       progress: progressForStatus(
         asStatus(formData.get("status")),
@@ -1010,7 +1006,6 @@ export async function updateGoal(formData: FormData) {
       metric: str(formData.get("metric")) || null,
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
-      unit: str(formData.get("unit")) || null,
       ...formFields(formData),
       progress: synced.progress,
       status: synced.status,

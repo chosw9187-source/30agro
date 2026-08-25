@@ -81,7 +81,6 @@ export default async function OrgGoalsAdminPage({
           metric: true,
           targetValue: true,
           currentValue: true,
-          unit: true,
           scaleS: true,
           scaleA: true,
           scaleB: true,
@@ -385,16 +384,6 @@ export default async function OrgGoalsAdminPage({
                             name={`currentValue:${g.id}`}
                             form={ORG_FORM_ID}
                             defaultValue={g.currentValue ?? ""}
-                            className={INPUT_CLASS}
-                          />
-                        </div>
-                        <div className="md:col-span-1">
-                          <label className={LABEL_CLASS}>단위</label>
-                          <input
-                            name={`unit:${g.id}`}
-                            form={ORG_FORM_ID}
-                            defaultValue={g.unit ?? ""}
-                            placeholder="억원"
                             className={INPUT_CLASS}
                           />
                         </div>
