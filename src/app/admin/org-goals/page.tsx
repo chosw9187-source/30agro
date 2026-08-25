@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatKSTDate } from "@/lib/format-kst";
 import {
+  GOAL_CYCLE_ORDER,
   GOAL_CYCLE_STATUS_LABEL,
   GOAL_STATUSES,
   GOAL_STATUS_LABEL,
@@ -18,6 +19,7 @@ import {
   deleteGoalCheckpoint,
   deleteGoalCycle,
   lockGoalSetting,
+  moveGoalCycle,
   renameGoalCycle,
   seedCompanyGoalTemplate,
   setGoalCycleStatus,
@@ -49,7 +51,7 @@ export default async function OrgGoalsAdminPage({
   const params = await searchParams;
 
   const cycles = await prisma.goalCycle.findMany({
-    orderBy: [{ year: "desc" }, { startDate: "desc" }],
+    orderBy: GOAL_CYCLE_ORDER,
   });
   const cycle = cycles.find((c) => c.id === params.cycleId) ?? cycles[0] ?? null;
   // 목표를 가져올 수 있는 다른 사이클 — 최근 것부터.
@@ -567,14 +569,44 @@ export default async function OrgGoalsAdminPage({
 
           <section className={`${CARD_CLASS} p-5`}>
             <h2 className="text-base font-semibold">목표 사이클</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              위·아래 화살표로 순서를 바꾸면 평가2 화면 오른쪽 위 선택 목록도 같은 순서가 됩니다.
+            </p>
             <div className="mt-3 flex flex-col gap-2">
-              {cycles.map((c) => (
+              {cycles.map((c, i) => (
                 <div
                   key={c.id}
                   className={`flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm ${
                     c.id === cycle.id ? "border-brand-green bg-brand-green-light" : "border-slate-200"
                   }`}
                 >
+                  {/*
+                    순서 바꾸기. 연도·기간순으로만 세우면 "목표설정 → 상반기 →
+                    최종평가"처럼 일이 진행되는 순서로 못 늘어놓는다.
+                  */}
+                  <div className="flex flex-col gap-0.5">
+                    <ActionForm action={moveGoalCycle.bind(null, c.id, "up")} successMessage="순서를 바꿨습니다.">
+                      <button
+                        disabled={i === 0}
+                        aria-label="위로"
+                        title="위로"
+                        className="rounded border border-slate-300 bg-white px-1.5 text-xs leading-4 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+                      >
+                        ▲
+                      </button>
+                    </ActionForm>
+                    <ActionForm action={moveGoalCycle.bind(null, c.id, "down")} successMessage="순서를 바꿨습니다.">
+                      <button
+                        disabled={i === cycles.length - 1}
+                        aria-label="아래로"
+                        title="아래로"
+                        className="rounded border border-slate-300 bg-white px-1.5 text-xs leading-4 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
+                      >
+                        ▼
+                      </button>
+                    </ActionForm>
+                  </div>
+
                   {/*
                     이름과 기간을 그 자리에서 고친다. 지웠다 다시 만들면 그 안에
                     달린 목표가 통째로 사라지는데, 이름은 운영하면서 계속 바뀐다

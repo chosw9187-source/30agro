@@ -9,6 +9,7 @@ import { formatKSTDate } from "@/lib/format-kst";
 import {
   GOAL_AGREEMENT_BADGE_CLASS,
   GOAL_AGREEMENT_LABEL,
+  GOAL_CYCLE_ORDER,
   GOAL_CYCLE_STATUS_LABEL,
   GOAL_LEVEL_LABEL,
   GOAL_LEVEL_RAMP,
@@ -310,7 +311,7 @@ export default async function Evaluation2Page({
   const tab = TABS.some((t) => t.key === params.tab) ? params.tab! : "dashboard";
 
   const cycles = await prisma.goalCycle.findMany({
-    orderBy: [{ year: "desc" }, { startDate: "desc" }],
+    orderBy: GOAL_CYCLE_ORDER,
   });
   /**
    * 상단 배너의 인사평가 선택. 평가2에 처음 들어오면 아무것도 안 고른
@@ -1033,15 +1034,18 @@ export default async function Evaluation2Page({
           </div>
         )}
 
-        <div>
-          <label className={LABEL_CLASS}>목표수준</label>
-          <input
-            name="targetValue"
-            defaultValue={goal?.targetValue ?? ""}
-            required={level !== "COMPANY"}
-            className={INPUT_CLASS}
-          />
-        </div>
+        {/* 책임목표는 아래 팀목표가 굴러 올라온 값이라 목표수준도 따로 적지 않는다. */}
+        {level !== "DIVISION" && (
+          <div>
+            <label className={LABEL_CLASS}>목표수준</label>
+            <input
+              name="targetValue"
+              defaultValue={goal?.targetValue ?? ""}
+              required={level !== "COMPANY"}
+              className={INPUT_CLASS}
+            />
+          </div>
+        )}
 
         {/* 책임목표는 아래 팀목표가 굴러 올라온 값이라 현재수준을 따로 적을 일이 없다. */}
         {level !== "DIVISION" && (

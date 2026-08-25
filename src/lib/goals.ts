@@ -520,3 +520,16 @@ export function defaultOtherWeight(siblings: { weight: number }[]): number {
   if (positive.length === 0) return 0;
   return Math.round(positive.reduce((sum, w) => sum + w, 0) / positive.length);
 }
+
+/**
+ * 인사평가 목록의 정렬 규칙. 화면마다 다른 순서로 보이면 "위에서 몇 번째"라는
+ * 말이 통하지 않으므로 한 군데서 정해 모든 화면이 같이 쓴다.
+ *
+ * 관리자가 정한 순번이 먼저고, 아직 정하지 않은 것(0)은 연도·기간 역순으로
+ * 떨어진다. 순번을 매기는 순간 0인 것들보다 앞으로 나온다.
+ */
+export const GOAL_CYCLE_ORDER: {
+  sortOrder?: "asc" | "desc";
+  year?: "asc" | "desc";
+  startDate?: "asc" | "desc";
+}[] = [{ sortOrder: "asc" }, { year: "desc" }, { startDate: "desc" }];

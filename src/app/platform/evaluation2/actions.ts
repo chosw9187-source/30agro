@@ -6,6 +6,7 @@ import { auth } from "@/auth";
 import { requireRole } from "@/lib/auth-helpers";
 import { checkModuleAccess } from "@/lib/permissions";
 import {
+  GOAL_CYCLE_ORDER,
   GOAL_CYCLE_STATUSES,
   GOAL_LEVEL_LABEL,
   OTHER_GOAL_TITLE,
@@ -237,6 +238,39 @@ async function resolveShareSource(raw: string, selfId: string | null): Promise<s
     throw new Error(`「${source.name}」도 다른 평가의 목표를 빌려 쓰고 있어 고를 수 없습니다.`);
   }
   return source.id;
+}
+
+/**
+ * 인사평가 목록에서 한 칸 위(아래)로 옮긴다.
+ *
+ * 옮길 때마다 전체 순번을 1부터 다시 매긴다. 두 줄만 맞바꾸면 아직 순서를
+ * 정한 적 없는 사이클들이 전부 0으로 묶여 있어서, 어느 것이 위인지 정해지지
+ * 않은 채로 남는다. 전부 다시 매기면 목록이 늘 한 가지 순서로 읽힌다.
+ */
+export async function moveGoalCycle(cycleId: string, direction: "up" | "down") {
+  await requireGoalModule();
+  if (!(await isAdmin())) throw new Error("순서는 관리자만 바꿀 수 있습니다.");
+
+  const list = await prisma.goalCycle.findMany({
+    orderBy: GOAL_CYCLE_ORDER,
+    select: { id: true },
+  });
+  const from = list.findIndex((c) => c.id === cycleId);
+  if (from === -1) return;
+  const to = direction === "up" ? from - 1 : from + 1;
+  if (to < 0 || to >= list.length) return;
+
+  const moved = [...list];
+  [moved[from], moved[to]] = [moved[to], moved[from]];
+
+  await prisma.$transaction(
+    moved.map((c, i) =>
+      prisma.goalCycle.update({ where: { id: c.id }, data: { sortOrder: i + 1 } })
+    )
+  );
+  revalidatePath(PATH);
+  revalidatePath(ADMIN_PATH);
+  revalidatePath(TARGETS_PATH);
 }
 
 /** 이미 만들어 둔 사이클의 목표 공유 대상을 바꾼다. */
@@ -745,12 +779,11 @@ function requireGoalFields(level: GoalLevel, formData: FormData) {
     ["title", "목표명"],
     ["parentId", `상위 ${GOAL_LEVEL_LABEL[GOAL_PARENT_LEVEL[level]!]}`],
     ["ownerId", level === "INDIVIDUAL" ? "담당자" : "책임자"],
-    ["targetValue", "목표수준"],
     ["status", "상태"],
     ["dueDate", "마감일"],
   ];
-  // 책임목표에는 현재수준 칸이 없다 — 아래 팀목표가 굴러 올라온 값이다.
-  if (level !== "DIVISION") need.push(["currentValue", "현재수준"]);
+  // 책임목표에는 목표수준·현재수준 칸이 없다 — 아래 팀목표가 굴러 올라온 값이다.
+  if (level !== "DIVISION") need.push(["targetValue", "목표수준"], ["currentValue", "현재수준"]);
   if (level === "DIVISION") need.splice(2, 0, ["division", "책임"]);
   if (level === "TEAM" || level === "INDIVIDUAL") need.splice(2, 0, ["teamId", "팀"]);
   // 책임목표에는 가중치·측정지표·단위 칸이 없다 — 화면에 없는 걸 요구하면

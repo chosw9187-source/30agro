@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { activePrismaWhere, regularOrExceptionTeamWhere } from "@/lib/hr-analytics";
 import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import {
+  GOAL_CYCLE_ORDER,
   GOAL_CYCLE_STATUS_LABEL,
   evalTargetState,
   toDateInputValue,
@@ -51,7 +52,7 @@ export default async function EvalTargetsPage({
   const params = await searchParams;
 
   const cycles = await prisma.goalCycle.findMany({
-    orderBy: [{ year: "desc" }, { startDate: "desc" }],
+    orderBy: GOAL_CYCLE_ORDER,
   });
   const cycle = cycles.find((c) => c.id === params.cycleId) ?? cycles[0] ?? null;
   // 목표를 빌려 쓰는 평가라면 평가대상 명단도 원본 쪽에 저장한다 — 같은 목표를
