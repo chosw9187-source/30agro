@@ -8,6 +8,9 @@ import { formatKSTDateTime } from "@/lib/format-kst";
 const typeLabel: Record<string, string> = {
   SELF_ASSESSMENT_SUBMITTED: "자기평가 제출",
   COMMENT_ADDED: "새 코멘트",
+  ONBOARDING_BOOKING_REQUESTED: "온보딩 강의 신청",
+  ONBOARDING_BOOKING_DECIDED: "온보딩 강의 확정·반려",
+  ONBOARDING_SCHEDULE_CHANGED: "온보딩 일정 변경",
 };
 
 export default async function NotificationsPage() {
@@ -55,8 +58,9 @@ export default async function NotificationsPage() {
                 </p>
               </div>
             );
-            return n.evaluationId ? (
-              <Link key={n.id} href={`${detailBase}/${n.evaluationId}`}>
+            const href = n.link ?? (n.evaluationId ? `${detailBase}/${n.evaluationId}` : null);
+            return href ? (
+              <Link key={n.id} href={href}>
                 {content}
               </Link>
             ) : (

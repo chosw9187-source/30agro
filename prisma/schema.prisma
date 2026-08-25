@@ -42,6 +42,9 @@ enum EvaluationStatus {
 enum NotificationType {
   SELF_ASSESSMENT_SUBMITTED
   COMMENT_ADDED
+  ONBOARDING_BOOKING_REQUESTED
+  ONBOARDING_BOOKING_DECIDED
+  ONBOARDING_SCHEDULE_CHANGED
 }
 
 enum Position {
@@ -377,6 +380,9 @@ model Notification {
   recipient    User             @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
   type         NotificationType
   evaluationId String?
+  // 평가 알림은 evaluationId로 상세 화면을 찾아가지만, 온보딩처럼 평가와
+  // 무관한 알림은 갈 곳을 직접 담아야 클릭해서 이동할 수 있다.
+  link         String?
   message      String
   readAt       DateTime?
   createdAt    DateTime         @default(now())
