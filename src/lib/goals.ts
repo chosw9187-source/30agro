@@ -676,6 +676,19 @@ export function cyclePhaseRank(cycle: { name: string }): number {
   for (const [re, r] of CYCLE_PHASE_RANK) if (re.test(label)) return r;
   return 9;
 }
+/**
+ * 이 평가에서 달성률을 적을 수 있는가.
+ *
+ * 목표설정은 "무엇을 하겠다"를 정하는 자리라 달성률 칸이 없다 — 아직 아무것도
+ * 시작하지 않았는데 숫자를 적게 하면 그 숫자가 무슨 뜻인지 아무도 모른다.
+ * 진척은 중간평가·최종평가에서 적는다. 단계 이름을 못 알아본 사이클(예전에
+ * 만든 "2026년 하반기" 같은 것)은 막지 않는다 — 이름 하나로 남의 입력을
+ * 잠그는 쪽이 더 위험하다.
+ */
+export function allowsProgressInput(cycle: { name: string } | null | undefined): boolean {
+  return !!cycle && cyclePhaseRank(cycle) !== 1;
+}
+
 export function groupCyclesByYear<
   T extends { name: string; year: number; sortOrder?: number },
 >(cycles: T[]): { year: number; items: T[] }[] {

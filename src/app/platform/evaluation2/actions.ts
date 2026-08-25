@@ -7,6 +7,7 @@ import { requireRole } from "@/lib/auth-helpers";
 import { checkModuleAccess } from "@/lib/permissions";
 import {
   GOAL_CYCLE_ORDER,
+  allowsProgressInput,
   GOAL_CYCLE_STATUSES,
   GOAL_SCALES,
   GOAL_LEVEL_LABEL,
@@ -776,6 +777,28 @@ function formFields(formData: FormData) {
  * 떨어뜨리는 게 아니라 일부러 0이다. 가중평균은 형제가 전부 0이면 동일가중으로
  * 떨어지므로, 부문끼리는 비중을 따지지 않고 똑같이 센다는 뜻이 된다.
  */
+/**
+ * 지금 어느 평가(사이클)를 통해 이 목표를 손대고 있는지.
+ *
+ * 목표는 한 벌만 있고(대개 「목표설정」), 중간평가·최종평가는 그걸 빌려 본다
+ * (`sourceCycleId`). 그래서 "목표가 어느 사이클에 저장돼 있나"만 보면 중간평가
+ * 화면에서 적는 것도 목표설정으로 읽혀 달성률이 막힌다. 화면이 보내 준 평가를
+ * 쓰되, 정말 그 목표를 다루는 평가가 맞는지 확인하고 나서 쓴다.
+ */
+async function actingCycle(formData: FormData, goalCycleId: string) {
+  const viewId = str(formData.get("viewCycleId"));
+  const fallback = () =>
+    prisma.goalCycle.findUnique({ where: { id: goalCycleId }, select: { id: true, name: true } });
+  if (!viewId) return fallback();
+
+  const viewed = await prisma.goalCycle.findUnique({
+    where: { id: viewId },
+    select: { id: true, name: true, sourceCycleId: true },
+  });
+  if (!viewed || (viewed.sourceCycleId ?? viewed.id) !== goalCycleId) return fallback();
+  return viewed;
+}
+
 function weightFor(level: GoalLevel, formData: FormData): number {
   if (level === "DIVISION") return 0;
   return parseNumber(formData.get("weight"), 0);
@@ -825,34 +848,84 @@ async function resolveParentId(
  * 전사목표는 제외한다. 관리자가 조직 목표 관리 화면에서 표를 채우는 방식이라
  * 담당자·팀 같은 칸이 애초에 없다.
  */
-function requireGoalFields(level: GoalLevel, formData: FormData) {
+function requireGoalFields(
+  level: GoalLevel,
+  formData: FormData,
+  scope: { teamId?: string | null; ownerId?: string | null }
+) {
   if (level === "COMPANY") return;
 
   const need: [string, string][] = [
     ["title", "목표명"],
     ["parentId", `상위 ${GOAL_LEVEL_LABEL[GOAL_PARENT_LEVEL[level]!]}`],
-    ["ownerId", level === "INDIVIDUAL" ? "담당자" : "책임자"],
-    ["status", "상태"],
-    ["dueDate", "마감일"],
   ];
-  // 책임목표에는 목표수준·현재수준 칸이 없다 — 아래 팀목표가 굴러 올라온 값이다.
-  if (level !== "DIVISION") need.push(["targetValue", "목표수준"], ["currentValue", "현재수준"]);
-  if (level === "DIVISION") need.splice(2, 0, ["division", "책임"]);
-  if (level === "TEAM" || level === "INDIVIDUAL") need.splice(2, 0, ["teamId", "팀"]);
-  // 책임목표에는 가중치·측정지표 칸이 없다 — 화면에 없는 걸 요구하면
-  // 저장이 안 되는 이유를 아무도 알 수 없다.
-  if (level !== "DIVISION") {
-    need.splice(3, 0, ["weight", "가중치"], ["metric", "측정지표"]);
+  if (level === "DIVISION") need.push(["division", "책임"]);
+  if (level !== "DIVISION") need.push(["weight", "가중치"]);
+  /*
+    지표·목표수준·현재수준은 팀목표에만 있다. 책임목표는 아래 팀목표가 굴러
+    올라온 값이고, 개인목표는 Key Results가 그 자리를 대신한다(사내 「개인목표
+    설정」 양식). 화면에 없는 걸 요구하면 저장이 안 되는 이유를 아무도 모른다.
+  */
+  if (level === "TEAM") {
+    need.push(
+      ["metric", "성과지표(KPI)"],
+      ["targetValue", "목표수준 · 목표치"],
+      ["currentValue", "목표수준 · 현수준"]
+    );
   }
+  need.push(["status", "상태"], ["dueDate", "마감일"]);
   // 책임·팀 목표의 달성률은 하위에서 자동 계산되므로 입력칸 자체가 없다.
   if (level === "INDIVIDUAL") {
-    need.push(["progress", "달성률"], ["goalType", "목표 유형"], ["keyResults", "Key Results"]);
+    need.push(["goalType", "목표 유형"], ["keyResults", "Key Results"]);
   }
 
   const missing = need.filter(([field]) => !str(formData.get(field))).map(([, label]) => label);
+  /*
+    팀·책임자는 폼에 칸이 없을 수 있다 — 관리자가 아니면 로그인 정보에서 그대로
+    끌어온다. 그래서 폼에 뭐가 들어왔는지가 아니라 **실제로 저장될 값**을 본다.
+  */
+  if ((level === "TEAM" || level === "INDIVIDUAL") && !scope.teamId) missing.push("팀");
+  if (!scope.ownerId) missing.push(level === "INDIVIDUAL" ? "담당자" : "책임자");
+
   if (missing.length > 0) {
     throw new Error(`필수 항목을 입력해 주세요: ${missing.join(", ")}`);
   }
+}
+
+/**
+ * 이 목표가 걸릴 조직과 사람을 정한다.
+ *
+ * 관리자가 아니면 폼에서 온 값을 쓰지 않고 로그인한 사람에게서 다시 만든다.
+ * 어차피 관리자가 아니면 남의 팀·남의 이름으로는 저장이 안 되므로(아래 권한
+ * 확인, 그리고 수정은 관리자만 소속을 건드린다), 화면에 칸을 띄워 봐야 고를
+ * 수 있는 값이 하나뿐이다. 그래서 팀장·팀원에게는 칸 자체를 띄우지 않는다.
+ *
+ * 예외는 팀을 둘 이상 이끄는 팀장이다 — 그때는 어느 팀 목표인지 사람만 안다.
+ */
+async function resolveGoalScope(
+  level: GoalLevel,
+  formData: FormData,
+  userId: string,
+  admin: boolean
+) {
+  const scope = scopeFieldsFor(level, formData);
+  if (admin) return scope;
+
+  const me = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { teamId: true, ledTeams: { select: { id: true } } },
+  });
+  const led = (me?.ledTeams ?? []).map((t) => t.id);
+
+  if (level === "INDIVIDUAL") {
+    scope.ownerId = userId;
+    scope.teamId = scope.teamId || me?.teamId || null;
+  } else if (level === "TEAM") {
+    // 팀목표의 책임자는 그 팀의 팀장이고, 여기까지 온 사람이 곧 그 팀장이다.
+    scope.ownerId = userId;
+    if (!scope.teamId && led.length === 1) scope.teamId = led[0];
+  }
+  return scope;
 }
 
 export async function createGoal(formData: FormData) {
@@ -864,10 +937,9 @@ export async function createGoal(formData: FormData) {
   if (!level || !cycleId || !title) return;
   await requireCycleEditable(cycleId, "goal");
 
-  requireGoalFields(level, formData);
-
   const admin = await isAdmin();
-  const scope = scopeFieldsFor(level, formData);
+  const scope = await resolveGoalScope(level, formData, session.user.id, admin);
+  requireGoalFields(level, formData, scope);
   // 개인·팀 목표 폼에는 부문 칸이 없다. 기타 사슬(전사 → 책임 → 팀)을 만들려면
   // 어느 책임 아래인지 알아야 하므로 팀에서 끌어온다.
   const otherScope = await resolveOtherScope(scope);
@@ -876,7 +948,7 @@ export async function createGoal(formData: FormData) {
   // 팀목표까지 허용한다 — 그 위(책임·전사)는 인사팀이 내려주는 값이다.
   if (!admin) {
     if (level === "INDIVIDUAL") {
-      scope.ownerId = session.user.id;
+      // 소속은 resolveGoalScope가 이미 로그인 정보로 정해 두었다.
     } else if (level === "TEAM") {
       const leads = await prisma.team.findFirst({
         where: { id: scope.teamId ?? "", leaderId: session.user.id },
@@ -907,10 +979,13 @@ export async function createGoal(formData: FormData) {
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
       ...formFields(formData),
-      progress: progressForStatus(
-        asStatus(formData.get("status")),
-        clampProgress(parseNumber(formData.get("progress"), 0))
-      ),
+      // 목표설정 단계에서는 달성률 칸 자체가 없다 — 0에서 시작한다.
+      progress: allowsProgressInput(await actingCycle(formData, cycleId))
+        ? progressForStatus(
+            asStatus(formData.get("status")),
+            clampProgress(parseNumber(formData.get("progress"), 0))
+          )
+        : 0,
       status: asStatus(formData.get("status")),
       dueDate: parseDate(formData.get("dueDate")),
       sortOrder: parseNumber(formData.get("sortOrder"), 0),
@@ -935,6 +1010,8 @@ export async function updateGoal(formData: FormData) {
       progress: true,
       status: true,
       agreementStatus: true,
+      teamId: true,
+      ownerId: true,
     },
   });
   if (!existing) return;
@@ -945,18 +1022,33 @@ export async function updateGoal(formData: FormData) {
     throw new Error("합의 완료된 목표입니다. 팀장에게 합의 해제를 요청해 주세요.");
   }
 
-  requireGoalFields(existing.level as GoalLevel, formData);
-
-  const synced = reconcileProgressAndStatus(
-    {
-      progress: clampProgress(parseNumber(formData.get("progress"), 0)),
-      status: asStatus(formData.get("status")),
-    },
-    { progress: existing.progress, status: existing.status as GoalStatus }
-  );
-
   const level = existing.level as GoalLevel;
   const admin = await isAdmin();
+  /*
+    소속을 옮기는 건 관리자만 한다. 그래서 관리자가 아니면 폼에 팀·책임자 칸이
+    아예 없고, 검증도 지금 저장돼 있는 값을 그대로 통과시킨다 — 화면에 없는
+    칸을 요구하면 저장이 안 되는 이유를 아무도 알 수 없다.
+  */
+  const scope = admin
+    ? scopeFieldsFor(level, formData)
+    : { teamId: existing.teamId, ownerId: existing.ownerId };
+  requireGoalFields(level, formData, scope);
+
+  /*
+    목표설정 단계에는 달성률 칸이 없다. 그때 폼에서 온 빈 값을 그대로 믿으면
+    (parseNumber가 0을 준다) 이미 올려둔 진척이 저장할 때마다 0으로 지워진다.
+    적을 수 없는 단계에서는 지금 값을 그대로 둔다.
+  */
+  const canWriteProgress = allowsProgressInput(await actingCycle(formData, existing.cycleId));
+  const synced = canWriteProgress
+    ? reconcileProgressAndStatus(
+        {
+          progress: clampProgress(parseNumber(formData.get("progress"), 0)),
+          status: asStatus(formData.get("status")),
+        },
+        { progress: existing.progress, status: existing.status as GoalStatus }
+      )
+    : { progress: existing.progress, status: asStatus(formData.get("status")) };
 
   // 목표 확정(마감) 이후에는 내용은 그대로 두고 진척과 상태만 받는다. 여기서
   // 통째로 막지 않는 이유는, 마감한 뒤에도 "완료" 처리는 계속 해야 하기
@@ -973,7 +1065,7 @@ export async function updateGoal(formData: FormData) {
       where: { id: goalId },
       data: {
         currentValue: str(formData.get("currentValue")) || null,
-        progress: synced.progress,
+        ...(canWriteProgress ? { progress: synced.progress } : {}),
         status: synced.status,
       },
     });
@@ -981,28 +1073,32 @@ export async function updateGoal(formData: FormData) {
     return;
   }
 
-  // 담당자·팀 같은 소속값을 옮기는 건 조직 배치의 문제라 관리자만 건드린다.
-  const scope = admin ? scopeFieldsFor(level, formData) : {};
-
   await prisma.goal.update({
     where: { id: goalId },
     data: {
       title: str(formData.get("title")) || undefined,
       description: str(formData.get("description")) || null,
-      ...scope,
-      ...(admin
-        ? {
-            parentId: await resolveParentId(
-              level,
-              str(formData.get("parentId")),
-              existing.cycleId,
-              await resolveOtherScope(scopeFieldsFor(level, formData)),
-              session.user.id
-            ),
-            weight: weightFor(level, formData),
-            sortOrder: parseNumber(formData.get("sortOrder"), 0),
-          }
-        : {}),
+      ...(admin ? scope : {}),
+      /*
+        가중치는 목표의 내용이다 — 자기 팀 목표의 비중을 팀장이 못 고치면
+        화면에는 새 숫자를 적었는데 저장은 옛날 값 그대로라, 아무 말도 없이
+        틀린 값이 남는다. 상위 연결·정렬만 관리자 몫으로 남긴다.
+      */
+      weight: weightFor(level, formData),
+      /*
+        상위 연결도 목표를 만들 때 본인이 고르는 값이다. 수정에서만 관리자
+        전용으로 두면, 화면에는 고를 수 있게 떠 있는데 저장은 안 되는 칸이
+        된다 — 게다가 필수라서, 지금 매달린 상위가 목록에 없으면 저장 자체가
+        조용히 막힌다.
+      */
+      parentId: await resolveParentId(
+        level,
+        str(formData.get("parentId")),
+        existing.cycleId,
+        await resolveOtherScope(scopeFieldsFor(level, formData)),
+        session.user.id
+      ),
+      ...(admin ? { sortOrder: parseNumber(formData.get("sortOrder"), 0) } : {}),
       metric: str(formData.get("metric")) || null,
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
@@ -1170,13 +1266,17 @@ export async function addGoalCheckIn(formData: FormData) {
 
   const current = await prisma.goal.findUnique({
     where: { id: goalId },
-    select: { status: true },
+    select: { status: true, cycleId: true },
   });
+  if (!current) return;
+  if (!allowsProgressInput(await actingCycle(formData, current.cycleId))) {
+    throw new Error("목표설정 단계에서는 달성률을 적지 않습니다. 중간평가·최종평가에서 올려 주세요.");
+  }
 
   // 100%를 찍으면 완료로 올리고, 100% 아래로 내리면 완료를 풀어준다. 안 풀면
   // 상태가 "완료"로 남아 화면에는 계속 100%로 보인다(완료 = 100%로 보므로).
   const nextStatus =
-    progress >= 100 ? "DONE" : current?.status === "DONE" ? "ACTIVE" : undefined;
+    progress >= 100 ? "DONE" : current.status === "DONE" ? "ACTIVE" : undefined;
 
   await prisma.$transaction([
     prisma.goal.update({

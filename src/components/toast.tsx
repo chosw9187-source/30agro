@@ -41,12 +41,16 @@ export function ToastHost() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex flex-col items-center gap-2">
+    /*
+      화면 한가운데에 띄운다. 맨 위에 붙여 두면 아래쪽에서 저장 버튼을 누른
+      사람 눈에는 안 들어온다 — 방금 누른 자리에서 멀수록 못 본다.
+    */
+    <div className="pointer-events-none fixed inset-0 z-50 flex flex-col items-center justify-center gap-2">
       {toasts.map((toast) => (
         <div
           key={toast.id}
           role="status"
-          className={`pointer-events-auto flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white shadow-lg ${
+          className={`pointer-events-auto flex items-center gap-2 rounded-lg px-6 py-4 text-base font-medium text-white shadow-2xl ${
             toast.ok ? "bg-brand-green" : "bg-status-critical"
           }`}
         >

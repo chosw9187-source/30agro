@@ -11,6 +11,7 @@ import {
   GOAL_AGREEMENT_BADGE_CLASS,
   GOAL_AGREEMENT_LABEL,
   GOAL_CYCLE_ORDER,
+  allowsProgressInput,
   GOAL_CYCLE_STATUS_LABEL,
   GOAL_SCALES,
   GOAL_LEVEL_LABEL,
@@ -119,6 +120,32 @@ const LEVEL_COLOR: Record<GoalLevel, string> = {
   TEAM: "var(--color-goal-3)",
   INDIVIDUAL: "var(--color-goal-4)",
 };
+
+/**
+ * 라벨 옆의 빨간 물음표. 마우스를 올리면 설명이 뜬다.
+ *
+ * 설명을 라벨에 괄호로 붙여 두면 칸 이름보다 안내문이 길어져서 정작 무슨
+ * 칸인지가 안 읽힌다. 한 번 읽으면 그만인 이야기는 접어 두고, 필요할 때만
+ * 꺼내 보게 한다. 자바스크립트 없이 CSS만으로 열고 닫아서 서버에서 그대로
+ * 그려진다.
+ */
+function HelpMark({ text }: { text: string }) {
+  return (
+    <span className="group relative inline-block align-middle">
+      <span
+        role="img"
+        aria-label={text}
+        tabIndex={0}
+        className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-status-critical text-[10px] font-bold leading-none text-status-critical"
+      >
+        ?
+      </span>
+      <span className="pointer-events-none absolute bottom-full left-0 z-20 mb-1 hidden w-64 rounded-md bg-slate-800 px-3 py-2 text-[11px] font-normal leading-relaxed text-white shadow-lg group-focus-within:block group-hover:block">
+        {text}
+      </span>
+    </span>
+  );
+}
 
 const INPUT_CLASS =
   "w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-green focus:outline-none";
@@ -372,6 +399,7 @@ export default async function Evaluation2Page({
           parentId: true,
           title: true,
           description: true,
+          isOther: true,
           division: true,
           teamId: true,
           ownerId: true,
@@ -439,6 +467,12 @@ export default async function Evaluation2Page({
   // 잠금은 목표를 실제로 담고 있는 사이클을 따른다 — 서버 액션도 그 사이클로
   // 판단하므로, 여기서 다른 기준을 쓰면 눌리는데 저장은 안 되는 버튼이 생긴다.
   const lock = cycleLock(sharedFrom ?? cycle);
+  /*
+    달성률을 적을 수 있는 단계인가. **고른 평가**로 판단한다 — 목표는 대개
+    「목표설정」에 한 벌만 있고 중간평가·최종평가가 그걸 빌려 보므로, 목표가
+    저장된 사이클로 따지면 중간평가에서도 막혀 버린다.
+  */
+  const canWriteProgress = allowsProgressInput(cycle);
   const tree = buildGoalTree(goalsWithTarget);
   const allNodes = flattenGoalTree(tree);
   const nodeById = new Map(allNodes.map((n) => [n.id, n]));
@@ -947,76 +981,50 @@ export default async function Evaluation2Page({
     const yearEnd = `${cycle?.year ?? new Date().getFullYear()}-12-31`;
 
     /*
-      팀과 책임자는 로그인한 사람에게서 끌어온다. 목표를 세우는 사람은 거의
-      언제나 자기 팀 것을 세우는데, 이미 누구인지 아는 정보를 매번 두 번씩
-      고르게 하면 그만큼 등록이 느려지고 엉뚱한 팀을 고르는 실수도 생긴다.
-      남의 팀 것을 대신 등록할 일은 있으므로 칸을 없애지는 않고 접어 둔다.
+      팀·책임자 칸은 **고를 수 있는 사람에게만** 띄운다.
 
-      팀목표의 책임자는 그 팀의 팀장이다 — 팀 전체가 지는 목표라 팀원 이름이
-      올라가면 나중에 누가 답할 자리인지 흐려진다. 팀장을 못 찾으면(명부에
-      없거나 공석) 로그인한 사람으로 둔다.
-    */
-    const autoTeamId = viewer.teamId ?? viewer.ledTeamIds[0] ?? "";
-    const leaderId = teams.find((t) => t.id === autoTeamId)?.leaderId ?? null;
-    const knownPerson = (id: string | null) => !!id && personOptions.some((p) => p.value === id);
-    const autoOwnerId =
-      level === "TEAM" && knownPerson(leaderId) ? leaderId! : session!.user.id;
-    const autoTeamName = teamOptions.find((t) => t.value === autoTeamId)?.label ?? null;
-    const autoOwnerName = personOptions.find((p) => p.value === autoOwnerId)?.label ?? null;
-    const needsTeam = level === "TEAM" || level === "INDIVIDUAL";
-    /*
-      자동으로 채우지 못했으면 접지 않고 펼친 채로 연다. 접힌 <details> 안의
-      필수 칸이 비어 있으면 브라우저가 "여기를 채우라"고 가리킬 자리를 찾지
-      못해서, 저장 버튼을 눌러도 아무 일도 안 일어난 것처럼 보인다.
-      이미 있는 목표를 고칠 때 배정이 기본값과 다르면 그때도 펼친다 — 접어
-      두면 화면에는 "기본값: 내 팀"만 보이는데 실제로는 다른 팀 목표다.
-    */
-    const autoFilled = (!needsTeam || !!autoTeamId) && !!autoOwnerName;
-    const assignmentOpen =
-      !autoFilled ||
-      (!!goal &&
-        (((goal.teamId ?? "") !== autoTeamId && needsTeam) ||
-          (goal.ownerId ?? "") !== autoOwnerId));
+      관리자가 아니면 서버가 어차피 로그인한 사람 기준으로 다시 정한다 —
+      개인목표의 담당자는 본인, 팀목표의 팀은 본인이 이끄는 팀만 통과하고,
+      수정할 때 소속은 관리자만 건드린다. 그러니 팀장·팀원에게 이 칸은
+      골라도 결과가 안 바뀌는 장식이라 아예 없앴다.
 
+      예외는 팀을 둘 이상 이끄는 팀장이다. 그때만 어느 팀 목표인지 사람만
+      알기 때문에 팀 칸을 남긴다.
+    */
+    const showTeam =
+      (level === "TEAM" || level === "INDIVIDUAL") &&
+      (isAdmin || (level === "TEAM" && viewer.ledTeamIds.length > 1));
+    const showOwner = isAdmin;
     const ownerLabel = level === "INDIVIDUAL" ? "담당자" : "책임자";
-    const assignment = (
-      <details open={assignmentOpen} className="md:col-span-2 rounded-md bg-slate-50 p-3">
-        <summary className="cursor-pointer text-xs font-medium text-slate-500">
-          담당 지정
-          {autoFilled && (
-            <span className="ml-1 font-normal text-slate-400">
-              — 기본값 {needsTeam && autoTeamName ? `${autoTeamName} · ` : ""}
-              {autoOwnerName}
-              {" (다른 팀·다른 사람 것을 등록할 때만 펼치세요)"}
-            </span>
-          )}
-        </summary>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          {needsTeam && (
+    const assignment =
+      showTeam || showOwner ? (
+        <div className="grid gap-3 md:col-span-2 md:grid-cols-2">
+          {showTeam && (
             <div>
               <label className={LABEL_CLASS}>팀</label>
               <SearchableSelect
                 name="teamId"
                 options={teamOptions}
-                defaultValue={goal?.teamId ?? autoTeamId}
+                defaultValue={goal?.teamId ?? ""}
                 placeholder="팀 검색"
                 required
               />
             </div>
           )}
-          <div>
-            <label className={LABEL_CLASS}>{ownerLabel}</label>
-            <SearchableSelect
-              name="ownerId"
-              options={personOptions}
-              defaultValue={goal?.ownerId ?? autoOwnerId}
-              placeholder="이름 검색"
-              required={req}
-            />
-          </div>
+          {showOwner && (
+            <div>
+              <label className={LABEL_CLASS}>{ownerLabel}</label>
+              <SearchableSelect
+                name="ownerId"
+                options={personOptions}
+                defaultValue={goal?.ownerId ?? ""}
+                placeholder="이름 검색"
+                required={req}
+              />
+            </div>
+          )}
         </div>
-      </details>
-    );
+      ) : null;
 
     const title = (
       <div className={isTeam ? undefined : "md:col-span-2"}>
@@ -1029,12 +1037,36 @@ export default async function Evaluation2Page({
       </div>
     );
 
+    /*
+      상위 목록에서 「기타」 묶음은 뺀다. 자동으로 만들어지는 자리라 "기타(책임
+      미지정)" 같은 이름으로 목록에 끼어 있었는데, 바로 아래 「기타」 항목과
+      결과가 똑같으면서 이름만 달라 어느 쪽을 고를지 망설이게 했다. 고르는 길은
+      하나면 된다. 이미 기타에 매달린 목표를 고칠 때는 그 「기타」 항목이
+      골라진 것으로 보여 준다.
+    */
+    const currentParent = goal?.parentId ? (nodeById.get(goal.parentId) ?? null) : null;
+    const parentIsOther = !!currentParent?.isOther;
+    /*
+      지금 매달려 있는 상위가 내가 볼 수 있는 범위 밖일 수 있다 — 다른 부문의
+      책임목표에 걸린 팀목표가 그렇다. 그때 목록에 그 항목이 없으면 select가
+      빈 값이 되고, 필수 칸이라 저장 버튼이 아무 말 없이 안 먹는다. 카드에는
+      이미 그 이름이 «상위: …»로 보이고 있으므로 목록에도 넣어 준다.
+    */
+    const parentChoices = parentOptions.filter((p) => !p.isOther);
+    if (currentParent && !parentIsOther && !parentChoices.some((p) => p.id === currentParent.id)) {
+      parentChoices.push(currentParent);
+    }
     const parent = parentLevel && (
       <div className={isTeam ? "md:col-span-2" : undefined}>
         <label className={LABEL_CLASS}>상위 {GOAL_LEVEL_LABEL[parentLevel]}</label>
-        <select name="parentId" defaultValue={goal?.parentId ?? ""} required className={INPUT_CLASS}>
+        <select
+          name="parentId"
+          defaultValue={parentIsOther ? OTHER_PARENT_VALUE : (goal?.parentId ?? "")}
+          required
+          className={INPUT_CLASS}
+        >
           <option value="">선택</option>
-          {parentOptions.map((p) => (
+          {parentChoices.map((p) => (
             <option key={p.id} value={p.id}>
               {/* 소속은 그게 어느 조직 목표인지 갈라 줄 때만 붙인다.
                   전사목표는 전부 "(전사)"가 되어 아무것도 구별해 주지
@@ -1047,10 +1079,7 @@ export default async function Evaluation2Page({
             아무리 달성해도 전사 달성률이 안 움직이므로, 층마다 「기타」
             한 칸을 두고 거기에 매단다(없으면 자동으로 만들어진다).
           */}
-          {/* 자동으로 만들어지는 기타 묶음도 위 목록에 "기타"로 뜨므로, 이
-              항목은 고르는 행위임이 드러나게 적는다. 둘 다 결과는 같지만
-              같은 이름이 두 줄 나란히 있으면 어느 쪽인지 헷갈린다. */}
-          <option value={OTHER_PARENT_VALUE}>＋ 기타로 묶기 (딱 맞는 상위 목표가 없을 때)</option>
+          <option value={OTHER_PARENT_VALUE}>기타 (딱 맞는 상위 목표가 없을 시)</option>
         </select>
       </div>
     );
@@ -1114,7 +1143,7 @@ export default async function Evaluation2Page({
         {/* 등급별로 "어디까지 해야 그 등급인지"를 목표 세울 때 못박는다.
             연말에 가서 정하면 사람마다 다르게 읽는다. */}
         <label className={LABEL_CLASS}>
-          평가척도 <span className="text-slate-400">(등급이 되려면 어디까지 해야 하는지)</span>
+          평가척도 <HelpMark text="등급별로 «어디까지 해야 그 등급인지»를 목표 세울 때 적어 둡니다. 연말에 가서 정하면 사람마다 다르게 읽습니다. 예) S: 3천만원 이상 절감 / A: 2천만원 이상 절감" />
         </label>
         <div className="grid gap-2 sm:grid-cols-5">
           {GOAL_SCALES.map((sc) => (
@@ -1141,7 +1170,7 @@ export default async function Evaluation2Page({
         <input
           name="formula"
           defaultValue={goal?.formula ?? ""}
-          placeholder="예: = 절감액, = 만족도Survey, = 연내 최종 승인 보고서"
+          placeholder="예: 절감액, 만족도Survey, 연내 최종 승인 보고서"
           className={INPUT_CLASS}
         />
       </div>
@@ -1163,7 +1192,11 @@ export default async function Evaluation2Page({
     const progress = (
       <div>
         <label className={LABEL_CLASS}>달성률(%)</label>
-        {isAutoCalculated(level) ? (
+        {!canWriteProgress ? (
+          <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
+            목표설정 단계에서는 적지 않습니다 (중간평가·최종평가에서 입력)
+          </p>
+        ) : isAutoCalculated(level) ? (
           <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
             하위 목표에서 자동 계산됩니다 (직접 입력하지 않습니다)
           </p>
@@ -1232,7 +1265,7 @@ export default async function Evaluation2Page({
           {line("scale", <>{scales}{formula}</>)}
           {line("progress", <>{status}{progress}</>)}
           {line("due", dueDate)}
-          {line("assign", assignment)}
+          {assignment}
           {line("desc", description)}
         </>
       );
@@ -1308,11 +1341,12 @@ export default async function Evaluation2Page({
           같아진다 — 지금은 그게 맞는 기본값이다.
         */}
         {level !== "DIVISION" && weight}
-        {level !== "DIVISION" && metric}
-        {/* 책임목표는 아래 팀목표가 굴러 올라온 값이라 목표수준·현재수준도
-            따로 적지 않는다. */}
-        {level !== "DIVISION" && targetValue}
-        {level !== "DIVISION" && currentValue}
+        {/*
+          지표·목표수준·현재수준은 팀목표에만 있다. 책임목표는 아래 팀목표가
+          굴러 올라온 값이고, 개인목표는 Key Results가 «무엇을 어디까지»를
+          이미 적고 있어서(사내 「개인목표 설정」 양식) 같은 걸 두 번 적게 된다.
+          여기 오는 층은 책임·개인뿐이므로 둘 다 띄우지 않는다.
+        */}
 
         {progress}
         {status}
@@ -1551,13 +1585,14 @@ export default async function Evaluation2Page({
         {agreementActions}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {canTouchProgress && !isAutoCalculated(level) && (
+          {canTouchProgress && canWriteProgress && !isAutoCalculated(level) && (
             <ActionForm
               action={addGoalCheckIn}
               successMessage="진척이 반영되었습니다."
               className="flex flex-wrap items-center gap-2"
             >
               <input type="hidden" name="goalId" value={goal.id} />
+              <input type="hidden" name="viewCycleId" value={cycle?.id ?? ""} />
               <input
                 type="number"
                 name="progress"
@@ -1644,6 +1679,10 @@ export default async function Evaluation2Page({
             className="mt-4 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-2"
           >
             <input type="hidden" name="goalId" value={goal.id} />
+            {/* 지금 어느 평가를 통해 고치는 중인지. 달성률을 적을 수 있는
+                단계인지가 여기서 갈린다 — 목표는 한 벌이고 중간·최종평가가
+                그걸 빌려 보기 때문에 목표가 저장된 사이클만으로는 알 수 없다. */}
+            <input type="hidden" name="viewCycleId" value={cycle?.id ?? ""} />
             <GoalFormFields level={level} goal={goal} parentOptions={parentOptions} />
             <div className="md:col-span-2">
               <button type="submit" className={PRIMARY_BUTTON_CLASS}>
@@ -1709,6 +1748,7 @@ export default async function Evaluation2Page({
               className="mt-4 grid gap-3 md:grid-cols-2"
             >
               <input type="hidden" name="cycleId" value={goalCycleId ?? cycle.id} />
+              <input type="hidden" name="viewCycleId" value={cycle.id} />
               <input type="hidden" name="level" value={level} />
               <GoalFormFields level={level} parentOptions={parentOptions} />
               <div className="md:col-span-2">
