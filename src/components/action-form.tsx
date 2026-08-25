@@ -12,6 +12,9 @@ import { showToast } from "@/components/toast";
  *
  * children은 서버 컴포넌트에서 그대로 넘겨받으므로, 기존 폼은 <form>만
  * 이 컴포넌트로 바꾸면 된다.
+ *
+ * `confirmMessage`를 주면 제출 전에 한 번 되묻는다 — 되돌릴 수 없는 삭제에
+ * 쓴다. 취소하면 서버 액션은 호출되지 않는다.
  */
 export function ActionForm({
   action,
@@ -19,12 +22,14 @@ export function ActionForm({
   className,
   id,
   successMessage = "정상 등록되었습니다.",
+  confirmMessage,
 }: {
   action: (formData: FormData) => Promise<unknown>;
   children: React.ReactNode;
   className?: string;
   id?: string;
   successMessage?: string;
+  confirmMessage?: string;
 }) {
   const [, formAction] = useActionState(async (_prev: null, formData: FormData) => {
     try {
@@ -49,7 +54,14 @@ export function ActionForm({
   }, null);
 
   return (
-    <form id={id} action={formAction} className={className}>
+    <form
+      id={id}
+      action={formAction}
+      className={className}
+      onSubmit={(e) => {
+        if (confirmMessage && !window.confirm(confirmMessage)) e.preventDefault();
+      }}
+    >
       {children}
     </form>
   );

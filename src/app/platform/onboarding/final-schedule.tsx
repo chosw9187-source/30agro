@@ -127,6 +127,8 @@ export async function FinalScheduleSection({
   const isForMe = (s: FinalSession) => !!myTrainee && audienceOf(s).some((t) => t.id === myTrainee.id);
 
   const myCount = myTrainee ? sessions.filter(isForMe).length : 0;
+  // 가장 자주 필요한 정보는 "다음에 내가 어디로 가면 되는지" 한 줄이다.
+  const nextForMe = myTrainee ? sessions.find((s) => isForMe(s) && s.endAt > new Date()) ?? null : null;
   const shown = onlyMine && myTrainee ? sessions.filter(isForMe) : sessions;
   const confirmedCount = sessions.filter((s) => s.bookings.length >= s.requiredInstructors).length;
 
@@ -176,6 +178,15 @@ export async function FinalScheduleSection({
           <p className="text-sm font-medium text-brand-green-dark">
             {myTrainee.user.name}님은 이 기수 교육생입니다 — 참석 대상 교육 {myCount}건
           </p>
+          {nextForMe ? (
+            <p className="mt-1 text-sm text-slate-700">
+              다음 교육: <span className="font-medium">{formatSessionDay(nextForMe.startAt)}</span>{" "}
+              {formatSessionTimeRange(nextForMe.startAt, nextForMe.endAt)} · {nextForMe.title}
+              {nextForMe.location && ` · ${nextForMe.location}`}
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-slate-500">남은 교육이 없습니다.</p>
+          )}
           <div className="mt-2 flex flex-wrap gap-2 text-xs">
             <Link
               href={finalHref({ ...linkBase, onlyMine: false })}
@@ -237,7 +248,10 @@ export async function FinalScheduleSection({
       </div>
 
       {view === "calendar" ? (
-        <div className="overflow-hidden rounded-lg border border-slate-200">
+        // 폰 화면에서 7칸을 욱여넣으면 칸이 40px까지 눌려 "10…"밖에 안 보인다.
+        // 최소 폭을 주고 가로로 스크롤하게 해서 교육명이 읽히도록 한다.
+        <div className="overflow-x-auto rounded-lg border border-slate-200">
+          <div className="min-w-[640px]">
           <div className="grid grid-cols-7 bg-slate-50 text-center text-xs font-medium text-slate-500">
             {WEEKDAY_LABEL.map((w) => (
               <div key={w} className="py-2">
@@ -279,55 +293,25 @@ export async function FinalScheduleSection({
               );
             })}
           </div>
+          </div>
+          {/* 폰에서는 달력 칸이 좁아 한글 교육명이 잘린다 — 달력은 그 달의
+              모양을 보는 용도로 두고, 읽을 수 있는 목록을 아래에 함께 준다. */}
+          <div className="md:hidden">
+            <DayList
+              byDay={byDay}
+              isForMe={isForMe}
+              hrefOf={(id) => finalHref({ ...linkBase, sessionId: openSession?.id === id ? null : id })}
+              emptyLabel={onlyMine ? "참석 대상으로 지정된 교육이 없습니다." : "이 기수에 등록된 교육 일정이 없습니다."}
+            />
+          </div>
         </div>
-      ) : shown.length === 0 ? (
-        <EmptyBox>
-          {onlyMine ? "참석 대상으로 지정된 교육이 없습니다." : "이 기수에 등록된 교육 일정이 없습니다."}
-        </EmptyBox>
       ) : (
-        <div className="flex flex-col gap-4">
-          {[...byDay.entries()].map(([key, daySessions]) => (
-            <div key={key} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-              <div className="border-b border-slate-100 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
-                {formatSessionDay(daySessions[0].startAt)}
-              </div>
-              <ul className="divide-y divide-slate-100">
-                {daySessions.map((s) => (
-                  <li key={s.id}>
-                    <Link
-                      href={finalHref({ ...linkBase, sessionId: openSession?.id === s.id ? null : s.id })}
-                      className="flex flex-wrap items-start gap-x-4 gap-y-1 px-4 py-3 hover:bg-slate-50"
-                    >
-                      <span className="w-32 shrink-0 text-sm font-medium text-slate-700">
-                        {formatSessionTimeRange(s.startAt, s.endAt)}
-                      </span>
-                      <div className="min-w-[12rem] flex-1">
-                        <p className="text-sm font-medium text-slate-800">
-                          {s.title}
-                          {isForMe(s) && (
-                            <span className="ml-2 rounded-full bg-brand-green-light px-2 py-0.5 text-[10px] font-semibold text-brand-green-dark">
-                              참석
-                            </span>
-                          )}
-                        </p>
-                        <p className="mt-0.5 text-xs text-slate-500">
-                          {s.location ?? "장소 미정"} ·{" "}
-                          {s.bookings.length > 0 ? (
-                            <span className="text-slate-700">강사 {s.bookings.map((b) => b.user.name).join(", ")}</span>
-                          ) : (
-                            <span className="text-amber-600">강사 미정</span>
-                          )}
-                          {" · "}
-                          {s.attendees.length === 0 ? "기수 전원" : `지정 ${s.attendees.length}명`}
-                        </p>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
+        <DayList
+          byDay={byDay}
+          isForMe={isForMe}
+          hrefOf={(id) => finalHref({ ...linkBase, sessionId: openSession?.id === id ? null : id })}
+          emptyLabel={onlyMine ? "참석 대상으로 지정된 교육이 없습니다." : "이 기수에 등록된 교육 일정이 없습니다."}
+        />
       )}
 
       {openSession ? (
@@ -345,6 +329,70 @@ export async function FinalScheduleSection({
             : "목록에서 교육을 누르면 시간·장소·교육 대상자를 볼 수 있습니다."}
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * 날짜별로 묶은 교육 목록. 달력이 좁은 화면에서 읽히지 않으므로 폰에서는
+ * 달력과 함께, [목록] 보기에서는 단독으로 쓴다.
+ */
+function DayList({
+  byDay,
+  isForMe,
+  hrefOf,
+  emptyLabel,
+}: {
+  byDay: Map<string, FinalSession[]>;
+  isForMe: (s: FinalSession) => boolean;
+  hrefOf: (sessionId: string) => string;
+  emptyLabel: string;
+}) {
+  if (byDay.size === 0) return <EmptyBox>{emptyLabel}</EmptyBox>;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {[...byDay.entries()].map(([key, daySessions]) => (
+        <div key={key} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+          <div className="border-b border-slate-100 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
+            {formatSessionDay(daySessions[0].startAt)}
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {daySessions.map((s) => (
+              <li key={s.id}>
+                <Link
+                  href={hrefOf(s.id)}
+                  className="flex flex-wrap items-start gap-x-4 gap-y-1 px-4 py-3 hover:bg-slate-50"
+                >
+                  <span className="w-32 shrink-0 text-sm font-medium text-slate-700">
+                    {formatSessionTimeRange(s.startAt, s.endAt)}
+                  </span>
+                  <div className="min-w-[12rem] flex-1">
+                    <p className="text-sm font-medium text-slate-800">
+                      {s.title}
+                      {isForMe(s) && (
+                        <span className="ml-2 rounded-full bg-brand-green-light px-2 py-0.5 text-[10px] font-semibold text-brand-green-dark">
+                          참석
+                        </span>
+                      )}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {s.location ?? "장소 미정"} ·{" "}
+                      {s.bookings.length > 0 ? (
+                        <span className="text-slate-700">강사 {s.bookings.map((b) => b.user.name).join(", ")}</span>
+                      ) : (
+                        <span className="text-amber-600">강사 미정</span>
+                      )}
+                      {" · "}
+                      {s.attendees.length === 0 ? "기수 전원" : `지정 ${s.attendees.length}명`}
+                    </p>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </div>
   );
 }
