@@ -16,6 +16,8 @@ import {
   countsTowardProgress,
   cycleLock,
   defaultOtherWeight,
+  groupCyclesByYear,
+  parseNameYear,
   evalTargetState,
   flattenGoalTree,
   needsAgreement,
@@ -200,10 +202,13 @@ export async function createGoalCycle(formData: FormData) {
   const endDate = parseDate(formData.get("endDate"));
   if (!name || !startDate || !endDate) return;
 
-  // 연도는 시작일 문자열("2026-07-01")에서 그대로 떼어낸다. Date 객체의
-  // getFullYear()는 서버 시간대를 타서, 한국 밖 리전에서는 1월 1일 시작인
-  // 사이클이 전년도로 잡힐 수 있다.
-  const year = parseNumber(str(formData.get("startDate")).slice(0, 4), startDate.getFullYear());
+  // 연도는 이름 앞머리("2026년 …")를 먼저 본다. 기간에는 실수로 다른 해를 넣기
+  // 쉬운데, 그러면 화면에는 "2026년 중간평가"인데 시스템은 2028년으로 알게 되어
+  // 연도별 묶음이 통째로 어긋난다. 이름에 해가 없으면 시작일에서 떼어낸다 —
+  // Date의 getFullYear()는 서버 시간대를 타므로 문자열에서 자른다.
+  const year =
+    parseNameYear(name) ??
+    parseNumber(str(formData.get("startDate")).slice(0, 4), startDate.getFullYear());
 
   await prisma.goalCycle.create({
     data: {
@@ -252,10 +257,19 @@ export async function moveGoalCycle(cycleId: string, direction: "up" | "down") {
   await requireGoalModule();
   if (!(await isAdmin())) throw new Error("순서는 관리자만 바꿀 수 있습니다.");
 
-  const list = await prisma.goalCycle.findMany({
+  const rows = await prisma.goalCycle.findMany({
     orderBy: GOAL_CYCLE_ORDER,
-    select: { id: true },
+    select: { id: true, name: true, year: true, sortOrder: true },
   });
+  // 화면과 똑같은 차례로 세워 놓고 옮긴다. 목록은 연도로 묶여 나가고 같은 해
+  // 안에서는 단계 순서가 한 번 더 걸리기 때문에, DB에서 읽은 차례를 그대로
+  // 쓰면 화살표가 화면에 보이는 것과 다른 줄을 집는다.
+  const groups = groupCyclesByYear(rows);
+  const all = groups.flatMap((g) => g.items);
+  // 같은 해 안에서만 자리를 바꾼다. 해를 넘어 옮기면 묶음이 통째로 뒤바뀌는데,
+  // 화살표를 누른 사람이 기대한 건 그 해 안의 단계 순서다.
+  const list = groups.find((g) => g.items.some((c) => c.id === cycleId))?.items;
+  if (!list) return;
   const from = list.findIndex((c) => c.id === cycleId);
   if (from === -1) return;
   const to = direction === "up" ? from - 1 : from + 1;
@@ -264,9 +278,12 @@ export async function moveGoalCycle(cycleId: string, direction: "up" | "down") {
   const moved = [...list];
   [moved[from], moved[to]] = [moved[to], moved[from]];
 
+  // 그 해 항목들이 원래 갖고 있던 순번 자리에 새 차례대로 다시 앉힌다 — 다른
+  // 해의 순번은 건드리지 않는다.
+  const slots = list.map((c) => all.findIndex((a) => a.id === c.id) + 1);
   await prisma.$transaction(
     moved.map((c, i) =>
-      prisma.goalCycle.update({ where: { id: c.id }, data: { sortOrder: i + 1 } })
+      prisma.goalCycle.update({ where: { id: c.id }, data: { sortOrder: slots[i] } })
     )
   );
   revalidatePath(PATH);
@@ -314,12 +331,18 @@ export async function renameGoalCycle(formData: FormData) {
   const startDate = parseDate(formData.get("startDate"));
   const endDate = parseDate(formData.get("endDate"));
 
+  const startYear = Number(str(formData.get("startDate")).slice(0, 4));
+  const resolvedYear =
+    parseNameYear(name) ?? (Number.isFinite(startYear) && startYear > 0 ? startYear : null);
+
   await prisma.goalCycle.update({
     where: { id: cycleId },
     data: {
       name,
-      // 연도는 시작일에서 뽑는다. 사람이 따로 적게 하면 이름과 어긋난 값이 남는다.
-      ...(startDate ? { startDate, year: startDate.getFullYear() } : {}),
+      // 연도는 이름 앞머리를 먼저 본다(위 createGoalCycle과 같은 이유). 이름에도
+      // 시작일에도 해가 없으면 지금 값을 그대로 둔다 — 0으로 덮어쓰면 "0년"이 된다.
+      ...(resolvedYear !== null ? { year: resolvedYear } : {}),
+      ...(startDate ? { startDate } : {}),
       ...(endDate ? { endDate } : {}),
     },
   });

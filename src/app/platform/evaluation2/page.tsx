@@ -23,6 +23,7 @@ import {
   buildGoalTree,
   countsTowardProgress,
   flattenGoalTree,
+  groupCyclesByYear,
   asAgreementStatus,
   canViewGoalRow,
   cycleLock,
@@ -34,6 +35,7 @@ import {
   GOAL_TYPES,
   GOAL_TYPE_BADGE_CLASS,
   circledNumber,
+  cyclePhaseLabel,
   keyResultLines,
   scaleValues,
   toDateInputValue,
@@ -591,11 +593,17 @@ export default async function Evaluation2Page({
         {cycles.length > 0 ? (
           <CycleSelect
             value={selectedCycleId}
-            options={[
-              { value: "", label: "선택" },
-              ...cycles.map((c) => ({
-                value: c.id,
-                label: `${c.name} (${GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]})`,
+            groups={[
+              { label: null, options: [{ value: "", label: "선택" }] },
+              ...groupCyclesByYear(cycles).map((g) => ({
+                label: `${g.year}년`,
+                options: g.items.map((c) => ({
+                  value: c.id,
+                  // 묶음 제목이 이미 "2026년"이라 안에서는 단계만 읽으면 된다.
+                  label: `${cyclePhaseLabel(c)} (${
+                    GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]
+                  })`,
+                })),
               })),
             ]}
           />

@@ -622,3 +622,83 @@ export function usesKeyResults(level: string): boolean {
 export function usesWeightSubtotal(level: string): boolean {
   return level === "TEAM" || level === "INDIVIDUAL";
 }
+
+// ---- 인사평가의 연도와 단계 ----------------------------------------------
+
+/**
+ * 이름 앞머리의 연도("2026년 중간평가" → 2026). 없으면 null.
+ *
+ * 이름을 연도의 근거로 삼는 이유: 기간은 실수로 다른 해를 넣기 쉽고(중간평가에
+ * 2028년 날짜가 들어가는 식), 그러면 화면에서는 "2026년 중간평가"인데 시스템은
+ * 2028년으로 알게 된다. 사람이 보는 이름과 묶이는 해가 어긋나면 목록이 통째로
+ * 이상해지므로, 이름에 해가 적혀 있으면 그걸 따른다.
+ */
+export function parseNameYear(name: string): number | null {
+  const m = name.trim().match(/^(\d{4})\s*년/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  return Number.isFinite(y) ? y : null;
+}
+
+/** 이 인사평가가 묶일 해. 이름에 적힌 해가 먼저고, 없으면 저장된 연도. */
+export function cycleYear(cycle: { name: string; year: number }): number {
+  return parseNameYear(cycle.name) ?? cycle.year;
+}
+
+/**
+ * 연도 묶음 안에서 보여 줄 이름. "2026년 중간평가" → "중간평가".
+ *
+ * 묶음 제목이 이미 "2026년"이라 안에서 해를 한 번 더 읽을 이유가 없다. 연도만
+ * 떼고 남는 게 없으면(이름이 "2026년"뿐이면) 원래 이름을 그대로 쓴다.
+ */
+export function cyclePhaseLabel(cycle: { name: string }): string {
+  const rest = cycle.name.trim().replace(/^\d{4}\s*년\s*/, "").trim();
+  return rest || cycle.name;
+}
+
+/**
+ * 연도 > 단계 두 층으로 묶는다. 해는 최근이 위, 해 안에서는 관리자가 정한
+ * 순서(목록에 들어온 순서)를 그대로 지킨다.
+ */
+/**
+ * 한 해 안에서 단계가 놓이는 자연스러운 순서 — 목표설정 → 중간 → 최종.
+ * 관리자가 ▲▼로 직접 순서를 잡았으면 그쪽이 이긴다(아래 정렬에서 sortOrder가
+ * 먼저다). 이 순위는 sortOrder가 서로 같아 순서를 가릴 수 없을 때만 쓴다.
+ * 새로 만든 사이클은 전부 같은 값으로 들어오기 때문에, 이게 없으면
+ * "2026년 최종평가"가 "2026년 중간평가"보다 위에 붙는 일이 생긴다.
+ */
+const CYCLE_PHASE_RANK: [RegExp, number][] = [
+  [/목표\s*설정|목표수립/, 1],
+  [/중간|상반기/, 2],
+  [/최종|하반기|연말/, 3],
+];
+export function cyclePhaseRank(cycle: { name: string }): number {
+  const label = cyclePhaseLabel(cycle);
+  for (const [re, r] of CYCLE_PHASE_RANK) if (re.test(label)) return r;
+  return 9;
+}
+export function groupCyclesByYear<
+  T extends { name: string; year: number; sortOrder?: number },
+>(cycles: T[]): { year: number; items: T[] }[] {
+  const byYear = new Map<number, T[]>();
+  for (const c of cycles) {
+    const y = cycleYear(c);
+    const list = byYear.get(y);
+    if (list) list.push(c);
+    else byYear.set(y, [c]);
+  }
+  return Array.from(byYear.entries())
+    .sort((a, b) => b[0] - a[0])
+    .map(([year, items]) => ({
+      year,
+      items: items
+        .map((item, i) => ({ item, i }))
+        .sort(
+          (a, b) =>
+            (a.item.sortOrder ?? 0) - (b.item.sortOrder ?? 0) ||
+            cyclePhaseRank(a.item) - cyclePhaseRank(b.item) ||
+            a.i - b.i
+        )
+        .map((x) => x.item),
+    }));
+}

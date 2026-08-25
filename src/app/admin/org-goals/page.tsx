@@ -4,6 +4,8 @@ import { formatKSTDate } from "@/lib/format-kst";
 import {
   GOAL_CYCLE_ORDER,
   GOAL_CYCLE_STATUS_LABEL,
+  cyclePhaseLabel,
+  groupCyclesByYear,
   GOAL_STATUSES,
   GOAL_STATUS_LABEL,
   cycleLock,
@@ -169,9 +171,14 @@ export default async function OrgGoalsAdminPage({
           {cycle && cycles.length > 0 && (
             <CycleSelect
               value={cycle.id}
-              options={cycles.map((c) => ({
-                value: c.id,
-                label: `${c.name} (${GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]})`,
+              groups={groupCyclesByYear(cycles).map((g) => ({
+                label: `${g.year}년`,
+                options: g.items.map((c) => ({
+                  value: c.id,
+                  label: `${cyclePhaseLabel(c)} (${
+                    GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]
+                  })`,
+                })),
               }))}
             />
           )}
@@ -580,8 +587,17 @@ export default async function OrgGoalsAdminPage({
             <p className="mt-1 text-sm text-slate-500">
               위·아래 화살표로 순서를 바꾸면 평가2 화면 오른쪽 위 선택 목록도 같은 순서가 됩니다.
             </p>
-            <div className="mt-3 flex flex-col gap-2">
-              {cycles.map((c, i) => (
+            {/*
+              연도 > 단계 두 층으로 묶는다. "2026년 목표설정 / 2026년 중간평가 /
+              2026년 최종평가"가 평평하게 늘어서면 몇 해치가 섞이는 순간 읽기
+              어려워지는데, 해 아래 단계가 들어가면 "2026년에는 이 세 가지가
+              있다"가 한눈에 읽힌다.
+            */}
+            {groupCyclesByYear(cycles).map((group) => (
+            <div key={group.year} className="mt-4">
+            <h3 className="mb-2 text-sm font-bold text-slate-800">{group.year}년</h3>
+            <div className="flex flex-col gap-2">
+              {group.items.map((c, i) => (
                 <div
                   key={c.id}
                   className={`flex flex-wrap items-center gap-2 rounded-lg border p-3 text-sm ${
@@ -605,7 +621,7 @@ export default async function OrgGoalsAdminPage({
                     </ActionForm>
                     <ActionForm action={moveGoalCycle.bind(null, c.id, "down")} successMessage="순서를 바꿨습니다.">
                       <button
-                        disabled={i === cycles.length - 1}
+                        disabled={i === group.items.length - 1}
                         aria-label="아래로"
                         title="아래로"
                         className="rounded border border-slate-300 bg-white px-1.5 text-xs leading-4 text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-30"
@@ -715,6 +731,8 @@ export default async function OrgGoalsAdminPage({
                 </div>
               ))}
             </div>
+            </div>
+            ))}
 
             <ActionForm
               action={createGoalCycle}

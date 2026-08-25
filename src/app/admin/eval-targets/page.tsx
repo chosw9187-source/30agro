@@ -5,6 +5,8 @@ import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import {
   GOAL_CYCLE_ORDER,
   GOAL_CYCLE_STATUS_LABEL,
+  cyclePhaseLabel,
+  groupCyclesByYear,
   evalTargetState,
   toDateInputValue,
   type EvalTargetState,
@@ -176,9 +178,14 @@ export default async function EvalTargetsPage({
           {cycles.length > 0 && (
             <CycleSelect
               value={cycle?.id ?? ""}
-              options={cycles.map((c) => ({
-                value: c.id,
-                label: `${c.name} (${GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]})`,
+              groups={groupCyclesByYear(cycles).map((g) => ({
+                label: `${g.year}년`,
+                options: g.items.map((c) => ({
+                  value: c.id,
+                  label: `${cyclePhaseLabel(c)} (${
+                    GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]
+                  })`,
+                })),
               }))}
             />
           )}
