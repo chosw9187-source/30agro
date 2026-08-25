@@ -135,6 +135,11 @@ export type GoalNode = GoalRow & {
   children: GoalNode[];
   /** 하위 목표까지 굴려 올린 달성률(%). 하위가 없으면 progress와 같다. */
   rollupProgress: number;
+  /**
+   * 집계에 실제로 쓰는 가중치. 팀목표는 딸린 개인목표의 가중치 합이고,
+   * 나머지 층은 사람이 적어 넣은 `weight` 그대로다(`usesDerivedWeight`).
+   */
+  rollupWeight: number;
 };
 
 /**
@@ -179,14 +184,14 @@ export function weightedProgress(children: GoalNode[]): number {
   const counted = children.filter(countsTowardProgress);
   if (counted.length === 0) return 0;
 
-  const totalWeight = counted.reduce((sum, c) => sum + (c.weight > 0 ? c.weight : 0), 0);
+  // 팀목표처럼 가중치를 아래에서 굴려 올리는 층이 있어서 `weight`가 아니라
+  // `rollupWeight`을 본다(다른 층에서는 둘이 같은 값이다).
+  const w = (c: GoalNode) => (c.rollupWeight > 0 ? c.rollupWeight : 0);
+  const totalWeight = counted.reduce((sum, c) => sum + w(c), 0);
   if (totalWeight <= 0) {
     return Math.round(counted.reduce((sum, c) => sum + c.rollupProgress, 0) / counted.length);
   }
-  const weighted = counted.reduce(
-    (sum, c) => sum + c.rollupProgress * (c.weight > 0 ? c.weight : 0),
-    0
-  );
+  const weighted = counted.reduce((sum, c) => sum + c.rollupProgress * w(c), 0);
   return Math.round(weighted / totalWeight);
 }
 
@@ -198,7 +203,12 @@ export function weightedProgress(children: GoalNode[]): number {
 export function buildGoalTree(rows: GoalRow[]): GoalNode[] {
   const byId = new Map<string, GoalNode>();
   for (const row of rows) {
-    byId.set(row.id, { ...row, children: [], rollupProgress: leafProgress(row) });
+    byId.set(row.id, {
+      ...row,
+      children: [],
+      rollupProgress: leafProgress(row),
+      rollupWeight: row.weight,
+    });
   }
 
   const roots: GoalNode[] = [];
@@ -228,6 +238,14 @@ export function buildGoalTree(rows: GoalRow[]): GoalNode[] {
   const computeRollup = (node: GoalNode): number => {
     node.children.forEach(computeRollup);
     const counted = node.children.filter(countsTowardProgress);
+    /*
+      팀목표의 가중치는 딸린 개인목표 가중치의 합이다. 집계에서 빠진 개인목표
+      (중단·집계 제외·평가대상 아님)는 그 몫도 같이 빠진다 — 달성률에서 빼놓고
+      비중만 남겨 두면 그 팀 목표가 실제보다 무겁게 잡힌다.
+    */
+    node.rollupWeight = usesDerivedWeight(node.level)
+      ? counted.reduce((sum, c) => sum + (c.rollupWeight > 0 ? c.rollupWeight : 0), 0)
+      : node.weight;
     if (counted.length > 0) {
       node.rollupProgress = weightedProgress(node.children);
     } else if (isAutoCalculated(node.level)) {
@@ -510,7 +528,7 @@ export function cycleLock(
 export const OTHER_PARENT_VALUE = "__OTHER__";
 
 /** 자동으로 만들어지는 기타 목표의 이름. 층마다 하나씩 생긴다. */
-export const OTHER_GOAL_TITLE = "기타";
+export const OTHER_GOAL_TITLE = "기타 목표";
 
 /**
  * 새로 만드는 기타 목표에 줄 가중치. 형제들이 이미 가중치를 나눠 가지고 있으면
@@ -618,8 +636,22 @@ export function usesKeyResults(level: string): boolean {
  * 목록 머리글에 가중치 소계를 띄우는 층. 양식에 "소계 100%" 줄이 있는 곳,
  * 즉 팀목표와 개인목표다 — 비중을 나눠 갖는 층에서만 합계가 뜻을 가진다.
  */
+/**
+ * 가중치를 사람이 적지 않고 아래에서 굴려 올리는 층.
+ *
+ * 팀목표가 그렇다 — 그 팀 목표의 비중은 결국 딸린 개인목표들이 짊어진
+ * 몫의 합이다. 손으로 따로 적게 하면 개인목표를 더하고 뺄 때마다 팀목표
+ * 가중치를 같이 고쳐야 하는데, 아무도 그러지 않아서 둘이 어긋난 채로 남는다.
+ */
+export function usesDerivedWeight(level: string): boolean {
+  return level === "TEAM";
+}
+
 export function usesWeightSubtotal(level: string): boolean {
-  return level === "TEAM" || level === "INDIVIDUAL";
+  // 팀목표는 가중치를 아래에서 굴려 올리므로(`usesDerivedWeight`) 사람이 맞출
+  // 소계가 없다. 100%로 맞추라는 말이 붙어 있으면 고칠 수 없는 숫자를 붙들고
+  // 있으라는 뜻이 된다.
+  return level === "INDIVIDUAL";
 }
 
 // ---- 인사평가의 연도와 단계 ----------------------------------------------

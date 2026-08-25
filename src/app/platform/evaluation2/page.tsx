@@ -20,6 +20,7 @@ import {
   GOAL_PARENT_LEVEL,
   GOAL_STATUSES,
   GOAL_STATUS_LABEL,
+  OTHER_GOAL_TITLE,
   OTHER_PARENT_VALUE,
   averageProgress,
   buildGoalTree,
@@ -43,6 +44,7 @@ import {
   toDateInputValue,
   usesKeyResults,
   usesScales,
+  usesDerivedWeight,
   usesWeightSubtotal,
   visibleGoalLevels,
   weightedProgress,
@@ -298,6 +300,15 @@ function OwnerFlagBadge({ label }: { label: string }) {
       담당자 {label}
     </span>
   );
+}
+
+/**
+ * 화면에 뿌릴 목표 이름. 자동으로 만들어지는 「기타」 자리는 예전에 만든
+ * 줄이 «기타»라는 옛 이름으로 저장돼 있어서, 읽을 때 지금 이름으로 맞춘다 —
+ * 저장된 값을 건드리지 않고도 화면이 한 가지 이름으로 읽힌다.
+ */
+function goalTitle(goal: { title: string; isOther?: boolean }): string {
+  return goal.isOther ? OTHER_GOAL_TITLE : goal.title;
 }
 
 function scopeText(goal: GoalNode): string {
@@ -570,10 +581,10 @@ export default async function Evaluation2Page({
    */
   const myNodes = visibleRows(allNodes);
 
-  // 담당자가 퇴사·부서이동했는데 아직 집계에 들어 있는 목표 — 빼는 건 관리자·팀장
-  // 몫이라 그 사람들에게만 알린다.
+  // 담당자가 퇴사·부서이동했는데 아직 집계에 들어 있는 목표 — 빼는 건 관리자
+  // 몫이라 관리자에게만 알린다.
   const needsReviewCount = myNodes.filter(
-    (g) => !g.excluded && !g.targetExcluded && ownerFlag(g, now) && canExclude(g)
+    (g) => !g.excluded && !g.targetExcluded && ownerFlag(g, now) && canExclude()
   ).length;
 
   // 합의 현황. 내가 승인해야 할 건과, 내 범위에서 아직 확정되지 않은 개인목표.
@@ -598,14 +609,14 @@ export default async function Evaluation2Page({
   }
 
   /**
-   * 집계 제외는 관리자와 팀장만 — 본인은 못 건다. 진척이 안 나오는 자기
-   * 목표를 스스로 빼면 팀·책임·전사 달성률이 조용히 올라간다.
-   * 서버 액션(setGoalExcluded)도 같은 규칙으로 한 번 더 막는다.
+   * 집계 제외는 **관리자만**. 진척이 안 나오는 목표를 집계에서 빼면 팀·책임·
+   * 전사 달성률이 조용히 올라가는데, 그 판단은 평가를 운영하는 쪽에서 한다.
+   * 한때 팀장에게도 열어 뒀지만, 목표를 세우는 사람 손에 «내 숫자를 좋아
+   * 보이게 하는 버튼»을 쥐여 주는 꼴이라 닫았다. 팀장·팀원 화면에는 수정과
+   * 삭제만 남는다. 서버 액션(setGoalExcluded)도 같은 규칙으로 한 번 더 막는다.
    */
-  function canExclude(goal: GoalNode): boolean {
-    if (isAdmin) return true;
-    const team = teams.find((t) => t.id === goal.teamId);
-    return !!team && team.leaderId === session!.user.id;
+  function canExclude(): boolean {
+    return isAdmin;
   }
 
   // ---- 상단 고정 전사목표 표 ---------------------------------------------
@@ -805,10 +816,12 @@ export default async function Evaluation2Page({
                             {i + 1}.
                           </span>
                           <span className="font-medium text-slate-800 group-hover:text-brand-green-dark group-hover:underline">
-                            {g.title}
+                            {goalTitle(g)}
                           </span>
                         </Link>
-                        {(g.metric || g.targetValue || g.description) && (
+                        {/* 기타 자리에는 지표도 설명도 붙이지 않는다 — 담아 두는
+                            칸이지 그 자체로 세운 목표가 아니다. */}
+                        {!g.isOther && (g.metric || g.targetValue || g.description) && (
                           <p className="mt-0.5 pl-5 text-xs text-slate-500">
                             {[
                               g.metric,
@@ -1125,6 +1138,11 @@ export default async function Evaluation2Page({
     const weight = (
       <div>
         <label className={LABEL_CLASS}>{isTeam || isOkr ? "가중치(비중, %)" : "가중치(%)"}</label>
+        {usesDerivedWeight(level) ? (
+          <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
+            딸린 개인목표의 가중치 합으로 자동 계산됩니다 (직접 입력하지 않습니다)
+          </p>
+        ) : (
         <input
           type="number"
           name="weight"
@@ -1135,6 +1153,7 @@ export default async function Evaluation2Page({
           required={req}
           className={INPUT_CLASS}
         />
+        )}
       </div>
     );
 
@@ -1462,7 +1481,7 @@ export default async function Evaluation2Page({
       >
         <div className="flex flex-wrap items-center gap-2">
           <LevelDot level={level} />
-          <span className="text-sm font-medium text-slate-800">{goal.title}</span>
+          <span className="text-sm font-medium text-slate-800">{goalTitle(goal)}</span>
           {/*
             책임목표에는 부문 이름을 붙이지 않는다. 책임목표 탭은 그 자체가
             부문별 목록이라 «재무경영관리»가 줄마다 되풀이될 뿐이고, 정작 읽어야
@@ -1506,7 +1525,7 @@ export default async function Evaluation2Page({
             </span>
           )}
           {!parent && parentLevel && <span className="text-status-critical">상위 목표 미연결</span>}
-          {goal.weight > 0 && <span>가중치 {goal.weight}%</span>}
+          {goal.rollupWeight > 0 && <span>가중치 {goal.rollupWeight}%</span>}
           {goal.metric && <span>지표: {goal.metric}</span>}
           {goal.targetValue && (
             <span>
@@ -1515,8 +1534,11 @@ export default async function Evaluation2Page({
             </span>
           )}
           {goal.formula && <span>산출식: {goal.formula}</span>}
-          {goal.dueDate && <span>마감 {formatKSTDate(goal.dueDate)}</span>}
-          {goal.children.length > 0 && <span>하위 {goal.children.length}건</span>}
+          {/*
+            마감일과 하위 건수는 여기서 뺐다. 목표마다 거의 다 «마감 12. 31.»
+            이라 줄만 길어지고, 하위 건수는 아래 달성률 안내가 이미 말해 준다.
+            늦은 목표는 제목 옆 «지연» 배지가 따로 알려 준다.
+          */}
         </div>
 
         {/*
@@ -1646,7 +1668,7 @@ export default async function Evaluation2Page({
               {isEditing ? "수정 닫기" : "수정"}
             </Link>
           )}
-          {canExclude(goal) && lock.canEditProgress && (
+          {canExclude() && lock.canEditProgress && (
             <ActionForm
               action={setGoalExcluded.bind(null, goal.id, !goal.excluded)}
               successMessage={goal.excluded ? "집계에 다시 포함했습니다." : "집계에서 제외했습니다."}
@@ -1669,7 +1691,7 @@ export default async function Evaluation2Page({
               </button>
             </ActionForm>
           )}
-          {isAdmin && lock.canEditGoals && (
+          {editable && (
             <ActionForm action={deleteGoal.bind(null, goal.id)} successMessage="삭제되었습니다.">
               <button
                 type="submit"
@@ -1714,7 +1736,9 @@ export default async function Evaluation2Page({
     if (focusedIds) rows = rows.filter((g) => focusedIds.has(g.id));
 
     // 사내 양식의 소계 — 가중치는 정수로 적으니 반올림해 보여준다.
-    const weightSum = Math.round(rows.reduce((sum, g) => sum + (g.weight > 0 ? g.weight : 0), 0));
+    const weightSum = Math.round(
+      rows.reduce((sum, g) => sum + (g.rollupWeight > 0 ? g.rollupWeight : 0), 0)
+    );
 
     const canCreate =
       lock.canEditGoals &&

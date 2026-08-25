@@ -8,6 +8,7 @@ import { checkModuleAccess } from "@/lib/permissions";
 import {
   GOAL_CYCLE_ORDER,
   allowsProgressInput,
+  usesDerivedWeight,
   GOAL_CYCLE_STATUSES,
   GOAL_SCALES,
   GOAL_LEVEL_LABEL,
@@ -142,22 +143,16 @@ async function canManageGoal(goalId: string): Promise<boolean> {
 }
 
 /**
- * 집계 제외를 걸 수 있는 사람 — 관리자와 그 팀의 팀장뿐이다.
+ * 집계 제외를 걸 수 있는 사람 — **관리자뿐이다**.
  *
- * 목표를 고칠 권한(canManageGoal)에는 본인도 들어가지만, 제외는 그 목표를
- * 상위 달성률 계산에서 빼는 일이라 본인에게 맡길 수 없다. 진척이 안 나오는
- * 목표를 담당자가 스스로 빼 버리면 팀·책임·전사 달성률이 조용히 올라간다.
+ * 제외는 그 목표를 상위 달성률 계산에서 빼는 일이다. 목표를 세우는 쪽에
+ * 맡기면 진척이 안 나오는 목표를 빼서 팀·책임·전사 달성률을 조용히 올릴 수
+ * 있다. 한때 팀장에게도 열어 뒀지만 같은 이유로 닫았다 — 평가를 운영하는
+ * 쪽에서 판단한다.
  */
-async function canExcludeGoal(goalId: string): Promise<boolean> {
+async function canExcludeGoal(): Promise<boolean> {
   const session = await auth();
-  if (!session?.user) return false;
-  if (session.user.role === "ADMIN") return true;
-
-  const goal = await prisma.goal.findUnique({
-    where: { id: goalId },
-    select: { team: { select: { leaderId: true } } },
-  });
-  return !!goal && goal.team?.leaderId === session.user.id;
+  return session?.user.role === "ADMIN";
 }
 
 /**
@@ -484,7 +479,7 @@ export async function copyGoalsFromCycle(formData: FormData) {
           cycleId: targetCycleId,
           level: row.level,
           parentId: row.parentId ? (newIdByOldId.get(row.parentId) ?? null) : null,
-              title: row.title,
+          title: row.title,
           description: row.description,
           division: row.division,
           teamId: row.teamId,
@@ -600,7 +595,7 @@ export async function createGoalCheckpoint(formData: FormData) {
         id: true,
         level: true,
         parentId: true,
-          title: true,
+        title: true,
         description: true,
         division: true,
         teamId: true,
@@ -609,7 +604,7 @@ export async function createGoalCheckpoint(formData: FormData) {
         metric: true,
         targetValue: true,
         currentValue: true,
-          progress: true,
+        progress: true,
         status: true,
         excluded: true,
         excludeReason: true,
@@ -744,7 +739,9 @@ async function ensureOtherGoal(
       parentId,
       isOther: true,
       title: OTHER_GOAL_TITLE,
-      description: "위 층 목표에 직접 붙지 않는 일을 모아 두는 자리입니다.",
+      // 설명은 붙이지 않는다. 표에서 이름 아래로 한 줄이 더 늘어나는데,
+      // «기타 목표»라는 이름이 이미 그 뜻이다.
+      description: null,
       division: level === "DIVISION" || level === "TEAM" ? scope.division : null,
       teamId: level === "TEAM" ? scope.teamId : null,
       weight: defaultOtherWeight(siblings),
@@ -800,7 +797,10 @@ async function actingCycle(formData: FormData, goalCycleId: string) {
 }
 
 function weightFor(level: GoalLevel, formData: FormData): number {
-  if (level === "DIVISION") return 0;
+  // 책임목표에는 가중치 칸이 없고, 팀목표의 가중치는 딸린 개인목표에서 굴려
+  // 올린다(`usesDerivedWeight`). 둘 다 저장해 둘 값이 없으므로 0으로 둔다 —
+  // 화면은 계산한 값을 보여 주고, 저장된 값은 아무도 안 본다.
+  if (level === "DIVISION" || usesDerivedWeight(level)) return 0;
   return parseNumber(formData.get("weight"), 0);
 }
 
@@ -860,7 +860,7 @@ function requireGoalFields(
     ["parentId", `상위 ${GOAL_LEVEL_LABEL[GOAL_PARENT_LEVEL[level]!]}`],
   ];
   if (level === "DIVISION") need.push(["division", "책임"]);
-  if (level !== "DIVISION") need.push(["weight", "가중치"]);
+  if (level !== "DIVISION" && !usesDerivedWeight(level)) need.push(["weight", "가중치"]);
   /*
     지표·목표수준·현재수준은 팀목표에만 있다. 책임목표는 아래 팀목표가 굴러
     올라온 값이고, 개인목표는 Key Results가 그 자리를 대신한다(사내 「개인목표
@@ -1113,9 +1113,21 @@ export async function updateGoal(formData: FormData) {
 
 export async function deleteGoal(goalId: string) {
   await requireGoalModule();
-  if (!(await isAdmin())) throw new Error("목표 삭제는 관리자만 할 수 있습니다.");
+  // 고칠 수 있는 사람이면 지울 수도 있다 — 자기가 잘못 만든 목표를 지우려고
+  // 관리자를 찾아가야 하면, 대신 제목만 «(취소)»로 바꿔 둔 껍데기가 쌓인다.
+  if (!(await canManageGoal(goalId))) throw new Error("이 목표를 지울 권한이 없습니다.");
 
   await requireGoalEditable(goalId, "goal");
+
+  // 합의가 끝난 목표는 담당자 혼자 지울 수 없다. 수정과 같은 규칙이다 —
+  // 승인한 사람 모르게 사라지면 합의라는 말이 뜻을 잃는다.
+  const agreed = await prisma.goal.findUnique({
+    where: { id: goalId },
+    select: { agreementStatus: true },
+  });
+  if (agreed?.agreementStatus === "AGREED" && !(await canApproveGoal(goalId))) {
+    throw new Error("합의 완료된 목표입니다. 팀장에게 합의 해제를 요청해 주세요.");
+  }
 
   // 하위 목표는 지우지 않고 부모만 끊어서, 실수로 팀·개인 목표가 통째로
   // 사라지는 일이 없게 한다.
@@ -1234,8 +1246,8 @@ export async function setGoalExcluded(
   formData?: FormData
 ) {
   await requireGoalModule();
-  if (!(await canExcludeGoal(goalId))) {
-    throw new Error("집계 제외는 관리자와 팀장만 할 수 있습니다.");
+  if (!(await canExcludeGoal())) {
+    throw new Error("집계 제외는 관리자만 할 수 있습니다.");
   }
   await requireGoalEditable(goalId, "progress");
 
