@@ -1463,7 +1463,16 @@ export default async function Evaluation2Page({
         <div className="flex flex-wrap items-center gap-2">
           <LevelDot level={level} />
           <span className="text-sm font-medium text-slate-800">{goal.title}</span>
-          <span className="text-xs text-slate-500">{scopeText(goal)}</span>
+          {/*
+            책임목표에는 부문 이름을 붙이지 않는다. 책임목표 탭은 그 자체가
+            부문별 목록이라 «재무경영관리»가 줄마다 되풀이될 뿐이고, 정작 읽어야
+            할 목표 이름 옆자리를 먹는다. 팀목표의 팀 이름과 개인목표의 담당자
+            이름은 남긴다 — 여러 팀·여러 사람 것이 한 목록에 섞여 나오므로 그건
+            누구 목표인지 가려 주는 유일한 표시다.
+          */}
+          {level !== "DIVISION" && (
+            <span className="text-xs text-slate-500">{scopeText(goal)}</span>
+          )}
           <StatusBadge status={goal.status} />
           {isOverdue(goal, now) && <OverdueBadge />}
           {needsAgreement(goal.level) && <AgreementBadge status={goal.agreementStatus} />}

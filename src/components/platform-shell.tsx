@@ -6,6 +6,7 @@ import { CompanyLogo } from "@/components/company-logo";
 import { Watermark } from "@/components/watermark";
 import { SessionHeartbeat } from "@/components/session-heartbeat";
 import { ToastHost } from "@/components/toast";
+import { NumberStepGuard } from "@/components/number-step-guard";
 import { getVisibleModules, getModuleUiConfig, getHiddenAdminMenuKeys, type Position } from "@/lib/permissions";
 import { logPageView } from "@/lib/page-view";
 
@@ -66,6 +67,7 @@ export async function PlatformShell({
       {/* 알림은 화면 껍데기에 한 번만 붙여둔다 — 알림을 띄운 폼이 그 직후
           사라져도(삭제처럼) 문구가 같이 지워지지 않게. */}
       <ToastHost />
+      <NumberStepGuard />
       <PlatformSidebar
         role={user.role}
         user={{ ...user, position }}
