@@ -11,6 +11,7 @@ import {
   GOAL_AGREEMENT_LABEL,
   GOAL_CYCLE_ORDER,
   GOAL_CYCLE_STATUS_LABEL,
+  GOAL_SCALES,
   GOAL_LEVEL_LABEL,
   GOAL_LEVEL_RAMP,
   GOAL_LEVEL_RAMP_BORDER,
@@ -30,7 +31,9 @@ import {
   isOverdue,
   needsAgreement,
   ownerFlag,
+  scaleValues,
   toDateInputValue,
+  usesScales,
   visibleGoalLevels,
   weightedProgress,
   type GoalCycleStatus,
@@ -368,6 +371,12 @@ export default async function Evaluation2Page({
           targetValue: true,
           currentValue: true,
           unit: true,
+          scaleS: true,
+          scaleA: true,
+          scaleB: true,
+          scaleC: true,
+          scaleD: true,
+          formula: true,
           progress: true,
           status: true,
           excluded: true,
@@ -915,12 +924,15 @@ export default async function Evaluation2Page({
     parentOptions: GoalNode[];
   }) {
     const parentLevel = GOAL_PARENT_LEVEL[level];
-    // 이 사이클이 속한 해의 말일. 마감일 기본값이자 책임목표의 고정값.
+    const isTeam = usesScales(level);
+    // 이 사이클이 속한 해의 말일. 마감일 기본값이다.
     const yearEnd = `${cycle?.year ?? new Date().getFullYear()}-12-31`;
     return (
       <>
         <div className="md:col-span-2">
-          <label className={LABEL_CLASS}>목표명</label>
+          {/* 팀목표는 사내 "팀 목표 설정" 양식의 칸 이름을 그대로 쓴다 — 화면과
+              보고서에서 다른 말을 쓰면 옮겨 적을 때마다 짝을 맞춰야 한다. */}
+          <label className={LABEL_CLASS}>{isTeam ? "핵심 업무 목표" : "목표명"}</label>
           <input name="title" defaultValue={goal?.title ?? ""} required className={INPUT_CLASS} />
         </div>
 
@@ -1007,7 +1019,7 @@ export default async function Evaluation2Page({
         */}
         {level !== "DIVISION" && (
           <div>
-            <label className={LABEL_CLASS}>가중치(%)</label>
+            <label className={LABEL_CLASS}>{isTeam ? "가중치(비중, %)" : "가중치(%)"}</label>
             <input
               type="number"
               name="weight"
@@ -1023,7 +1035,7 @@ export default async function Evaluation2Page({
 
         {level !== "DIVISION" && (
           <div>
-            <label className={LABEL_CLASS}>측정지표</label>
+            <label className={LABEL_CLASS}>{isTeam ? "성과지표(KPI)" : "측정지표"}</label>
             <input
               name="metric"
               defaultValue={goal?.metric ?? ""}
@@ -1037,7 +1049,7 @@ export default async function Evaluation2Page({
         {/* 책임목표는 아래 팀목표가 굴러 올라온 값이라 목표수준도 따로 적지 않는다. */}
         {level !== "DIVISION" && (
           <div>
-            <label className={LABEL_CLASS}>목표수준</label>
+            <label className={LABEL_CLASS}>{isTeam ? "목표수준 · 목표치" : "목표수준"}</label>
             <input
               name="targetValue"
               defaultValue={goal?.targetValue ?? ""}
@@ -1050,7 +1062,7 @@ export default async function Evaluation2Page({
         {/* 책임목표는 아래 팀목표가 굴러 올라온 값이라 현재수준을 따로 적을 일이 없다. */}
         {level !== "DIVISION" && (
           <div>
-            <label className={LABEL_CLASS}>현재수준</label>
+            <label className={LABEL_CLASS}>{isTeam ? "목표수준 · 현수준" : "현재수준"}</label>
             <input
               name="currentValue"
               defaultValue={goal?.currentValue ?? ""}
@@ -1120,6 +1132,44 @@ export default async function Evaluation2Page({
             className={INPUT_CLASS}
           />
         </div>
+
+        {isTeam && (
+          <>
+            <div className="md:col-span-2">
+              <label className={LABEL_CLASS}>산출식/방안</label>
+              <input
+                name="formula"
+                defaultValue={goal?.formula ?? ""}
+                placeholder="예: = 절감액, = 만족도Survey, = 연내 최종 승인 보고서"
+                className={INPUT_CLASS}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              {/* 등급별로 "어디까지 해야 그 등급인지"를 목표 세울 때 못박는다.
+                  연말에 가서 정하면 사람마다 다르게 읽는다. */}
+              <label className={LABEL_CLASS}>
+                평가척도 <span className="text-slate-400">(등급이 되려면 어디까지 해야 하는지)</span>
+              </label>
+              <div className="grid gap-2 sm:grid-cols-5">
+                {GOAL_SCALES.map((sc) => (
+                  <div key={sc.field}>
+                    <div className="mb-1 rounded-t-md bg-slate-100 px-2 py-1 text-center text-xs font-semibold text-slate-700">
+                      {sc.grade}
+                      <span className="ml-0.5 font-normal text-slate-500">({sc.score})</span>
+                    </div>
+                    <textarea
+                      name={sc.field}
+                      rows={2}
+                      defaultValue={goal?.[sc.field] ?? ""}
+                      className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:border-brand-green focus:outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
 
         <div className="md:col-span-2">
           <label className={LABEL_CLASS}>설명</label>
@@ -1275,9 +1325,47 @@ export default async function Evaluation2Page({
               {goal.currentValue && ` / 현재 ${goal.currentValue}${goal.unit ?? ""}`}
             </span>
           )}
+          {goal.formula && <span>산출식: {goal.formula}</span>}
           {goal.dueDate && <span>마감 {formatKSTDate(goal.dueDate)}</span>}
           {goal.children.length > 0 && <span>하위 {goal.children.length}건</span>}
         </div>
+
+        {/*
+          평가척도. 사내 양식과 같은 다섯 칸을 그대로 늘어놓는다 — 등급 기준은
+          목표를 볼 때 같이 보여야 "이 정도면 몇 등급인가"를 매번 다시 묻지 않는다.
+          한 칸도 안 채웠으면 빈 표를 띄우지 않는다.
+        */}
+        {usesScales(level) && scaleValues(goal).some((sc) => sc.value) && (
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full min-w-[560px] table-fixed border-collapse text-xs">
+              <thead>
+                <tr>
+                  {GOAL_SCALES.map((sc) => (
+                    <th
+                      key={sc.field}
+                      className="border border-slate-200 bg-slate-100 px-2 py-1 font-semibold text-slate-700"
+                    >
+                      {sc.grade}
+                      <span className="ml-0.5 font-normal text-slate-500">({sc.score})</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  {scaleValues(goal).map((sc) => (
+                    <td
+                      key={sc.field}
+                      className="border border-slate-200 px-2 py-1.5 align-top text-slate-600"
+                    >
+                      {sc.value || <span className="text-slate-300">—</span>}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {goal.description && <p className="mt-2 text-xs text-slate-600">{goal.description}</p>}
 
@@ -1416,6 +1504,9 @@ export default async function Evaluation2Page({
     // 전사 목표 표에서 한 줄을 고르면 그 갈래에 속한 목표만 남긴다.
     if (focusedIds) rows = rows.filter((g) => focusedIds.has(g.id));
 
+    // 사내 양식의 소계 — 가중치는 정수로 적으니 반올림해 보여준다.
+    const weightSum = Math.round(rows.reduce((sum, g) => sum + (g.weight > 0 ? g.weight : 0), 0));
+
     const canCreate =
       lock.canEditGoals &&
       (isAdmin ||
@@ -1429,6 +1520,21 @@ export default async function Evaluation2Page({
           <h2 className="text-lg font-semibold">{GOAL_LEVEL_LABEL[level]}</h2>
           <span className="text-sm text-slate-500">{rows.length}건</span>
           <span className="text-sm text-slate-500">평균 달성률 {averageProgress(rows)}%</span>
+          {/*
+            사내 양식의 "소계" 줄. 가중치 합이 100이어야 비중이 의도대로 먹는데,
+            줄마다 숫자를 눈으로 더하게 두면 아무도 확인하지 않는다. 100이 아닐
+            때만 눈에 띄게 표시한다.
+          */}
+          {usesScales(level) && rows.length > 0 && (
+            <span
+              className={`text-sm ${
+                weightSum === 100 ? "text-slate-500" : "font-medium text-status-critical"
+              }`}
+            >
+              가중치 소계 {weightSum}%
+              {weightSum !== 100 && " — 100%로 맞춰 주세요"}
+            </span>
+          )}
         </div>
 
         {canCreate && cycle && (

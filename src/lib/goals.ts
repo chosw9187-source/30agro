@@ -96,6 +96,12 @@ export type GoalRow = {
   targetValue: string | null;
   currentValue: string | null;
   unit: string | null;
+  scaleS?: string | null;
+  scaleA?: string | null;
+  scaleB?: string | null;
+  scaleC?: string | null;
+  scaleD?: string | null;
+  formula?: string | null;
   progress: number;
   status: string;
   excluded: boolean;
@@ -533,3 +539,36 @@ export const GOAL_CYCLE_ORDER: {
   year?: "asc" | "desc";
   startDate?: "asc" | "desc";
 }[] = [{ sortOrder: "asc" }, { year: "desc" }, { startDate: "desc" }];
+
+// ---- 평가척도 -------------------------------------------------------------
+
+/**
+ * 사내 "팀 목표 설정" 양식의 평가척도 다섯 등급. 괄호 안 숫자는 그 등급의
+ * 환산점수다 — S를 110으로 두는 건 목표를 넘겨 달성한 경우를 인정하기
+ * 위해서고, 그래서 100이 아니라 110에서 시작한다.
+ *
+ * `field`는 Goal에 저장되는 칸 이름이자 폼 input의 name이다. 등급을 늘리거나
+ * 점수를 바꿀 일이 생기면 여기만 고치면 화면과 저장이 같이 따라온다.
+ */
+export const GOAL_SCALES = [
+  { grade: "S", score: 110, field: "scaleS" },
+  { grade: "A", score: 100, field: "scaleA" },
+  { grade: "B", score: 90, field: "scaleB" },
+  { grade: "C", score: 80, field: "scaleC" },
+  { grade: "D", score: 70, field: "scaleD" },
+] as const;
+
+export type GoalScaleField = (typeof GOAL_SCALES)[number]["field"];
+
+/** 목표 한 건의 평가척도를 등급 순서대로 꺼낸다. */
+export function scaleValues(goal: Partial<Record<GoalScaleField, string | null>>) {
+  return GOAL_SCALES.map((s) => ({ ...s, value: goal[s.field] ?? null }));
+}
+
+/**
+ * 평가척도를 이 층에서 쓰는지. 팀목표가 사내 양식에서 등급 기준을 적는 층이다 —
+ * 전사·책임 목표는 아래에서 굴러 올라온 값이라 등급 기준을 따로 두지 않는다.
+ */
+export function usesScales(level: string): boolean {
+  return level === "TEAM";
+}

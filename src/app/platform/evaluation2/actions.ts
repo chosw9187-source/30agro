@@ -8,6 +8,7 @@ import { checkModuleAccess } from "@/lib/permissions";
 import {
   GOAL_CYCLE_ORDER,
   GOAL_CYCLE_STATUSES,
+  GOAL_SCALES,
   GOAL_LEVEL_LABEL,
   OTHER_GOAL_TITLE,
   OTHER_PARENT_VALUE,
@@ -439,6 +440,12 @@ export async function copyGoalsFromCycle(formData: FormData) {
       metric: true,
       targetValue: true,
       unit: true,
+      scaleS: true,
+      scaleA: true,
+      scaleB: true,
+      scaleC: true,
+      scaleD: true,
+      formula: true,
       sortOrder: true,
     },
   });
@@ -461,6 +468,12 @@ export async function copyGoalsFromCycle(formData: FormData) {
           metric: row.metric,
           targetValue: row.targetValue,
           unit: row.unit,
+          scaleS: row.scaleS,
+          scaleA: row.scaleA,
+          scaleB: row.scaleB,
+          scaleC: row.scaleC,
+          scaleD: row.scaleD,
+          formula: row.formula,
           sortOrder: row.sortOrder,
           createdById: session.user.id,
         },
@@ -718,6 +731,15 @@ async function ensureOtherGoal(
   return created.id;
 }
 
+/** 평가척도 다섯 칸과 산출식을 폼에서 그대로 받아 넘긴다. */
+function scaleFields(formData: FormData) {
+  const out: Record<string, string | null> = {
+    formula: str(formData.get("formula")) || null,
+  };
+  for (const s of GOAL_SCALES) out[s.field] = str(formData.get(s.field)) || null;
+  return out;
+}
+
 /**
  * 책임목표에는 가중치 칸이 없으므로 0으로 둔다 — 폼에 없는 값을 우연히 0으로
  * 떨어뜨리는 게 아니라 일부러 0이다. 가중평균은 형제가 전부 0이면 동일가중으로
@@ -852,6 +874,7 @@ export async function createGoal(formData: FormData) {
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
       unit: str(formData.get("unit")) || null,
+      ...scaleFields(formData),
       progress: progressForStatus(
         asStatus(formData.get("status")),
         clampProgress(parseNumber(formData.get("progress"), 0))
@@ -952,6 +975,7 @@ export async function updateGoal(formData: FormData) {
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
       unit: str(formData.get("unit")) || null,
+      ...scaleFields(formData),
       progress: synced.progress,
       status: synced.status,
       dueDate: parseDate(formData.get("dueDate")),

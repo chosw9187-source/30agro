@@ -1035,6 +1035,23 @@ model Goal {
   currentValue String?
   unit        String?
 
+  /**
+   * 평가척도. 사내 "팀 목표 설정" 양식의 S(110)~D(70) 다섯 칸을 그대로 받는다.
+   *
+   * 점수가 아니라 **그 등급이 되려면 어디까지 해야 하는지를 서술로** 적는 칸이다
+   * (예: S = "3천만원 이상 절감", C = "천만원 미만~백만원 이상 절감"). 목표를
+   * 세울 때 등급 기준을 같이 못박아 둬야, 연말에 "이 정도면 A인가 B인가"를
+   * 사람마다 다르게 읽는 일이 없다.
+   */
+  scaleS String?
+  scaleA String?
+  scaleB String?
+  scaleC String?
+  scaleD String?
+
+  /** 산출식/방안 — 이 지표를 무엇으로 재는지(예: "= 절감액", "= 만족도Survey"). */
+  formula String?
+
   progress Int        @default(0)
   status   GoalStatus @default(ACTIVE)
 
