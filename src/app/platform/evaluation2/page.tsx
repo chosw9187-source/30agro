@@ -31,9 +31,15 @@ import {
   isOverdue,
   needsAgreement,
   ownerFlag,
+  GOAL_TYPES,
+  GOAL_TYPE_BADGE_CLASS,
+  circledNumber,
+  keyResultLines,
   scaleValues,
   toDateInputValue,
+  usesKeyResults,
   usesScales,
+  usesWeightSubtotal,
   visibleGoalLevels,
   weightedProgress,
   type GoalCycleStatus,
@@ -377,6 +383,8 @@ export default async function Evaluation2Page({
           scaleC: true,
           scaleD: true,
           formula: true,
+          goalType: true,
+          keyResults: true,
           progress: true,
           status: true,
           excluded: true,
@@ -925,6 +933,7 @@ export default async function Evaluation2Page({
   }) {
     const parentLevel = GOAL_PARENT_LEVEL[level];
     const isTeam = usesScales(level);
+    const isOkr = usesKeyResults(level);
     // 이 사이클이 속한 해의 말일. 마감일 기본값이다.
     const yearEnd = `${cycle?.year ?? new Date().getFullYear()}-12-31`;
     return (
@@ -932,10 +941,48 @@ export default async function Evaluation2Page({
         <div className="md:col-span-2">
           {/* 팀목표는 사내 "팀 목표 설정" 양식의 칸 이름을 그대로 쓴다 — 화면과
               보고서에서 다른 말을 쓰면 옮겨 적을 때마다 짝을 맞춰야 한다. */}
-          <label className={LABEL_CLASS}>{isTeam ? "핵심 업무 목표" : "목표명"}</label>
+          <label className={LABEL_CLASS}>
+            {isTeam ? "핵심 업무 목표" : isOkr ? "Objective (목표)" : "목표명"}
+          </label>
           <input name="title" defaultValue={goal?.title ?? ""} required className={INPUT_CLASS} />
         </div>
 
+
+        {isOkr && (
+          <div>
+            {/* 유형을 안 적게 하면 개인목표가 전부 업무목표로만 찬다. */}
+            <label className={LABEL_CLASS}>목표 유형</label>
+            <select
+              name="goalType"
+              defaultValue={goal?.goalType ?? "업무목표"}
+              required
+              className={INPUT_CLASS}
+            >
+              {GOAL_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {isOkr && (
+          <div className="md:col-span-2">
+            <label className={LABEL_CLASS}>
+              Key Results (핵심결과){" "}
+              <span className="text-slate-400">— 한 줄에 하나씩. ① ② ③ 으로 번호가 붙습니다</span>
+            </label>
+            <textarea
+              name="keyResults"
+              rows={3}
+              defaultValue={goal?.keyResults ?? ""}
+              required
+              placeholder={"타사 적정인원/팀 사례 분석\n적정 팀 구성 분석"}
+              className={INPUT_CLASS}
+            />
+          </div>
+        )}
 
         {parentLevel && (
           <div>
@@ -1019,7 +1066,9 @@ export default async function Evaluation2Page({
         */}
         {level !== "DIVISION" && (
           <div>
-            <label className={LABEL_CLASS}>{isTeam ? "가중치(비중, %)" : "가중치(%)"}</label>
+            <label className={LABEL_CLASS}>
+              {isTeam || isOkr ? "가중치(비중, %)" : "가중치(%)"}
+            </label>
             <input
               type="number"
               name="weight"
@@ -1295,6 +1344,15 @@ export default async function Evaluation2Page({
           <StatusBadge status={goal.status} />
           {isOverdue(goal, now) && <OverdueBadge />}
           {needsAgreement(goal.level) && <AgreementBadge status={goal.agreementStatus} />}
+          {goal.goalType && (
+            <span
+              className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                GOAL_TYPE_BADGE_CLASS[goal.goalType] ?? "bg-slate-100 text-slate-700"
+              }`}
+            >
+              {goal.goalType}
+            </span>
+          )}
           {goal.excluded && <ExcludedBadge reason={goal.excludeReason} />}
           {!goal.excluded && goal.targetExcluded && (
             <ExcludedBadge reason={goal.targetExcludeReason ?? "평가대상 아님"} />
@@ -1329,6 +1387,21 @@ export default async function Evaluation2Page({
           {goal.dueDate && <span>마감 {formatKSTDate(goal.dueDate)}</span>}
           {goal.children.length > 0 && <span>하위 {goal.children.length}건</span>}
         </div>
+
+        {/*
+          Key Results. 양식과 같이 ① ② ③ 으로 번호를 붙여 늘어놓는다 — 목표
+          제목만으로는 "무엇을 해냈다고 볼지"가 안 보인다.
+        */}
+        {usesKeyResults(level) && keyResultLines(goal.keyResults).length > 0 && (
+          <ul className="mt-2 space-y-0.5 text-xs text-slate-600">
+            {keyResultLines(goal.keyResults).map((line, i) => (
+              <li key={i} className="flex gap-1.5">
+                <span className="shrink-0 text-slate-400">{circledNumber(i)}</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+        )}
 
         {/*
           평가척도. 사내 양식과 같은 다섯 칸을 그대로 늘어놓는다 — 등급 기준은
@@ -1525,7 +1598,7 @@ export default async function Evaluation2Page({
             줄마다 숫자를 눈으로 더하게 두면 아무도 확인하지 않는다. 100이 아닐
             때만 눈에 띄게 표시한다.
           */}
-          {usesScales(level) && rows.length > 0 && (
+          {usesWeightSubtotal(level) && rows.length > 0 && (
             <span
               className={`text-sm ${
                 weightSum === 100 ? "text-slate-500" : "font-medium text-status-critical"
@@ -1557,6 +1630,11 @@ export default async function Evaluation2Page({
               </div>
             </ActionForm>
           </details>
+        )}
+
+        {/* 양식 하단의 산식. 가중치를 왜 100%로 맞춰야 하는지가 이 한 줄로 읽힌다. */}
+        {usesKeyResults(level) && rows.length > 0 && (
+          <p className="text-xs text-slate-500">* 점수 = 가중치(비중) × 평가자 점수</p>
         )}
 
         {rows.length === 0 ? (

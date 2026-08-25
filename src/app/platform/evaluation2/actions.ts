@@ -446,6 +446,8 @@ export async function copyGoalsFromCycle(formData: FormData) {
       scaleC: true,
       scaleD: true,
       formula: true,
+      goalType: true,
+      keyResults: true,
       sortOrder: true,
     },
   });
@@ -474,6 +476,8 @@ export async function copyGoalsFromCycle(formData: FormData) {
           scaleC: row.scaleC,
           scaleD: row.scaleD,
           formula: row.formula,
+          goalType: row.goalType,
+          keyResults: row.keyResults,
           sortOrder: row.sortOrder,
           createdById: session.user.id,
         },
@@ -731,10 +735,17 @@ async function ensureOtherGoal(
   return created.id;
 }
 
-/** 평가척도 다섯 칸과 산출식을 폼에서 그대로 받아 넘긴다. */
-function scaleFields(formData: FormData) {
+/**
+ * 층별 양식 칸을 폼에서 그대로 받아 넘긴다 — 팀목표의 평가척도·산출식,
+ * 개인목표의 목표 유형·Key Results. 폼에 없는 칸은 빈 값으로 들어와 null이
+ * 되므로, 층을 나눠 분기하지 않아도 서로를 덮어쓰지 않는다.
+ */
+function formFields(formData: FormData) {
   const out: Record<string, string | null> = {
     formula: str(formData.get("formula")) || null,
+    goalType: str(formData.get("goalType")) || null,
+    // 줄바꿈은 그대로 둔다 — 한 줄이 ① ② ③ 한 항목이다.
+    keyResults: String(formData.get("keyResults") ?? "").trim() || null,
   };
   for (const s of GOAL_SCALES) out[s.field] = str(formData.get(s.field)) || null;
   return out;
@@ -814,7 +825,9 @@ function requireGoalFields(level: GoalLevel, formData: FormData) {
     need.splice(3, 0, ["weight", "가중치"], ["metric", "측정지표"], ["unit", "단위"]);
   }
   // 책임·팀 목표의 달성률은 하위에서 자동 계산되므로 입력칸 자체가 없다.
-  if (level === "INDIVIDUAL") need.push(["progress", "달성률"]);
+  if (level === "INDIVIDUAL") {
+    need.push(["progress", "달성률"], ["goalType", "목표 유형"], ["keyResults", "Key Results"]);
+  }
 
   const missing = need.filter(([field]) => !str(formData.get(field))).map(([, label]) => label);
   if (missing.length > 0) {
@@ -874,7 +887,7 @@ export async function createGoal(formData: FormData) {
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
       unit: str(formData.get("unit")) || null,
-      ...scaleFields(formData),
+      ...formFields(formData),
       progress: progressForStatus(
         asStatus(formData.get("status")),
         clampProgress(parseNumber(formData.get("progress"), 0))
@@ -975,7 +988,7 @@ export async function updateGoal(formData: FormData) {
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
       unit: str(formData.get("unit")) || null,
-      ...scaleFields(formData),
+      ...formFields(formData),
       progress: synced.progress,
       status: synced.status,
       dueDate: parseDate(formData.get("dueDate")),

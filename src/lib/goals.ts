@@ -102,6 +102,8 @@ export type GoalRow = {
   scaleC?: string | null;
   scaleD?: string | null;
   formula?: string | null;
+  goalType?: string | null;
+  keyResults?: string | null;
   progress: number;
   status: string;
   excluded: boolean;
@@ -571,4 +573,52 @@ export function scaleValues(goal: Partial<Record<GoalScaleField, string | null>>
  */
 export function usesScales(level: string): boolean {
   return level === "TEAM";
+}
+
+// ---- 개인목표(OKR) --------------------------------------------------------
+
+/**
+ * 사내 "개인목표 설정" 양식의 목표 유형. 목표 앞 괄호에 들어가는 값이다.
+ *
+ * 세 가지를 나눠 둔 건 섞어 세우게 하려는 것이다 — 유형을 안 적게 하면 개인목표가
+ * 전부 업무목표로만 차서, 개선과 자기계발이 목표 설정 단계에서 통째로 빠진다.
+ */
+export const GOAL_TYPES = ["업무목표", "개선목표", "자기계발목표"] as const;
+export type GoalType = (typeof GOAL_TYPES)[number];
+
+/** 목표 유형별 배지 색. 글자 라벨과 늘 같이 쓴다(색만으로 구분하지 않는다). */
+export const GOAL_TYPE_BADGE_CLASS: Record<string, string> = {
+  업무목표: "bg-slate-100 text-slate-700",
+  개선목표: "bg-blue-50 text-blue-700",
+  자기계발목표: "bg-violet-50 text-violet-700",
+};
+
+/** Key Results 줄 목록. 빈 줄은 버리고 앞뒤 공백을 턴다. */
+export function keyResultLines(raw: string | null | undefined): string[] {
+  return (raw ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+/** ① ② ③ … 양식과 같은 동그라미 숫자. 20을 넘으면 그냥 "21."로 적는다. */
+export function circledNumber(i: number): string {
+  const circled = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳";
+  return i < circled.length ? circled[i] : `${i + 1}.`;
+}
+
+/**
+ * Objective / Key Results 형태로 목표를 세우는 층. 사내 양식에서 이 구성을
+ * 쓰는 건 개인목표뿐이다.
+ */
+export function usesKeyResults(level: string): boolean {
+  return level === "INDIVIDUAL";
+}
+
+/**
+ * 목록 머리글에 가중치 소계를 띄우는 층. 양식에 "소계 100%" 줄이 있는 곳,
+ * 즉 팀목표와 개인목표다 — 비중을 나눠 갖는 층에서만 합계가 뜻을 가진다.
+ */
+export function usesWeightSubtotal(level: string): boolean {
+  return level === "TEAM" || level === "INDIVIDUAL";
 }

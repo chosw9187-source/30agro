@@ -86,6 +86,8 @@ export default async function OrgGoalsAdminPage({
           scaleC: true,
           scaleD: true,
           formula: true,
+          goalType: true,
+          keyResults: true,
           progress: true,
           status: true,
           excluded: true,
