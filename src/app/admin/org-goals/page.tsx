@@ -417,12 +417,21 @@ export default async function OrgGoalsAdminPage({
                             defaultValue={g.status}
                             className={INPUT_CLASS}
                           >
-                            {GOAL_STATUSES.map((st) => (
+                            {/*
+                              전사목표에는 «완료»를 고를 수 없다. 달성률이 아래에서
+                              굴러 올라오는데 상태만 손으로 완료로 두면 «0%인데 완료»가
+                              된다 — 실제로 이렇게 남은 한 건 때문에 «완료 1건»이
+                              떴다. 완료는 딸린 목표가 다 차면 저절로 붙는다.
+                            */}
+                            {GOAL_STATUSES.filter((st) => st !== "DONE").map((st) => (
                               <option key={st} value={st}>
                                 {GOAL_STATUS_LABEL[st]}
                               </option>
                             ))}
                           </select>
+                          <p className="mt-1 text-[11px] text-slate-400">
+                            «완료»는 딸린 목표가 모두 달성되면 저절로 붙습니다
+                          </p>
                         </div>
                         <div className="md:col-span-3">
                           <label className={LABEL_CLASS}>마감일</label>

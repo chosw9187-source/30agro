@@ -103,6 +103,8 @@ export type GoalRow = {
   formula?: string | null;
   goalType?: string | null;
   keyResults?: string | null;
+  /** 상반기 / 하반기. 팀·개인 목표에만 있다(`usesHalf`). */
+  half?: string | null;
   progress: number;
   status: string;
   excluded: boolean;
@@ -140,6 +142,11 @@ export type GoalNode = GoalRow & {
    * 나머지 층은 사람이 적어 넣은 `weight` 그대로다(`usesDerivedWeight`).
    */
   rollupWeight: number;
+  /**
+   * 화면에 보여 줄 상태. 자동 계산 층(전사·책임·팀)은 달성률이 아래에서
+   * 굴러 올라오므로 «완료»도 아래에서 따라온다(`deriveStatus`).
+   */
+  rollupStatus: GoalStatus;
 };
 
 /**
@@ -180,6 +187,28 @@ export function leafProgress(goal: { status: string; progress: number }): number
  * 가중으로 떨어지게 해서, 가중치 입력 전에도 숫자가 0으로 죽지 않게 한다.
  * 상위 목표의 롤업과 전사 종합 달성률이 같은 규칙을 쓰도록 공유한다.
  */
+/**
+ * 자동 계산 층의 «완료»는 사람이 고르는 값이 아니라 아래에서 따라온다.
+ *
+ * 전사·책임·팀 목표는 달성률을 하위에서 굴려 올리는데 상태만 사람이 고를 수
+ * 있으면 둘이 어긋난다 — 실제로 하위가 하나도 없는 전사목표를 «완료»로 두어
+ * 달성률은 0%인데 «완료 1건»으로 세지는 일이 있었다. 그래서 달성률이 100%가
+ * 되면 완료, 아니면 완료를 풀어 진행중으로 되돌린다.
+ *
+ * «중단»은 그대로 둔다 — 그 목표를 접었다는 사람의 판단이라 아래에서 뒤집을
+ * 수 있는 값이 아니다. 개인목표는 사람이 직접 적는 층이라 손대지 않는다.
+ */
+export function deriveStatus(
+  node: { level: string; status: string; rollupProgress: number },
+  countedChildren: number
+): GoalStatus {
+  const stored = node.status as GoalStatus;
+  if (!isAutoCalculated(node.level)) return stored;
+  if (stored === "DROPPED") return stored;
+  if (countedChildren > 0 && node.rollupProgress >= 100) return "DONE";
+  return stored === "DONE" ? "ACTIVE" : stored;
+}
+
 export function weightedProgress(children: GoalNode[]): number {
   const counted = children.filter(countsTowardProgress);
   if (counted.length === 0) return 0;
@@ -209,6 +238,7 @@ export function buildGoalTree(rows: GoalRow[]): GoalNode[] {
       children: [],
       rollupProgress: leafProgress(row),
       rollupWeight: shares.get(row.id) ?? row.weight,
+      rollupStatus: row.status as GoalStatus,
     });
   }
 
@@ -256,6 +286,7 @@ export function buildGoalTree(rows: GoalRow[]): GoalNode[] {
     } else {
       node.rollupProgress = leafProgress(node);
     }
+    node.rollupStatus = deriveStatus(node, counted.length);
     return node.rollupProgress;
   };
   roots.forEach(computeRollup);
@@ -687,6 +718,40 @@ function personShares(rows: GoalRow[]): Map<string, number> {
     share.set(row.id, sum > 0 ? (PERSON_SHARE * Math.max(row.weight, 0)) / sum : PERSON_SHARE / n);
   }
   return share;
+}
+
+/**
+ * 반기 구분. 한 해 목표를 상반기·하반기로 갈라 세우고, 목록도 그렇게 묶어 본다.
+ *
+ * 전사·책임 목표는 한 해 단위로 세우므로 나누지 않는다 — 팀과 개인이 반기마다
+ * 무엇을 할지를 정하고, 위 두 층은 그 합이다.
+ */
+export const GOAL_HALVES = ["상반기", "하반기"] as const;
+export type GoalHalf = (typeof GOAL_HALVES)[number];
+
+export function usesHalf(level: string): boolean {
+  return level === "TEAM" || level === "INDIVIDUAL";
+}
+
+/** 아직 반기를 정하지 않은 목표를 담는 자리. 예전에 만든 줄이 여기로 온다. */
+export const HALF_UNSET = "미지정";
+
+export function goalHalf(goal: { half?: string | null }): string {
+  const v = (goal.half ?? "").trim();
+  return (GOAL_HALVES as readonly string[]).includes(v) ? v : HALF_UNSET;
+}
+
+/**
+ * 상반기 → 하반기 → 미지정 차례로 묶는다. 비어 있는 묶음은 내보내지 않는다 —
+ * 하반기 목표를 아직 안 세웠는데 «하반기 0건»이 자리를 먹을 이유가 없다.
+ */
+export function groupByHalf<T extends { half?: string | null }>(
+  rows: T[]
+): { half: string; items: T[] }[] {
+  const order = [...GOAL_HALVES, HALF_UNSET];
+  return order
+    .map((half) => ({ half, items: rows.filter((r) => goalHalf(r) === half) }))
+    .filter((g) => g.items.length > 0);
 }
 
 export function usesWeightSubtotal(level: string): boolean {

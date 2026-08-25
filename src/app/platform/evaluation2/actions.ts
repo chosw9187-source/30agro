@@ -9,6 +9,7 @@ import {
   GOAL_CYCLE_ORDER,
   allowsProgressInput,
   usesDerivedWeight,
+  usesHalf,
   GOAL_CYCLE_STATUSES,
   GOAL_SCALES,
   GOAL_LEVEL_LABEL,
@@ -17,6 +18,7 @@ import {
   buildGoalTree,
   countsTowardProgress,
   cycleLock,
+  isAutoCalculated,
   defaultOtherWeight,
   groupCyclesByYear,
   cyclePhaseRank,
@@ -106,6 +108,18 @@ function asLevel(value: FormDataEntryValue | null): GoalLevel | null {
 function asStatus(value: FormDataEntryValue | null): GoalStatus {
   const s = str(value);
   return (GOAL_STATUSES as readonly string[]).includes(s) ? (s as GoalStatus) : "ACTIVE";
+}
+
+/**
+ * 저장할 상태. 자동 계산 층(전사·책임·팀)에는 «완료»를 저장하지 않는다 —
+ * 그 층의 완료는 딸린 목표가 다 차면 화면에서 저절로 붙는 값이라(`deriveStatus`),
+ * 손으로 적어 두면 «달성률 0%인데 완료 1건»처럼 두 숫자가 어긋난다.
+ * 폼에서도 «완료»를 고를 수 없지만, 요청을 직접 보내는 길도 함께 막는다.
+ */
+function statusFor(level: GoalLevel, value: FormDataEntryValue | null): GoalStatus {
+  const status = asStatus(value);
+  if (isAutoCalculated(level) && status === "DONE") return "ACTIVE";
+  return status;
 }
 
 /**
@@ -506,6 +520,7 @@ export async function copyGoalsFromCycle(formData: FormData) {
       formula: true,
       goalType: true,
       keyResults: true,
+      half: true,
       sortOrder: true,
     },
   });
@@ -533,6 +548,7 @@ export async function copyGoalsFromCycle(formData: FormData) {
           scaleC: row.scaleC,
           scaleD: row.scaleD,
           formula: row.formula,
+          half: row.half,
           goalType: row.goalType,
           keyResults: row.keyResults,
           sortOrder: row.sortOrder,
@@ -798,8 +814,10 @@ async function ensureOtherGoal(
  * 개인목표의 목표 유형·Key Results. 폼에 없는 칸은 빈 값으로 들어와 null이
  * 되므로, 층을 나눠 분기하지 않아도 서로를 덮어쓰지 않는다.
  */
-function formFields(formData: FormData) {
+function formFields(formData: FormData, level: GoalLevel) {
   const out: Record<string, string | null> = {
+    // 반기 구분은 팀·개인 목표에만 있다. 전사·책임은 한 해 단위로 세운다.
+    half: usesHalf(level) ? str(formData.get("half")) || null : null,
     formula: str(formData.get("formula")) || null,
     goalType: str(formData.get("goalType")) || null,
     // 줄바꿈은 그대로 둔다 — 한 줄이 ① ② ③ 한 항목이다.
@@ -901,6 +919,7 @@ function requireGoalFields(
   ];
   if (level === "DIVISION") need.push(["division", "책임"]);
   if (level !== "DIVISION" && !usesDerivedWeight(level)) need.push(["weight", "가중치"]);
+  if (usesHalf(level)) need.push(["half", "목표 구분(상반기·하반기)"]);
   /*
     지표·목표수준·현재수준은 팀목표에만 있다. 책임목표는 아래 팀목표가 굴러
     올라온 값이고, 개인목표는 Key Results가 그 자리를 대신한다(사내 「개인목표
@@ -1018,15 +1037,15 @@ export async function createGoal(formData: FormData) {
       metric: str(formData.get("metric")) || null,
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
-      ...formFields(formData),
+      ...formFields(formData, level),
       // 목표설정 단계에서는 달성률 칸 자체가 없다 — 0에서 시작한다.
       progress: allowsProgressInput(await actingCycle(formData, cycleId))
         ? progressForStatus(
-            asStatus(formData.get("status")),
+            statusFor(level, formData.get("status")),
             clampProgress(parseNumber(formData.get("progress"), 0))
           )
         : 0,
-      status: asStatus(formData.get("status")),
+      status: statusFor(level, formData.get("status")),
       dueDate: parseDate(formData.get("dueDate")),
       sortOrder: parseNumber(formData.get("sortOrder"), 0),
       createdById: session.user.id,
@@ -1084,11 +1103,11 @@ export async function updateGoal(formData: FormData) {
     ? reconcileProgressAndStatus(
         {
           progress: clampProgress(parseNumber(formData.get("progress"), 0)),
-          status: asStatus(formData.get("status")),
+          status: statusFor(level, formData.get("status")),
         },
         { progress: existing.progress, status: existing.status as GoalStatus }
       )
-    : { progress: existing.progress, status: asStatus(formData.get("status")) };
+    : { progress: existing.progress, status: statusFor(level, formData.get("status")) };
 
   // 목표 확정(마감) 이후에는 내용은 그대로 두고 진척과 상태만 받는다. 여기서
   // 통째로 막지 않는 이유는, 마감한 뒤에도 "완료" 처리는 계속 해야 하기
@@ -1142,7 +1161,7 @@ export async function updateGoal(formData: FormData) {
       metric: str(formData.get("metric")) || null,
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
-      ...formFields(formData),
+      ...formFields(formData, level),
       progress: synced.progress,
       status: synced.status,
       dueDate: parseDate(formData.get("dueDate")),

@@ -28,6 +28,17 @@ function parseNumber(value: FormDataEntryValue | null, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/**
+ * 전사목표에는 «완료»를 저장하지 않는다 — 그 층의 완료는 딸린 목표가 다 차면
+ * 화면에서 저절로 붙는 값이라(`deriveStatus`), 손으로 적어 두면 «달성률 0%인데
+ * 완료 1건»처럼 두 숫자가 어긋난다. 저장할 때 한 번 더 걸러서, 예전에 이렇게
+ * 저장된 줄도 이 표를 한 번 저장하면 함께 풀린다.
+ */
+function companyStatus(value: FormDataEntryValue | null): GoalStatus {
+  const status = asStatus(value);
+  return status === "DONE" ? "ACTIVE" : status;
+}
+
 function asStatus(value: FormDataEntryValue | null): GoalStatus {
   const s = str(value);
   return (GOAL_STATUSES as readonly string[]).includes(s) ? (s as GoalStatus) : "ACTIVE";
@@ -82,7 +93,7 @@ export async function saveOrgGoals(formData: FormData) {
           weight: parseNumber(formData.get(`weight:${row.id}`), 0),
           // 조직 목표 달성률은 하위에서 자동 계산되는 값이라 여기서 건드리지
           // 않는다. 폼에도 입력칸이 없다.
-          status: asStatus(formData.get(`status:${row.id}`)),
+          status: companyStatus(formData.get(`status:${row.id}`)),
           dueDate: parseDate(formData.get(`dueDate:${row.id}`)),
           sortOrder: parseNumber(formData.get(`sortOrder:${row.id}`), i + 1),
         },

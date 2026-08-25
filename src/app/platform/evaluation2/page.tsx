@@ -28,6 +28,9 @@ import {
   buildGoalTree,
   countsTowardProgress,
   flattenGoalTree,
+  groupByHalf,
+  HALF_UNSET,
+  GOAL_HALVES,
   groupCyclesByYear,
   asAgreementStatus,
   canViewGoalRow,
@@ -47,6 +50,7 @@ import {
   usesKeyResults,
   usesScales,
   usesDerivedWeight,
+  usesHalf,
   usesWeightSubtotal,
   visibleGoalLevels,
   weightedProgress,
@@ -421,6 +425,7 @@ export default async function Evaluation2Page({
           title: true,
           description: true,
           isOther: true,
+          half: true,
           division: true,
           teamId: true,
           ownerId: true,
@@ -494,6 +499,12 @@ export default async function Evaluation2Page({
     저장된 사이클로 따지면 중간평가에서도 막혀 버린다.
   */
   const canWriteProgress = allowsProgressInput(cycle);
+  /*
+    앞 단계에서 목표를 이어받는 평가(중간평가·최종평가)인데 그 앞 단계가 아직
+    마감되지 않았으면 목록을 열지 않는다 — 평가하는 동안 목표가 바뀌면 그 점수가
+    무엇을 기준으로 매겨진 것인지 남지 않는다.
+  */
+  const waitingForSource = !!sharedFrom && !sharedFrom.goalsLockedAt;
   const tree = buildGoalTree(goalsWithTarget);
   const allNodes = flattenGoalTree(tree);
   const nodeById = new Map(allNodes.map((n) => [n.id, n]));
@@ -582,7 +593,7 @@ export default async function Evaluation2Page({
     떴다 — 아래층 어딘가의 개인목표 한 건이었다. 옆의 «전사 종합 %»도 전사목표
     기준이라 이제 한 줄이 같은 것을 말한다.
   */
-  const doneCount = companyGoals.filter((g) => g.status === "DONE" && !g.excluded).length;
+  const doneCount = companyGoals.filter((g) => g.rollupStatus === "DONE" && !g.excluded).length;
   const excludedCount = companyGoals.filter((g) => g.excluded || g.targetExcluded).length;
   // 상위에 안 매달린 목표는 아무리 달성해도 전사 달성률을 못 움직인다.
   // 숫자가 안 오르는 가장 흔한 이유라 화면에 대놓고 알려준다.
@@ -927,7 +938,7 @@ export default async function Evaluation2Page({
   function LevelSummaryCard({ level }: { level: GoalLevel }) {
     const nodes = byLevel(level);
     const counted = nodes.filter(countsTowardProgress);
-    const done = nodes.filter((g) => g.status === "DONE" && !g.excluded).length;
+    const done = nodes.filter((g) => g.rollupStatus === "DONE" && !g.excluded).length;
     const overdue = nodes.filter((g) => isOverdue(g, now) && !g.excluded).length;
     // 전사 목표는 사이클 전체를 대표하는 값이라 가중평균, 나머지 층은 그 층에
     // 속한 목표들의 평균을 쓴다.
@@ -1076,6 +1087,29 @@ export default async function Evaluation2Page({
           )}
         </div>
       ) : null;
+
+    /*
+      한 해 목표를 상반기·하반기로 갈라 세운다. 목록도 이 값으로 묶이므로,
+      «지금 무엇을 세우는 중인지»가 등록할 때부터 정해져 있어야 한다.
+      전사·책임 목표는 한 해 단위라 이 칸이 없다.
+    */
+    const half = usesHalf(level) ? (
+      <div>
+        <label className={LABEL_CLASS}>목표 구분</label>
+        <select
+          name="half"
+          defaultValue={goal?.half ?? GOAL_HALVES[0]}
+          required
+          className={INPUT_CLASS}
+        >
+          {GOAL_HALVES.map((h) => (
+            <option key={h} value={h}>
+              {h} 목표
+            </option>
+          ))}
+        </select>
+      </div>
+    ) : null;
 
     const title = (
       <div className={isTeam ? undefined : "md:col-span-2"}>
@@ -1233,16 +1267,30 @@ export default async function Evaluation2Page({
       </div>
     );
 
+    /*
+      자동 계산 층(전사·책임·팀)에서는 «완료»를 고를 수 없다. 달성률이 아래에서
+      굴러 올라오는데 상태만 손으로 완료로 두면 «0%인데 완료»가 된다. 완료는
+      딸린 목표가 다 차면 저절로 붙는다. «중단»은 남긴다 — 그 목표를 접었다는
+      사람의 판단이라 아래에서 뒤집을 수 있는 값이 아니다.
+    */
+    const statusChoices = GOAL_STATUSES.filter(
+      (v) => !(isAutoCalculated(level) && v === "DONE")
+    );
     const status = (
       <div>
         <label className={LABEL_CLASS}>상태</label>
         <select name="status" defaultValue={goal?.status ?? "ACTIVE"} className={INPUT_CLASS}>
-          {GOAL_STATUSES.map((s) => (
+          {statusChoices.map((s) => (
             <option key={s} value={s}>
               {GOAL_STATUS_LABEL[s]}
             </option>
           ))}
         </select>
+        {isAutoCalculated(level) && (
+          <p className="mt-1 text-[11px] text-slate-400">
+            «완료»는 딸린 목표가 모두 달성되면 저절로 붙습니다
+          </p>
+        )}
       </div>
     );
 
@@ -1315,7 +1363,7 @@ export default async function Evaluation2Page({
       );
       return (
         <>
-          {line("parent", parent)}
+          {line("parent", <>{half}{parent}</>)}
           {line("what", <>{title}{metric}</>)}
           {line("level", <>{currentValue}{targetValue}</>)}
           {line("weight", weight)}
@@ -1332,6 +1380,8 @@ export default async function Evaluation2Page({
     return (
       <>
         {title}
+
+        {half}
 
         {isOkr && (
           <div>
@@ -1538,7 +1588,7 @@ export default async function Evaluation2Page({
           {level === "INDIVIDUAL" && (
             <span className="text-xs text-slate-500">{scopeText(goal)}</span>
           )}
-          <StatusBadge status={goal.status} />
+          <StatusBadge status={goal.rollupStatus} />
           {isOverdue(goal, now) && <OverdueBadge />}
           {needsAgreement(goal.level) && <AgreementBadge status={goal.agreementStatus} />}
           {goal.goalType && (
@@ -1881,6 +1931,31 @@ export default async function Evaluation2Page({
           <p className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
             등록된 {GOAL_LEVEL_LABEL[level]}가 없습니다.
           </p>
+        ) : usesHalf(level) ? (
+          /*
+            팀·개인 목표는 상반기와 하반기를 갈라 놓는다. 한 덩어리로 늘어놓으면
+            «지금 상반기 것을 보는 중인가»가 줄마다 헷갈리고, 반기 목표 수를 세려면
+            눈으로 골라내야 한다. 아직 반기를 정하지 않은 예전 목표는 맨 아래
+            «미지정»으로 모인다 — 숨기면 어디로 갔는지 알 수 없다.
+          */
+          <div className="flex flex-col gap-5">
+            {groupByHalf(rows).map((group) => (
+              <div key={group.half} className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-slate-700">
+                    {group.half === HALF_UNSET ? "구분 미지정" : `${group.half} 목표`}
+                  </h3>
+                  <span className="text-xs text-slate-500">{group.items.length}건</span>
+                  <span className="text-xs text-slate-500">
+                    평균 달성률 {averageProgress(group.items)}%
+                  </span>
+                </div>
+                {group.items.map((g) => (
+                  <GoalRowCard key={g.id} goal={g} />
+                ))}
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="flex flex-col gap-3">
             {rows.map((g) => (
@@ -2019,6 +2094,35 @@ export default async function Evaluation2Page({
               {isAdmin
                 ? "아직 만들어진 인사평가가 없습니다 — 「조직 목표 관리」에서 먼저 만들어 주세요."
                 : "아직 열린 인사평가가 없습니다. 관리자에게 문의해 주세요."}
+            </p>
+          )}
+        </section>
+      ) : waitingForSource ? (
+        /*
+          중간평가·최종평가는 앞 단계에서 확정된 목표를 이어받아 평가하는
+          자리다. 목표설정이 아직 마감되지 않았는데 열어 두면, 평가하는 동안
+          목표가 바뀔 수 있어서 «무엇을 기준으로 매긴 점수인지»가 남지 않는다.
+          그래서 앞 단계를 마감하기 전까지는 목록을 열지 않고 무엇을 해야 하는지만
+          적는다 — 그냥 비워 두면 화면이 고장 난 것처럼 보인다.
+        */
+        <section className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white py-20 text-center">
+          <p className="text-base font-semibold text-slate-700">
+            「{sharedFrom!.name}」이 아직 마감되지 않았습니다
+          </p>
+          <p className="mt-1 max-w-md text-sm text-slate-500">
+            이 평가는 「{sharedFrom!.name}」에서 확정된 목표를 그대로 이어받습니다. 목표를
+            마감하면 그 내용이 여기에 그대로 뜹니다.
+          </p>
+          {isAdmin ? (
+            <Link
+              href="/admin/org-goals"
+              className="mt-5 rounded-md bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark"
+            >
+              조직 목표 관리에서 목표 마감하기
+            </Link>
+          ) : (
+            <p className="mt-4 text-xs text-slate-400">
+              목표 마감은 관리자가 합니다. 인사팀에 문의해 주세요.
             </p>
           )}
         </section>
