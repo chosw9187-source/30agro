@@ -4,6 +4,8 @@ import { auth } from "@/auth";
 import { checkModuleAccess, POSITION_LABEL, type Position } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { SearchableSelect } from "@/components/searchable-select";
+import { ActionForm } from "@/components/action-form";
+import { SelectAllToggle } from "./select-all-toggle";
 import { activePrismaWhere } from "@/lib/hr-analytics";
 import {
   BOOKING_STATUS_BADGE_CLASS,
@@ -18,6 +20,7 @@ import {
 } from "@/lib/onboarding";
 import {
   addTrainee,
+  addTraineesBulk,
   assignInstructor,
   bookSession,
   cancelMyBooking,
@@ -55,13 +58,15 @@ export const dynamic = "force-dynamic";
 // 확정된 결과([최종 스케줄])를 맨 앞에 둔다 — 이 화면을 가장 자주 여는 사람은
 // 기수를 만드는 관리자가 아니라 "내가 언제 뭘 듣는지"만 확인하면 되는
 // 교육생이기 때문. 뒤쪽은 만드는 순서(일정 관리 → 강사 지정 → 조율)대로다.
-// 관리자 전용 탭은 강사·교육생에게 아예 보이지 않으므로, 교육생 눈에는
-// [최종 스케줄][온보딩 일정] 둘만 남는다.
+// [온보딩 일정]은 강사가 시간대를 잡고 예약을 조율하는 화면이라 staff(관리자
+// 또는 강사)에게만 보인다 — 교육생에게는 "강사 모집 중 (0/1)"이나 남의 신청·
+// 반려 사유가 보일 이유가 없다. 그래서 교육생 눈에는 [최종 스케줄] 하나만
+// 남는다.
 const TABS = [
   { key: "final", label: "최종 스케줄", role: "all" },
   { key: "manage", label: "일정 관리", role: "admin" },
   { key: "instructors", label: "강사 지정", role: "admin" },
-  { key: "schedule", label: "온보딩 일정", role: "all" },
+  { key: "schedule", label: "온보딩 일정", role: "staff" },
   { key: "my", label: "내 강의 일정", role: "instructor" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
@@ -167,11 +172,13 @@ function SessionCard({
       </div>
 
       {(isAdmin || session.createdById === viewerId) && (
-        <form action={deleteSession.bind(null, session.id)} className="mt-2">
+        <ActionForm action={deleteSession.bind(null, session.id)} className="mt-2"
+          successMessage="시간대를 삭제했습니다."
+          confirmMessage="이 시간대를 삭제하면 여기에 걸린 강사 예약도 함께 사라집니다. 삭제할까요?">
           <button type="submit" className="text-xs text-red-500 hover:underline">
             이 시간대 삭제
           </button>
-        </form>
+        </ActionForm>
       )}
 
       <div className="mt-3 flex flex-col gap-1.5 border-t border-slate-100 pt-3">
@@ -186,14 +193,14 @@ function SessionCard({
             {isAdmin && (
               <span className="ml-auto flex items-center gap-2">
                 {b.status !== "CONFIRMED" && (
-                  <form action={setBookingStatus.bind(null, b.id, "CONFIRMED")}>
+                  <ActionForm action={setBookingStatus.bind(null, b.id, "CONFIRMED")} successMessage="강사를 확정했습니다.">
                     <button type="submit" className="text-emerald-600 hover:underline">
                       확정
                     </button>
-                  </form>
+                  </ActionForm>
                 )}
                 {b.status !== "DECLINED" && (
-                  <form action={setBookingStatus.bind(null, b.id, "DECLINED")} className="flex items-center gap-1">
+                  <ActionForm action={setBookingStatus.bind(null, b.id, "DECLINED")} className="flex items-center gap-1" successMessage="신청을 반려했습니다.">
                     <input
                       name="adminNote"
                       placeholder="반려 사유"
@@ -202,20 +209,27 @@ function SessionCard({
                     <button type="submit" className="text-amber-600 hover:underline">
                       반려
                     </button>
-                  </form>
+                  </ActionForm>
                 )}
-                <form action={deleteBooking.bind(null, b.id)}>
+                <ActionForm action={deleteBooking.bind(null, b.id)} successMessage="예약을 삭제했습니다." confirmMessage="이 예약을 삭제할까요?">
                   <button type="submit" className="text-red-500 hover:underline">
                     삭제
                   </button>
-                </form>
+                </ActionForm>
               </span>
             )}
           </div>
         ))}
       </div>
 
-      {amInstructor && !(past && !myBooking) && (
+      {/* 정원이 다 찬 교육에 예약 버튼을 남겨 두면 눌러 봐야 거절된다 —
+          서버에서도 막지만 화면에서 먼저 이유를 알려 준다. */}
+      {amInstructor && !myBooking && !past && full && (
+        <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
+          필요한 강사 {session.requiredInstructors}명이 모두 확정되어 더 예약할 수 없습니다.
+        </p>
+      )}
+      {amInstructor && !(past && !myBooking) && !(full && !myBooking && !past) && (
         <div className="mt-3 border-t border-slate-100 pt-3">
           {myBooking ? (
             <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -223,15 +237,15 @@ function SessionCard({
                 내 예약 상태: <strong>{BOOKING_STATUS_LABEL[myBooking.status as BookingStatus]}</strong>
               </span>
               {!past && (
-                <form action={cancelMyBooking.bind(null, myBooking.id)}>
+                <ActionForm action={cancelMyBooking.bind(null, myBooking.id)} successMessage="예약을 취소했습니다." confirmMessage="이 강의 예약을 취소할까요?">
                   <button type="submit" className="text-red-500 hover:underline">
                     예약 취소
                   </button>
-                </form>
+                </ActionForm>
               )}
             </div>
           ) : (
-            <form action={bookSession.bind(null, session.id)} className="flex flex-wrap items-center gap-2">
+            <ActionForm action={bookSession.bind(null, session.id)} className="flex flex-wrap items-center gap-2" successMessage="예약을 신청했습니다. 관리자 확정을 기다려 주세요.">
               <input
                 name="note"
                 placeholder="전달사항 (선택) — 예: 오전만 가능"
@@ -243,7 +257,7 @@ function SessionCard({
               >
                 이 시간에 예약
               </button>
-            </form>
+            </ActionForm>
           )}
         </div>
       )}
@@ -384,7 +398,7 @@ function AddSessionForm({
       <summary className="cursor-pointer text-sm font-medium text-brand-green-dark">
         + 이 날짜에 교육일정 추가
       </summary>
-      <form action={createSession} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
+      <ActionForm action={createSession} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4" successMessage="교육일정을 추가했습니다.">
         <input type="hidden" name="programId" value={programId} />
         <input type="hidden" name="date" value={dateKey} />
         <div className="sm:col-span-2">
@@ -429,7 +443,7 @@ function AddSessionForm({
               : "빈 시간대로 등록되어 강사가 예약할 수 있습니다."}
           </span>
         </div>
-      </form>
+      </ActionForm>
     </details>
   );
 }
@@ -690,8 +704,18 @@ async function MyBookingsSection({ viewerId }: { viewerId: string }) {
 
   const now = new Date();
 
+  // 다가올 강의를 위로. 시간순으로만 쌓으면 지난 강의가 화면 위를 차지해,
+  // 정작 챙겨야 할 다음 강의를 보려고 매번 스크롤해야 한다.
+  const upcoming = bookings.filter((b) => b.session.endAt > now);
+  const past = bookings.filter((b) => b.session.endAt <= now).reverse();
+  const ordered = [...upcoming, ...past];
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+    <div className="flex flex-col gap-2">
+      <p className="text-sm text-slate-600">
+        다가올 강의 {upcoming.length}건 · 지난 강의 {past.length}건
+      </p>
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
       <table className="w-full min-w-[640px] text-sm">
         <thead className="bg-slate-50 text-left text-xs text-slate-500">
           <tr>
@@ -704,8 +728,8 @@ async function MyBookingsSection({ viewerId }: { viewerId: string }) {
           </tr>
         </thead>
         <tbody>
-          {bookings.map((b) => (
-            <tr key={b.id} className="border-t border-slate-100">
+          {ordered.map((b) => (
+            <tr key={b.id} className={`border-t border-slate-100 ${b.session.endAt <= now ? "bg-slate-50 text-slate-500" : ""}`}>
               <td className="px-4 py-3 whitespace-nowrap">
                 <p>{formatSessionDay(b.session.startAt)}</p>
                 <p className="text-xs text-slate-500">{formatSessionTimeRange(b.session.startAt, b.session.endAt)}</p>
@@ -724,11 +748,11 @@ async function MyBookingsSection({ viewerId }: { viewerId: string }) {
               </td>
               <td className="px-4 py-3 text-right">
                 {b.session.endAt > now ? (
-                  <form action={cancelMyBooking.bind(null, b.id)}>
+                  <ActionForm action={cancelMyBooking.bind(null, b.id)} successMessage="예약을 취소했습니다." confirmMessage="이 강의 예약을 취소할까요?">
                     <button type="submit" className="text-xs text-red-500 hover:underline">
                       취소
                     </button>
-                  </form>
+                  </ActionForm>
                 ) : (
                   <span className="text-xs text-slate-400">종료</span>
                 )}
@@ -737,6 +761,7 @@ async function MyBookingsSection({ viewerId }: { viewerId: string }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
@@ -782,7 +807,7 @@ async function InstructorsSection() {
 
   return (
     <div className="flex flex-col gap-6">
-      <form action={assignInstructor} className="rounded-lg border border-slate-200 bg-white p-5">
+      <ActionForm action={assignInstructor} className="rounded-lg border border-slate-200 bg-white p-5" successMessage="강사로 지정했습니다.">
         <h2 className="text-lg font-semibold text-slate-800">강사 지정</h2>
         <p className="mt-1 text-sm text-slate-600">
           한국삼공 재직 직원 중에서 온보딩 강사를 지정합니다. 지정된 사람만 온보딩 일정에서 예약할 수 있습니다.
@@ -804,7 +829,7 @@ async function InstructorsSection() {
         <button type="submit" className={`mt-4 ${PRIMARY_BUTTON_CLASS}`}>
           강사로 지정
         </button>
-      </form>
+      </ActionForm>
 
       {instructors.length === 0 ? (
         <EmptyBox>지정된 강사가 없습니다.</EmptyBox>
@@ -844,16 +869,16 @@ async function InstructorsSection() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-3 text-xs">
-                      <form action={toggleInstructorActive.bind(null, i.id)}>
+                      <ActionForm action={toggleInstructorActive.bind(null, i.id)} successMessage="강사 상태를 변경했습니다.">
                         <button type="submit" className="text-slate-600 hover:underline">
                           {i.active ? "지정 해제" : "다시 지정"}
                         </button>
-                      </form>
-                      <form action={removeInstructor.bind(null, i.id)}>
+                      </ActionForm>
+                      <ActionForm action={removeInstructor.bind(null, i.id)} successMessage="강사를 삭제했습니다." confirmMessage="이 강사를 명단에서 완전히 삭제할까요?">
                         <button type="submit" className="text-red-500 hover:underline">
                           삭제
                         </button>
-                      </form>
+                      </ActionForm>
                     </div>
                   </td>
                 </tr>
@@ -929,7 +954,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <form action={createProgram} className="rounded-lg border border-slate-200 bg-white p-5">
+      <ActionForm action={createProgram} className="rounded-lg border border-slate-200 bg-white p-5" successMessage="프로그램을 등록했습니다.">
         <h2 className="text-lg font-semibold text-slate-800">온보딩 프로그램 등록</h2>
         <p className="mt-1 text-sm text-slate-600">기수 단위로 프로그램을 만든 뒤, 그 안에 교육 일정을 추가합니다.</p>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
@@ -946,7 +971,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
         <button type="submit" className={`mt-4 ${PRIMARY_BUTTON_CLASS}`}>
           프로그램 등록
         </button>
-      </form>
+      </ActionForm>
 
       {programs.length > 0 && (
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
@@ -987,16 +1012,17 @@ async function ManageSection({ programId }: { programId: string | null }) {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-3 text-xs">
-                      <form action={toggleProgramActive.bind(null, p.id)}>
+                      <ActionForm action={toggleProgramActive.bind(null, p.id)} successMessage="프로그램 상태를 변경했습니다.">
                         <button type="submit" className="text-slate-600 hover:underline">
                           {p.active ? "종료 처리" : "다시 진행"}
                         </button>
-                      </form>
-                      <form action={deleteProgram.bind(null, p.id)}>
+                      </ActionForm>
+                      <ActionForm action={deleteProgram.bind(null, p.id)} successMessage="프로그램을 삭제했습니다."
+                        confirmMessage="이 기수를 삭제하면 소속된 교육 일정·강사 예약·교육생 명단이 모두 함께 삭제되며 되돌릴 수 없습니다. 삭제할까요?">
                         <button type="submit" className="text-red-500 hover:underline">
                           삭제
                         </button>
-                      </form>
+                      </ActionForm>
                     </div>
                   </td>
                 </tr>
@@ -1027,7 +1053,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
             이 기수에 참석하는 교육생입니다. 명단에 오른 사람은 [최종 스케줄]에서 본인이 들어야 할 교육을 확인할 수
             있습니다.
           </p>
-          <form action={addTrainee} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <ActionForm action={addTrainee} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3" successMessage="교육생을 등록했습니다.">
             <input type="hidden" name="programId" value={programId} />
             <div>
               <label className={LABEL_CLASS}>직원</label>
@@ -1047,7 +1073,30 @@ async function ManageSection({ programId }: { programId: string | null }) {
                 교육생 등록
               </button>
             </div>
-          </form>
+          </ActionForm>
+
+          <details className="mt-3">
+            <summary className="cursor-pointer text-xs text-brand-green-dark">여러 명 한 번에 등록</summary>
+            <ActionForm
+              action={addTraineesBulk}
+              className="mt-2"
+              successMessage="교육생을 일괄 등록했습니다."
+            >
+              <input type="hidden" name="programId" value={programId} />
+              <textarea
+                name="entries"
+                rows={4}
+                placeholder={"사번 또는 이름을 한 줄에 하나씩 붙여넣으세요.\n예)\n20260101\n20260102\n홍길동"}
+                className={`${INPUT_CLASS} font-mono`}
+              />
+              <p className="mt-1 text-xs text-slate-500">
+                이미 명단에 있는 사람은 건너뜁니다. 이름이 겹치는 경우에는 사번으로 넣어 주세요.
+              </p>
+              <button type="submit" className={`mt-2 ${PRIMARY_BUTTON_CLASS}`}>
+                일괄 등록
+              </button>
+            </ActionForm>
+          </details>
 
           {trainees.length === 0 ? (
             <p className="mt-4 rounded border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">
@@ -1063,11 +1112,11 @@ async function ManageSection({ programId }: { programId: string | null }) {
                   <span className="font-medium text-slate-700">{t.user.name}</span>
                   <span className="text-slate-400">{t.user.team?.name ?? t.user.employeeNumber}</span>
                   {t.note && <span className="text-slate-400">· {t.note}</span>}
-                  <form action={removeTrainee.bind(null, t.id)}>
+                  <ActionForm action={removeTrainee.bind(null, t.id)} successMessage="교육생을 명단에서 제외했습니다." confirmMessage="이 교육생을 명단에서 제외할까요?">
                     <button type="submit" className="text-red-500 hover:underline" aria-label={`${t.user.name} 명단에서 제거`}>
                       ×
                     </button>
-                  </form>
+                  </ActionForm>
                 </li>
               ))}
             </ul>
@@ -1095,15 +1144,16 @@ async function ManageSection({ programId }: { programId: string | null }) {
                       {s.attendees.length === 0 ? "교육생 전원" : `교육생 ${s.attendees.length}명 지정`}
                     </p>
                   </div>
-                  <form action={deleteSession.bind(null, s.id)}>
+                  <ActionForm action={deleteSession.bind(null, s.id)} successMessage="일정을 삭제했습니다."
+                    confirmMessage="이 일정을 삭제하면 여기에 걸린 강사 예약도 함께 사라집니다. 삭제할까요?">
                     <button type="submit" className="text-xs text-red-500 hover:underline">
                       삭제
                     </button>
-                  </form>
+                  </ActionForm>
                 </div>
                 <details className="mt-2">
                   <summary className="cursor-pointer text-xs text-brand-green-dark">일정 수정</summary>
-                  <form action={updateSession.bind(null, s.id)} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
+                  <ActionForm action={updateSession.bind(null, s.id)} className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4" successMessage="일정을 저장했습니다.">
                     <div className="sm:col-span-2">
                       <label className={LABEL_CLASS}>과정명</label>
                       <input name="title" required defaultValue={s.title} className={INPUT_CLASS} />
@@ -1146,16 +1196,17 @@ async function ManageSection({ programId }: { programId: string | null }) {
                         저장
                       </button>
                     </div>
-                  </form>
+                  </ActionForm>
                 </details>
                 {trainees.length > 0 && (
                   <details className="mt-2">
                     <summary className="cursor-pointer text-xs text-brand-green-dark">참석 대상 지정</summary>
-                    <form action={setSessionAudience.bind(null, s.id)} className="mt-3">
+                    <ActionForm action={setSessionAudience.bind(null, s.id)} className="mt-3" successMessage="참석 대상을 저장했습니다.">
                       <p className="text-xs text-slate-500">
                         아무도 체크하지 않으면 기수 전원이 대상입니다. 일부만 듣는 교육일 때만 골라 주세요.
                       </p>
-                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+                      <SelectAllToggle groupId={`audience-${s.id}`} />
+                      <div id={`audience-${s.id}`} className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
                         {trainees.map((t) => (
                           <label key={t.id} className="flex items-center gap-1.5 text-xs text-slate-700">
                             <input
@@ -1174,7 +1225,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
                       >
                         대상 저장
                       </button>
-                    </form>
+                    </ActionForm>
                   </details>
                 )}
               </div>
@@ -1222,12 +1273,24 @@ export default async function OnboardingPage({
   const view: ScheduleView = viewParam === "list" ? "list" : "calendar";
 
   const visibleTabs = TABS.filter(
-    (t) => t.role === "all" || (t.role === "admin" && isAdmin) || (t.role === "instructor" && amInstructor)
+    (t) =>
+      t.role === "all" ||
+      (t.role === "admin" && isAdmin) ||
+      (t.role === "instructor" && amInstructor) ||
+      (t.role === "staff" && (isAdmin || amInstructor))
   );
 
   const programs = await prisma.onboardingProgram.findMany({
     orderBy: [{ active: "desc" }, { createdAt: "desc" }],
     select: { id: true, name: true, active: true, startDate: true },
+  });
+
+  // 교육생이면 본인이 속한 기수를 먼저 연다 — 활성 기수가 둘 이상일 때
+  // 남의 기수가 열려 있으면 "내 일정이 왜 없지" 하고 헤매게 된다.
+  const myTraineeProgram = await prisma.onboardingTrainee.findFirst({
+    where: { userId: viewerId },
+    orderBy: { program: { createdAt: "desc" } },
+    select: { programId: true },
   });
 
   // 평소에는 확정 시간표([최종 스케줄])로 들어온다 — 탭 순서상 맨 앞이기도 하고,
@@ -1236,7 +1299,11 @@ export default async function OnboardingPage({
   const defaultTab: TabKey = isAdmin && programs.length === 0 ? "manage" : "final";
   const tab: TabKey = visibleTabs.some((t) => t.key === tabParam) ? (tabParam as TabKey) : defaultTab;
   const selectedProgram =
-    programs.find((p) => p.id === programIdParam) ?? programs.find((p) => p.active) ?? programs[0] ?? null;
+    programs.find((p) => p.id === programIdParam) ??
+    programs.find((p) => p.id === myTraineeProgram?.programId) ??
+    programs.find((p) => p.active) ??
+    programs[0] ??
+    null;
   const programId = selectedProgram?.id ?? null;
 
   return (
