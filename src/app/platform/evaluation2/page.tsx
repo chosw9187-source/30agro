@@ -7,6 +7,7 @@ import { NoModuleAccess } from "@/components/no-module-access";
 import { SearchableSelect } from "@/components/searchable-select";
 import { activePrismaWhere } from "@/lib/hr-analytics";
 import { POSITION_LABEL } from "@/lib/permission-constants";
+import { buildEvaluatorMap, evaluatorLabel } from "@/lib/evaluator";
 import { formatKSTDate } from "@/lib/format-kst";
 import {
   GOAL_AGREEMENT_BADGE_CLASS,
@@ -401,7 +402,9 @@ export default async function Evaluation2Page({
         id: true,
         name: true,
         position: true,
+        teamId: true,
         division: true,
+        businessUnit: true,
         team: { select: { name: true } },
       },
     }),
@@ -524,6 +527,14 @@ export default async function Evaluation2Page({
     하는지가 직책에서 읽힌다. 검색은 라벨을 훑으므로 «책임»이나 «팀장»으로도
     찾을 수 있다.
   */
+  /*
+    누가 누구를 평가하는지는 조직도에서 따라 올라가 계산한다(`buildEvaluatorMap`).
+    사람마다 적어 두지 않는 이유는 평가대상 판정과 같다 — 팀장이 바뀌거나
+    부서를 옮기면 평가자도 그날로 따라 바뀌어야 하는데, 적어 두면 누군가 다시
+    눌러 주기 전까지 옛 사람이 남는다.
+  */
+  const evaluatorByPerson = buildEvaluatorMap(people, teams);
+
   const personOptions = people.map((p) => ({
     value: p.id,
     label: `${p.name} ${POSITION_LABEL[p.position]}`,
@@ -666,9 +677,18 @@ export default async function Evaluation2Page({
           <span className="text-xs text-slate-400">등록된 인사평가가 없습니다</span>
         )}
 
+        {/*
+          한 해의 목표는 「목표설정」에서 한 벌 세우고 중간평가·최종평가가 그것을
+          이어서 본다. 앞 단계가 아직 마감되지 않았으면 그 말을 함께 적는다 —
+          «이어받았다»는 말만 있으면 지금 보는 숫자가 확정된 것인지 아직 고치는
+          중인 것인지 알 수 없다.
+        */}
         {sharedFrom && (
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
-            목표는 「{sharedFrom.name}」과 함께 씁니다
+            「{sharedFrom.name}」의 목표를 이어받습니다{" "}
+            {!sharedFrom.goalsLockedAt && (
+              <span className="text-status-critical">· 아직 마감 전이라 내용이 바뀔 수 있습니다</span>
+            )}
           </span>
         )}
 
@@ -1008,6 +1028,25 @@ export default async function Evaluation2Page({
       (isAdmin || (level === "TEAM" && viewer.ledTeamIds.length > 1));
     const showOwner = isAdmin;
     const ownerLabel = level === "INDIVIDUAL" ? "담당자" : "책임자";
+
+    /*
+      이 목표를 누가 평가하게 되는지 폼에서 미리 보여 준다. 조직도에서 따라
+      올라간 값이라 고르는 칸이 아니고, 목표를 세우는 사람이 «누가 이걸 볼
+      것인가»를 알고 적도록 띄우는 줄이다. 아직 등록 전이라 담당자가 정해지지
+      않았으면 로그인한 사람 기준으로 보여 준다 — 어차피 그 사람 목표가 된다.
+    */
+    const formOwnerId = goal?.ownerId ?? session!.user.id;
+    const formEvaluator = evaluatorByPerson.get(formOwnerId) ?? null;
+    const evaluatorLine = (
+      <div className="md:col-span-2">
+        <label className={LABEL_CLASS}>평가자</label>
+        <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
+          {formEvaluator
+            ? `${evaluatorLabel(formEvaluator)} — 조직도에서 자동으로 정해집니다`
+            : "조직도에서 평가자를 찾지 못했습니다 (팀장·책임이 지정되어 있는지 확인해 주세요)"}
+        </p>
+      </div>
+    );
     const assignment =
       showTeam || showOwner ? (
         <div className="grid gap-3 md:col-span-2 md:grid-cols-2">
@@ -1283,6 +1322,7 @@ export default async function Evaluation2Page({
           {line("scale", <>{scales}{formula}</>)}
           {line("progress", <>{status}{progress}</>)}
           {line("due", dueDate)}
+          {line("evaluator", evaluatorLine)}
           {assignment}
           {line("desc", description)}
         </>
@@ -1350,6 +1390,7 @@ export default async function Evaluation2Page({
           </div>
         )}
 
+        {evaluatorLine}
         {assignment}
 
         {/*
@@ -1387,6 +1428,7 @@ export default async function Evaluation2Page({
     const parentOptions = parentLevel ? visibleRows(byLevel(parentLevel)) : [];
     const flag = ownerFlag(goal, now);
     const agreement = asAgreementStatus(goal.agreementStatus);
+    const evaluator = goal.ownerId ? (evaluatorByPerson.get(goal.ownerId) ?? null) : null;
     const isOwner = goal.ownerId === session!.user.id;
     const canApprove =
       isAdmin || teams.some((t) => t.id === goal.teamId && t.leaderId === session!.user.id);
@@ -1549,6 +1591,12 @@ export default async function Evaluation2Page({
               가중치 {usesDerivedWeight(level) ? Math.round(goal.rollupWeight) : goal.weight}%
             </span>
           )}
+          {/*
+            평가자는 조직도에서 따라 올라가 정한다 — 담당은 팀장, 팀장은 책임,
+            책임은 운영책임. 목표를 세울 때 «누가 이걸 볼 것인가»가 보여야
+            무엇을 어디까지 적을지 정할 수 있다.
+          */}
+          {evaluator && <span>평가자: {evaluatorLabel(evaluator)}</span>}
           {/*
             이 줄에는 «상위 목표»와 «가중치»만 둔다. 지표·목표수준·현수준·산출식·
             마감일·하위 건수까지 늘어놓으면 한 줄이 화면을 가로질러서, 정작 이

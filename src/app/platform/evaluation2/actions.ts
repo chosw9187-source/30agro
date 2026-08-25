@@ -19,6 +19,8 @@ import {
   cycleLock,
   defaultOtherWeight,
   groupCyclesByYear,
+  cyclePhaseRank,
+  cycleYear,
   parseNameYear,
   evalTargetState,
   flattenGoalTree,
@@ -206,6 +208,7 @@ export async function createGoalCycle(formData: FormData) {
     parseNameYear(name) ??
     parseNumber(str(formData.get("startDate")).slice(0, 4), startDate.getFullYear());
 
+  const picked = str(formData.get("sourceCycleId"));
   await prisma.goalCycle.create({
     data: {
       name,
@@ -213,11 +216,48 @@ export async function createGoalCycle(formData: FormData) {
       startDate,
       endDate,
       status: "OPEN",
-      sourceCycleId: await resolveShareSource(str(formData.get("sourceCycleId")), null),
+      sourceCycleId: picked
+        ? await resolveShareSource(picked, null)
+        : await previousPhaseSource({ name, year }),
     },
   });
   revalidatePath(PATH);
   revalidatePath(ADMIN_PATH);
+}
+
+/**
+ * 같은 해의 앞 단계에서 목표를 이어받는다.
+ *
+ * 한 해의 목표는 「목표설정」에서 한 벌 세우고, 중간평가·최종평가는 그것을
+ * 그대로 이어서 본다 — 단계마다 목표를 새로 적게 하면 어느 것이 진짜인지가
+ * 생기고, 중간에 고친 내용이 최종평가에 안 넘어간다. 새 단계를 만들 때 손으로
+ * 「목표 공유」를 고르지 않아도 앞 단계가 자동으로 잡히게 한다 — 고르는 걸
+ * 잊으면 빈 화면이 열리는데, 왜 비었는지는 화면에 안 적혀 있다.
+ *
+ * 사슬은 한 단계만 허용하므로(`resolveShareSource`) 앞 단계가 이미 남의 목표를
+ * 빌려 쓰고 있으면 그 원본을 가리킨다. 그래서 중간평가도 최종평가도 결국
+ * 「목표설정」 한 곳을 본다.
+ */
+async function previousPhaseSource(me: { name: string; year: number }): Promise<string | null> {
+  const myRank = cyclePhaseRank(me);
+  // 목표설정(1단계)은 이어받을 앞 단계가 없다. 이름을 못 알아본 사이클(9)도
+  // 섣불리 남의 목표에 붙이지 않는다.
+  if (myRank !== 2 && myRank !== 3) return null;
+
+  const sameYear = (
+    await prisma.goalCycle.findMany({
+      orderBy: GOAL_CYCLE_ORDER,
+      select: { id: true, name: true, year: true, sourceCycleId: true },
+    })
+  ).filter((c) => cycleYear(c) === cycleYear(me));
+
+  // 나보다 앞선 단계 중 가장 가까운 것.
+  const earlier = sameYear
+    .map((c) => ({ c, rank: cyclePhaseRank(c) }))
+    .filter((x) => x.rank < myRank)
+    .sort((a, b) => b.rank - a.rank);
+  const prev = earlier[0]?.c;
+  return prev ? (prev.sourceCycleId ?? prev.id) : null;
 }
 
 /**
