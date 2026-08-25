@@ -1140,7 +1140,7 @@ export default async function Evaluation2Page({
         <label className={LABEL_CLASS}>{isTeam || isOkr ? "가중치(비중, %)" : "가중치(%)"}</label>
         {usesDerivedWeight(level) ? (
           <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
-            딸린 개인목표의 가중치 합으로 자동 계산됩니다 (직접 입력하지 않습니다)
+            담당자 한 사람이 100씩, 그 합으로 자동 계산됩니다 (직접 입력하지 않습니다)
           </p>
         ) : (
         <input
@@ -1525,7 +1525,16 @@ export default async function Evaluation2Page({
             </span>
           )}
           {!parent && parentLevel && <span className="text-status-critical">상위 목표 미연결</span>}
-          {goal.rollupWeight > 0 && <span>가중치 {goal.rollupWeight}%</span>}
+          {/*
+            팀목표는 굴려 올린 몫(사람 수 × 100)을, 개인목표는 **사람이 적어 넣은
+            값 그대로**를 보여 준다. 개인목표에 펴 놓은 몫을 띄우면 30을 적었는데
+            60으로 보여서 «내가 적은 게 아닌데»가 된다.
+          */}
+          {(usesDerivedWeight(level) ? Math.round(goal.rollupWeight) : goal.weight) > 0 && (
+            <span>
+              가중치 {usesDerivedWeight(level) ? Math.round(goal.rollupWeight) : goal.weight}%
+            </span>
+          )}
           {goal.metric && <span>지표: {goal.metric}</span>}
           {goal.targetValue && (
             <span>
@@ -1735,10 +1744,24 @@ export default async function Evaluation2Page({
     // 전사 목표 표에서 한 줄을 고르면 그 갈래에 속한 목표만 남긴다.
     if (focusedIds) rows = rows.filter((g) => focusedIds.has(g.id));
 
-    // 사내 양식의 소계 — 가중치는 정수로 적으니 반올림해 보여준다.
-    const weightSum = Math.round(
-      rows.reduce((sum, g) => sum + (g.rollupWeight > 0 ? g.rollupWeight : 0), 0)
-    );
+    /*
+      사내 양식의 «소계». 사람이 적어 넣은 값(`weight`)으로 센다 — 화면이 집계에
+      쓰는 몫(`rollupWeight`)은 사람마다 100으로 펴 놓은 값이라 그걸로 세면 늘
+      100이 나와서 덜 채운 사람을 못 잡는다.
+
+      소계는 **사람 단위**로만 뜻이 있다. 팀장이 팀원 다섯 명 것을 한 화면에서
+      보면 다 더해 500%가 되는데, 거기에 «100%로 맞춰 주세요»를 붙이면 맞출 수
+      없는 걸 맞추라는 말이 된다. 그래서 한 사람 것만 보고 있을 때는 그 사람의
+      소계를, 여러 사람이 섞여 있을 때는 «아직 100%가 아닌 사람 몇 명»을 띄운다.
+    */
+    const weightByOwner = new Map<string, number>();
+    for (const g of rows) {
+      const key = g.ownerId ?? g.id;
+      weightByOwner.set(key, (weightByOwner.get(key) ?? 0) + (g.weight > 0 ? g.weight : 0));
+    }
+    const owners = [...weightByOwner.values()];
+    const weightSum = Math.round(owners[0] ?? 0);
+    const ownersOffTarget = owners.filter((sum) => Math.round(sum) !== 100).length;
 
     const canCreate =
       lock.canEditGoals &&
@@ -1758,7 +1781,7 @@ export default async function Evaluation2Page({
             줄마다 숫자를 눈으로 더하게 두면 아무도 확인하지 않는다. 100이 아닐
             때만 눈에 띄게 표시한다.
           */}
-          {usesWeightSubtotal(level) && rows.length > 0 && (
+          {usesWeightSubtotal(level) && rows.length > 0 && owners.length === 1 && (
             <span
               className={`text-sm ${
                 weightSum === 100 ? "text-slate-500" : "font-medium text-status-critical"
@@ -1766,6 +1789,11 @@ export default async function Evaluation2Page({
             >
               가중치 소계 {weightSum}%
               {weightSum !== 100 && " — 100%로 맞춰 주세요"}
+            </span>
+          )}
+          {usesWeightSubtotal(level) && owners.length > 1 && ownersOffTarget > 0 && (
+            <span className="text-sm font-medium text-status-critical">
+              가중치 소계가 100%가 아닌 사람 {ownersOffTarget}명
             </span>
           )}
         </div>

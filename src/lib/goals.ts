@@ -201,13 +201,14 @@ export function weightedProgress(children: GoalNode[]): number {
  * 누락되지 않게 한다.
  */
 export function buildGoalTree(rows: GoalRow[]): GoalNode[] {
+  const shares = personShares(rows);
   const byId = new Map<string, GoalNode>();
   for (const row of rows) {
     byId.set(row.id, {
       ...row,
       children: [],
       rollupProgress: leafProgress(row),
-      rollupWeight: row.weight,
+      rollupWeight: shares.get(row.id) ?? row.weight,
     });
   }
 
@@ -245,7 +246,7 @@ export function buildGoalTree(rows: GoalRow[]): GoalNode[] {
     */
     node.rollupWeight = usesDerivedWeight(node.level)
       ? counted.reduce((sum, c) => sum + (c.rollupWeight > 0 ? c.rollupWeight : 0), 0)
-      : node.weight;
+      : (shares.get(node.id) ?? node.weight);
     if (counted.length > 0) {
       node.rollupProgress = weightedProgress(node.children);
     } else if (isAutoCalculated(node.level)) {
@@ -639,12 +640,53 @@ export function usesKeyResults(level: string): boolean {
 /**
  * 가중치를 사람이 적지 않고 아래에서 굴려 올리는 층.
  *
- * 팀목표가 그렇다 — 그 팀 목표의 비중은 결국 딸린 개인목표들이 짊어진
- * 몫의 합이다. 손으로 따로 적게 하면 개인목표를 더하고 뺄 때마다 팀목표
- * 가중치를 같이 고쳐야 하는데, 아무도 그러지 않아서 둘이 어긋난 채로 남는다.
+ * 팀목표가 그렇다 — 그 팀 목표의 비중은 결국 딸린 사람들이 짊어진 몫의
+ * 합이다. 손으로 따로 적게 하면 개인목표를 더하고 뺄 때마다 팀목표 가중치를
+ * 같이 고쳐야 하는데, 아무도 그러지 않아서 둘이 어긋난 채로 남는다.
  */
 export function usesDerivedWeight(level: string): boolean {
   return level === "TEAM";
+}
+
+/** 한 사람이 팀 숫자에 가져가는 몫. 몇 건을 적었든 사람마다 이만큼이다. */
+export const PERSON_SHARE = 100;
+
+/**
+ * 사람마다 똑같이 100씩 가져간다.
+ *
+ * 개인목표 가중치를 그대로 쓰면 목표를 적게 잡은 사람이 팀 달성률에 덜
+ * 반영된다 — 가중치 합이 50인 사람은 100을 채운 사람의 반만 들어간다.
+ * 그런데 그 50이 «일이 적어서»인지 «칸을 덜 채워서»인지는 화면 어디에도
+ * 없다. 알 수 없는 것을 근거로 사람마다 다른 무게를 주느니, 다섯 명이면
+ * 다섯 몫으로 똑같이 나누는 편이 실제에 가깝다.
+ *
+ * 그래서 적어 넣은 가중치는 **그 사람 안에서 나누는 비율로만** 쓴다. 30·20을
+ * 적었으면 60·40으로 펴져서 합이 100이 된다. 이미 100을 맞춰 둔 사람에게는
+ * 아무 일도 일어나지 않는다.
+ *
+ * 집계에서 빠진 목표(중단·집계 제외·평가대상 아님)는 나눗셈에도 안 들어간다 —
+ * 두 건 중 하나가 빠지면 남은 하나가 그 사람 몫 100을 통째로 진다.
+ */
+function personShares(rows: GoalRow[]): Map<string, number> {
+  const total = new Map<string, number>();
+  const count = new Map<string, number>();
+  for (const row of rows) {
+    if (row.level !== "INDIVIDUAL" || !row.ownerId) continue;
+    if (!countsTowardProgress(row)) continue;
+    total.set(row.ownerId, (total.get(row.ownerId) ?? 0) + Math.max(row.weight, 0));
+    count.set(row.ownerId, (count.get(row.ownerId) ?? 0) + 1);
+  }
+
+  const share = new Map<string, number>();
+  for (const row of rows) {
+    if (row.level !== "INDIVIDUAL" || !row.ownerId) continue;
+    if (!countsTowardProgress(row)) continue;
+    const sum = total.get(row.ownerId) ?? 0;
+    const n = count.get(row.ownerId) ?? 0;
+    // 아무 칸에도 가중치를 안 적었으면 그 사람 목표끼리 똑같이 나눈다.
+    share.set(row.id, sum > 0 ? (PERSON_SHARE * Math.max(row.weight, 0)) / sum : PERSON_SHARE / n);
+  }
+  return share;
 }
 
 export function usesWeightSubtotal(level: string): boolean {
