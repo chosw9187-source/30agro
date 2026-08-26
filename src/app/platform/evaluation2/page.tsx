@@ -528,6 +528,13 @@ export default async function Evaluation2Page({
   */
   const canWriteProgress = allowsProgressInput(cycle);
   /*
+    달성률을 **화면에 띄우는** 단계인가. 적을 수 있는 단계와 같게 둔다 —
+    목표설정에서는 아무도 진척을 올릴 수 없어 모든 숫자가 0이고, 0%짜리 도넛과
+    «평균 달성률 0%»가 화면을 덮으면 정작 봐야 할 «무엇을 세웠나»가 안 읽힌다.
+    진행 막대는 남긴다: 목표 제목과 아래 줄을 갈라 주는 선 노릇을 한다.
+  */
+  const showsProgress = canWriteProgress;
+  /*
     앞 단계에서 목표를 이어받는 평가(중간평가·최종평가)인데 그 앞 단계가 아직
     마감되지 않았으면 목록을 열지 않는다 — 평가하는 동안 목표가 바뀌면 그 점수가
     무엇을 기준으로 매겨진 것인지 남지 않는다.
@@ -819,11 +826,15 @@ export default async function Evaluation2Page({
             {cycle ? `${cycle.year}년 전사 목표` : "전사 목표"}
           </h1>
           <div className="ml-auto flex items-center gap-3 whitespace-nowrap">
-            <span className="text-[11px] text-slate-500">전사 종합</span>
-            <span className="text-xl leading-none font-semibold tabular-nums text-slate-900">
-              {overallProgress}
-              <span className="ml-0.5 text-xs font-normal text-slate-400">%</span>
-            </span>
+            {showsProgress && (
+              <>
+                <span className="text-[11px] text-slate-500">전사 종합</span>
+                <span className="text-xl leading-none font-semibold tabular-nums text-slate-900">
+                  {overallProgress}
+                  <span className="ml-0.5 text-xs font-normal text-slate-400">%</span>
+                </span>
+              </>
+            )}
             {/* 한 줄을 유지하려고 라벨과 값을 가로로 붙인다. */}
             <dl className="hidden items-center gap-2.5 text-xs text-slate-500 sm:flex">
               <div className="flex items-center gap-1">
@@ -895,7 +906,9 @@ export default async function Evaluation2Page({
               <thead className="bg-slate-100 text-slate-600">
                 <tr>
                   <th className="px-4 py-1.5 text-left text-xs font-semibold">목표</th>
-                  <th className="w-56 px-4 py-1.5 text-left text-xs font-semibold">달성률</th>
+                  {showsProgress && (
+                    <th className="w-56 px-4 py-1.5 text-left text-xs font-semibold">달성률</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -938,6 +951,7 @@ export default async function Evaluation2Page({
                           </p>
                         )}
                       </td>
+                      {showsProgress && (
                       <td className="px-4 py-2">
                         <div className="flex items-center gap-2">
                           <Meter value={g.rollupProgress} size="md" />
@@ -957,6 +971,7 @@ export default async function Evaluation2Page({
                           </div>
                         )}
                       </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -1123,18 +1138,20 @@ export default async function Evaluation2Page({
           <h2 className="text-sm font-semibold text-slate-800">{GOAL_LEVEL_LABEL[level]}</h2>
         </div>
 
-        <div className="relative mt-4 flex items-center justify-center">
-          <ProgressDonut value={percent} color={LEVEL_COLOR[level]} />
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-3xl leading-none font-semibold tabular-nums text-slate-900">
-              {percent}
-              <span className="ml-0.5 text-base font-normal text-slate-400">%</span>
-            </span>
-            <span className="mt-1 text-[11px] text-slate-500">
-              {level === "COMPANY" ? "가중평균" : "평균 달성률"}
-            </span>
+        {showsProgress && (
+          <div className="relative mt-4 flex items-center justify-center">
+            <ProgressDonut value={percent} color={LEVEL_COLOR[level]} />
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-3xl leading-none font-semibold tabular-nums text-slate-900">
+                {percent}
+                <span className="ml-0.5 text-base font-normal text-slate-400">%</span>
+              </span>
+              <span className="mt-1 text-[11px] text-slate-500">
+                {level === "COMPANY" ? "가중평균" : "평균 달성률"}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         <dl className="mt-4 grid grid-cols-3 gap-1 border-t border-slate-100 pt-3 text-center">
           <div>
@@ -1847,18 +1864,29 @@ export default async function Evaluation2Page({
             {isAutoCalculated(level) && goal.rollupCounted === 0 && (
               <span className="text-xs font-normal text-slate-500">
                 {goal.children.length === 0
-                  ? "하위 목표가 없어 0%입니다"
-                  : "집계할 하위 목표가 없어 0%입니다"}
+                  ? showsProgress
+                    ? "하위 목표가 없어 0%입니다"
+                    : "하위 목표가 없습니다"
+                  : showsProgress
+                    ? "집계할 하위 목표가 없어 0%입니다"
+                    : "집계할 하위 목표가 없습니다"}
               </span>
             )}
-            <span className="text-sm font-semibold tabular-nums text-slate-700">
-              {goal.rollupProgress}%
-            </span>
+            {showsProgress && (
+              <span className="text-sm font-semibold tabular-nums text-slate-700">
+                {goal.rollupProgress}%
+              </span>
+            )}
           </span>
         </div>
 
+        {/*
+          목표설정 단계에서는 값이 아니라 **선**이다. 달성률을 안 띄우는 단계인데
+          막대만 차 있으면 «무슨 수치지»가 되고, 숫자가 없어 확인할 길도 없다.
+          빈 막대로 두어 제목과 아래 줄을 갈라 주는 선 노릇만 하게 한다.
+        */}
         <div className="mt-2">
-          <Meter value={goal.rollupProgress} size="md" />
+          <Meter value={showsProgress ? goal.rollupProgress : 0} size="md" />
         </div>
 
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
@@ -2182,7 +2210,9 @@ export default async function Evaluation2Page({
           <LevelDot level={level} />
           <h2 className="text-lg font-semibold">{GOAL_LEVEL_LABEL[level]}</h2>
           <span className="text-sm text-slate-500">{rows.length}건</span>
-          <span className="text-sm text-slate-500">평균 달성률 {averageProgress(rows)}%</span>
+          {showsProgress && (
+            <span className="text-sm text-slate-500">평균 달성률 {averageProgress(rows)}%</span>
+          )}
           {/*
             사내 양식의 "소계" 줄. 가중치 합이 100이어야 비중이 의도대로 먹는데,
             줄마다 숫자를 눈으로 더하게 두면 아무도 확인하지 않는다. 100이 아닐
@@ -2286,9 +2316,11 @@ export default async function Evaluation2Page({
                     >
                       {group.items.length}건
                     </span>
-                    <span className="text-xs text-slate-600">
-                      평균 달성률 {averageProgress(group.items)}%
-                    </span>
+                    {showsProgress && (
+                      <span className="text-xs text-slate-600">
+                        평균 달성률 {averageProgress(group.items)}%
+                      </span>
+                    )}
                   </header>
                   <div className="flex flex-col gap-3 p-3">
                     {group.items.map((g) => (
