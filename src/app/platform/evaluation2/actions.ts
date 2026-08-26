@@ -569,6 +569,34 @@ export async function copyGoalsFromCycle(formData: FormData) {
  * 빠진다. 사람마다 손으로 빼는 대신 규칙 한 줄로 두면, 조직도에 새 입사자가
  * 들어와도 명단을 다시 손볼 필요가 없다. 비우면 규칙을 없앤다.
  */
+/**
+ * 개인목표 설정 양식 «1. 기본사항»의 담당업무. **본인이 자기 것만 적는다.**
+ *
+ * 인사카드와 잇지 않는 값이라(그 해 자기가 무엇을 맡았는지 본인이 적는 문장),
+ * 인사팀을 거치지 않고 여기서 바로 고친다. 목표를 빌려 쓰는 평가(중간·최종)에서
+ * 적어도 원본 사이클에 저장해서 세 단계가 같은 값을 본다.
+ */
+export async function saveGoalSheetDuty(formData: FormData) {
+  const session = await requireGoalModule();
+
+  const cycleId = str(formData.get("cycleId"));
+  if (!cycleId) return;
+  const cycle = await prisma.goalCycle.findUnique({
+    where: { id: cycleId },
+    select: { id: true, sourceCycleId: true },
+  });
+  if (!cycle) return;
+
+  const duty = str(formData.get("duty")) || null;
+  const where = { cycleId_userId: { cycleId: cycle.sourceCycleId ?? cycle.id, userId: session.user.id } };
+  await prisma.goalSheetInfo.upsert({
+    where,
+    create: { cycleId: cycle.sourceCycleId ?? cycle.id, userId: session.user.id, duty },
+    update: { duty },
+  });
+  revalidatePath(PATH);
+}
+
 export async function setGoalCycleHireCutoff(formData: FormData) {
   await requireGoalModule();
   if (!(await isAdmin())) throw new Error("기준일은 관리자만 정할 수 있습니다.");

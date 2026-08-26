@@ -44,8 +44,6 @@ import {
   GOAL_TYPE_BADGE_CLASS,
   circledNumber,
   cyclePhaseLabel,
-  cyclePhaseRank,
-  cycleYear,
   keyResultLines,
   scaleValues,
   toDateInputValue,
@@ -70,6 +68,7 @@ import {
   deleteGoal,
   reopenGoalAgreement,
   requestGoalAgreement,
+  saveGoalSheetDuty,
   returnGoalAgreement,
   seedCompanyGoalTemplate,
   setGoalExcluded,
@@ -558,26 +557,20 @@ export default async function Evaluation2Page({
     1차 평가자는 조직도에서 한 칸 위, 2차 평가자는 그 위 한 칸이다 — 담당이면
     팀장·책임, 팀장이면 책임·운영책임 순으로 붙는다.
   */
+  const myDuty = goalCycleId
+    ? (
+        await prisma.goalSheetInfo.findUnique({
+          where: { cycleId_userId: { cycleId: goalCycleId, userId: session!.user.id } },
+          select: { duty: true },
+        })
+      )?.duty ?? ""
+    : "";
   const mySelf = people.find((p) => p.id === session!.user.id) ?? null;
   const myEvaluator = evaluatorByPerson.get(session!.user.id) ?? null;
   const mySecondEvaluator = myEvaluator ? (evaluatorByPerson.get(myEvaluator.id) ?? null) : null;
   const myTeamText = [mySelf?.team?.division ?? mySelf?.division, mySelf?.team?.name]
     .filter(Boolean)
     .join(" / ");
-  /*
-    면담일정 — 그 해의 단계들을 순서대로 늘어놓는다(목표설정 → 중간평가 →
-    최종평가). 면담 날짜를 따로 저장하지는 않으므로 각 단계의 기간을 보여 준다.
-  */
-  const scheduleRows = cycle
-    ? (groupCyclesByYear(cycles).find((g) => g.year === cycleYear(cycle))?.items ?? [])
-        .slice()
-        .sort((a, b) => cyclePhaseRank(a) - cyclePhaseRank(b))
-        .map((c) => ({
-          id: c.id,
-          label: cyclePhaseLabel(c),
-          period: `${formatKSTDate(c.startDate)} ~ ${formatKSTDate(c.endDate)}`,
-        }))
-    : [];
 
   const personOptions = people.map((p) => ({
     value: p.id,
@@ -1009,7 +1002,31 @@ export default async function Evaluation2Page({
                 <td className={cellBody}>{mySelf ? POSITION_LABEL[mySelf.position] : "-"}</td>
                 <th className={cellHead}>담당업무</th>
                 <td className={cellBody}>
-                  <span className="text-slate-400">인사카드에 담당업무 칸이 아직 없습니다</span>
+                  {/*
+                    담당업무는 자동으로 끌어오지 않는다 — 그 해 자기가 무엇을
+                    맡았는지 본인이 적는 문장이라 인사카드에 두면 매번 인사팀을
+                    거쳐야 한다. 여기서 바로 적고 저장한다.
+                  */}
+                  <ActionForm
+                    action={saveGoalSheetDuty}
+                    successMessage="담당업무를 저장했습니다."
+                    className="flex items-center gap-1.5"
+                  >
+                    <input type="hidden" name="cycleId" value={cycle?.id ?? ""} />
+                    <input
+                      name="duty"
+                      defaultValue={myDuty}
+                      placeholder="예: 인사 기획/보상평가"
+                      aria-label="담당업무"
+                      className="w-full max-w-xs rounded border border-slate-300 px-2 py-1 text-xs focus:border-brand-green focus:outline-none"
+                    />
+                    <button
+                      type="submit"
+                      className="shrink-0 rounded border border-slate-300 px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-50"
+                    >
+                      저장
+                    </button>
+                  </ActionForm>
                 </td>
               </tr>
               <tr className="border-b border-slate-100">
@@ -1036,20 +1053,6 @@ export default async function Evaluation2Page({
           </table>
         </div>
 
-        {/* 면담일정 — 그 해의 평가 단계와 기간. 면담 날짜를 따로 적어 두는 자리는
-            아직 없어서, 각 단계가 열려 있는 기간을 그대로 보여 준다. */}
-        {scheduleRows.length > 0 && (
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-            <span className="font-medium text-slate-600">면담일정</span>
-            {scheduleRows.map((r, i) => (
-              <span key={r.id} className="text-slate-600">
-                <span className="text-slate-400">{i + 1}차 </span>
-                {r.label}{" "}
-                <span className="text-slate-500">{r.period}</span>
-              </span>
-            ))}
-          </div>
-        )}
       </section>
     );
   }

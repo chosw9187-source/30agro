@@ -134,6 +134,7 @@ model User {
   goalCheckIns          GoalCheckIn[]          @relation("GoalCheckInAuthor")
   goalsAgreed           Goal[]                 @relation("GoalAgreedBy")
   goalCycleTargets      GoalCycleTarget[]      @relation("GoalCycleTargetUser")
+  goalSheetInfos        GoalSheetInfo[]        @relation("GoalSheetInfoUser")
   goalCycleTargetsSet   GoalCycleTarget[]      @relation("GoalCycleTargetSetter")
   goalCyclesLocked      GoalCycle[]            @relation("GoalCycleLockedBy")
   goalCheckpoints       GoalCheckpoint[]       @relation("GoalCheckpointCreator")
@@ -946,6 +947,7 @@ model GoalCycle {
 
   goals       Goal[]
   targets     GoalCycleTarget[]
+  sheetInfos  GoalSheetInfo[]
   checkpoints GoalCheckpoint[]
 
   @@index([year])
@@ -1143,7 +1145,34 @@ model GoalCheckIn {
  * 켜서 상위 달성률 집계에서 빠지게 한다 — 명단과 집계가 따로 놀면 "명단에서
  * 뺐는데 달성률은 그대로"가 된다.
  */
-model GoalCycleTarget {
+/**
+ * 개인목표 설정 양식의 «1. 기본사항» 중 **사람이 직접 적는 칸**.
+ *
+ * 인사카드(User)와 잇지 않는다 — 담당업무는 «인사 기획/보상평가»처럼 그 해
+ * 자기가 무엇을 맡았는지 본인이 적는 문장이라, 인사 정보로 관리하면 매번
+ * 인사팀을 거쳐야 한다. 평가대상 여부를 담는 GoalCycleTarget에 얹지 않은
+ * 이유도 분명하다 — 그 표에 줄이 생기면 «손으로 정한 대상»으로 읽혀서
+ * 입사일 기준(hireCutoff)을 덮어써 버린다.
+ *
+ * 사이클마다 한 줄. 중간평가·최종평가는 목표를 빌려 쓰므로 원본
+ * 사이클(sourceCycleId ?? id)에 저장해서 세 단계가 같은 값을 본다.
+ */
+model GoalSheetInfo {
+  id      String    @id @default(cuid())
+  cycleId String
+  cycle   GoalCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User      @relation("GoalSheetInfoUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  /// 담당업무 — 서술로 적는다(예: "인사 기획/보상평가").
+  duty String?
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([cycleId, userId])
+}
+
+model GoalCycleTarget {model GoalCycleTarget {
   id      String    @id @default(cuid())
   cycleId String
   cycle   GoalCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
