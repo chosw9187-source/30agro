@@ -108,8 +108,15 @@ function tabsFor(levels: GoalLevel[]) {
   ];
 }
 
-/** 대시보드에 달성률 요약 카드로 세우는 층. */
-const DASHBOARD_LEVELS: GoalLevel[] = ["COMPANY", "DIVISION", "TEAM", "INDIVIDUAL"];
+/**
+ * 대시보드에 달성률 요약 카드로 세우는 층.
+ *
+ * 팀목표와 개인목표 둘뿐이다. 전사·책임 달성률은 아래 두 층이 굴러 올라온
+ * 결과라 같은 숫자를 네 번 읽는 셈이고, 전사목표는 바로 아래 표가 목표별로
+ * 자세히 적고 있다. 두 장만 남기니 카드를 크게 키워 «내 팀과 내 목표가 지금
+ * 어디까지 왔나»가 화면을 열자마자 읽힌다.
+ */
+const DASHBOARD_LEVELS: GoalLevel[] = ["TEAM", "INDIVIDUAL"];
 
 /**
  * 책임 목록의 기준 순서. 보고서에 쓰는 순서 그대로다 — 가나다순으로 늘어놓으면
@@ -1254,37 +1261,37 @@ export default async function Evaluation2Page({
       <>
         <div className="flex items-center gap-2">
           <LevelDot level={level} />
-          <h2 className="text-sm font-semibold text-slate-800">{GOAL_LEVEL_LABEL[level]}</h2>
+          <h2 className="text-base font-semibold text-slate-800">{GOAL_LEVEL_LABEL[level]}</h2>
         </div>
 
         {showsProgress && (
-          <div className="relative mt-4 flex items-center justify-center">
-            <ProgressDonut value={percent} color={LEVEL_COLOR[level]} />
+          <div className="relative mt-5 flex items-center justify-center">
+            <ProgressDonut value={percent} color={LEVEL_COLOR[level]} size={188} stroke={18} />
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-3xl leading-none font-semibold tabular-nums text-slate-900">
+              <span className="text-5xl leading-none font-semibold tabular-nums text-slate-900">
                 {percent}
-                <span className="ml-0.5 text-base font-normal text-slate-400">%</span>
+                <span className="ml-0.5 text-xl font-normal text-slate-400">%</span>
               </span>
-              <span className="mt-1 text-[11px] text-slate-500">
+              <span className="mt-1.5 text-xs text-slate-500">
                 {level === "COMPANY" ? "가중평균" : "평균 달성률"}
               </span>
             </div>
           </div>
         )}
 
-        <dl className="mt-4 grid grid-cols-3 gap-1 border-t border-slate-100 pt-3 text-center">
+        <dl className="mt-5 grid grid-cols-3 gap-1 border-t border-slate-100 pt-4 text-center">
           <div>
-            <dt className="text-[11px] text-slate-500">전체</dt>
-            <dd className="text-lg font-semibold tabular-nums text-slate-800">{counted.length}</dd>
+            <dt className="text-xs text-slate-500">전체</dt>
+            <dd className="text-2xl font-semibold tabular-nums text-slate-800">{counted.length}</dd>
           </div>
           <div>
-            <dt className="text-[11px] text-slate-500">완료</dt>
-            <dd className="text-lg font-semibold tabular-nums text-brand-green-dark">{done}</dd>
+            <dt className="text-xs text-slate-500">완료</dt>
+            <dd className="text-2xl font-semibold tabular-nums text-brand-green-dark">{done}</dd>
           </div>
           <div>
-            <dt className="text-[11px] text-slate-500">지연</dt>
+            <dt className="text-xs text-slate-500">지연</dt>
             <dd
-              className={`text-lg font-semibold tabular-nums ${
+              className={`text-2xl font-semibold tabular-nums ${
                 overdue > 0 ? "text-status-critical" : "text-slate-400"
               }`}
             >
@@ -1295,7 +1302,7 @@ export default async function Evaluation2Page({
       </>
     );
 
-    const className = `${CARD_CLASS} flex flex-col p-5`;
+    const className = `${CARD_CLASS} flex flex-col p-6`;
 
     return linkable ? (
       <Link href={href} className={`${className} transition-colors hover:border-brand-green`}>
@@ -2831,8 +2838,12 @@ export default async function Evaluation2Page({
         </section>
       ) : (
         <>
-          {/* 전사 목표 — 배너와 줄을 나눠 그 아래에 놓는다. 표는 접을 수 있다. */}
-          {companyGoalBoard()}
+          {/*
+            첫 화면은 «내 팀과 내 목표»부터 읽는다. 전사 목표 표를 맨 위에 두면
+            화면을 열 때마다 회사 목표 여섯 줄을 지나야 자기 숫자에 닿는다.
+            다른 탭에서는 상위 목표를 참고하며 목표를 세우므로 표가 먼저다.
+          */}
+          {!isDashboard && companyGoalBoard()}
 
           {isDashboard ? (
             /*
@@ -2841,13 +2852,16 @@ export default async function Evaluation2Page({
               탭 머리글이 이미 적고 있어 같은 말을 두 번 하는 칸이 된다.
               중간평가·최종평가에서만 띄운다.
             */
-            showsProgress && (
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {DASHBOARD_LEVELS.map((level) => (
-                  <LevelSummaryCard key={level} level={level} />
-                ))}
-              </div>
-            )
+            <>
+              {showsProgress && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {DASHBOARD_LEVELS.map((level) => (
+                    <LevelSummaryCard key={level} level={level} />
+                  ))}
+                </div>
+              )}
+              {companyGoalBoard()}
+            </>
           ) : (
             // key에 탭을 넣어 탭을 옮길 때마다 이 안을 새로 그린다. 안 그러면
             // React가 같은 자리의 등록 폼을 재사용해서, 개인목표에 쳐 넣던
