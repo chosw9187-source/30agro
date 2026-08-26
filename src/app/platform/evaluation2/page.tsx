@@ -33,7 +33,6 @@ import {
   groupByHalf,
   HALF_UNSET,
   GOAL_HALVES,
-  groupCyclesByYear,
   asAgreementStatus,
   canViewGoalRow,
   cycleLock,
@@ -83,7 +82,7 @@ import {
   setGoalExcluded,
   updateGoal,
 } from "./actions";
-import { CycleSelect } from "./cycle-select";
+import { YearPhaseSelect } from "./cycle-select";
 import { ActionForm } from "@/components/action-form";
 import { AutoRefresh } from "@/components/auto-refresh";
 
@@ -359,7 +358,13 @@ function goalTitle(goal: { title: string; isOther?: boolean }): string {
 export default async function Evaluation2Page({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; cycleId?: string; edit?: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    cycleId?: string;
+    edit?: string;
+    year?: string;
+    phase?: string;
+  }>;
 }) {
   if (!(await checkModuleAccess("EVALUATION_V2"))) {
     return <NoModuleAccess title="평가2" />;
@@ -409,11 +414,59 @@ export default async function Evaluation2Page({
    * 몇 년도 것인지 모르는 채로 읽게 된다. 2026과 2027이 나란히 열려 있는
    * 기간에는 특히 위험하다. 어느 해를 보는지는 사람이 고르게 한다.
    */
-  const pickedCycle = params.cycleId
+  /*
+    무엇을 볼지는 두 가지로 정해진다 — **연도**와 그 해의 **목표**다.
+
+    목표 자리에는 세 단계(목표설정·중간평가·최종평가)와 「목표진행현황」이 있다.
+    진행현황은 사이클이 아니라 **보기**다: 그 해에서 가장 앞선 단계의 목표를
+    읽기 전용으로 펼쳐, 전사부터 내 목표까지 지금 얼마나 굴러갔는지만 본다.
+    평가2를 눌렀을 때 처음 뜨는 화면이 이것이다 — 대부분은 무엇을 고치러
+    오는 게 아니라 «지금 어디까지 왔나»를 보러 온다.
+
+    예전 주소(cycleId=…)로 들어와도 읽는다. 그 사이클의 해와 단계로 옮겨 준다.
+  */
+  const legacyCycle = params.cycleId
     ? (cycles.find((c) => c.id === params.cycleId) ?? null)
     : null;
-  const selectedCycleId = pickedCycle?.id ?? "";
-  const cycle = pickedCycle;
+
+  const years = Array.from(new Set(cycles.map((c) => cycleYear(c)))).sort((a, b) => b - a);
+  const todayYear = new Date().getFullYear();
+  const selectedYear = legacyCycle
+    ? cycleYear(legacyCycle)
+    : params.year && years.includes(Number(params.year))
+      ? Number(params.year)
+      : (years.find((y) => y === todayYear) ?? years[0] ?? todayYear);
+
+  const yearCycles = cycles
+    .filter((c) => cycleYear(c) === selectedYear)
+    .sort((a, b) => cyclePhaseRank(a) - cyclePhaseRank(b));
+
+  const PROGRESS_PHASE = "progress";
+  const phaseKey = (c: { name: string; year: number }) => String(cyclePhaseRank(c));
+  const selectedPhase = legacyCycle
+    ? phaseKey(legacyCycle)
+    : (params.phase ?? PROGRESS_PHASE);
+  const progressView = selectedPhase === PROGRESS_PHASE;
+
+  /*
+    진행현황이 읽을 사이클 — 그 해에서 **자기 목표를 가진 가장 앞선 단계**다.
+    마감할 때마다 다음 단계가 목표를 복사해 가므로, 가장 앞선 단계가 곧 지금
+    쓰이고 있는 목표다. 아직 아무 단계도 마감하지 않았으면 목표설정이 그것이다.
+  */
+  const goalCounts = await prisma.goal.groupBy({
+    by: ["cycleId"],
+    _count: { _all: true },
+  });
+  const countByCycle = new Map(goalCounts.map((g) => [g.cycleId, g._count._all]));
+  const progressCycle =
+    [...yearCycles].reverse().find((c) => (countByCycle.get(c.id) ?? 0) > 0) ??
+    yearCycles[0] ??
+    null;
+
+  const cycle = progressView
+    ? progressCycle
+    : (yearCycles.find((c) => phaseKey(c) === selectedPhase) ?? null);
+  const selectedCycleId = cycle?.id ?? "";
   /**
    * 목표를 실제로 담고 있는 사이클. 어떤 평가는 자기 목표를 갖지 않고 다른
    * 평가의 목표를 그대로 본다 — "2026년 상반기"와 "2026년 최종평가"가
@@ -538,7 +591,13 @@ export default async function Evaluation2Page({
     중간평가까지 마감하면 그때 잠긴다. 서버 액션도 같은 기준으로 판단한다
     (`actingLock`) — 아니면 눌리는데 저장은 안 되는 버튼이 생긴다.
   */
-  const lock = cycleLock(cycle);
+  /*
+    진행현황은 «보는» 자리라 아무것도 고치지 못한다. 등록·수정·삭제·평가 단추는
+    모두 이 잠금을 보고 뜨므로, 여기서 한 번 닫으면 화면 전체가 읽기 전용이 된다.
+  */
+  const lock = progressView
+    ? { canEditGoals: false, canEditProgress: false, message: null }
+    : cycleLock(cycle);
   /*
     달성률을 적을 수 있는 단계인가. **고른 평가**로 판단한다 — 목표는 대개
     「목표설정」에 한 벌만 있고 중간평가·최종평가가 그걸 빌려 보므로, 목표가
@@ -551,7 +610,7 @@ export default async function Evaluation2Page({
     «평균 달성률 0%»가 화면을 덮으면 정작 봐야 할 «무엇을 세웠나»가 안 읽힌다.
     진행 막대는 남긴다: 목표 제목과 아래 줄을 갈라 주는 선 노릇을 한다.
   */
-  const showsProgress = canWriteProgress;
+  const showsProgress = progressView || canWriteProgress;
   /*
     앞 단계에서 목표를 이어받는 평가(중간평가·최종평가)인데 그 앞 단계가 아직
     마감되지 않았으면 목록을 열지 않는다 — 평가하는 동안 목표가 바뀌면 그 점수가
@@ -694,7 +753,8 @@ export default async function Evaluation2Page({
     // 사용자가 실제로 고른 인사평가만 URL에 남긴다. 기본값으로 잡아둔 사이클을
     // 여기서 붙이면, 탭을 누르는 순간 "인사평가 선택" 상태가 돼 목표관리 화면이
     // 빈 평가 화면으로 바뀌어 버린다.
-    if (selectedCycleId) qs.set("cycleId", selectedCycleId);
+    qs.set("year", String(selectedYear));
+    qs.set("phase", selectedPhase);
     const edit = next.edit === undefined ? undefined : next.edit;
     if (edit) qs.set("edit", edit);
     return `/platform/evaluation2?${qs.toString()}`;
@@ -783,26 +843,34 @@ export default async function Evaluation2Page({
   function cycleBar() {
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
-        <span className="text-xs font-medium text-slate-500">인사평가</span>
+        <span className="text-xs font-medium text-slate-500">연도 · 목표</span>
         {cycles.length > 0 ? (
-          <CycleSelect
-            value={selectedCycleId}
-            groups={[
-              { label: null, options: [{ value: "", label: "선택" }] },
-              ...groupCyclesByYear(cycles).map((g) => ({
-                label: `${g.year}년`,
-                options: g.items.map((c) => ({
-                  value: c.id,
-                  // 묶음 제목이 이미 "2026년"이라 안에서는 단계만 읽으면 된다.
-                  label: `${cyclePhaseLabel(c)} (${
-                    GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]
-                  })`,
-                })),
+          <YearPhaseSelect
+            years={years.map((y) => ({ value: String(y), label: `${y}년` }))}
+            year={String(selectedYear)}
+            phases={[
+              /*
+                진행현황이 맨 위이자 기본값이다. 평가2에 들어오는 사람 대부분은
+                무엇을 고치러 오는 게 아니라 «지금 어디까지 왔나»를 보러 온다.
+              */
+              { value: PROGRESS_PHASE, label: "목표진행현황" },
+              ...yearCycles.map((c) => ({
+                value: phaseKey(c),
+                label: `${cyclePhaseLabel(c)} (${
+                  GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]
+                })`,
               })),
             ]}
+            phase={selectedPhase}
           />
         ) : (
           <span className="text-xs text-slate-400">등록된 인사평가가 없습니다</span>
+        )}
+        {/* 진행현황은 «보는» 자리다 — 어느 단계의 목표를 읽고 있는지는 적어 준다. */}
+        {progressView && cycle && (
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+            「{cyclePhaseLabel(cycle)}」의 목표를 읽는 중입니다 · 여기서는 고칠 수 없습니다
+          </span>
         )}
 
         {/*
@@ -2663,6 +2731,7 @@ export default async function Evaluation2Page({
       */}
       {isAdmin &&
         cycle &&
+        !progressView &&
         !waitingForSource &&
         !cycle.goalsLockedAt &&
         cycle.status !== "CLOSED" && (
@@ -2696,9 +2765,11 @@ export default async function Evaluation2Page({
         // 인사평가를 고르기 전에는 어느 탭이든 비워 둔다. 어느 해 숫자인지
         // 모르는 채로 목표를 읽게 두지 않는다.
         <section className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white py-24">
-          <p className="text-base font-semibold text-slate-700">인사평가를 선택해 주세요</p>
+          <p className="text-base font-semibold text-slate-700">
+            {selectedYear}년에 만들어진 인사평가가 없습니다
+          </p>
           <p className="mt-1 text-sm text-slate-500">
-            왼쪽 위 「인사평가」 목록에서 연도를 고르면 그 해의 전사 · 책임 · 팀 · 개인 목표가 보입니다.
+            왼쪽 위에서 다른 연도를 고르면 그 해의 전사 · 책임 · 팀 · 개인 목표가 보입니다.
           </p>
           {cycles.length === 0 && (
             <p className="mt-4 text-xs text-slate-400">

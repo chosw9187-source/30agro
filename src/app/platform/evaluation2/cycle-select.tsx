@@ -58,3 +58,71 @@ export function CycleSelect({
     </select>
   );
 }
+
+/**
+ * 무엇을 볼지 고르는 두 칸 — 왼쪽은 **연도**, 오른쪽은 그 해의 **목표**다.
+ *
+ * 연도와 단계를 한 칸에 붙여 두면(「2026년 목표설정」) 해가 늘어날수록 목록이
+ * 길어지고 «지금 몇 년도를 보는 중인가»가 단계 이름에 묻힌다. 연도를 먼저 고르고
+ * 그 안에서 단계를 고르면 두 물음이 각자 자리를 갖는다.
+ *
+ * 고르는 즉시 주소가 바뀐다(`year`, `phase`). 보고 있는 층(tab)은 그대로 둔다 —
+ * 해를 바꿨다고 개인목표에서 대시보드로 튕겨 나갈 이유가 없다.
+ */
+export function YearPhaseSelect({
+  years,
+  year,
+  phases,
+  phase,
+}: {
+  years: Option[];
+  year: string;
+  phases: Option[];
+  phase: string;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const go = (next: { year?: string; phase?: string }) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("year", next.year ?? year);
+    params.set("phase", next.phase ?? phase);
+    // 예전 주소(cycleId)로 들어왔더라도 여기서부터는 연도·단계로 읽는다.
+    params.delete("cycleId");
+    // 고치던 목표를 열어 둔 채 다른 평가로 넘어가면 없는 목표를 편집하게 된다.
+    params.delete("edit");
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const selectClass = "rounded-md border border-slate-300 px-3 py-1 text-xs";
+
+  return (
+    <>
+      <select
+        value={year}
+        aria-label="평가 연도 선택"
+        onChange={(e) => go({ year: e.target.value })}
+        className={selectClass}
+      >
+        {years.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <select
+        value={phase}
+        aria-label="목표 선택"
+        onChange={(e) => go({ phase: e.target.value })}
+        className={selectClass}
+      >
+        {phases.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+}
