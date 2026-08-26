@@ -1627,6 +1627,39 @@ export async function reopenGoalAgreement(goalId: string) {
  * 연중에 벌어지는 일이다. 그래서 목표 내용 잠금(`canEditGoals`)이 아니라
  * 진척 잠금(`canEditProgress`)을 본다. 사이클을 완료 처리하면 그때는 막힌다.
  */
+/**
+ * 1차 평가자가 그 단계의 평가를 끝냈다고 표시한다 — «평가완료».
+ *
+ * 누를 수 있는 사람은 조직도가 정한 1차 평가자와 관리자뿐이다. 피평가자가
+ * 스스로 «다 됐다»고 할 수 있으면 그 표시가 아무것도 뜻하지 않는다. 다시 눌러
+ * 되돌릴 수 있게 시각만 남긴다 — 잘못 눌렀을 때 관리자를 찾아가야 하면 아무도
+ * 안 누른다.
+ */
+export async function setGoalEvalDone(goalId: string, done: boolean, formData?: FormData) {
+  const session = await requireGoalModule();
+
+  const goal = await prisma.goal.findUnique({
+    where: { id: goalId },
+    select: { cycleId: true, ownerId: true },
+  });
+  if (!goal) throw new Error("목표를 찾을 수 없습니다.");
+
+  const firstEvaluatorId = await firstEvaluatorIdOf(goal.ownerId);
+  const allowed = (await isAdmin()) || firstEvaluatorId === session.user.id;
+  if (!allowed) throw new Error("평가완료는 1차 평가자만 누를 수 있습니다.");
+
+  const { lock } = await actingLock(formData ?? new FormData(), goal.cycleId);
+  if (!lock.canEditGoals) throw new Error(lock.message ?? "지금은 고칠 수 없습니다.");
+
+  await prisma.goal.update({
+    where: { id: goalId },
+    data: done
+      ? { evalDoneAt: new Date(), evalDoneById: session.user.id }
+      : { evalDoneAt: null, evalDoneById: null },
+  });
+  revalidatePath(PATH);
+}
+
 export async function setGoalDropped(goalId: string, dropped: boolean) {
   await requireGoalModule();
   if (!(await isAdmin())) throw new Error("중단 처리는 관리자만 할 수 있습니다.");

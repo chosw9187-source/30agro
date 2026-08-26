@@ -122,6 +122,7 @@ export type GoalRow = {
   progress: number;
   status: string;
   /** 그 단계의 평가 — 본인 점수·사유와 1차 평가자 점수·사유(`usesEvaluation`). */
+  evalDoneAt?: Date | null;
   selfScore?: number | null;
   selfComment?: string | null;
   firstScore?: number | null;

@@ -79,6 +79,7 @@ import {
   returnGoalAgreement,
   seedCompanyGoalTemplate,
   setGoalDropped,
+  setGoalEvalDone,
   setGoalExcluded,
   updateGoal,
 } from "./actions";
@@ -476,6 +477,7 @@ export default async function Evaluation2Page({
           keyResults: true,
           progress: true,
           status: true,
+          evalDoneAt: true,
           selfScore: true,
           selfComment: true,
           firstScore: true,
@@ -1643,7 +1645,9 @@ export default async function Evaluation2Page({
     const showEval = usesEvaluation(level, cycle) && !!goal;
     const period = evalPeriodLabel(cycle);
     const evalSubjectId = goal?.ownerId ?? session!.user.id;
-    const evalFirst = evaluatorByPerson.get(evalSubjectId)?.first ?? null;
+    const evalResult = evaluatorByPerson.get(evalSubjectId) ?? null;
+    const evalFirst = evalResult?.first ?? null;
+    const evalNote = evalResult?.note ?? null;
     const canWriteSelf = isAdmin || evalSubjectId === session!.user.id;
     const canWriteFirst = isAdmin || (!!evalFirst && evalFirst.id === session!.user.id);
     // 내용(제목·가중치·상위)을 고칠 수 있는 사람. 평가만 하는 사람은 못 고친다.
@@ -1657,7 +1661,7 @@ export default async function Evaluation2Page({
 
         <div className="rounded-lg border border-brand-green/40 bg-brand-green-light/50 p-3">
           <p className="mb-2 text-[11px] font-semibold text-brand-green-dark">
-            피평가자 — 본인이 적습니다
+            피평가자{goal?.owner?.name ? ` — ${goal.owner.name}` : ""} · 본인이 적습니다
           </p>
           <div className="grid gap-3 md:grid-cols-4">
             <div>
@@ -1704,9 +1708,15 @@ export default async function Evaluation2Page({
           <p className="mb-2 text-[11px] font-semibold text-goal-3">
             1차 평가자
             {evalFirst
-              ? ` — ${evaluatorLabel(evalFirst)}이 적습니다`
+              ? ` — ${evaluatorLabel(evalFirst)} · 이 사람이 적습니다`
               : " — 조직도에서 찾지 못했습니다"}
           </p>
+          {/*
+            사슬이 팀장을 건너뛰었으면 왜 건너뛰었는지 적는다 — 대개 그 팀에
+            팀장이 지정돼 있지 않아서다. 이 말이 없으면 «왜 우리 팀장이 아니지»가
+            화면만 보고는 풀리지 않는다.
+          */}
+          {evalNote && <p className="mb-2 text-[11px] text-status-critical">{evalNote}</p>}
           <div className="grid gap-3 md:grid-cols-4">
             <div>
               <label className={LABEL_CLASS}>{period && `${period} `}평가점수</label>
@@ -1881,6 +1891,10 @@ export default async function Evaluation2Page({
     const subject = goalSubject(goal);
     const subjectEval = subject ? (evaluatorByPerson.get(subject.id) ?? null) : null;
     const evaluator = subjectEval?.first ?? null;
+    const evalDone = !!goal.evalDoneAt;
+    // 평가완료는 1차 평가자와 관리자만 누른다 — 피평가자가 스스로 «다 됐다»고
+    // 할 수 있으면 그 표시가 아무것도 뜻하지 않는다.
+    const canFinishEval = isAdmin || evaluator?.id === session!.user.id;
     const showEvalEntry =
       usesEvaluation(level, cycle) &&
       lock.canEditGoals &&
@@ -2192,9 +2206,13 @@ export default async function Evaluation2Page({
           {showEvalEntry && (
             <Link
               href={buildHref({ edit: goal.id })}
-              className="rounded-md border border-brand-green bg-brand-green-light px-3 py-1 text-xs font-medium text-brand-green-dark hover:bg-brand-green hover:text-white"
+              className={`rounded-md border px-3 py-1 text-xs font-medium ${
+                evalDone
+                  ? "border-status-critical bg-status-critical/10 text-status-critical hover:bg-status-critical hover:text-white"
+                  : "border-brand-green bg-brand-green-light text-brand-green-dark hover:bg-brand-green hover:text-white"
+              }`}
             >
-              {evalPeriod && `${evalPeriod} `}평가
+              {evalPeriod && `${evalPeriod} `}평가{evalDone && " 완료"}
             </Link>
           )}
           {/*
@@ -2304,7 +2322,41 @@ export default async function Evaluation2Page({
               <Link href={buildHref({ edit: null })} className={PRIMARY_BUTTON_CLASS}>
                 닫기
               </Link>
+              {/*
+                평가완료는 저장과 다른 일이라 색을 달리한다 — 저장은 적은 것을
+                남기는 일이고, 이건 «이 평가는 여기서 끝»이라고 못을 박는 일이다.
+                폼 안에 폼을 넣을 수 없어서 아래에 따로 둔 폼을 `form` 속성으로
+                잇는다.
+              */}
+              {usesEvaluation(level, cycle) && canFinishEval && (
+                <button
+                  type="submit"
+                  form={`evaldone-${goal.id}`}
+                  className={`rounded-md px-4 py-2 text-sm font-medium ${
+                    evalDone
+                      ? "border border-status-critical text-status-critical hover:bg-red-50"
+                      : "bg-goal-3 text-white hover:brightness-95"
+                  }`}
+                >
+                  {evalDone ? "평가완료 취소" : "평가완료"}
+                </button>
+              )}
             </div>
+          </ActionForm>
+        )}
+        {/*
+          위 폼의 «평가완료» 단추가 눌러 보내는 폼. 폼끼리 겹칠 수 없어 밖에 둔다.
+          누르고 나면 폼은 닫는다 — 결과는 목록의 붉은 «완료»로 읽힌다.
+        */}
+        {isEditing && usesEvaluation(level, cycle) && canFinishEval && (
+          <ActionForm
+            id={`evaldone-${goal.id}`}
+            action={setGoalEvalDone.bind(null, goal.id, !evalDone)}
+            successMessage={evalDone ? "평가완료를 취소했습니다." : "평가를 완료했습니다."}
+            successHref={buildHref({ edit: null })}
+            className="hidden"
+          >
+            <input type="hidden" name="viewCycleId" value={cycle?.id ?? ""} />
           </ActionForm>
         )}
         </div>
