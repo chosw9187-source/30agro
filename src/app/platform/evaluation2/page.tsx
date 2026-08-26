@@ -137,22 +137,30 @@ const LEVEL_COLOR: Record<GoalLevel, string> = {
  * 그려진다.
  */
 /**
- * 옆 글씨에 물어보는 자리. 크기를 `em`으로 잡아 **붙어 있는 글자와 같이** 커지고
- * 작아진다 — 고정 크기로 두면 작은 라벨 옆에서 혼자 커서 눈에 먼저 걸린다.
- * 평소에는 옅은 붉은 알약이고, 손을 얹으면 붉게 차면서 설명이 뜬다.
+ * 옆 글씨에 물어보는 자리.
+ *
+ * 평소에는 **보이지 않는다.** 칸 이름에 손을 얹으면 그때 붉은 물음표가 떠오르고,
+ * 그 위로 옮기면 설명이 뜬다. 늘 떠 있으면 라벨마다 붉은 점이 박혀서 정작 읽어야
+ * 할 이름보다 물음표가 먼저 눈에 걸린다. 자리는 늘 차지하고 있으므로(투명해질
+ * 뿐이다) 떠오를 때 줄이 밀리지 않는다.
+ *
+ * 크기는 `em`이라 붙어 있는 글자와 같이 커지고 작아진다.
+ *
+ * 쓰는 쪽은 감싸는 라벨에 `group/help`를 붙여야 한다 — 무엇에 손을 얹었을 때
+ * 떠오를지를 그 라벨이 정한다.
  */
 function HelpMark({ text }: { text: string }) {
   return (
-    <span className="group relative ml-0.5 inline-block align-middle">
+    <span className="group/tip relative ml-0.5 inline-block align-middle">
       <span
         role="img"
         aria-label={text}
         tabIndex={0}
-        className="inline-flex h-[1.15em] w-[1.15em] cursor-help items-center justify-center rounded-full bg-status-critical/10 text-[0.72em] font-bold leading-none text-status-critical ring-1 ring-status-critical/40 transition-colors hover:bg-status-critical hover:text-white group-focus-within:bg-status-critical group-focus-within:text-white"
+        className="inline-flex h-[1.15em] w-[1.15em] cursor-help items-center justify-center rounded-full bg-status-critical/10 text-[0.72em] font-bold leading-none text-status-critical opacity-0 ring-1 ring-status-critical/40 transition-opacity group-focus-within/help:opacity-100 group-hover/help:opacity-100 focus:opacity-100"
       >
         ?
       </span>
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden w-72 -translate-x-1/2 rounded-lg bg-slate-800 px-3 py-2 text-[11px] leading-relaxed font-normal text-white shadow-lg ring-1 ring-slate-900/10 group-focus-within:block group-hover:block">
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden w-72 -translate-x-1/2 rounded-lg bg-slate-800 px-3 py-2 text-[11px] leading-relaxed font-normal text-white shadow-lg ring-1 ring-slate-900/10 group-focus-within/tip:block group-hover/tip:block">
         {text}
       </span>
     </span>
@@ -162,6 +170,8 @@ function HelpMark({ text }: { text: string }) {
 const INPUT_CLASS =
   "w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-green focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
 const LABEL_CLASS = "mb-1 block text-xs font-medium text-slate-500";
+/** 물음표를 품은 칸 이름 — 손을 얹으면 물음표가 떠오른다(`HelpMark`). */
+const HELP_LABEL_CLASS = `${LABEL_CLASS} group/help`;
 const PRIMARY_BUTTON_CLASS =
   "rounded-md bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark";
 const CARD_CLASS = "rounded-xl border border-slate-200 bg-white shadow-sm";
@@ -1542,7 +1552,7 @@ export default async function Evaluation2Page({
       <div className="md:col-span-2">
         {/* 등급별로 "어디까지 해야 그 등급인지"를 목표 세울 때 못박는다.
             연말에 가서 정하면 사람마다 다르게 읽는다. */}
-        <label className={LABEL_CLASS}>
+        <label className={HELP_LABEL_CLASS}>
           평가척도 <HelpMark text="등급별로 «어디까지 해야 그 등급인지»를 목표 세울 때 적어 둡니다. 연말에 가서 정하면 사람마다 다르게 읽습니다. 예) S: 3천만원 이상 절감 / A: 2천만원 이상 절감" />
         </label>
         <div className="grid gap-2 sm:grid-cols-5">
@@ -1740,7 +1750,7 @@ export default async function Evaluation2Page({
               />
             </div>
             <div>
-              <label className={LABEL_CLASS}>
+              <label className={HELP_LABEL_CLASS}>
                 본인 평가점수
                 <HelpMark text={scoreHelp} />
               </label>
@@ -1781,7 +1791,7 @@ export default async function Evaluation2Page({
           {evalNote && <p className="mb-2 text-[11px] text-status-critical">{evalNote}</p>}
           <div className="grid gap-3 md:grid-cols-4">
             <div>
-              <label className={LABEL_CLASS}>
+              <label className={HELP_LABEL_CLASS}>
                 {period && `${period} `}평가점수
                 <HelpMark text={scoreHelp} />
               </label>
