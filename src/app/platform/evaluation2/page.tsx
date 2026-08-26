@@ -1687,6 +1687,12 @@ export default async function Evaluation2Page({
     const parentOptions = parentLevel ? visibleRows(byLevel(parentLevel)) : [];
     const flag = ownerFlag(goal, now);
     const agreement = asAgreementStatus(goal.agreementStatus);
+    /*
+      팀목표는 굴려 올린 몫을, 나머지 층은 사람이 적어 넣은 값을 보여 준다.
+      어느 쪽이든 정수로 끊는다 — 33.333333333333336%가 줄에 박히면 그 줄을
+      읽을 수가 없다.
+    */
+    const shownWeight = Math.round(usesDerivedWeight(level) ? goal.rollupWeight : goal.weight);
     const subject = goalSubject(goal);
     const subjectEval = subject ? (evaluatorByPerson.get(subject.id) ?? null) : null;
     const evaluator = subjectEval?.first ?? null;
@@ -1833,8 +1839,18 @@ export default async function Evaluation2Page({
               숫자와 설명이 멀어서 0%만 보고 «고장인가»가 된다. 0%가 아닐 때는
               설명할 것이 없으므로 띄우지 않는다.
             */}
-            {isAutoCalculated(level) && goal.rollupProgress === 0 && (
-              <span className="text-xs font-normal text-slate-500">하위 목표가 없어 0%입니다</span>
+            {/*
+              0%인 까닭은 «하위가 없어서»일 때만 적는다. 하위가 붙어 있는데
+              아직 아무도 진척을 안 올려서 0인 경우(목표설정 단계에는 늘 그렇다)
+              까지 «하위 목표가 없어»라고 적으면, 방금 연결한 개인목표가 안
+              붙은 줄 알고 다시 연결하러 가게 된다.
+            */}
+            {isAutoCalculated(level) && goal.rollupCounted === 0 && (
+              <span className="text-xs font-normal text-slate-500">
+                {goal.children.length === 0
+                  ? "하위 목표가 없어 0%입니다"
+                  : "집계할 하위 목표가 없어 0%입니다"}
+              </span>
             )}
             <span className="text-sm font-semibold tabular-nums text-slate-700">
               {goal.rollupProgress}%
@@ -1858,11 +1874,7 @@ export default async function Evaluation2Page({
             값 그대로**를 보여 준다. 개인목표에 펴 놓은 몫을 띄우면 30을 적었는데
             60으로 보여서 «내가 적은 게 아닌데»가 된다.
           */}
-          {(usesDerivedWeight(level) ? Math.round(goal.rollupWeight) : goal.weight) > 0 && (
-            <span>
-              가중치 {usesDerivedWeight(level) ? Math.round(goal.rollupWeight) : goal.weight}%
-            </span>
-          )}
+          {shownWeight > 0 && <span>가중치 {shownWeight}%</span>}
           {/*
             평가자는 조직도에서 따라 올라가 정한다 — 담당은 팀장, 팀장은 책임,
             책임은 운영책임. 목표를 세울 때 «누가 이걸 볼 것인가»가 보여야

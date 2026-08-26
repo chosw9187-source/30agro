@@ -147,6 +147,12 @@ export type GoalNode = GoalRow & {
    * 굴러 올라오므로 «완료»도 아래에서 따라온다(`deriveStatus`).
    */
   rollupStatus: GoalStatus;
+  /**
+   * 이 목표의 달성률을 실제로 떠받친 하위 목표의 수. 화면에서 «0%인 까닭»을
+   * 가리는 데 쓴다 — 하위가 없어서 0인 것과, 하위는 붙어 있는데 아직 아무도
+   * 진척을 안 올려서 0인 것은 완전히 다른 말이다.
+   */
+  rollupCounted: number;
 };
 
 /**
@@ -239,6 +245,7 @@ export function buildGoalTree(rows: GoalRow[]): GoalNode[] {
       rollupProgress: leafProgress(row),
       rollupWeight: shares.get(row.id) ?? row.weight,
       rollupStatus: row.status as GoalStatus,
+      rollupCounted: 0,
     });
   }
 
@@ -286,6 +293,7 @@ export function buildGoalTree(rows: GoalRow[]): GoalNode[] {
     } else {
       node.rollupProgress = leafProgress(node);
     }
+    node.rollupCounted = counted.length;
     node.rollupStatus = deriveStatus(node, counted.length);
     return node.rollupProgress;
   };
