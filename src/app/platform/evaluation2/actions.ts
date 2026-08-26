@@ -653,8 +653,49 @@ export async function lockGoalSetting(cycleId: string) {
     where: { id: cycleId },
     data: { goalsLockedAt: new Date(), goalsLockedById: session.user.id },
   });
+  await linkFollowUpCycles(cycleId);
   revalidatePath(PATH);
   revalidatePath(ADMIN_PATH);
+}
+
+/**
+ * 마감한 목표를 뒤 단계가 이어받게 잇는다 — 같은 해의 중간평가·최종평가다.
+ *
+ * 마감은 «이 목표로 평가한다»는 선언이고, 그 다음에 할 일은 곧바로 중간평가다.
+ * 그런데 잇는 것을 관리 화면에서 따로 눌러 줘야 했다면, 마감해 놓고도 중간평가는
+ * 비어 있는 채로 남는다. 마감할 때 한 번에 잇는다.
+ *
+ * 이미 어디를 보고 있는 단계(sourceCycleId가 있는)와 자기 목표를 따로 들고 있는
+ * 단계는 건드리지 않는다 — 남이 세워 둔 것을 마감 한 번으로 덮어쓰면 안 된다.
+ */
+async function linkFollowUpCycles(cycleId: string) {
+  const all = await prisma.goalCycle.findMany({
+    select: {
+      id: true,
+      name: true,
+      year: true,
+      sourceCycleId: true,
+      _count: { select: { goals: true } },
+    },
+  });
+  const me = all.find((c) => c.id === cycleId);
+  if (!me) return;
+
+  const myRank = cyclePhaseRank(me);
+  const targets = all.filter(
+    (c) =>
+      c.id !== cycleId &&
+      cycleYear(c) === cycleYear(me) &&
+      cyclePhaseRank(c) > myRank &&
+      !c.sourceCycleId &&
+      c._count.goals === 0
+  );
+  for (const target of targets) {
+    await prisma.goalCycle.update({
+      where: { id: target.id },
+      data: { sourceCycleId: cycleId },
+    });
+  }
 }
 
 /** 목표 마감을 푼다. */

@@ -45,6 +45,8 @@ import {
   GOAL_TYPES,
   GOAL_TYPE_BADGE_CLASS,
   cyclePhaseLabel,
+  cyclePhaseRank,
+  cycleYear,
   keyResultLines,
   scaleValues,
   toDateInputValue,
@@ -68,9 +70,11 @@ import {
   createGoal,
   createGoalYear,
   deleteGoal,
+  lockGoalSetting,
   reopenGoalAgreement,
   requestGoalAgreement,
   saveGoalSheetDuty,
+  unlockGoalSetting,
   returnGoalAgreement,
   seedCompanyGoalTemplate,
   setGoalDropped,
@@ -540,6 +544,20 @@ export default async function Evaluation2Page({
     무엇을 기준으로 매겨진 것인지 남지 않는다.
   */
   const waitingForSource = !!sharedFrom && !sharedFrom.goalsLockedAt;
+  /*
+    마감하면 무엇이 이어받는지 — 같은 해의 뒤 단계(중간평가·최종평가)다. 마감은
+    돌이키기 어려운 일처럼 느껴지므로, 무슨 일이 일어나는지를 누르기 전에 적어
+    둔다. 이 목표를 이미 이어받고 있는 단계와, 마감할 때 이어 붙일 단계를 함께
+    센다(`linkFollowUpCycles`).
+  */
+  const followUps = cycle
+    ? cycles.filter(
+        (c) =>
+          c.id !== cycle.id &&
+          cycleYear(c) === cycleYear(cycle) &&
+          cyclePhaseRank(c) > cyclePhaseRank(cycle)
+      )
+    : [];
   const tree = buildGoalTree(goalsWithTarget);
   const allNodes = flattenGoalTree(tree);
   const nodeById = new Map(allNodes.map((n) => [n.id, n]));
@@ -834,7 +852,9 @@ export default async function Evaluation2Page({
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2">
           <h1 className="text-sm font-bold whitespace-nowrap text-slate-900">
-            {cycle ? `${cycle.year}년 전사 목표` : "전사 목표"}
+            {/* 해는 이름을 먼저 믿는다 — 「2026년 중간평가」인데 기간이 2028년으로
+                들어가 있으면 표 머리에 «2028년»이 뜬다(`cycleYear`). */}
+            {cycle ? `${cycleYear(cycle)}년 전사 목표` : "전사 목표"}
           </h1>
           <div className="ml-auto flex items-center gap-3 whitespace-nowrap">
             {showsProgress && (
@@ -2438,11 +2458,63 @@ export default async function Evaluation2Page({
               {formatKSTDate(cycle.goalsLockedAt)} 마감
             </span>
           )}
-          {isAdmin && (
+          {/*
+            마감을 푸는 자리는 마감 안내 바로 옆이다 — «왜 못 고치지»를 읽은 그
+            자리에서 풀 수 있어야 한다. 관리 화면까지 건너가게 하면 그 사이에
+            무엇을 하러 갔는지를 잊는다.
+          */}
+          {isAdmin && cycle?.status !== "CLOSED" && cycle?.goalsLockedAt && (
+            <ActionForm
+              action={unlockGoalSetting.bind(null, cycle.id)}
+              successMessage="마감을 풀었습니다. 다시 목표를 고칠 수 있습니다."
+              confirmMessage="마감을 풀면 이 평가의 목표를 다시 고칠 수 있게 됩니다. 진행할까요?"
+              className="ml-2 inline-block align-middle"
+            >
+              <button
+                type="submit"
+                className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
+              >
+                마감 해제
+              </button>
+            </ActionForm>
+          )}
+          {isAdmin && cycle?.status === "CLOSED" && (
             <Link href="/admin/org-goals" className="ml-2 text-xs text-brand-green-dark underline">
-              {cycle?.status === "CLOSED" ? "관리 화면에서 되돌리기" : "관리 화면에서 마감 해제"}
+              관리 화면에서 되돌리기
             </Link>
           )}
+        </div>
+      )}
+
+      {/*
+        전체 마감. 목표를 다 세우고 나면 «이 목표로 평가한다»고 못을 박는 자리가
+        있어야 한다. 마감 전에는 누구든 목표를 고칠 수 있어서, 평가하는 도중에
+        목표가 바뀌면 그 점수가 무엇을 기준으로 매겨진 것인지 남지 않는다.
+        관리자에게만 보인다. 목표를 빌려다 보는 단계(중간평가·최종평가)에는
+        띄우지 않는다 — 마감할 것은 원본 한 벌뿐이다.
+      */}
+      {isAdmin && cycle && !sharedFrom && !cycle.goalsLockedAt && cycle.status !== "CLOSED" && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <span className="text-sm font-medium text-slate-800">목표 마감</span>
+          <span className="text-xs text-slate-500">
+            마감하면 이 평가의 목표는 관리자를 포함해 아무도 고칠 수 없습니다
+            {followUps.length > 0 &&
+              ` — 「${followUps.map((c) => c.name).join("」 · 「")}」가 이 목표를 그대로 이어받습니다`}
+            . 마감을 풀면 다시 고칠 수 있습니다.
+          </span>
+          <ActionForm
+            action={lockGoalSetting.bind(null, cycle.id)}
+            successMessage="목표를 마감했습니다."
+            confirmMessage="이 평가의 목표를 전체 마감할까요? 마감하면 아무도 목표를 고칠 수 없습니다."
+            className="ml-auto"
+          >
+            <button
+              type="submit"
+              className="rounded-md bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark"
+            >
+              전체 마감
+            </button>
+          </ActionForm>
         </div>
       )}
 
