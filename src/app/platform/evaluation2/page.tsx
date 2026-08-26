@@ -2486,11 +2486,19 @@ export default async function Evaluation2Page({
           {companyGoalBoard()}
 
           {isDashboard ? (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {DASHBOARD_LEVELS.map((level) => (
-                <LevelSummaryCard key={level} level={level} />
-              ))}
-            </div>
+            /*
+              층별 요약 카드는 «얼마나 굴러갔나»를 보는 자리다. 목표설정에서는
+              달성률이 없어 전체·완료·지연이 «N · 0 · 0»으로만 남는데, 건수는
+              탭 머리글이 이미 적고 있어 같은 말을 두 번 하는 칸이 된다.
+              중간평가·최종평가에서만 띄운다.
+            */
+            showsProgress && (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {DASHBOARD_LEVELS.map((level) => (
+                  <LevelSummaryCard key={level} level={level} />
+                ))}
+              </div>
+            )
           ) : (
             // key에 탭을 넣어 탭을 옮길 때마다 이 안을 새로 그린다. 안 그러면
             // React가 같은 자리의 등록 폼을 재사용해서, 개인목표에 쳐 넣던
