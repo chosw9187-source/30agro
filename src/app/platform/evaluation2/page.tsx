@@ -46,6 +46,7 @@ import {
   cyclePhaseLabel,
   cyclePhaseRank,
   cycleYear,
+  divisionOptions,
   evalPeriodLabel,
   usesEvaluation,
   keyResultLines,
@@ -117,25 +118,6 @@ function tabsFor(levels: GoalLevel[]) {
  * 어디까지 왔나»가 화면을 열자마자 읽힌다.
  */
 const DASHBOARD_LEVELS: GoalLevel[] = ["TEAM", "INDIVIDUAL"];
-
-/**
- * 책임 목록의 기준 순서. 보고서에 쓰는 순서 그대로다 — 가나다순으로 늘어놓으면
- * 실제 조직을 아는 사람 눈에는 뒤죽박죽으로 보인다.
- *
- * 조직도에 팀이 달려 있지 않은 책임(사업개발 등)은 팀 목록에서 유추할 수가
- * 없어서 이 목록이 없으면 책임목표를 세울 자리 자체가 사라진다. 그래서 여기
- * 적힌 것은 조직도에 없더라도 항상 고를 수 있게 둔다. 조직도나 기존 목표에만
- * 있는 이름은 이 뒤에 가나다순으로 붙는다.
- */
-const DIVISION_ORDER = [
-  "제품기획마케팅",
-  "영업고객관리",
-  "기술연구",
-  "생산",
-  "재무경영관리",
-  "사업개발",
-  "기타부서",
-];
 
 /** 층 식별색. globals.css의 --color-goal-* 와 같은 값을 가리킨다. */
 const LEVEL_COLOR: Record<GoalLevel, string> = {
@@ -655,21 +637,10 @@ export default async function Evaluation2Page({
       .sort((a, b) => (goalOrder.get(a.id) ?? 0) - (goalOrder.get(b.id) ?? 0));
   const companyGoals = byLevel("COMPANY");
 
-  const divisions = Array.from(
-    new Set([
-      ...DIVISION_ORDER,
-      ...teams.map((t) => t.division).filter((d): d is string => !!d),
-      ...goals.map((g) => g.division).filter((d): d is string => !!d),
-    ])
-  ).sort((a, b) => {
-    const ai = DIVISION_ORDER.indexOf(a);
-    const bi = DIVISION_ORDER.indexOf(b);
-    // 기준 순서에 없는 이름은 뒤로 밀고 자기들끼리 가나다순.
-    if (ai === -1 && bi === -1) return a.localeCompare(b);
-    if (ai === -1) return 1;
-    if (bi === -1) return -1;
-    return ai - bi;
-  });
+  const divisions = divisionOptions([
+    ...teams.map((t) => t.division),
+    ...goals.map((g) => g.division),
+  ]);
 
   const teamOptions = teams.map((t) => ({
     value: t.id,

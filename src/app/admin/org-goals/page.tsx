@@ -9,6 +9,8 @@ import {
   GOAL_STATUSES,
   GOAL_STATUS_LABEL,
   cycleLock,
+  divisionOptions,
+  flattenGoalTree,
   toDateInputValue,
   weightedProgress,
   buildGoalTree,
@@ -27,7 +29,14 @@ import {
   setGoalCycleStatus,
   unlockGoalSetting,
 } from "@/app/platform/evaluation2/actions";
-import { addOrgGoal, deleteOrgGoal, saveOrgGoals } from "./actions";
+import {
+  addDivisionGoal,
+  addOrgGoal,
+  deleteDivisionGoal,
+  deleteOrgGoal,
+  saveDivisionGoals,
+  saveOrgGoals,
+} from "./actions";
 import { CycleSelect } from "@/app/platform/evaluation2/cycle-select";
 import { ActionForm } from "@/components/action-form";
 
@@ -44,6 +53,8 @@ const CARD_CLASS = "rounded-xl border border-slate-200 bg-white shadow-sm";
 // 안에 들어가면 폼이 중첩된다(HTML에서 불가). 그래서 입력칸들은 form 속성으로
 // 이 id를 가리키게 두고, 저장 폼은 카드 바깥에 따로 세운다.
 const ORG_FORM_ID = "org-goals-form";
+/** 책임목표 표도 같은 이유로 저장 폼을 표 밖에 세운다. */
+const DIV_FORM_ID = "division-goals-form";
 
 export default async function OrgGoalsAdminPage({
   searchParams,
@@ -111,6 +122,14 @@ export default async function OrgGoalsAdminPage({
   // 여기서 본 숫자와 사용자가 보는 숫자가 어긋나지 않는다.
   const roots = buildGoalTree(goals);
   const orgGoals = roots.filter((g) => g.level === "COMPANY");
+  /*
+    책임목표는 전사목표와 팀목표 사이를 잇는 층이다. 일반 화면(평가2)에는 세우는
+    자리를 두지 않는다 — 한 해에 몇 건 만들고 마는 값이라 탭을 하나 더 두면 늘
+    비어 있는 탭이 하나 생긴다. 대신 여기, 전사목표를 세우는 자리 바로 아래에서
+    같이 관리한다.
+  */
+  const divisionGoals = flattenGoalTree(roots).filter((g) => g.level === "DIVISION");
+  const divisions = divisionOptions(goals.map((g) => g.division));
   const overall = orgGoals.length > 0 ? weightedProgress(orgGoals) : 0;
   const totalWeight = orgGoals.reduce((sum, g) => sum + (g.weight > 0 ? g.weight : 0), 0);
 
@@ -496,6 +515,184 @@ export default async function OrgGoalsAdminPage({
               </ActionForm>
             </section>
           )}
+
+          {/* 책임목표 — 전사목표 아래, 팀목표가 매달리는 자리. */}
+          <section className={`${CARD_CLASS} p-5`}>
+            <div className="flex flex-wrap items-baseline gap-3">
+              <h2 className="text-base font-semibold">책임목표</h2>
+              <span className="text-xs text-slate-500">
+                {divisionGoals.length}건 · 팀목표가 매달리는 자리입니다. 달성률은 팀목표에서 굴러
+                올라옵니다.
+              </span>
+            </div>
+
+            {divisionGoals.length === 0 ? (
+              <p className="mt-4 rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+                등록된 책임목표가 없습니다. 아래에서 추가해 주세요.
+              </p>
+            ) : (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[1040px] text-sm">
+                  <thead className="bg-slate-100 text-slate-600">
+                    <tr>
+                      {/* 제목 칸이 제일 넓어야 한다 — 나머지는 고른 값이라 좁아도 읽힌다. */}
+                      <th className="min-w-[260px] px-3 py-2 text-left text-xs font-semibold">
+                        목표
+                      </th>
+                      <th className="w-40 px-3 py-2 text-left text-xs font-semibold">책임</th>
+                      <th className="w-56 px-3 py-2 text-left text-xs font-semibold">
+                        상위 전사목표
+                      </th>
+                      <th className="w-36 px-3 py-2 text-left text-xs font-semibold">마감일</th>
+                      <th className="w-20 px-3 py-2 text-right text-xs font-semibold">달성률</th>
+                      <th className="w-20 px-3 py-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {divisionGoals.map((g, i) => (
+                      <tr key={g.id} className="border-t border-slate-100 align-top">
+                        <td className="px-3 py-2">
+                          <input
+                            name={`divTitle:${g.id}`}
+                            form={DIV_FORM_ID}
+                            defaultValue={g.title}
+                            disabled={!lock.canEditGoals}
+                            className={INPUT_CLASS}
+                          />
+                          {/* 순서는 지금 보이는 차례를 그대로 굳힌다. */}
+                          <input
+                            type="hidden"
+                            name={`divSortOrder:${g.id}`}
+                            form={DIV_FORM_ID}
+                            value={i + 1}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            name={`divDivision:${g.id}`}
+                            form={DIV_FORM_ID}
+                            defaultValue={g.division ?? ""}
+                            disabled={!lock.canEditGoals}
+                            className={INPUT_CLASS}
+                          >
+                            <option value="">미지정</option>
+                            {divisions.map((d) => (
+                              <option key={d} value={d}>
+                                {d}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            name={`divParent:${g.id}`}
+                            form={DIV_FORM_ID}
+                            defaultValue={g.parentId ?? ""}
+                            disabled={!lock.canEditGoals}
+                            className={INPUT_CLASS}
+                          >
+                            <option value="">연결 안 함</option>
+                            {orgGoals.map((o) => (
+                              <option key={o.id} value={o.id}>
+                                {o.title}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="date"
+                            name={`divDueDate:${g.id}`}
+                            form={DIV_FORM_ID}
+                            defaultValue={toDateInputValue(g.dueDate)}
+                            disabled={!lock.canEditGoals}
+                            className={INPUT_CLASS}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right text-sm font-semibold tabular-nums text-slate-700">
+                          {g.rollupProgress}%
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          {lock.canEditGoals && (
+                            <ActionForm
+                              action={deleteDivisionGoal.bind(null, g.id)}
+                              successMessage="삭제되었습니다."
+                              confirmMessage="이 책임목표를 지울까요? 딸린 팀목표는 남고 연결만 끊깁니다."
+                            >
+                              <button
+                                type="submit"
+                                className="rounded-md border border-red-200 px-2 py-1 text-xs whitespace-nowrap text-status-critical hover:bg-red-50"
+                              >
+                                삭제
+                              </button>
+                            </ActionForm>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {lock.canEditGoals && (
+              <>
+                {divisionGoals.length > 0 && (
+                  <ActionForm
+                    id={DIV_FORM_ID}
+                    action={saveDivisionGoals}
+                    successMessage="책임목표를 저장했습니다."
+                    className="mt-3"
+                  >
+                    <input type="hidden" name="cycleId" value={goalCycleId ?? cycle.id} />
+                    <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                      책임목표 저장
+                    </button>
+                  </ActionForm>
+                )}
+
+                <ActionForm
+                  action={addDivisionGoal}
+                  successMessage="책임목표를 추가했습니다."
+                  collapseOnSuccess
+                  className="mt-4 grid gap-3 border-t border-slate-100 pt-4 md:grid-cols-4"
+                >
+                  <input type="hidden" name="cycleId" value={goalCycleId ?? cycle.id} />
+                  <div>
+                    <label className={LABEL_CLASS}>목표</label>
+                    <input name="newDivTitle" required className={INPUT_CLASS} />
+                  </div>
+                  <div>
+                    <label className={LABEL_CLASS}>책임</label>
+                    <select name="newDivDivision" className={INPUT_CLASS}>
+                      <option value="">미지정</option>
+                      {divisions.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className={LABEL_CLASS}>상위 전사목표</label>
+                    <select name="newDivParent" className={INPUT_CLASS}>
+                      <option value="">연결 안 함</option>
+                      {orgGoals.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                      추가
+                    </button>
+                  </div>
+                </ActionForm>
+              </>
+            )}
+          </section>
 
           <section className={`${CARD_CLASS} p-5`}>
             <h2 className="text-base font-semibold">평가 시점</h2>

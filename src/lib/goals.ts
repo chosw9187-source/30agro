@@ -420,6 +420,38 @@ export type GoalViewer = {
  * 목표는 팀원이 손댈 것도, 자기 성과와 이어지는 것도 아니라서 탭만 늘린다.
  * 팀장·책임·운영책임·사장·관리자는 네 층을 다 본다.
  */
+/**
+ * 책임(부문) 목록의 기준 순서. 보고서에 쓰는 순서 그대로다 — 가나다순으로
+ * 늘어놓으면 실제 조직을 아는 사람 눈에는 뒤죽박죽으로 보인다.
+ *
+ * 조직도에 팀이 하나도 없는 책임(예: 사업개발)에도 목표는 걸린다. 그래서 여기
+ * 적힌 것은 조직도에 없더라도 항상 고를 수 있게 둔다. 조직도나 기존 목표에만
+ * 있는 이름은 이 뒤에 가나다순으로 붙는다.
+ */
+export const DIVISION_ORDER = [
+  "제품기획마케팅",
+  "영업고객관리",
+  "기술연구",
+  "생산",
+  "재무경영관리",
+  "사업개발",
+  "기타부서",
+];
+
+/** 기준 순서를 앞에 세우고, 조직도·목표에만 있는 이름을 그 뒤에 붙인다. */
+export function divisionOptions(extra: (string | null | undefined)[]): string[] {
+  return Array.from(
+    new Set([...DIVISION_ORDER, ...extra.filter((d): d is string => !!d)])
+  ).sort((a, b) => {
+    const ai = DIVISION_ORDER.indexOf(a);
+    const bi = DIVISION_ORDER.indexOf(b);
+    if (ai === -1 && bi === -1) return a.localeCompare(b);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+}
+
 export function visibleGoalLevels(viewer: { isAdmin: boolean; position: string }): GoalLevel[] {
   if (!viewer.isAdmin && viewer.position === "STAFF") return ["TEAM", "INDIVIDUAL"];
   return ["COMPANY", "TEAM", "INDIVIDUAL"];

@@ -103,6 +103,106 @@ export async function saveOrgGoals(formData: FormData) {
   revalidateBoth();
 }
 
+/**
+ * 책임목표 표를 통째로 저장한다. 전사목표와 같은 방식이다 — 줄마다 저장 단추를
+ * 두면 다섯 줄 고치는 데 다섯 번 눌러야 한다.
+ *
+ * 달성률·가중치는 없다. 책임목표의 숫자는 딸린 팀목표에서 굴러 올라오는 값이라
+ * 여기서 손으로 적을 자리를 두면 화면과 저장된 값이 어긋난다.
+ */
+export async function saveDivisionGoals(formData: FormData) {
+  await requireRole("ADMIN");
+
+  const cycleId = str(formData.get("cycleId"));
+  if (!cycleId) return;
+  await requireCycleUnlocked(cycleId);
+
+  const rows = await prisma.goal.findMany({
+    where: { cycleId, level: "DIVISION" },
+    select: { id: true },
+  });
+  // 상위로 걸 수 있는 건 이 사이클의 전사목표뿐이다. 폼에서 온 id를 그대로
+  // 믿으면 다른 해의 목표에 매달린 줄이 생긴다.
+  const parents = await prisma.goal.findMany({
+    where: { cycleId, level: "COMPANY" },
+    select: { id: true },
+  });
+  const parentIds = new Set(parents.map((p) => p.id));
+
+  await prisma.$transaction(
+    rows.map((row, i) => {
+      const parentId = str(formData.get(`divParent:${row.id}`));
+      return prisma.goal.update({
+        where: { id: row.id },
+        data: {
+          title: str(formData.get(`divTitle:${row.id}`)) || undefined,
+          division: str(formData.get(`divDivision:${row.id}`)) || null,
+          parentId: parentIds.has(parentId) ? parentId : null,
+          dueDate: parseDate(formData.get(`divDueDate:${row.id}`)),
+          sortOrder: parseNumber(formData.get(`divSortOrder:${row.id}`), i + 1),
+        },
+      });
+    })
+  );
+  revalidateBoth();
+}
+
+/** 책임목표 한 줄 추가. */
+export async function addDivisionGoal(formData: FormData) {
+  const session = await requireRole("ADMIN");
+
+  const cycleId = str(formData.get("cycleId"));
+  const title = str(formData.get("newDivTitle"));
+  if (!cycleId || !title) return;
+  await requireCycleUnlocked(cycleId);
+
+  const parentId = str(formData.get("newDivParent"));
+  const parent = parentId
+    ? await prisma.goal.findFirst({
+        where: { id: parentId, cycleId, level: "COMPANY" },
+        select: { id: true },
+      })
+    : null;
+
+  const last = await prisma.goal.findFirst({
+    where: { cycleId, level: "DIVISION" },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+
+  await prisma.goal.create({
+    data: {
+      cycleId,
+      level: "DIVISION",
+      title,
+      division: str(formData.get("newDivDivision")) || null,
+      parentId: parent?.id ?? null,
+      sortOrder: (last?.sortOrder ?? 0) + 1,
+      createdById: session.user.id,
+    },
+  });
+  revalidateBoth();
+}
+
+/**
+ * 책임목표 한 줄 삭제. 딸린 팀목표는 지우지 않고 부모 연결만 끊는다 — 실수로
+ * 아래 계층이 통째로 사라지지 않게.
+ */
+export async function deleteDivisionGoal(goalId: string) {
+  await requireRole("ADMIN");
+
+  const goal = await prisma.goal.findUnique({
+    where: { id: goalId },
+    select: { level: true, cycleId: true },
+  });
+  if (goal?.level !== "DIVISION") return;
+  await requireCycleUnlocked(goal.cycleId);
+
+  await prisma.goal.updateMany({ where: { parentId: goalId }, data: { parentId: null } });
+  await prisma.goal.delete({ where: { id: goalId } });
+  revalidateBoth();
+}
+
 /** 표 맨 아래에 한 줄 추가. */
 export async function addOrgGoal(formData: FormData) {
   const session = await requireRole("ADMIN");
