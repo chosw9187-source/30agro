@@ -543,7 +543,18 @@ export default async function Evaluation2Page({
   const tree = buildGoalTree(goalsWithTarget);
   const allNodes = flattenGoalTree(tree);
   const nodeById = new Map(allNodes.map((n) => [n.id, n]));
-  const byLevel = (level: GoalLevel) => allNodes.filter((n) => n.level === level);
+  /*
+    목록에 늘어놓는 순서는 **저장된 순서**를 그대로 따른다 — 관리자가 정한
+    sortOrder, 그다음 등록한 차례다. 트리를 훑은 순서로 늘어놓으면 상위 목표를
+    따라 뒤섞이고, 같은 자리에 놓인 것끼리는 이름순으로 갈려서 «방금 등록한
+    목표»가 예전에 적어 둔 목표들 사이에 끼어 들어간다. 새로 적은 것은 늘 맨
+    아래에 있어야 어디에 붙었는지 찾지 않는다.
+  */
+  const goalOrder = new Map(goals.map((g, i) => [g.id, i]));
+  const byLevel = (level: GoalLevel) =>
+    allNodes
+      .filter((n) => n.level === level)
+      .sort((a, b) => (goalOrder.get(a.id) ?? 0) - (goalOrder.get(b.id) ?? 0));
   const companyGoals = byLevel("COMPANY");
 
   const divisions = Array.from(

@@ -1062,6 +1062,22 @@ async function resolveGoalScope(
   return scope;
 }
 
+/**
+ * 새 목표가 앉을 자리. 그 사이클·그 층에서 가장 뒤 번호 다음이다.
+ *
+ * 예전에는 전부 0으로 저장해서, 늘어놓을 때 «같은 자리»가 되어 이름순으로
+ * 갈렸다. 그러면 방금 등록한 목표가 예전에 적어 둔 목표들 사이에 끼어 들어가서,
+ * 등록을 누르고도 어디에 붙었는지 찾아 헤매게 된다. 새로 적은 것은 늘 맨 뒤다.
+ */
+async function nextSortOrder(cycleId: string, level: GoalLevel): Promise<number> {
+  const last = await prisma.goal.findFirst({
+    where: { cycleId, level },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  return (last?.sortOrder ?? 0) + 1;
+}
+
 export async function createGoal(formData: FormData) {
   const session = await requireGoalModule();
 
@@ -1124,7 +1140,7 @@ export async function createGoal(formData: FormData) {
         : 0,
       status: statusFor(level, formData.get("status"), acting),
       dueDate: parseDate(formData.get("dueDate")),
-      sortOrder: parseNumber(formData.get("sortOrder"), 0),
+      sortOrder: parseNumber(formData.get("sortOrder"), await nextSortOrder(cycleId, level)),
       createdById: session.user.id,
     },
   });
