@@ -8,6 +8,7 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { activePrismaWhere } from "@/lib/hr-analytics";
 import { POSITION_LABEL } from "@/lib/permission-constants";
 import { buildEvaluatorMap, evaluatorLabel } from "@/lib/evaluator";
+import { CollapseAllButton } from "./collapse-all";
 import { formatKSTDate } from "@/lib/format-kst";
 import {
   GOAL_AGREEMENT_BADGE_CLASS,
@@ -1773,13 +1774,27 @@ export default async function Evaluation2Page({
         </div>
       ) : null;
 
+    /*
+      목표 한 건이 제목·달성률·Key Results·평가척도·합의·버튼까지 달고 있어서,
+      다섯 건만 쌓여도 한 화면에 안 들어온다. 카드를 접었다 펼 수 있게 해서
+      «무엇이 몇 %인지»만 훑을 때는 머리글 세 줄만 보이게 한다. 머리글(제목 ·
+      달성률 · 상위 · 가중치 · 피평가자)은 접어도 남는다 — 그게 목록을 훑는
+      이유이기 때문이다. 처음에는 펼쳐 둔다: 접힌 채로 열리면 «버튼이 사라졌다»가
+      된다. 고치는 중인 카드는 접히면 안 되므로 그때도 펼쳐 둔다.
+    */
     return (
-      <div
-        className={`${CARD_CLASS} border-l-2 p-4 ${GOAL_LEVEL_RAMP_BORDER[level]} ${
+      <details
+        data-goal-card
+        open
+        className={`group ${CARD_CLASS} border-l-2 p-4 ${GOAL_LEVEL_RAMP_BORDER[level]} ${
           goal.excluded || goal.targetExcluded ? "opacity-60" : ""
         }`}
       >
+        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
         <div className="flex flex-wrap items-center gap-2">
+          {/* 접힘 표시. 눌러서 펼치는 자리라는 걸 알려 주는 유일한 표시다. */}
+          <span className="select-none text-[10px] text-slate-400 group-open:hidden">▶</span>
+          <span className="hidden select-none text-[10px] text-slate-400 group-open:inline">▼</span>
           <LevelDot level={level} />
           <span className="text-sm font-medium text-slate-800">{goalTitle(goal)}</span>
           {/*
@@ -1874,7 +1889,9 @@ export default async function Evaluation2Page({
             «수정»을 눌러 폼에서 본다. 늦은 목표는 제목 옆 «지연» 배지가 알려 준다.
           */}
         </div>
+        </summary>
 
+        <div>
         {/*
           Key Results. 양식과 같이 ① ② ③ 으로 번호를 붙여 늘어놓는다 — 목표
           제목만으로는 "무엇을 해냈다고 볼지"가 안 보인다.
@@ -2065,10 +2082,16 @@ export default async function Evaluation2Page({
           </div>
         </div>
 
+        {/*
+          고침 폼. 저장하면 스스로 닫힌다(`successHref`) — 다 고치고 저장을
+          눌렀는데 긴 폼이 그대로 펼쳐져 있으면 저장이 됐는지도 헷갈리고,
+          목록으로 돌아오려면 «수정 닫기»를 또 찾아 눌러야 한다.
+        */}
         {isEditing && (
           <ActionForm
             action={updateGoal}
             successMessage="수정되었습니다."
+            successHref={buildHref({ edit: null })}
             className="mt-4 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-2"
           >
             <input type="hidden" name="goalId" value={goal.id} />
@@ -2084,7 +2107,8 @@ export default async function Evaluation2Page({
             </div>
           </ActionForm>
         )}
-      </div>
+        </div>
+      </details>
     );
   }
 
@@ -2121,7 +2145,7 @@ export default async function Evaluation2Page({
         (level === "TEAM" && teams.some((t) => t.leaderId === session!.user.id)));
 
     return (
-      <div className="flex flex-col gap-4">
+      <div data-goal-list className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <LevelDot level={level} />
           <h2 className="text-lg font-semibold">{GOAL_LEVEL_LABEL[level]}</h2>
@@ -2147,6 +2171,12 @@ export default async function Evaluation2Page({
               가중치 소계가 100%가 아닌 사람 {ownersOffTarget}명
             </span>
           )}
+          {/* 목록을 훑을 때는 머리글만 보면 된다 — 한 번에 접는 자리. */}
+          {rows.length > 0 && (
+            <span className="ml-auto">
+              <CollapseAllButton />
+            </span>
+          )}
         </div>
 
         {/*
@@ -2166,6 +2196,7 @@ export default async function Evaluation2Page({
             <ActionForm
               action={createGoal}
               successMessage="정상 등록되었습니다."
+              collapseOnSuccess
               className="mt-4 grid gap-3 md:grid-cols-2"
             >
               <input type="hidden" name="cycleId" value={goalCycleId ?? cycle.id} />
