@@ -1178,11 +1178,11 @@ export default async function Evaluation2Page({
     const formEvaluator = evaluatorByPerson.get(formOwnerId)?.first ?? null;
     const evaluatorLine = (
       <div className="md:col-span-2">
-        <label className={LABEL_CLASS}>평가자</label>
+        <label className={LABEL_CLASS}>1차 평가자</label>
         <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
           {formEvaluator
             ? `${evaluatorLabel(formEvaluator)} — 조직도에서 자동으로 정해집니다`
-            : "조직도에서 평가자를 찾지 못했습니다 (팀장·책임이 지정되어 있는지 확인해 주세요)"}
+            : "조직도에서 1차 평가자를 찾지 못했습니다 (팀장·책임이 지정되어 있는지 확인해 주세요)"}
         </p>
       </div>
     );
@@ -1808,7 +1808,9 @@ export default async function Evaluation2Page({
             적고 있고, 책임목표는 그 목표를 누가 평가하는지가 화면에서 할 일과
             이어지지 않아 줄만 길어졌다.
           */}
-          {level === "TEAM" && evaluator && <span>평가자: {evaluatorLabel(evaluator)}</span>}
+          {level === "TEAM" && evaluator && (
+            <span>1차 평가자: {evaluatorLabel(evaluator)}</span>
+          )}
           {/*
             이 줄에는 «상위 목표»와 «가중치»만 둔다. 지표·목표수준·현수준·산출식·
             마감일·하위 건수까지 늘어놓으면 한 줄이 화면을 가로질러서, 정작 이
