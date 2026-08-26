@@ -583,7 +583,7 @@ export default async function OrgGoalsAdminPage({
           <section className={`${CARD_CLASS} p-5`}>
             <h2 className="text-base font-semibold">목표 사이클</h2>
             <p className="mt-1 text-sm text-slate-500">
-              위·아래 화살표로 순서를 바꾸면 평가2 화면 오른쪽 위 선택 목록도 같은 순서가 됩니다.
+              위·아래 화살표로 순서를 바꾸면 평가2 화면 왼쪽 위 「인사평가」 목록도 같은 순서가 됩니다.
             </p>
             {/*
               연도 > 단계 두 층으로 묶는다. "2026년 목표설정 / 2026년 중간평가 /

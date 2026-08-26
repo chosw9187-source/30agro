@@ -2235,7 +2235,7 @@ export default async function Evaluation2Page({
         <section className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white py-24">
           <p className="text-base font-semibold text-slate-700">인사평가를 선택해 주세요</p>
           <p className="mt-1 text-sm text-slate-500">
-            오른쪽 위 목록에서 연도를 고르면 그 해의 전사 · 책임 · 팀 · 개인 목표가 보입니다.
+            왼쪽 위 「인사평가」 목록에서 연도를 고르면 그 해의 전사 · 책임 · 팀 · 개인 목표가 보입니다.
           </p>
           {cycles.length === 0 && (
             <p className="mt-4 text-xs text-slate-400">
