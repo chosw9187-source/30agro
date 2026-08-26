@@ -17,7 +17,7 @@ import {
 import {
   copyGoalsFromCycle,
   createGoalCheckpoint,
-  createGoalCycle,
+  createGoalYear,
   deleteGoalCheckpoint,
   deleteGoalCycle,
   lockGoalSetting,
@@ -201,47 +201,28 @@ export default async function OrgGoalsAdminPage({
         <section className={`${CARD_CLASS} p-5`}>
           <h2 className="text-base font-semibold">먼저 목표 사이클을 만드세요</h2>
           <p className="mt-1 text-sm text-slate-600">
-            조직 목표는 사이클(운영 기간) 안에 들어갑니다. 아래 값은 올해 기준으로 채워뒀습니다.
+            한 해의 평가는 목표설정 · 중간평가 · 최종평가 세 단계가 한 벌입니다. 연도만 넣으면 세 단계가 한 번에 만들어지고, 중간·최종평가는 목표설정의 목표를 이어받습니다. 기간은 만든 뒤 사이클 줄에서 고칠 수 있습니다.
           </p>
           <ActionForm
-            action={createGoalCycle}
-            successMessage="목표 사이클을 만들었습니다."
-            className="mt-4 grid gap-3 md:grid-cols-4"
+            action={createGoalYear}
+            successMessage="그 해의 세 단계를 만들었습니다."
+            className="mt-4 flex flex-wrap items-end gap-3"
           >
-            <div className="md:col-span-2">
-              <label className={LABEL_CLASS}>사이클명</label>
-              <input
-                name="name"
-                required
-                defaultValue={`${nextYear}년 상반기`}
-                className={INPUT_CLASS}
-              />
-            </div>
             <div>
-              <label className={LABEL_CLASS}>시작일</label>
+              <label className={LABEL_CLASS}>연도</label>
               <input
-                type="date"
-                name="startDate"
+                type="number"
+                name="year"
                 required
-                defaultValue={`${nextYear}-01-01`}
-                className={INPUT_CLASS}
+                min={2000}
+                max={2999}
+                defaultValue={nextYear}
+                className={`${INPUT_CLASS} w-32`}
               />
             </div>
-            <div>
-              <label className={LABEL_CLASS}>종료일</label>
-              <input
-                type="date"
-                name="endDate"
-                required
-                defaultValue={`${nextYear}-06-30`}
-                className={INPUT_CLASS}
-              />
-            </div>
-            <div className="md:col-span-4">
-              <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-                사이클 만들기
-              </button>
-            </div>
+            <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+              목표설정 · 중간평가 · 최종평가 만들기
+            </button>
           </ActionForm>
         </section>
       ) : (
@@ -732,59 +713,35 @@ export default async function OrgGoalsAdminPage({
             </div>
             ))}
 
+            {/*
+              한 해의 평가는 세 단계가 한 벌이라 연도 단위로 만든다. 예전처럼
+              이름·기간을 손으로 넣어 한 개씩 만들면 «목표설정만 있고 중간평가가
+              없는 해»가 조용히 남는다. 이미 있는 단계는 건드리지 않고 빠진 것만
+              채우므로, 목표설정만 있는 해에 눌러 나머지를 붙일 수 있다.
+            */}
             <ActionForm
-              action={createGoalCycle}
-              successMessage="목표 사이클을 추가했습니다."
-              className="mt-4 grid gap-3 border-t border-slate-200 pt-4 md:grid-cols-4"
+              action={createGoalYear}
+              successMessage="그 해의 빠진 단계를 만들었습니다."
+              className="mt-4 flex flex-wrap items-end gap-3 border-t border-slate-200 pt-4"
             >
-              <div className="md:col-span-2">
-                <label className={LABEL_CLASS}>새 사이클명</label>
-                <input
-                  name="name"
-                  required
-                  defaultValue={`${upcomingYear}년 목표설정`}
-                  className={INPUT_CLASS}
-                />
-              </div>
               <div>
-                <label className={LABEL_CLASS}>시작일</label>
+                <label className={LABEL_CLASS}>연도</label>
                 <input
-                  type="date"
-                  name="startDate"
+                  type="number"
+                  name="year"
                   required
-                  defaultValue={`${upcomingYear}-01-01`}
-                  className={INPUT_CLASS}
+                  min={2000}
+                  max={2999}
+                  defaultValue={upcomingYear}
+                  className={`${INPUT_CLASS} w-32`}
                 />
               </div>
-              <div>
-                <label className={LABEL_CLASS}>종료일</label>
-                <input
-                  type="date"
-                  name="endDate"
-                  required
-                  defaultValue={`${upcomingYear}-12-31`}
-                  className={INPUT_CLASS}
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className={LABEL_CLASS}>목표 공유 (선택)</label>
-                <select name="sourceCycleId" defaultValue="" className={INPUT_CLASS}>
-                  <option value="">자기 목표 사용</option>
-                  {cycles
-                    .filter((o) => !o.sourceCycleId)
-                    .map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.name}의 목표를 그대로 사용
-                      </option>
-                    ))}
-
-                </select>
-              </div>
-              <div className="md:col-span-4">
-                <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-                  사이클 추가
-                </button>
-              </div>
+              <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                목표설정 · 중간평가 · 최종평가 만들기
+              </button>
+              <span className="text-xs text-slate-500">
+                이미 있는 단계는 그대로 두고 빠진 것만 만듭니다.
+              </span>
             </ActionForm>
           </section>
         </>

@@ -830,18 +830,21 @@ export function allowsProgressInput(cycle: { name: string } | null | undefined):
 }
 
 /**
- * 목표설정 단계의 팀·개인 목표는 상태를 고르지 않는다 — 전부 «진행중»이다.
+ * 목표설정 단계에서는 상태를 고르지 않는다 — 전부 «진행중»이다.
  *
  * 목표를 세우는 자리에서 «작성중/진행중/중단»을 고르게 하면, 같은 시점에 세운
  * 목표가 사람마다 다른 상태로 남아 목록이 들쭉날쭉해진다. 무엇이 끝났고 무엇이
  * 접혔는지는 중간평가·최종평가에서 갈린다. 단계 이름을 못 알아본 사이클은
  * 여기서도 막지 않는다(`allowsProgressInput`과 같은 이유).
+ *
+ * 전사목표는 뺀다 — 관리자 화면에서 표를 채워 내려보내는 값이라 «작성중»으로
+ * 두고 다듬는 일이 있다.
  */
 export function usesFixedActiveStatus(
   level: string,
   cycle: { name: string } | null | undefined
 ): boolean {
-  if (level !== "TEAM" && level !== "INDIVIDUAL") return false;
+  if (level === "COMPANY") return false;
   return !!cycle && !allowsProgressInput(cycle);
 }
 

@@ -212,74 +212,94 @@ async function requireGoalEditable(goalId: string, kind: "goal" | "progress") {
 
 // --- 목표 사이클 -----------------------------------------------------------
 
-export async function createGoalCycle(formData: FormData) {
+/**
+ * 한 해의 평가 단계를 한 번에 만든다 — 목표설정 · 중간평가 · 최종평가.
+ *
+ * 예전에는 단계를 하나씩 손으로 만들었는데, 그러면 «2027년은 목표설정만 있고
+ * 중간평가가 없는» 상태가 조용히 남는다. 한 해의 평가는 세 단계가 한 벌이므로
+ * 만들 때도 한 벌로 만든다.
+ *
+ * **이미 있는 단계는 건드리지 않고 빠진 것만 채운다.** 목표설정만 있는 해에
+ * 이 버튼을 누르면 중간평가·최종평가 두 개만 붙고, 기존 목표설정과 그 안의
+ * 목표는 그대로다.
+ *
+ * 기간은 흔한 운영에 맞춰 미리 넣어 둔다(목표설정 상반기, 중간평가 하반기,
+ * 최종평가 이듬해 1월). 사이클 줄에서 그 자리에서 고칠 수 있다.
+ */
+export async function createGoalYear(formData: FormData) {
   await requireGoalModule();
   if (!(await isAdmin())) throw new Error("목표 사이클은 관리자만 만들 수 있습니다.");
 
-  const name = str(formData.get("name"));
-  const startDate = parseDate(formData.get("startDate"));
-  const endDate = parseDate(formData.get("endDate"));
-  if (!name || !startDate || !endDate) return;
+  const year = parseNumber(formData.get("year"), 0);
+  if (year < 2000 || year > 2999) throw new Error("연도를 확인해 주세요.");
 
-  // 연도는 이름 앞머리("2026년 …")를 먼저 본다. 기간에는 실수로 다른 해를 넣기
-  // 쉬운데, 그러면 화면에는 "2026년 중간평가"인데 시스템은 2028년으로 알게 되어
-  // 연도별 묶음이 통째로 어긋난다. 이름에 해가 없으면 시작일에서 떼어낸다 —
-  // Date의 getFullYear()는 서버 시간대를 타므로 문자열에서 자른다.
-  const year =
-    parseNameYear(name) ??
-    parseNumber(str(formData.get("startDate")).slice(0, 4), startDate.getFullYear());
+  const phases = [
+    { phase: "목표설정", start: `${year}-01-01`, end: `${year}-06-30` },
+    { phase: "중간평가", start: `${year}-07-01`, end: `${year}-12-31` },
+    { phase: "최종평가", start: `${year + 1}-01-01`, end: `${year + 1}-01-31` },
+  ];
 
-  const picked = str(formData.get("sourceCycleId"));
-  await prisma.goalCycle.create({
-    data: {
-      name,
-      year,
-      startDate,
-      endDate,
-      status: "OPEN",
-      sourceCycleId: picked
-        ? await resolveShareSource(picked, null)
-        : await previousPhaseSource({ name, year }),
-    },
+  const all = await prisma.goalCycle.findMany({
+    orderBy: GOAL_CYCLE_ORDER,
+    select: { id: true, name: true, year: true, sourceCycleId: true },
   });
+  const mine = all.filter((c) => cycleYear(c) === year);
+  const has = (rank: number) => mine.find((c) => cyclePhaseRank(c) === rank) ?? null;
+
+  // 그 해의 목표를 담는 사이클 — 목표설정이 있으면 그것, 없으면 이제 만든다.
+  let sourceId = has(1) ? (has(1)!.sourceCycleId ?? has(1)!.id) : null;
+  // 새로 붙는 단계는 이미 있는 사이클들 뒤에 세운다.
+  let sortOrder = all.length;
+  let made = 0;
+
+  for (const [i, p] of phases.entries()) {
+    if (has(i + 1)) continue;
+    sortOrder += 1;
+    const created = await prisma.goalCycle.create({
+      data: {
+        name: `${year}년 ${p.phase}`,
+        year,
+        startDate: new Date(p.start),
+        endDate: new Date(p.end),
+        status: "OPEN",
+        sortOrder,
+        // 중간·최종평가는 목표설정의 목표를 이어받는다.
+        sourceCycleId: i === 0 ? null : sourceId,
+      },
+      select: { id: true },
+    });
+    if (i === 0) sourceId = created.id;
+    made += 1;
+  }
+
+  if (made === 0) throw new Error(`${year}년 세 단계가 이미 모두 있습니다.`);
+
+  /*
+    그 해 단계를 목표설정 → 중간평가 → 최종평가 차례로 다시 세운다.
+    빠진 것만 채우다 보면 예전에 손으로 만든 단계와 순번이 뒤섞여서
+    «중간평가 · 최종평가 · 목표설정»처럼 읽히는 해가 생긴다. 그 해가 이미
+    쓰고 있던 순번 자리를 그대로 쓰므로 다른 해는 건드리지 않는다.
+  */
+  const rows = await prisma.goalCycle.findMany({
+    orderBy: GOAL_CYCLE_ORDER,
+    select: { id: true, name: true, year: true, sortOrder: true },
+  });
+  const groups = groupCyclesByYear(rows);
+  const flat = groups.flatMap((g) => g.items);
+  const list = groups.find((g) => g.year === year)?.items ?? [];
+  const slots = list.map((c) => flat.findIndex((a) => a.id === c.id) + 1);
+  const ordered = [...list].sort((a, b) => cyclePhaseRank(a) - cyclePhaseRank(b));
+  await prisma.$transaction(
+    ordered.map((c, i) =>
+      prisma.goalCycle.update({ where: { id: c.id }, data: { sortOrder: slots[i] } })
+    )
+  );
+
   revalidatePath(PATH);
   revalidatePath(ADMIN_PATH);
+  revalidatePath(TARGETS_PATH);
 }
 
-/**
- * 같은 해의 앞 단계에서 목표를 이어받는다.
- *
- * 한 해의 목표는 「목표설정」에서 한 벌 세우고, 중간평가·최종평가는 그것을
- * 그대로 이어서 본다 — 단계마다 목표를 새로 적게 하면 어느 것이 진짜인지가
- * 생기고, 중간에 고친 내용이 최종평가에 안 넘어간다. 새 단계를 만들 때 손으로
- * 「목표 공유」를 고르지 않아도 앞 단계가 자동으로 잡히게 한다 — 고르는 걸
- * 잊으면 빈 화면이 열리는데, 왜 비었는지는 화면에 안 적혀 있다.
- *
- * 사슬은 한 단계만 허용하므로(`resolveShareSource`) 앞 단계가 이미 남의 목표를
- * 빌려 쓰고 있으면 그 원본을 가리킨다. 그래서 중간평가도 최종평가도 결국
- * 「목표설정」 한 곳을 본다.
- */
-async function previousPhaseSource(me: { name: string; year: number }): Promise<string | null> {
-  const myRank = cyclePhaseRank(me);
-  // 목표설정(1단계)은 이어받을 앞 단계가 없다. 이름을 못 알아본 사이클(9)도
-  // 섣불리 남의 목표에 붙이지 않는다.
-  if (myRank !== 2 && myRank !== 3) return null;
-
-  const sameYear = (
-    await prisma.goalCycle.findMany({
-      orderBy: GOAL_CYCLE_ORDER,
-      select: { id: true, name: true, year: true, sourceCycleId: true },
-    })
-  ).filter((c) => cycleYear(c) === cycleYear(me));
-
-  // 나보다 앞선 단계 중 가장 가까운 것.
-  const earlier = sameYear
-    .map((c) => ({ c, rank: cyclePhaseRank(c) }))
-    .filter((x) => x.rank < myRank)
-    .sort((a, b) => b.rank - a.rank);
-  const prev = earlier[0]?.c;
-  return prev ? (prev.sourceCycleId ?? prev.id) : null;
-}
 
 /**
  * 목표를 빌려올 사이클을 확인한다. 빈 값이면 자기 목표를 쓴다는 뜻이다.
@@ -396,7 +416,7 @@ export async function renameGoalCycle(formData: FormData) {
     where: { id: cycleId },
     data: {
       name,
-      // 연도는 이름 앞머리를 먼저 본다(위 createGoalCycle과 같은 이유). 이름에도
+      // 연도는 이름 앞머리를 먼저 본다 — 기간에는 실수로 다른 해를 넣기 쉽다. 이름에도
       // 시작일에도 해가 없으면 지금 값을 그대로 둔다 — 0으로 덮어쓰면 "0년"이 된다.
       ...(resolvedYear !== null ? { year: resolvedYear } : {}),
       ...(startDate ? { startDate } : {}),
@@ -1361,6 +1381,40 @@ export async function reopenGoalAgreement(goalId: string) {
  * 조직의 성과로 보기 어려울 때 쓴다. 목표를 지우면 왜 빠졌는지가 같이
  * 사라지므로, 삭제 대신 제외 플래그를 켜고 사유를 남긴다.
  */
+/**
+ * 목표를 중단(또는 중단 해제)한다. **관리자만.**
+ *
+ * 연중에 접은 목표를 남겨 두면 «달성 못 한 목표»로 계속 세어져 팀 달성률을
+ * 끌어내린다. 중단으로 두면 집계에서 통째로 빠진다(`countsTowardProgress`).
+ *
+ * 목표를 확정(마감)한 뒤에도 할 수 있어야 한다 — 접히는 건 대개 마감 이후
+ * 연중에 벌어지는 일이다. 그래서 목표 내용 잠금(`canEditGoals`)이 아니라
+ * 진척 잠금(`canEditProgress`)을 본다. 사이클을 완료 처리하면 그때는 막힌다.
+ */
+export async function setGoalDropped(goalId: string, dropped: boolean) {
+  await requireGoalModule();
+  if (!(await isAdmin())) throw new Error("중단 처리는 관리자만 할 수 있습니다.");
+  await requireGoalEditable(goalId, "progress");
+
+  const goal = await prisma.goal.findUnique({
+    where: { id: goalId },
+    select: { level: true, status: true },
+  });
+  if (!goal) return;
+
+  /*
+    중단을 풀면 «진행중»으로 되돌린다. 원래 상태를 기억해 두었다가 되살리지
+    않는 이유는, 접기 전 상태가 «작성중»이었더라도 다시 굴러가기 시작하는
+    시점에는 진행중이 맞기 때문이다. 완료 여부는 어차피 달성률에서 따라온다.
+  */
+  await prisma.goal.update({
+    where: { id: goalId },
+    data: { status: dropped ? "DROPPED" : "ACTIVE" },
+  });
+  revalidatePath(PATH);
+  revalidatePath(ADMIN_PATH);
+}
+
 export async function setGoalExcluded(
   goalId: string,
   excluded: boolean,

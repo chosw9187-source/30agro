@@ -65,13 +65,14 @@ import {
   addGoalCheckIn,
   approveGoalAgreement,
   createGoal,
-  createGoalCycle,
+  createGoalYear,
   deleteGoal,
   reopenGoalAgreement,
   requestGoalAgreement,
   saveGoalSheetDuty,
   returnGoalAgreement,
   seedCompanyGoalTemplate,
+  setGoalDropped,
   setGoalExcluded,
   updateGoal,
 } from "./actions";
@@ -1925,17 +1926,42 @@ export default async function Evaluation2Page({
             </ActionForm>
           )}
           {/*
-            고치고 지우는 버튼은 오른쪽 끝에 모은다 — 왼쪽은 «지금 어떤 상태인가»
-            (합의·진척)를 읽는 자리이고, 오른쪽은 «내가 무엇을 할 수 있나»를
-            누르는 자리다. 섞여 있으면 읽는 도중에 버튼이 끼어든다.
+            누르는 버튼은 오른쪽 끝에 한 덩어리로 모은다 — 왼쪽은 «지금 어떤
+            상태인가»(합의·진척)를 읽는 자리이고, 오른쪽은 «내가 무엇을 할 수
+            있나»를 누르는 자리다. 섞여 있으면 읽는 도중에 버튼이 끼어든다.
+            버튼마다 ml-auto를 붙이면 어떤 버튼이 보이느냐에 따라 줄이 갈라지므로
+            묶음 하나에만 붙인다.
           */}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
           {editable && (
             <Link
               href={buildHref({ edit: isEditing ? null : goal.id })}
-              className="ml-auto rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
+              className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
             >
               {isEditing ? "수정 닫기" : "수정"}
             </Link>
+          )}
+          {/*
+            중단 처리 — 연중에 접은 목표를 남겨 두면 «달성 못 한 목표»로 계속
+            세어져 팀 달성률을 끌어내린다. 목표를 확정(마감)한 뒤에도 눌러야
+            하므로 내용 잠금이 아니라 진척 잠금을 따른다. 목표설정 단계에는
+            띄우지 않는다 — 아직 시작도 안 한 목표를 접을 일은 없다.
+          */}
+          {isAdmin && canWriteProgress && lock.canEditProgress && (
+            <ActionForm
+              action={setGoalDropped.bind(null, goal.id, goal.status !== "DROPPED")}
+              successMessage={
+                goal.status === "DROPPED" ? "중단을 해제했습니다." : "중단 처리했습니다."
+              }
+
+            >
+              <button
+                type="submit"
+                className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
+              >
+                {goal.status === "DROPPED" ? "중단 해제" : "중단 처리"}
+              </button>
+            </ActionForm>
           )}
           {canExclude() && lock.canEditProgress && (
             <ActionForm
@@ -1970,6 +1996,7 @@ export default async function Evaluation2Page({
               </button>
             </ActionForm>
           )}
+          </div>
         </div>
 
         {isEditing && (
@@ -2135,15 +2162,11 @@ export default async function Evaluation2Page({
 
   // ---- 렌더 ---------------------------------------------------------------
 
-  // 사이클이 없을 때 폼에 미리 채워둘 값. 상·하반기 중 오늘이 속한 쪽을
-  // 기본으로 잡아서, 관리자가 날짜를 손으로 안 넣어도 바로 만들 수 있게 한다.
+  // 사이클이 하나도 없을 때 폼에 미리 채워둘 연도. 한 해의 평가는 세 단계가
+  // 한 벌이라 연도만 넣으면 되고, 기간은 서버가 상·하반기로 나눠 넣는다.
   const thisYear = Number(
     new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric" }).format(now)
   );
-  const firstHalf = Number(toDateInputValue(now).slice(5, 7)) <= 6;
-  const defaultCycle = firstHalf
-    ? { name: `${thisYear}년 상반기`, startDate: `${thisYear}-01-01`, endDate: `${thisYear}-06-30` }
-    : { name: `${thisYear}년 하반기`, startDate: `${thisYear}-07-01`, endDate: `${thisYear}-12-31` };
 
   // 사이클이 하나도 없을 때만 이 첫 실행 화면을 보여준다. "아직 안 고른 것"과
   // "아예 없는 것"은 다르다 — 안 고른 상태는 아래 본문에서 선택을 안내한다.
@@ -2155,53 +2178,30 @@ export default async function Evaluation2Page({
           <p className="text-sm text-slate-600">
             등록된 목표 사이클이 없습니다.{" "}
             {isAdmin
-              ? "사이클을 하나 만들면 그 안에 전사 · 책임 · 팀 · 개인목표를 등록할 수 있습니다. 아래 값은 올해 기준으로 미리 채워뒀으니 그대로 만드셔도 됩니다."
+              ? "연도를 넣으면 목표설정 · 중간평가 · 최종평가 세 단계가 한 번에 만들어집니다. 그 안에 전사 · 책임 · 팀 · 개인목표를 등록합니다."
               : "관리자가 사이클을 열면 목표를 등록할 수 있습니다."}
           </p>
           {isAdmin && (
             <ActionForm
-              action={createGoalCycle}
-              successMessage="목표 사이클을 만들었습니다."
-              className="mt-4 grid gap-3 md:grid-cols-4"
+              action={createGoalYear}
+              successMessage="그 해의 세 단계를 만들었습니다."
+              className="mt-4 flex flex-wrap items-end gap-3"
             >
-              <div className="md:col-span-2">
-                <label className={LABEL_CLASS}>사이클명</label>
-                <input
-                  name="name"
-                  required
-                  defaultValue={defaultCycle.name}
-                  className={INPUT_CLASS}
-                />
-              </div>
               <div>
-                <label className={LABEL_CLASS}>시작일</label>
+                <label className={LABEL_CLASS}>연도</label>
                 <input
-                  type="date"
-                  name="startDate"
+                  type="number"
+                  name="year"
                   required
-                  defaultValue={defaultCycle.startDate}
-                  className={INPUT_CLASS}
+                  min={2000}
+                  max={2999}
+                  defaultValue={thisYear}
+                  className={`${INPUT_CLASS} w-32`}
                 />
               </div>
-              <div>
-                <label className={LABEL_CLASS}>종료일</label>
-                <input
-                  type="date"
-                  name="endDate"
-                  required
-                  defaultValue={defaultCycle.endDate}
-                  className={INPUT_CLASS}
-                />
-              </div>
-              <div className="md:col-span-4">
-                <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-                  사이클 만들기
-                </button>
-                <p className="mt-2 text-xs text-slate-500">
-                  만들고 나면 상단 전사목표 표에서 「조직 단위별 목표 양식으로 채우기」 버튼으로
-                  다섯 줄을 한 번에 넣을 수 있습니다.
-                </p>
-              </div>
+              <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                목표설정 · 중간평가 · 최종평가 만들기
+              </button>
             </ActionForm>
           )}
         </div>
