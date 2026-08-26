@@ -1114,7 +1114,13 @@ export default async function Evaluation2Page({
   }
 
   function LevelSummaryCard({ level }: { level: GoalLevel }) {
-    const nodes = byLevel(level);
+    /*
+      요약 카드도 **그 사람이 볼 수 있는 범위**만 센다. 목록에서는 남의 개인목표를
+      가려 놓고 여기서 전사 건수와 평균을 띄우면, 가려 놓은 것을 숫자로 흘리는
+      셈이다. 담당은 자기 것, 팀장은 자기 팀, 관리자는 전부 — 아래 탭에서 실제로
+      열리는 목록과 같은 범위여야 두 화면이 한 이야기를 한다.
+    */
+    const nodes = visibleRows(byLevel(level));
     const counted = nodes.filter(countsTowardProgress);
     const done = nodes.filter((g) => g.rollupStatus === "DONE" && !g.excluded).length;
     const overdue = nodes.filter((g) => isOverdue(g, now) && !g.excluded).length;
