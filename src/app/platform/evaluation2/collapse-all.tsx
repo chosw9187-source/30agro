@@ -15,7 +15,8 @@ import { useRef, useState } from "react";
  */
 export function CollapseAllButton() {
   const ref = useRef<HTMLButtonElement>(null);
-  const [collapsed, setCollapsed] = useState(false);
+  // 카드는 접힌 채로 열린다 — 그래서 이 단추도 «모두 펼치기»에서 시작한다.
+  const [collapsed, setCollapsed] = useState(true);
 
   return (
     <button

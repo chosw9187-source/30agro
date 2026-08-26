@@ -2033,17 +2033,16 @@ export default async function Evaluation2Page({
       ) : null;
 
     /*
-      목표 한 건이 제목·달성률·Key Results·평가척도·합의·버튼까지 달고 있어서,
-      다섯 건만 쌓여도 한 화면에 안 들어온다. 카드를 접었다 펼 수 있게 해서
-      «무엇이 몇 %인지»만 훑을 때는 머리글 세 줄만 보이게 한다. 머리글(제목 ·
-      달성률 · 상위 · 가중치 · 피평가자)은 접어도 남는다 — 그게 목록을 훑는
-      이유이기 때문이다. 처음에는 펼쳐 둔다: 접힌 채로 열리면 «버튼이 사라졌다»가
-      된다. 고치는 중인 카드는 접히면 안 되므로 그때도 펼쳐 둔다.
+      목표 한 건이 제목·달성률·Key Results·평가척도·버튼까지 달고 있어서, 다섯
+      건만 쌓여도 한 화면에 안 들어온다. **처음에는 접어 둔다** — 목록은 «무엇이
+      몇 %인지»를 훑는 자리이고, 손댈 카드만 펴면 된다. 접어도 머리글 한 줄(제목 ·
+      상위 · 가중치 · 피평가자 · 달성률)은 남는다: 그게 목록을 훑는 이유다.
+      고치는 중인 카드는 접히면 안 되므로 그때만 펼쳐 둔다.
     */
     return (
       <details
         data-goal-card
-        open
+        open={isEditing || undefined}
         className={`group ${CARD_CLASS} border-l-2 p-4 ${GOAL_LEVEL_RAMP_BORDER[level]} ${
           goal.excluded || goal.targetExcluded ? "opacity-60" : ""
         }`}
@@ -2062,11 +2061,6 @@ export default async function Evaluation2Page({
             이름은 남긴다 — 여러 팀·여러 사람 것이 한 목록에 섞여 나오므로 그건
             누구 목표인지 가려 주는 유일한 표시다.
           */}
-          {/*
-            누구 목표인지는 제목 옆이 아니라 아래 «상위 · 가중치 · 피평가자»
-            줄에서 읽는다. 제목 옆에 이름만 덩그러니 붙어 있으면 그게 담당자인지
-            평가자인지 가릴 수가 없다.
-          */}
           <StatusBadge status={goal.rollupStatus} />
           {isOverdue(goal, now) && <OverdueBadge />}
           {needsAgreement(goal.level) && <AgreementBadge status={goal.agreementStatus} />}
@@ -2084,6 +2078,31 @@ export default async function Evaluation2Page({
             <ExcludedBadge reason={goal.targetExcludeReason ?? "평가대상 아님"} />
           )}
           {flag && !goal.excluded && !goal.targetExcluded && <OwnerFlagBadge label={flag.label} />}
+          {/*
+            «상위 · 가중치 · 피평가자»는 제목 옆에 붙인다. 아래 줄로 내려 두면 한
+            카드가 두 줄이 되어, 목록을 훑을 때 눈이 줄마다 두 번 꺾인다. 이 줄에
+            더 넣지 않는다 — 지표·목표수준·마감일까지 늘어놓으면 정작 목표 이름이
+            밀린다. 자세한 값은 카드를 펴서 본다.
+          */}
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-normal text-slate-500">
+            {parent && (
+              <span>
+                상위: {parent.title} ({GOAL_LEVEL_LABEL[parent.level as GoalLevel]})
+              </span>
+            )}
+            {!parent && parentLevel && (
+              <span className="text-status-critical">상위 목표 미연결</span>
+            )}
+            {shownWeight > 0 && <span>가중치 {shownWeight}%</span>}
+            {level === "INDIVIDUAL" && subject && <span>피평가자: {evaluatorLabel(subject)}</span>}
+            {level === "TEAM" && evaluator && <span>1차 평가자: {evaluatorLabel(evaluator)}</span>}
+            {/*
+              사슬이 사장까지 올라갔다면 조직도 어딘가가 비어 있다는 뜻이다.
+            */}
+            {level === "TEAM" && subjectEval?.note && (
+              <span className="text-status-critical">{subjectEval.note}</span>
+            )}
+          </span>
           <span className="ml-auto flex items-center gap-2">
             {/*
               «왜 0%인지»는 숫자 바로 옆에 있어야 읽힌다. 아래 버튼 줄에 두면
@@ -2122,47 +2141,6 @@ export default async function Evaluation2Page({
         */}
         <div className="mt-2">
           <Meter value={showsProgress ? goal.rollupProgress : 0} size="md" />
-        </div>
-
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-          {parent && (
-            <span>
-              상위: {parent.title} ({GOAL_LEVEL_LABEL[parent.level as GoalLevel]})
-            </span>
-          )}
-          {!parent && parentLevel && <span className="text-status-critical">상위 목표 미연결</span>}
-          {/*
-            팀목표는 굴려 올린 몫(사람 수 × 100)을, 개인목표는 **사람이 적어 넣은
-            값 그대로**를 보여 준다. 개인목표에 펴 놓은 몫을 띄우면 30을 적었는데
-            60으로 보여서 «내가 적은 게 아닌데»가 된다.
-          */}
-          {shownWeight > 0 && <span>가중치 {shownWeight}%</span>}
-          {/*
-            평가자는 조직도에서 따라 올라가 정한다 — 담당은 팀장, 팀장은 책임,
-            책임은 운영책임. 목표를 세울 때 «누가 이걸 볼 것인가»가 보여야
-            무엇을 어디까지 적을지 정할 수 있다.
-          */}
-          {/*
-            평가자는 팀목표에만 적는다. 개인목표는 목록 맨 위 «기본정보»가 이미
-            적고 있고, 책임목표는 그 목표를 누가 평가하는지가 화면에서 할 일과
-            이어지지 않아 줄만 길어졌다.
-          */}
-          {level === "INDIVIDUAL" && subject && <span>피평가자: {evaluatorLabel(subject)}</span>}
-          {level === "TEAM" && evaluator && <span>1차 평가자: {evaluatorLabel(evaluator)}</span>}
-          {/*
-            사슬이 사장까지 올라갔다면 조직도 어딘가가 비어 있다는 뜻이다. 그
-            말을 여기 적어야 «왜 팀장 평가자가 사장이지»가 «조직도에 이 자리가
-            비었구나»로 읽힌다.
-          */}
-          {level === "TEAM" && subjectEval?.note && (
-            <span className="text-status-critical">{subjectEval.note}</span>
-          )}
-          {/*
-            이 줄에는 «상위 목표»와 «가중치»만 둔다. 지표·목표수준·현수준·산출식·
-            마감일·하위 건수까지 늘어놓으면 한 줄이 화면을 가로질러서, 정작 이
-            목표가 무엇에 딸려 있고 얼마나 무거운지가 안 읽힌다. 자세한 값은
-            «수정»을 눌러 폼에서 본다. 늦은 목표는 제목 옆 «지연» 배지가 알려 준다.
-          */}
         </div>
         </summary>
 
