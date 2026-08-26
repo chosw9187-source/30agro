@@ -316,6 +316,35 @@ function OwnerFlagBadge({ label }: { label: string }) {
  * 줄이 «기타»라는 옛 이름으로 저장돼 있어서, 읽을 때 지금 이름으로 맞춘다 —
  * 저장된 값을 건드리지 않고도 화면이 한 가지 이름으로 읽힌다.
  */
+/**
+ * 상반기·하반기 묶음의 색. 제목 글씨만 굵게 해서는 목표가 여러 건 쌓이면 어디서
+ * 반기가 갈리는지 안 보인다 — 묶음마다 테두리를 두르고 바탕색을 달리해서, 스크롤
+ * 중에도 «지금 하반기 것을 보는 중»이 한눈에 읽히게 한다.
+ */
+const HALF_TONE: Record<string, { border: string; panel: string; head: string; text: string; badge: string }> = {
+  상반기: {
+    border: "border-brand-green/30",
+    panel: "bg-brand-green-light/40",
+    head: "bg-brand-green-light",
+    text: "text-brand-green-dark",
+    badge: "bg-brand-green text-white",
+  },
+  하반기: {
+    border: "border-goal-3/30",
+    panel: "bg-amber-50/60",
+    head: "bg-amber-100/70",
+    text: "text-goal-3",
+    badge: "bg-goal-3 text-white",
+  },
+  [HALF_UNSET]: {
+    border: "border-slate-200",
+    panel: "bg-slate-50",
+    head: "bg-slate-100",
+    text: "text-slate-600",
+    badge: "bg-slate-400 text-white",
+  },
+};
+
 function goalTitle(goal: { title: string; isOther?: boolean }): string {
   return goal.isOther ? OTHER_GOAL_TITLE : goal.title;
 }
@@ -2168,23 +2197,37 @@ export default async function Evaluation2Page({
             눈으로 골라내야 한다. 아직 반기를 정하지 않은 예전 목표는 맨 아래
             «미지정»으로 모인다 — 숨기면 어디로 갔는지 알 수 없다.
           */
-          <div className="flex flex-col gap-5">
-            {groupByHalf(rows).map((group) => (
-              <div key={group.half} className="flex flex-col gap-3">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold text-slate-700">
-                    {group.half === HALF_UNSET ? "구분 미지정" : `${group.half} 목표`}
-                  </h3>
-                  <span className="text-xs text-slate-500">{group.items.length}건</span>
-                  <span className="text-xs text-slate-500">
-                    평균 달성률 {averageProgress(group.items)}%
-                  </span>
-                </div>
-                {group.items.map((g) => (
-                  <GoalRowCard key={g.id} goal={g} />
-                ))}
-              </div>
-            ))}
+          <div className="flex flex-col gap-6">
+            {groupByHalf(rows).map((group) => {
+              const tone = HALF_TONE[group.half] ?? HALF_TONE[HALF_UNSET];
+              return (
+                <section
+                  key={group.half}
+                  className={`overflow-hidden rounded-xl border ${tone.border} ${tone.panel}`}
+                >
+                  <header
+                    className={`flex flex-wrap items-center gap-2 border-b ${tone.border} ${tone.head} px-4 py-2.5`}
+                  >
+                    <h3 className={`text-sm font-semibold ${tone.text}`}>
+                      {group.half === HALF_UNSET ? "구분 미지정" : `${group.half} 목표`}
+                    </h3>
+                    <span
+                      className={`rounded-full ${tone.badge} px-2 py-0.5 text-[11px] font-medium tabular-nums`}
+                    >
+                      {group.items.length}건
+                    </span>
+                    <span className="text-xs text-slate-600">
+                      평균 달성률 {averageProgress(group.items)}%
+                    </span>
+                  </header>
+                  <div className="flex flex-col gap-3 p-3">
+                    {group.items.map((g) => (
+                      <GoalRowCard key={g.id} goal={g} />
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
           </div>
         ) : (
           <div className="flex flex-col gap-3">
