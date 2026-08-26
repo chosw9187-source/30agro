@@ -409,10 +409,9 @@ export default async function Evaluation2Page({
         position: true,
         teamId: true,
         employeeNumber: true,
-        jobFamily: true,
         division: true,
         businessUnit: true,
-        team: { select: { name: true, division: true } },
+        team: { select: { name: true } },
       },
     }),
   ]);
@@ -568,9 +567,6 @@ export default async function Evaluation2Page({
   const mySelf = people.find((p) => p.id === session!.user.id) ?? null;
   const myEvaluator = evaluatorByPerson.get(session!.user.id) ?? null;
   const mySecondEvaluator = myEvaluator ? (evaluatorByPerson.get(myEvaluator.id) ?? null) : null;
-  const myTeamText = [mySelf?.team?.division ?? mySelf?.division, mySelf?.team?.name]
-    .filter(Boolean)
-    .join(" / ");
 
   const personOptions = people.map((p) => ({
     value: p.id,
@@ -989,23 +985,29 @@ export default async function Evaluation2Page({
           <table className="w-full min-w-[46rem] border-collapse text-xs">
             <tbody>
               <tr className="border-b border-slate-100">
-                <th rowSpan={3} className={`${cellHead} w-20 text-center align-middle`}>
-                  본인
+                {/* «본인»이 아니라 «피평가자» — 평가자와 짝이 맞는 말이라야
+                    누가 누구를 보는지가 표 한 장에서 읽힌다. */}
+                <th rowSpan={3} className={`${cellHead} w-24 text-center align-middle`}>
+                  피평가자
                 </th>
                 <th className={`${cellHead} w-20`}>성명</th>
                 <td className={`${cellBody} w-40`}>{mySelf?.name ?? "-"}</td>
-                <th className={`${cellHead} w-28`}>소속 책임/팀</th>
-                <td className={cellBody}>{myTeamText || "-"}</td>
+                <th className={`${cellHead} w-24`}>소속팀</th>
+                <td className={cellBody}>{mySelf?.team?.name ?? "-"}</td>
               </tr>
               <tr className="border-b border-slate-100">
                 <th className={cellHead}>직위</th>
                 <td className={cellBody}>{mySelf ? POSITION_LABEL[mySelf.position] : "-"}</td>
+                <th className={cellHead}>사번</th>
+                <td className={cellBody}>{mySelf?.employeeNumber ?? "-"}</td>
+              </tr>
+              <tr className="border-b border-slate-100">
                 <th className={cellHead}>담당업무</th>
-                <td className={cellBody}>
+                <td className={cellBody} colSpan={3}>
                   {/*
                     담당업무는 자동으로 끌어오지 않는다 — 그 해 자기가 무엇을
-                    맡았는지 본인이 적는 문장이라 인사카드에 두면 매번 인사팀을
-                    거쳐야 한다. 여기서 바로 적고 저장한다.
+                    맡았는지 적는 문장이라 인사카드에 두면 매번 인사팀을 거쳐야
+                    한다. 여기서 바로 적고 저장한다.
                   */}
                   <ActionForm
                     action={saveGoalSheetDuty}
@@ -1018,7 +1020,7 @@ export default async function Evaluation2Page({
                       defaultValue={myDuty}
                       placeholder="예: 인사 기획/보상평가"
                       aria-label="담당업무"
-                      className="w-full max-w-xs rounded border border-slate-300 px-2 py-1 text-xs focus:border-brand-green focus:outline-none"
+                      className="w-full max-w-md rounded border border-slate-300 px-2 py-1 text-xs focus:border-brand-green focus:outline-none"
                     />
                     <button
                       type="submit"
@@ -1028,12 +1030,6 @@ export default async function Evaluation2Page({
                     </button>
                   </ActionForm>
                 </td>
-              </tr>
-              <tr className="border-b border-slate-100">
-                <th className={cellHead}>사번</th>
-                <td className={cellBody}>{mySelf?.employeeNumber ?? "-"}</td>
-                <th className={cellHead}>직군</th>
-                <td className={cellBody}>{mySelf?.jobFamily ?? "-"}</td>
               </tr>
               <tr className="border-b border-slate-100">
                 <th className={`${cellHead} text-center`}>1차 평가자</th>
