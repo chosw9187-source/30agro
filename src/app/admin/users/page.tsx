@@ -26,6 +26,7 @@ import { DateFieldEditor } from "./date-field-editor";
 import { ResetAllPasswordsButton } from "./reset-all-passwords-button";
 import { isActive, activePrismaWhere } from "@/lib/hr-analytics";
 import { POSITIONS, POSITION_LABEL } from "@/lib/permission-constants";
+import { SearchableSelect } from "@/components/searchable-select";
 
 export const dynamic = "force-dynamic";
 
@@ -113,7 +114,7 @@ export default async function UsersPage({
   const where = whereConditions.length > 0 ? { AND: whereConditions } : {};
 
   const session = await auth();
-  const [users, totalCount, teams, yearRows] = await Promise.all([
+  const [users, totalCount, teams, activeTeams, yearRows] = await Promise.all([
     prisma.user.findMany({
       where,
       orderBy,
@@ -147,6 +148,7 @@ export default async function UsersPage({
     }),
     prisma.user.count({ where }),
     prisma.team.findMany({ orderBy: { name: "asc" } }),
+    prisma.team.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.userTargetYear.findMany({
       distinct: ["year"],
       select: { year: true },
@@ -242,14 +244,12 @@ export default async function UsersPage({
               placeholder="사번 (비밀번호로 사용)"
               className="rounded border border-slate-300 px-3 py-2"
             />
-            <select name="teamId" className="rounded border border-slate-300 px-3 py-2">
-              <option value="">팀 미지정</option>
-              {teams.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+            <SearchableSelect
+              name="teamId"
+              options={activeTeams.map((t) => ({ value: t.id, label: t.name }))}
+              placeholder="팀 검색..."
+              emptyLabel="팀 미지정"
+            />
             <select name="role" className="rounded border border-slate-300 px-3 py-2">
               <option value="EVALUATOR">평가자</option>
               <option value="EMPLOYEE">직원</option>
