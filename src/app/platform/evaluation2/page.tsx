@@ -546,6 +546,12 @@ export default async function Evaluation2Page({
   */
   const evaluatorByPerson = buildEvaluatorMap(people, teams);
 
+  // 개인목표 목록 맨 위에 한 번만 적는 «기본정보» — 로그인한 사람 기준이다.
+  const mySelf = people.find((p) => p.id === session!.user.id) ?? null;
+  const myTeamName = mySelf?.team?.name ?? viewer.division ?? null;
+  const myLabel = mySelf ? `${mySelf.name} ${POSITION_LABEL[mySelf.position]}` : "-";
+  const myEvaluator = evaluatorByPerson.get(session!.user.id) ?? null;
+
   const personOptions = people.map((p) => ({
     value: p.id,
     label: `${p.name} ${POSITION_LABEL[p.position]}`,
@@ -1355,12 +1361,19 @@ export default async function Evaluation2Page({
       책임목표가 맨 위인 건 "무엇에 딸린 일인지"를 먼저 정하고 내용을 적는
       순서라서다 — 아래에 있으면 다 적고 나서야 상위를 고르게 된다.
     */
+    /*
+      사내 양식이 읽히는 차례대로 줄을 나눈다. 한 줄은 화면에서 2열이고, 한 칸만
+      든 줄은 왼쪽 절반만 쓴다. 상위 목표가 맨 위인 건 «무엇에 딸린 일인지»를
+      먼저 정하고 내용을 적는 순서라서다 — 아래에 있으면 다 적고 나서야 상위를
+      고르게 된다.
+    */
+    const line = (key: string, children: ReactNode) => (
+      <div key={key} className="grid gap-3 md:col-span-2 md:grid-cols-2">
+        {children}
+      </div>
+    );
+
     if (isTeam) {
-      const line = (key: string, children: ReactNode) => (
-        <div key={key} className="grid gap-3 md:col-span-2 md:grid-cols-2">
-          {children}
-        </div>
-      );
       return (
         <>
           {line("parent", <>{half}{parent}</>)}
@@ -1377,51 +1390,67 @@ export default async function Evaluation2Page({
       );
     }
 
+    const goalType = (
+      <div>
+        {/* 유형을 안 적게 하면 개인목표가 전부 업무목표로만 찬다. */}
+        <label className={LABEL_CLASS}>목표 유형</label>
+        <select
+          name="goalType"
+          defaultValue={goal?.goalType ?? "업무목표"}
+          required
+          className={INPUT_CLASS}
+        >
+          {GOAL_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+
+    const keyResults = (
+      <div className="md:col-span-2">
+        <label className={LABEL_CLASS}>Key Results (핵심결과)</label>
+        <textarea
+          name="keyResults"
+          rows={3}
+          defaultValue={goal?.keyResults ?? ""}
+          required
+          placeholder={"타사 적정인원/팀 사례 분석\n적정 팀 구성 분석"}
+          className={INPUT_CLASS}
+        />
+      </div>
+    );
+
+    /*
+      사내 「개인목표 설정」 양식이 읽히는 차례. 팀·책임자 칸은 여기 없다 —
+      한 사람의 팀·피평가자·평가자는 목표마다 달라지지 않으므로 목록 맨 위
+      「기본정보」에 한 번만 적는다. 관리자만 남의 목표를 대신 등록할 수 있어서
+      그 경우에만 배정 칸이 맨 아래에 붙는다.
+    */
+    if (isOkr) {
+      return (
+        <>
+          {line("parent", parent)}
+          {line("kind", <>{half}{goalType}</>)}
+          {line("objective", title)}
+          {line("kr", keyResults)}
+          {line("weight", <>{weight}{progress}</>)}
+          {line("state", <>{status}{dueDate}</>)}
+          {line("desc", description)}
+          {assignment}
+        </>
+      );
+    }
+
+    // 책임목표 — 아래 팀목표가 굴러 올라온 값이라 지표·목표수준·가중치가 없다.
     return (
       <>
-        {title}
-
-        {half}
-
-        {isOkr && (
-          <div>
-            {/* 유형을 안 적게 하면 개인목표가 전부 업무목표로만 찬다. */}
-            <label className={LABEL_CLASS}>목표 유형</label>
-            <select
-              name="goalType"
-              defaultValue={goal?.goalType ?? "업무목표"}
-              required
-              className={INPUT_CLASS}
-            >
-              {GOAL_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {isOkr && (
-          <div className="md:col-span-2">
-            <label className={LABEL_CLASS}>
-              Key Results (핵심결과){" "}
-              <span className="text-slate-400">— 한 줄에 하나씩. ① ② ③ 으로 번호가 붙습니다</span>
-            </label>
-            <textarea
-              name="keyResults"
-              rows={3}
-              defaultValue={goal?.keyResults ?? ""}
-              required
-              placeholder={"타사 적정인원/팀 사례 분석\n적정 팀 구성 분석"}
-              className={INPUT_CLASS}
-            />
-          </div>
-        )}
-
-        {parent}
-
-        {level === "DIVISION" && (
+        {line("title", title)}
+        {line("parent", parent)}
+        {line(
+          "division",
           <div>
             <label className={LABEL_CLASS}>책임</label>
             <select
@@ -1439,28 +1468,11 @@ export default async function Evaluation2Page({
             </select>
           </div>
         )}
-
-        {evaluatorLine}
+        {line("state", <>{status}{dueDate}</>)}
+        {line("progress", progress)}
+        {line("evaluator", evaluatorLine)}
         {assignment}
-
-        {/*
-          책임목표에는 가중치·측정지표를 두지 않는다. 책임목표는 아래 팀
-          목표가 굴러 올라온 값이라 지표를 따로 적을 일이 없고, 가중치를 비우면
-          가중평균이 형제끼리 동일가중으로 떨어져서 부문 간 비중이 저절로
-          같아진다 — 지금은 그게 맞는 기본값이다.
-        */}
-        {level !== "DIVISION" && weight}
-        {/*
-          지표·목표수준·현재수준은 팀목표에만 있다. 책임목표는 아래 팀목표가
-          굴러 올라온 값이고, 개인목표는 Key Results가 «무엇을 어디까지»를
-          이미 적고 있어서(사내 「개인목표 설정」 양식) 같은 걸 두 번 적게 된다.
-          여기 오는 층은 책임·개인뿐이므로 둘 다 띄우지 않는다.
-        */}
-
-        {progress}
-        {status}
-        {dueDate}
-        {description}
+        {line("desc", description)}
       </>
     );
   }
@@ -1646,7 +1658,9 @@ export default async function Evaluation2Page({
             책임은 운영책임. 목표를 세울 때 «누가 이걸 볼 것인가»가 보여야
             무엇을 어디까지 적을지 정할 수 있다.
           */}
-          {evaluator && <span>평가자: {evaluatorLabel(evaluator)}</span>}
+          {/* 개인목표는 목록 맨 위 «기본정보»가 이미 평가자를 적고 있어 줄마다
+              되풀이하지 않는다. 팀·책임 목표는 그런 자리가 없어 여기 붙인다. */}
+          {level !== "INDIVIDUAL" && evaluator && <span>평가자: {evaluatorLabel(evaluator)}</span>}
           {/*
             이 줄에는 «상위 목표»와 «가중치»만 둔다. 지표·목표수준·현수준·산출식·
             마감일·하위 건수까지 늘어놓으면 한 줄이 화면을 가로질러서, 정작 이
@@ -1898,6 +1912,33 @@ export default async function Evaluation2Page({
             </span>
           )}
         </div>
+
+        {/*
+          기본정보 — 팀·피평가자·평가자는 목표마다 달라지지 않는다. 목표를 세울
+          때마다 같은 세 칸을 다시 고르게 하면 등록이 느려지기만 하고, 카드마다
+          되풀이하면 정작 목표 내용이 밀린다. 그래서 목록 맨 위에 한 번만 적는다.
+          **로그인한 사람 기준**이다 — 팀장·관리자가 남의 목표를 함께 볼 때는
+          아래 카드마다 누구 목표인지 이름이 붙는다.
+        */}
+        {level === "INDIVIDUAL" && (
+          <dl className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs">
+            <span className="font-semibold text-slate-600">기본정보</span>
+            <div className="flex items-center gap-1.5">
+              <dt className="text-slate-500">팀</dt>
+              <dd className="font-medium text-slate-800">{myTeamName ?? "-"}</dd>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <dt className="text-slate-500">피평가자</dt>
+              <dd className="font-medium text-slate-800">{myLabel}</dd>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <dt className="text-slate-500">평가자</dt>
+              <dd className="font-medium text-slate-800">
+                {myEvaluator ? evaluatorLabel(myEvaluator) : "조직도에서 찾지 못했습니다"}
+              </dd>
+            </div>
+          </dl>
+        )}
 
         {canCreate && cycle && (
           <details className={`${CARD_CLASS} p-5`}>
