@@ -320,13 +320,6 @@ function goalTitle(goal: { title: string; isOther?: boolean }): string {
   return goal.isOther ? OTHER_GOAL_TITLE : goal.title;
 }
 
-function scopeText(goal: GoalNode): string {
-  if (goal.level === "COMPANY") return "전사";
-  if (goal.level === "DIVISION") return goal.division ?? "책임 미지정";
-  if (goal.level === "TEAM") return goal.team?.name ?? "팀 미지정";
-  return goal.owner?.name ?? "담당자 미지정";
-}
-
 export default async function Evaluation2Page({
   searchParams,
 }: {
@@ -581,6 +574,24 @@ export default async function Evaluation2Page({
   // 조직도(본부 > 책임 > 팀)를 되짚는 표. 목표에는 팀만 붙어 있어서, 이 사람이
   // 볼 수 있는 범위인지 따지려면 팀에서 부문·본부로 거슬러 올라가야 한다.
   const teamById = new Map(teams.map((t) => [t.id, t]));
+  const personById = new Map(people.map((p) => [p.id, p]));
+  /**
+   * 이 목표로 평가받는 사람 — 「피평가자」.
+   *
+   * 개인목표는 그 목표의 주인이다. 팀목표는 **그 팀의 팀장**이다: 팀목표는
+   * 인사팀 관리자가 대신 등록해 주기도 해서, 등록한 사람을 피평가자로 삼으면
+   * 관리자의 평가자(사장)가 그 팀목표에 붙어 버린다. 실제로 «팀장의 1차
+   * 평가자가 사장으로 나온다»는 말이 여기서 나왔다. 팀에 팀장이 비어 있을
+   * 때만 등록자로 물러선다.
+   */
+  const goalSubject = (goal: GoalNode) => {
+    if (goal.level === "TEAM") {
+      const leaderId = goal.teamId ? teamById.get(goal.teamId)?.leaderId : null;
+      const leader = leaderId ? personById.get(leaderId) : null;
+      if (leader) return leader;
+    }
+    return (goal.ownerId ? personById.get(goal.ownerId) : null) ?? null;
+  };
   const unitByDivision = new Map<string, string>();
   for (const t of teams) {
     if (t.division && t.businessUnit && !unitByDivision.has(t.division)) {
@@ -1174,15 +1185,25 @@ export default async function Evaluation2Page({
       것인가»를 알고 적도록 띄우는 줄이다. 아직 등록 전이라 담당자가 정해지지
       않았으면 로그인한 사람 기준으로 보여 준다 — 어차피 그 사람 목표가 된다.
     */
-    const formOwnerId = goal?.ownerId ?? session!.user.id;
-    const formEvaluator = evaluatorByPerson.get(formOwnerId)?.first ?? null;
+    /*
+      이 줄은 팀목표 폼에만 붙는다. 팀목표의 피평가자는 **그 팀의 팀장**이므로
+      «등록하는 사람»이 아니라 팀장을 기준으로 잡는다 — 관리자가 대신 등록해도
+      평가는 팀장이 받는다. 팀을 아직 고르지 않았으면 누구인지 알 수 없다.
+    */
+    const formTeamId =
+      goal?.teamId ?? (viewer.ledTeamIds.length === 1 ? viewer.ledTeamIds[0] : null);
+    const formSubjectId = formTeamId ? (teamById.get(formTeamId)?.leaderId ?? null) : null;
+    const formEval = formSubjectId ? (evaluatorByPerson.get(formSubjectId) ?? null) : null;
     const evaluatorLine = (
       <div className="md:col-span-2">
         <label className={LABEL_CLASS}>1차 평가자</label>
         <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
-          {formEvaluator
-            ? `${evaluatorLabel(formEvaluator)} — 조직도에서 자동으로 정해집니다`
-            : "조직도에서 1차 평가자를 찾지 못했습니다 (팀장·책임이 지정되어 있는지 확인해 주세요)"}
+          {!formSubjectId
+            ? "팀을 고르면 그 팀의 팀장을 기준으로 자동으로 정해집니다"
+            : formEval?.first
+              ? `${evaluatorLabel(formEval.first)} — 조직도에서 자동으로 정해집니다`
+              : "조직도에서 1차 평가자를 찾지 못했습니다 (팀장·책임이 지정되어 있는지 확인해 주세요)"}
+          {formEval?.note ? ` · ${formEval.note}` : ""}
         </p>
       </div>
     );
@@ -1635,7 +1656,9 @@ export default async function Evaluation2Page({
     const parentOptions = parentLevel ? visibleRows(byLevel(parentLevel)) : [];
     const flag = ownerFlag(goal, now);
     const agreement = asAgreementStatus(goal.agreementStatus);
-    const evaluator = goal.ownerId ? (evaluatorByPerson.get(goal.ownerId)?.first ?? null) : null;
+    const subject = goalSubject(goal);
+    const subjectEval = subject ? (evaluatorByPerson.get(subject.id) ?? null) : null;
+    const evaluator = subjectEval?.first ?? null;
     const isOwner = goal.ownerId === session!.user.id;
     const canApprove =
       isAdmin || teams.some((t) => t.id === goal.teamId && t.leaderId === session!.user.id);
@@ -1738,13 +1761,10 @@ export default async function Evaluation2Page({
             누구 목표인지 가려 주는 유일한 표시다.
           */}
           {/*
-            소속은 개인목표에만 붙인다 — 한 목록에 여러 사람 것이 섞여 나오므로
-            누구 목표인지 가려 주는 유일한 표시다. 책임목표·팀목표는 그 탭 자체가
-            부문별·팀별 목록이라 줄마다 같은 이름이 되풀이될 뿐이다.
+            누구 목표인지는 제목 옆이 아니라 아래 «상위 · 가중치 · 피평가자»
+            줄에서 읽는다. 제목 옆에 이름만 덩그러니 붙어 있으면 그게 담당자인지
+            평가자인지 가릴 수가 없다.
           */}
-          {level === "INDIVIDUAL" && (
-            <span className="text-xs text-slate-500">{scopeText(goal)}</span>
-          )}
           <StatusBadge status={goal.rollupStatus} />
           {isOverdue(goal, now) && <OverdueBadge />}
           {needsAgreement(goal.level) && <AgreementBadge status={goal.agreementStatus} />}
@@ -1808,8 +1828,15 @@ export default async function Evaluation2Page({
             적고 있고, 책임목표는 그 목표를 누가 평가하는지가 화면에서 할 일과
             이어지지 않아 줄만 길어졌다.
           */}
-          {level === "TEAM" && evaluator && (
-            <span>1차 평가자: {evaluatorLabel(evaluator)}</span>
+          {level === "INDIVIDUAL" && subject && <span>피평가자: {evaluatorLabel(subject)}</span>}
+          {level === "TEAM" && evaluator && <span>1차 평가자: {evaluatorLabel(evaluator)}</span>}
+          {/*
+            사슬이 사장까지 올라갔다면 조직도 어딘가가 비어 있다는 뜻이다. 그
+            말을 여기 적어야 «왜 팀장 평가자가 사장이지»가 «조직도에 이 자리가
+            비었구나»로 읽힌다.
+          */}
+          {level === "TEAM" && subjectEval?.note && (
+            <span className="text-status-critical">{subjectEval.note}</span>
           )}
           {/*
             이 줄에는 «상위 목표»와 «가중치»만 둔다. 지표·목표수준·현수준·산출식·
@@ -1824,14 +1851,18 @@ export default async function Evaluation2Page({
           제목만으로는 "무엇을 해냈다고 볼지"가 안 보인다.
         */}
         {usesKeyResults(level) && keyResultLines(goal.keyResults).length > 0 && (
-          <ul className="mt-2 space-y-0.5 text-xs text-slate-600">
-            {keyResultLines(goal.keyResults).map((line, i) => (
-              <li key={i} className="flex gap-1.5">
-                <span className="shrink-0 text-slate-400">{circledNumber(i)}</span>
-                <span>{line}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-2">
+            {/* ① ② 만 늘어놓으면 이게 무슨 목록인지가 안 읽힌다. */}
+            <p className="text-[11px] font-medium text-slate-500">Key Results (핵심결과)</p>
+            <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
+              {keyResultLines(goal.keyResults).map((line, i) => (
+                <li key={i} className="flex gap-1.5">
+                  <span className="shrink-0 text-slate-400">{circledNumber(i)}</span>
+                  <span>{line}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         {/*
