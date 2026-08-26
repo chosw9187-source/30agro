@@ -6,6 +6,29 @@ import { requireRole } from "@/lib/auth-helpers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+function parseDateInputOrNull(value: FormDataEntryValue | null): Date | null {
+  const str = String(value ?? "").trim();
+  if (!str) return null;
+  const parsed = new Date(str);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+const POSITION_LABEL_FOR_APPOINTMENT: Record<string, string> = {
+  CEO: "사장",
+  OPERATIONS_HEAD: "운영책임",
+  SENIOR_STAFF: "책임",
+  TEAM_LEADER: "팀장",
+  STAFF: "담당",
+};
+
+/**
+ * 인사카드 기본이력 항목까지 한 번에 입력받아 직원을 등록한다. 입사일을
+ * 넣으면 "입사(신입)" 발령사항을 자동으로 하나 만들어, 등록 직후 이동하는
+ * 인사카드 화면에서 발령사항이 빈 채로 시작하지 않게 한다. 학력/경력/자격/
+ * 상벌사항은 이 화면에서 다루지 않고 인사카드 화면의 기존 개별 입력 폼을
+ * 그대로 이용한다 — 항목마다 여러 건이 될 수 있어 한 폼에 억지로 우겨넣지
+ * 않는다.
+ */
 export async function createUser(formData: FormData) {
   await requireRole("ADMIN");
 
@@ -19,6 +42,14 @@ export async function createUser(formData: FormData) {
   const teamId = String(formData.get("teamId") ?? "").trim();
   const year = Number(formData.get("year") ?? new Date().getFullYear());
 
+  const position = String(formData.get("position") ?? "").trim();
+  const jobGrade = String(formData.get("jobGrade") ?? "").trim();
+  const gender = String(formData.get("gender") ?? "").trim();
+  const employmentType = String(formData.get("employmentType") ?? "").trim();
+  const jobFamily = String(formData.get("jobFamily") ?? "").trim();
+  const birthDate = parseDateInputOrNull(formData.get("birthDate"));
+  const hireDate = parseDateInputOrNull(formData.get("hireDate"));
+
   if (!name || !email || !employeeNumber) return;
 
   const passwordHash = await bcrypt.hash(employeeNumber, 10);
@@ -31,7 +62,20 @@ export async function createUser(formData: FormData) {
       passwordHash,
       role,
       teamId: teamId || null,
+      position: (position || "STAFF") as
+        | "CEO"
+        | "OPERATIONS_HEAD"
+        | "SENIOR_STAFF"
+        | "TEAM_LEADER"
+        | "STAFF",
+      jobGrade: jobGrade || null,
+      gender: gender || null,
+      employmentType: employmentType || null,
+      jobFamily: jobFamily || null,
+      birthDate,
+      hireDate,
     },
+    include: { team: true },
   });
 
   await prisma.userTargetYear.upsert({
@@ -40,9 +84,24 @@ export async function createUser(formData: FormData) {
     create: { userId: user.id, year },
   });
 
+  if (hireDate) {
+    await prisma.appointmentRecord.create({
+      data: {
+        userId: user.id,
+        date: hireDate,
+        type: "입사(신입)",
+        title: "입사(신입)",
+        department: user.team?.name ?? null,
+        positionTitle: POSITION_LABEL_FOR_APPOINTMENT[user.position] ?? user.position,
+        jobGrade: jobGrade || null,
+      },
+    });
+  }
+
   revalidatePath("/admin/users");
   revalidatePath("/platform");
   revalidatePath("/platform/employees");
+  redirect(`/platform/employees/${user.id}`);
 }
 
 export async function deleteUser(userId: string) {
