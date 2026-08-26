@@ -48,6 +48,7 @@ import {
   cycleYear,
   divisionOptions,
   evalPeriodLabel,
+  maxScore,
   usesEvaluation,
   keyResultLines,
   scaleValues,
@@ -135,18 +136,23 @@ const LEVEL_COLOR: Record<GoalLevel, string> = {
  * 꺼내 보게 한다. 자바스크립트 없이 CSS만으로 열고 닫아서 서버에서 그대로
  * 그려진다.
  */
+/**
+ * 옆 글씨에 물어보는 자리. 크기를 `em`으로 잡아 **붙어 있는 글자와 같이** 커지고
+ * 작아진다 — 고정 크기로 두면 작은 라벨 옆에서 혼자 커서 눈에 먼저 걸린다.
+ * 평소에는 옅은 붉은 알약이고, 손을 얹으면 붉게 차면서 설명이 뜬다.
+ */
 function HelpMark({ text }: { text: string }) {
   return (
-    <span className="group relative inline-block align-middle">
+    <span className="group relative ml-0.5 inline-block align-middle">
       <span
         role="img"
         aria-label={text}
         tabIndex={0}
-        className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-status-critical text-[10px] font-bold leading-none text-status-critical"
+        className="inline-flex h-[1.15em] w-[1.15em] cursor-help items-center justify-center rounded-full bg-status-critical/10 text-[0.72em] font-bold leading-none text-status-critical ring-1 ring-status-critical/40 transition-colors hover:bg-status-critical hover:text-white group-focus-within:bg-status-critical group-focus-within:text-white"
       >
         ?
       </span>
-      <span className="pointer-events-none absolute bottom-full left-0 z-20 mb-1 hidden w-64 rounded-md bg-slate-800 px-3 py-2 text-[11px] font-normal leading-relaxed text-white shadow-lg group-focus-within:block group-hover:block">
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden w-72 -translate-x-1/2 rounded-lg bg-slate-800 px-3 py-2 text-[11px] leading-relaxed font-normal text-white shadow-lg ring-1 ring-slate-900/10 group-focus-within:block group-hover:block">
         {text}
       </span>
     </span>
@@ -1698,6 +1704,18 @@ export default async function Evaluation2Page({
     const canWriteFirst = isAdmin || (!!evalFirst && evalFirst.id === session!.user.id);
     // 내용(제목·가중치·상위)을 고칠 수 있는 사람. 평가만 하는 사람은 못 고친다.
     const canEditContent = !goal || canManage(goal);
+    /*
+      점수 상한은 가중치의 110%다 — 가중치 30짜리 목표는 33점이 최고다. 상한이
+      없으면 가중치 10짜리에 100점을 적어 두고 «다 했다»가 되어 비중을 나눠 놓은
+      뜻이 사라진다. 가중치를 아직 안 적었으면 막지 않는다.
+    */
+    const scoreCeiling = goal && goal.weight > 0 ? maxScore(goal.weight) : undefined;
+    const scoreHelp =
+      `점수는 가중치의 110%까지입니다.` +
+      (scoreCeiling
+        ? ` 이 목표는 가중치 ${goal!.weight}%라 최대 ${scoreCeiling}점입니다.`
+        : ` 가중치 30%짜리 목표라면 최대 33점입니다.`) +
+      ` 가중치가 그 목표의 몫이고, 아주 잘했을 때(평가척도 S) 그 몫의 110%까지 인정합니다.`;
 
     const evalBlock = showEval ? (
       <div className="flex flex-col gap-2 md:col-span-2">
@@ -1706,9 +1724,7 @@ export default async function Evaluation2Page({
         </p>
 
         <div className="rounded-lg border border-brand-green/40 bg-brand-green-light/50 p-3">
-          <p className="mb-2 text-[11px] font-semibold text-brand-green-dark">
-            피평가자{goal?.owner?.name ? ` — ${goal.owner.name}` : ""} · 본인이 적습니다
-          </p>
+          <p className="mb-2 block text-xs font-semibold text-brand-green-dark">피평가자(본인)</p>
           <div className="grid gap-3 md:grid-cols-4">
             <div>
               <label className={LABEL_CLASS}>달성률(%)</label>
@@ -1724,16 +1740,19 @@ export default async function Evaluation2Page({
               />
             </div>
             <div>
-              <label className={LABEL_CLASS}>본인 평가점수</label>
+              <label className={LABEL_CLASS}>
+                본인 평가점수
+                <HelpMark text={scoreHelp} />
+              </label>
               <input
                 type="number"
                 name="selfScore"
                 min={0}
-                max={200}
+                max={scoreCeiling}
                 step={1}
                 defaultValue={goal?.selfScore ?? ""}
                 disabled={!canWriteSelf}
-                placeholder="예: 100"
+                placeholder={scoreCeiling ? `0 ~ ${scoreCeiling}` : "예: 33"}
                 className={INPUT_CLASS}
               />
             </div>
@@ -1751,11 +1770,8 @@ export default async function Evaluation2Page({
         </div>
 
         <div className="rounded-lg border border-goal-3/40 bg-amber-50/70 p-3">
-          <p className="mb-2 text-[11px] font-semibold text-goal-3">
-            1차 평가자
-            {evalFirst
-              ? ` — ${evaluatorLabel(evalFirst)} · 이 사람이 적습니다`
-              : " — 조직도에서 찾지 못했습니다"}
+          <p className="mb-2 block text-xs font-semibold text-goal-3">
+            1차 평가자{evalFirst ? `(${POSITION_LABEL[evalFirst.position]})` : ""}
           </p>
           {/*
             사슬이 팀장을 건너뛰었으면 왜 건너뛰었는지 적는다 — 대개 그 팀에
@@ -1765,16 +1781,19 @@ export default async function Evaluation2Page({
           {evalNote && <p className="mb-2 text-[11px] text-status-critical">{evalNote}</p>}
           <div className="grid gap-3 md:grid-cols-4">
             <div>
-              <label className={LABEL_CLASS}>{period && `${period} `}평가점수</label>
+              <label className={LABEL_CLASS}>
+                {period && `${period} `}평가점수
+                <HelpMark text={scoreHelp} />
+              </label>
               <input
                 type="number"
                 name="firstScore"
                 min={0}
-                max={200}
+                max={scoreCeiling}
                 step={1}
                 defaultValue={goal?.firstScore ?? ""}
                 disabled={!canWriteFirst}
-                placeholder="예: 100"
+                placeholder={scoreCeiling ? `0 ~ ${scoreCeiling}` : "예: 33"}
                 className={INPUT_CLASS}
               />
             </div>

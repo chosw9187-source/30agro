@@ -907,9 +907,22 @@ export function evalPeriodLabel(cycle: { name: string } | null | undefined): str
   return "";
 }
 
-/** 점수 칸에 들어갈 수 있는 값. 평가척도가 S(110)까지라 넉넉히 잡는다. */
-export function clampScore(value: number): number {
-  return Math.max(0, Math.min(200, Math.round(value)));
+/**
+ * 그 목표에 줄 수 있는 최고 점수 — **가중치의 110%**다.
+ *
+ * 가중치가 곧 그 목표가 한 해에서 차지하는 몫이고, 아주 잘했을 때(평가척도 S)
+ * 그 몫의 110%까지 인정한다. 가중치 30짜리 목표는 33점이 최고다. 이 상한이
+ * 없으면 가중치 10짜리 목표에 100점을 적어 놓고 «다 했다»가 되어, 비중을
+ * 나눠 놓은 뜻이 사라진다.
+ */
+export function maxScore(weight: number): number {
+  return Math.max(0, Math.round(weight * 1.1));
+}
+
+/** 점수 칸에 들어갈 수 있는 값. 상한을 주면 그 위로는 잘라 낸다. */
+export function clampScore(value: number, max?: number): number {
+  const ceiling = max === undefined || max <= 0 ? 200 : max;
+  return Math.max(0, Math.min(ceiling, Math.round(value)));
 }
 
 /**

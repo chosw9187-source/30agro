@@ -34,6 +34,7 @@ import {
   GOAL_STATUSES,
   clampProgress,
   clampScore,
+  maxScore,
   usesEvaluation,
   type GoalCycleStatus,
   type GoalLevel,
@@ -1298,11 +1299,15 @@ async function firstEvaluatorIdOf(ownerId: string | null | undefined): Promise<s
   return buildEvaluatorMap(people, teams).get(ownerId)?.first?.id ?? null;
 }
 
-/** 평가 칸에서 온 값. 비워 두면 «아직 안 적음»이라 null로 저장한다. */
-function scoreField(formData: FormData, name: string): number | null {
+/**
+ * 평가 칸에서 온 값. 비워 두면 «아직 안 적음»이라 null로 저장한다.
+ *
+ * 상한은 그 목표 가중치의 110%다(`maxScore`). 화면에서도 막지만 폼을 믿지 않는다.
+ */
+function scoreField(formData: FormData, name: string, weight: number): number | null {
   const raw = str(formData.get(name));
   if (!raw) return null;
-  return clampScore(parseNumber(raw, 0));
+  return clampScore(parseNumber(raw, 0), maxScore(weight));
 }
 
 export async function updateGoal(formData: FormData) {
@@ -1318,6 +1323,7 @@ export async function updateGoal(formData: FormData) {
       cycleId: true,
       progress: true,
       status: true,
+      weight: true,
       agreementStatus: true,
       teamId: true,
       ownerId: true,
@@ -1356,7 +1362,7 @@ export async function updateGoal(formData: FormData) {
     await prisma.goal.update({
       where: { id: goalId },
       data: {
-        firstScore: scoreField(formData, "firstScore"),
+        firstScore: scoreField(formData, "firstScore", existing.weight),
         firstComment: str(formData.get("firstComment")) || null,
       },
     });
@@ -1391,17 +1397,20 @@ export async function updateGoal(formData: FormData) {
     (관리자는 둘 다). 적을 수 없는 사람 화면에서는 그 칸이 잠겨 있어 폼에 실려
     오지도 않지만, 폼을 믿지 않고 여기서 한 번 더 가린다.
   */
+  // 점수 상한은 **이번에 저장할 가중치**를 따른다 — 같은 폼에서 가중치를 올리며
+  // 점수도 같이 올리는 게 자연스럽다.
+  const weightValue = weightFor(level, formData);
   const evalData = usesEvaluation(level, acting)
     ? {
         ...(admin || existing.ownerId === session.user.id
           ? {
-              selfScore: scoreField(formData, "selfScore"),
+              selfScore: scoreField(formData, "selfScore", weightValue),
               selfComment: str(formData.get("selfComment")) || null,
             }
           : {}),
         ...(admin || isFirstEvaluator
           ? {
-              firstScore: scoreField(formData, "firstScore"),
+              firstScore: scoreField(formData, "firstScore", weightValue),
               firstComment: str(formData.get("firstComment")) || null,
             }
           : {}),
@@ -1453,7 +1462,7 @@ export async function updateGoal(formData: FormData) {
         화면에는 새 숫자를 적었는데 저장은 옛날 값 그대로라, 아무 말도 없이
         틀린 값이 남는다. 상위 연결·정렬만 관리자 몫으로 남긴다.
       */
-      weight: weightFor(level, formData),
+      weight: weightValue,
       /*
         상위 연결도 목표를 만들 때 본인이 고르는 값이다. 수정에서만 관리자
         전용으로 두면, 화면에는 고를 수 있게 떠 있는데 저장은 안 되는 칸이
