@@ -1287,7 +1287,10 @@ export default async function Evaluation2Page({
               {/* 소속은 그게 어느 조직 목표인지 갈라 줄 때만 붙인다.
                   전사목표는 전부 "(전사)"가 되어 아무것도 구별해 주지
                   못하면서 제목만 길게 만든다. */}
-              {p.level === "COMPANY" ? p.title : `${p.title} (${scopeText(p)})`}
+              {/* 소속(팀·부문)은 붙이지 않는다 — 고를 수 있는 상위 목표는 이미
+                  내가 볼 수 있는 범위로 좁혀져 있어서, 줄마다 «(인사팀)»이
+                  되풀이될 뿐 무엇을 고르는지에는 보태는 게 없다. */}
+              {p.title}
             </option>
           ))}
           {/*
@@ -1501,7 +1504,7 @@ export default async function Evaluation2Page({
     if (isTeam) {
       return (
         <>
-          {line("parent", <>{half}{parent}</>)}
+          {line("parent", parent)}
           {line("what", <>{title}{metric}</>)}
           {line("level", <>{currentValue}{targetValue}</>)}
           {line("weight", weight)}

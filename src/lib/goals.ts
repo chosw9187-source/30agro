@@ -721,16 +721,17 @@ function personShares(rows: GoalRow[]): Map<string, number> {
 }
 
 /**
- * 반기 구분. 한 해 목표를 상반기·하반기로 갈라 세우고, 목록도 그렇게 묶어 본다.
+ * 반기 구분. 개인목표를 상반기·하반기로 갈라 세우고, 목록도 그렇게 묶어 본다.
  *
- * 전사·책임 목표는 한 해 단위로 세우므로 나누지 않는다 — 팀과 개인이 반기마다
- * 무엇을 할지를 정하고, 위 두 층은 그 합이다.
+ * **개인목표에만 있다.** 전사·책임·팀 목표는 한 해 단위로 세우고 반기마다
+ * 나눠 갖지 않는다 — 반기로 갈리는 건 사람이 그 기간에 무엇을 할지이고,
+ * 위 세 층은 한 해 동안 굴러 올라온 합이다.
  */
 export const GOAL_HALVES = ["상반기", "하반기"] as const;
 export type GoalHalf = (typeof GOAL_HALVES)[number];
 
 export function usesHalf(level: string): boolean {
-  return level === "TEAM" || level === "INDIVIDUAL";
+  return level === "INDIVIDUAL";
 }
 
 /** 아직 반기를 정하지 않은 목표를 담는 자리. 예전에 만든 줄이 여기로 온다. */
