@@ -9,6 +9,7 @@ import {
   GOAL_CYCLE_ORDER,
   allowsProgressInput,
   usesDerivedWeight,
+  usesFixedActiveStatus,
   usesHalf,
   GOAL_CYCLE_STATUSES,
   GOAL_SCALES,
@@ -116,7 +117,13 @@ function asStatus(value: FormDataEntryValue | null): GoalStatus {
  * 손으로 적어 두면 «달성률 0%인데 완료 1건»처럼 두 숫자가 어긋난다.
  * 폼에서도 «완료»를 고를 수 없지만, 요청을 직접 보내는 길도 함께 막는다.
  */
-function statusFor(level: GoalLevel, value: FormDataEntryValue | null): GoalStatus {
+function statusFor(
+  level: GoalLevel,
+  value: FormDataEntryValue | null,
+  cycle: { name: string } | null
+): GoalStatus {
+  // 목표설정 단계의 팀·개인 목표는 전부 진행중이다 — 폼에도 고를 칸이 없다.
+  if (usesFixedActiveStatus(level, cycle)) return "ACTIVE";
   const status = asStatus(value);
   if (isAutoCalculated(level) && status === "DONE") return "ACTIVE";
   return status;
@@ -1045,6 +1052,8 @@ export async function createGoal(formData: FormData) {
 
   const admin = await isAdmin();
   const scope = await resolveGoalScope(level, formData, session.user.id, admin);
+  // 지금 어느 평가를 통해 세우는 중인지 — 달성률과 상태를 받을지가 여기서 갈린다.
+  const acting = await actingCycle(formData, cycleId);
   requireGoalFields(level, formData, scope);
   // 개인·팀 목표 폼에는 부문 칸이 없다. 기타 사슬(전사 → 책임 → 팀)을 만들려면
   // 어느 책임 아래인지 알아야 하므로 팀에서 끌어온다.
@@ -1086,13 +1095,13 @@ export async function createGoal(formData: FormData) {
       currentValue: str(formData.get("currentValue")) || null,
       ...formFields(formData, level),
       // 목표설정 단계에서는 달성률 칸 자체가 없다 — 0에서 시작한다.
-      progress: allowsProgressInput(await actingCycle(formData, cycleId))
+      progress: allowsProgressInput(acting)
         ? progressForStatus(
-            statusFor(level, formData.get("status")),
+            statusFor(level, formData.get("status"), acting),
             clampProgress(parseNumber(formData.get("progress"), 0))
           )
         : 0,
-      status: statusFor(level, formData.get("status")),
+      status: statusFor(level, formData.get("status"), acting),
       dueDate: parseDate(formData.get("dueDate")),
       sortOrder: parseNumber(formData.get("sortOrder"), 0),
       createdById: session.user.id,
@@ -1150,16 +1159,17 @@ export async function updateGoal(formData: FormData) {
     (parseNumber가 0을 준다) 이미 올려둔 진척이 저장할 때마다 0으로 지워진다.
     적을 수 없는 단계에서는 지금 값을 그대로 둔다.
   */
-  const canWriteProgress = allowsProgressInput(await actingCycle(formData, existing.cycleId));
+  const acting = await actingCycle(formData, existing.cycleId);
+  const canWriteProgress = allowsProgressInput(acting);
   const synced = canWriteProgress
     ? reconcileProgressAndStatus(
         {
           progress: clampProgress(parseNumber(formData.get("progress"), 0)),
-          status: statusFor(level, formData.get("status")),
+          status: statusFor(level, formData.get("status"), acting),
         },
         { progress: existing.progress, status: existing.status as GoalStatus }
       )
-    : { progress: existing.progress, status: statusFor(level, formData.get("status")) };
+    : { progress: existing.progress, status: statusFor(level, formData.get("status"), acting) };
 
   // 목표 확정(마감) 이후에는 내용은 그대로 두고 진척과 상태만 받는다. 여기서
   // 통째로 막지 않는 이유는, 마감한 뒤에도 "완료" 처리는 계속 해야 하기

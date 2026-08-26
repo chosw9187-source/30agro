@@ -50,6 +50,7 @@ import {
   usesKeyResults,
   usesScales,
   usesDerivedWeight,
+  usesFixedActiveStatus,
   usesHalf,
   usesWeightSubtotal,
   visibleGoalLevels,
@@ -1410,7 +1411,21 @@ export default async function Evaluation2Page({
     const statusChoices = GOAL_STATUSES.filter(
       (v) => !(isAutoCalculated(level) && v === "DONE")
     );
-    const status = (
+    /*
+      목표설정 단계의 팀·개인 목표는 상태를 고르지 않는다 — 전부 «진행중»이다.
+      목표를 세우는 자리에서 작성중/진행중/중단을 고르게 하면 같은 시점에 세운
+      목표가 사람마다 다른 상태로 남아 목록이 들쭉날쭉해진다. 무엇이 끝났고
+      무엇이 접혔는지는 중간평가·최종평가에서 갈린다.
+    */
+    const status = usesFixedActiveStatus(level, cycle) ? (
+      <div>
+        <label className={LABEL_CLASS}>상태</label>
+        <input type="hidden" name="status" value="ACTIVE" />
+        <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
+          진행중 — 목표설정 단계에서는 모두 진행중입니다
+        </p>
+      </div>
+    ) : (
       <div>
         <label className={LABEL_CLASS}>상태</label>
         <select name="status" defaultValue={goal?.status ?? "ACTIVE"} className={INPUT_CLASS}>
