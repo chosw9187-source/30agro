@@ -33,10 +33,14 @@ import {
   GOAL_PARENT_LEVEL,
   GOAL_STATUSES,
   clampProgress,
+  clampScore,
+  usesEvaluation,
   type GoalCycleStatus,
   type GoalLevel,
   type GoalStatus,
 } from "@/lib/goals";
+import { buildEvaluatorMap } from "@/lib/evaluator";
+import { activePrismaWhere } from "@/lib/hr-analytics";
 
 const ALL_ROLES = ["ADMIN", "EVALUATOR", "EMPLOYEE"] as const;
 const PATH = "/platform/evaluation2";
@@ -1264,12 +1268,48 @@ export async function createGoal(formData: FormData) {
   revalidatePath(PATH);
 }
 
+/**
+ * 이 사람의 1차 평가자 id — 조직도에서 한 칸 위다(`buildEvaluatorMap`).
+ *
+ * 화면에서 이미 계산해 보여 주지만 서버에서 다시 따진다. 평가 점수를 누가 적을
+ * 수 있는지는 폼이 아니라 조직도가 정하는 값이라, 폼에서 온 말을 믿으면 남의
+ * 평가 칸을 적을 수 있게 된다.
+ */
+async function firstEvaluatorIdOf(ownerId: string | null | undefined): Promise<string | null> {
+  if (!ownerId) return null;
+  const [people, teams] = await Promise.all([
+    prisma.user.findMany({
+      where: activePrismaWhere(),
+      select: {
+        id: true,
+        name: true,
+        position: true,
+        jobGrade: true,
+        teamId: true,
+        division: true,
+        businessUnit: true,
+      },
+    }),
+    prisma.team.findMany({
+      where: { active: true },
+      select: { id: true, name: true, division: true, businessUnit: true, leaderId: true },
+    }),
+  ]);
+  return buildEvaluatorMap(people, teams).get(ownerId)?.first?.id ?? null;
+}
+
+/** 평가 칸에서 온 값. 비워 두면 «아직 안 적음»이라 null로 저장한다. */
+function scoreField(formData: FormData, name: string): number | null {
+  const raw = str(formData.get(name));
+  if (!raw) return null;
+  return clampScore(parseNumber(raw, 0));
+}
+
 export async function updateGoal(formData: FormData) {
   const session = await requireGoalModule();
 
   const goalId = str(formData.get("goalId"));
   if (!goalId) return;
-  if (!(await canManageGoal(goalId))) throw new Error("이 목표를 수정할 권한이 없습니다.");
 
   const existing = await prisma.goal.findUnique({
     where: { id: goalId },
@@ -1285,6 +1325,17 @@ export async function updateGoal(formData: FormData) {
   });
   if (!existing) return;
 
+  /*
+    고칠 수 있는 사람은 두 갈래다 — 목표를 관리하는 사람(본인·팀장·관리자)과,
+    조직도에서 이 사람의 1차 평가자인 사람이다. 팀장의 개인목표를 평가하는 건
+    책임·운영책임인데, 그 사람은 그 팀의 팀장이 아니라 관리 권한이 없다. 평가
+    칸만 적을 수 있게 따로 통과시킨다.
+  */
+  const manage = await canManageGoal(goalId);
+  const firstEvaluatorId = await firstEvaluatorIdOf(existing.ownerId);
+  const isFirstEvaluator = !!firstEvaluatorId && firstEvaluatorId === session.user.id;
+  if (!manage && !isFirstEvaluator) throw new Error("이 목표를 수정할 권한이 없습니다.");
+
   // 합의가 끝난 목표는 담당자가 혼자 바꿀 수 없다. 바꾸려면 팀장이 합의를
   // 해제하고 다시 받는 게 맞다 — 아니면 승인한 내용과 실제 목표가 달라진다.
   if (AGREEMENT_ENABLED && existing.agreementStatus === "AGREED" && !(await canApproveGoal(goalId))) {
@@ -1293,6 +1344,26 @@ export async function updateGoal(formData: FormData) {
 
   const level = existing.level as GoalLevel;
   const admin = await isAdmin();
+
+  /*
+    내용은 못 고치고 **평가 칸만** 적는 사람(1차 평가자)은 여기서 끝낸다. 아래로
+    내려보내면 폼에 없는 칸(제목·가중치·상위 목표)을 요구하거나 빈 값으로
+    덮어쓴다 — 그 사람 화면에서는 그 칸들이 잠겨 있어 아예 넘어오지 않는다.
+  */
+  if (!manage) {
+    const { lock: evalLock } = await actingLock(formData, existing.cycleId);
+    if (!evalLock.canEditGoals) throw new Error(evalLock.message ?? "지금은 고칠 수 없습니다.");
+    await prisma.goal.update({
+      where: { id: goalId },
+      data: {
+        firstScore: scoreField(formData, "firstScore"),
+        firstComment: str(formData.get("firstComment")) || null,
+      },
+    });
+    revalidatePath(PATH);
+    return;
+  }
+
   /*
     소속을 옮기는 건 관리자만 한다. 그래서 관리자가 아니면 폼에 팀·책임자 칸이
     아예 없고, 검증도 지금 저장돼 있는 값을 그대로 통과시킨다 — 화면에 없는
@@ -1315,6 +1386,27 @@ export async function updateGoal(formData: FormData) {
   */
   const acting = await actingCycle(formData, existing.cycleId);
   const canWriteProgress = allowsProgressInput(acting);
+  /*
+    평가 칸. 본인 칸은 피평가자만, 1차 평가자 칸은 조직도가 정한 그 사람만 적는다
+    (관리자는 둘 다). 적을 수 없는 사람 화면에서는 그 칸이 잠겨 있어 폼에 실려
+    오지도 않지만, 폼을 믿지 않고 여기서 한 번 더 가린다.
+  */
+  const evalData = usesEvaluation(level, acting)
+    ? {
+        ...(admin || existing.ownerId === session.user.id
+          ? {
+              selfScore: scoreField(formData, "selfScore"),
+              selfComment: str(formData.get("selfComment")) || null,
+            }
+          : {}),
+        ...(admin || isFirstEvaluator
+          ? {
+              firstScore: scoreField(formData, "firstScore"),
+              firstComment: str(formData.get("firstComment")) || null,
+            }
+          : {}),
+      }
+    : {};
   const synced = canWriteProgress
     ? reconcileProgressAndStatus(
         {
@@ -1375,6 +1467,7 @@ export async function updateGoal(formData: FormData) {
         await resolveOtherScope(scopeFieldsFor(level, formData)),
         session.user.id
       ),
+      ...evalData,
       ...(admin ? { sortOrder: parseNumber(formData.get("sortOrder"), 0) } : {}),
       metric: str(formData.get("metric")) || null,
       targetValue: str(formData.get("targetValue")) || null,

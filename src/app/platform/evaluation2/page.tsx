@@ -47,6 +47,8 @@ import {
   cyclePhaseLabel,
   cyclePhaseRank,
   cycleYear,
+  evalPeriodLabel,
+  usesEvaluation,
   keyResultLines,
   scaleValues,
   toDateInputValue,
@@ -65,7 +67,6 @@ import {
   type GoalStatus,
 } from "@/lib/goals";
 import {
-  addGoalCheckIn,
   approveGoalAgreement,
   createGoal,
   createGoalYear,
@@ -164,7 +165,7 @@ function HelpMark({ text }: { text: string }) {
 }
 
 const INPUT_CLASS =
-  "w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-green focus:outline-none";
+  "w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-brand-green focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
 const LABEL_CLASS = "mb-1 block text-xs font-medium text-slate-500";
 const PRIMARY_BUTTON_CLASS =
   "rounded-md bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark";
@@ -475,6 +476,10 @@ export default async function Evaluation2Page({
           keyResults: true,
           progress: true,
           status: true,
+          selfScore: true,
+          selfComment: true,
+          firstScore: true,
+          firstComment: true,
           excluded: true,
           excludeReason: true,
           agreementStatus: true,
@@ -1625,6 +1630,113 @@ export default async function Evaluation2Page({
       먼저 정하고 내용을 적는 순서라서다 — 아래에 있으면 다 적고 나서야 상위를
       고르게 된다.
     */
+    /*
+      사내 「개인목표 평가(상반기)」 표를 폼 맨 위로 옮긴 칸들이다. 목표를 세우는
+      화면(목표설정)에는 없고 중간평가·최종평가에서만 뜬다 — 아직 하지 않은 일에
+      점수를 매길 자리는 없다.
+
+      누가 무엇을 적는지는 조직도가 정한다: 위 칸(달성률·본인 점수·본인 사유)은
+      피평가자가, 아래 칸(1차 평가점수·사유)은 그 사람의 1차 평가자가 적는다.
+      남의 칸은 값이 보이되 잠긴다 — 감춰 두면 «상대가 뭐라고 적었는지»를 보려고
+      서로 물어보게 된다. 서버도 같은 기준으로 한 번 더 가린다.
+    */
+    const showEval = usesEvaluation(level, cycle) && !!goal;
+    const period = evalPeriodLabel(cycle);
+    const evalSubjectId = goal?.ownerId ?? session!.user.id;
+    const evalFirst = evaluatorByPerson.get(evalSubjectId)?.first ?? null;
+    const canWriteSelf = isAdmin || evalSubjectId === session!.user.id;
+    const canWriteFirst = isAdmin || (!!evalFirst && evalFirst.id === session!.user.id);
+    // 내용(제목·가중치·상위)을 고칠 수 있는 사람. 평가만 하는 사람은 못 고친다.
+    const canEditContent = !goal || canManage(goal);
+
+    const evalBlock = showEval ? (
+      <div className="flex flex-col gap-2 md:col-span-2">
+        <p className="text-xs font-semibold text-slate-700">
+          개인목표 평가{period && ` (${period})`}
+        </p>
+
+        <div className="rounded-lg border border-brand-green/40 bg-brand-green-light/50 p-3">
+          <p className="mb-2 text-[11px] font-semibold text-brand-green-dark">
+            피평가자 — 본인이 적습니다
+          </p>
+          <div className="grid gap-3 md:grid-cols-4">
+            <div>
+              <label className={LABEL_CLASS}>달성률(%)</label>
+              <input
+                type="number"
+                name="progress"
+                min={0}
+                max={100}
+                step={1}
+                defaultValue={goal?.progress ?? 0}
+                disabled={!canEditContent}
+                className={INPUT_CLASS}
+              />
+            </div>
+            <div>
+              <label className={LABEL_CLASS}>본인 평가점수</label>
+              <input
+                type="number"
+                name="selfScore"
+                min={0}
+                max={200}
+                step={1}
+                defaultValue={goal?.selfScore ?? ""}
+                disabled={!canWriteSelf}
+                placeholder="예: 100"
+                className={INPUT_CLASS}
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className={LABEL_CLASS}>본인 평가사유</label>
+              <textarea
+                name="selfComment"
+                rows={2}
+                defaultValue={goal?.selfComment ?? ""}
+                disabled={!canWriteSelf}
+                className={INPUT_CLASS}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-goal-3/40 bg-amber-50/70 p-3">
+          <p className="mb-2 text-[11px] font-semibold text-goal-3">
+            1차 평가자
+            {evalFirst
+              ? ` — ${evaluatorLabel(evalFirst)}이 적습니다`
+              : " — 조직도에서 찾지 못했습니다"}
+          </p>
+          <div className="grid gap-3 md:grid-cols-4">
+            <div>
+              <label className={LABEL_CLASS}>{period && `${period} `}평가점수</label>
+              <input
+                type="number"
+                name="firstScore"
+                min={0}
+                max={200}
+                step={1}
+                defaultValue={goal?.firstScore ?? ""}
+                disabled={!canWriteFirst}
+                placeholder="예: 100"
+                className={INPUT_CLASS}
+              />
+            </div>
+            <div className="md:col-span-3">
+              <label className={LABEL_CLASS}>{period && `${period} `}평가사유</label>
+              <textarea
+                name="firstComment"
+                rows={2}
+                defaultValue={goal?.firstComment ?? ""}
+                disabled={!canWriteFirst}
+                className={INPUT_CLASS}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    ) : null;
+
     const line = (key: string, children: ReactNode) => (
       <div key={key} className="grid gap-3 md:col-span-2 md:grid-cols-2">
         {children}
@@ -1690,14 +1802,22 @@ export default async function Evaluation2Page({
     if (isOkr) {
       return (
         <>
-          {line("parent", parent)}
-          {line("kind", <>{half}{goalType}</>)}
-          {line("objective", title)}
-          {line("kr", keyResults)}
-          {line("weight", <>{weight}{progress}</>)}
-          {line("state", <>{status}{dueDate}</>)}
-          {line("desc", description)}
-          {assignment}
+          {evalBlock}
+          {/*
+            평가만 하는 사람에게는 목표 내용 칸을 통째로 잠근다. `contents`라
+            fieldset 자체는 자리를 차지하지 않아 격자가 그대로 유지된다.
+          */}
+          <fieldset disabled={!canEditContent} className="contents">
+            {line("parent", parent)}
+            {line("kind", <>{half}{goalType}</>)}
+            {line("objective", title)}
+            {line("kr", keyResults)}
+            {/* 달성률은 평가 칸으로 올라갔다 — 같은 칸을 두 번 두지 않는다. */}
+            {line("weight", showEval ? weight : <>{weight}{progress}</>)}
+            {line("state", <>{status}{dueDate}</>)}
+            {line("desc", description)}
+            {assignment}
+          </fieldset>
         </>
       );
     }
@@ -1739,7 +1859,6 @@ export default async function Evaluation2Page({
     const parent = goal.parentId ? nodeById.get(goal.parentId) : null;
     // 마감 상태를 여기서 한 번에 반영한다. 진척은 목표 확정 뒤에도 올리고,
     // 목표 내용·삭제·집계 제외는 확정되면 잠긴다.
-    const canTouchProgress = canManage(goal) && lock.canEditProgress;
     const editable = canManage(goal) && lock.canEditGoals;
     const isEditing = editingGoal?.id === goal.id;
     const parentLevel = GOAL_PARENT_LEVEL[level];
@@ -1753,9 +1872,20 @@ export default async function Evaluation2Page({
       읽을 수가 없다.
     */
     const shownWeight = Math.round(usesDerivedWeight(level) ? goal.rollupWeight : goal.weight);
+    /*
+      평가를 여는 자리. 목표를 관리하는 사람(본인·팀장·관리자)뿐 아니라 조직도가
+      정한 1차 평가자에게도 띄운다 — 팀장의 개인목표를 평가하는 건 책임·운영책임인데,
+      그 사람은 그 팀의 팀장이 아니라 「수정」이 뜨지 않는다.
+    */
+    const evalPeriod = evalPeriodLabel(cycle);
     const subject = goalSubject(goal);
     const subjectEval = subject ? (evaluatorByPerson.get(subject.id) ?? null) : null;
     const evaluator = subjectEval?.first ?? null;
+    const showEvalEntry =
+      usesEvaluation(level, cycle) &&
+      lock.canEditGoals &&
+      !isEditing &&
+      (canManage(goal) || evaluator?.id === session!.user.id);
     const isOwner = goal.ownerId === session!.user.id;
     const canApprove =
       isAdmin || teams.some((t) => t.id === goal.teamId && t.leaderId === session!.user.id);
@@ -2053,42 +2183,19 @@ export default async function Evaluation2Page({
         {agreementActions}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {canTouchProgress && canWriteProgress && !isAutoCalculated(level) && (
-            <ActionForm
-              action={addGoalCheckIn}
-              successMessage="진척이 반영되었습니다."
-              className="flex flex-wrap items-center gap-2"
+          {/*
+            달성률·현재수준·메모를 이 줄에서 바로 받던 자리다. 이제 그 값들은
+            평가 칸(폼 맨 위)에서 사유와 같이 적는다 — 숫자만 툭 올려 두면
+            «왜 그 숫자인지»가 아무 데도 남지 않는다. 대신 그 자리에 평가를 여는
+            자리를 둔다. 「수정」과 같은 폼을 연다.
+          */}
+          {showEvalEntry && (
+            <Link
+              href={buildHref({ edit: goal.id })}
+              className="rounded-md border border-brand-green bg-brand-green-light px-3 py-1 text-xs font-medium text-brand-green-dark hover:bg-brand-green hover:text-white"
             >
-              <input type="hidden" name="goalId" value={goal.id} />
-              <input type="hidden" name="viewCycleId" value={cycle?.id ?? ""} />
-              <input
-                type="number"
-                name="progress"
-                min={0}
-                max={100}
-                defaultValue={goal.progress}
-                aria-label="달성률"
-                className="w-20 rounded-md border border-slate-300 px-2 py-1 text-xs"
-              />
-              <input
-                name="currentValue"
-                placeholder="현재수준"
-                aria-label="현재수준"
-                className="w-28 rounded-md border border-slate-300 px-2 py-1 text-xs"
-              />
-              <input
-                name="note"
-                placeholder="진척 메모"
-                aria-label="진척 메모"
-                className="w-44 rounded-md border border-slate-300 px-2 py-1 text-xs"
-              />
-              <button
-                type="submit"
-                className="rounded-md bg-brand-green px-3 py-1 text-xs font-medium text-white hover:bg-brand-green-dark"
-              >
-                진척 반영
-              </button>
-            </ActionForm>
+              {evalPeriod && `${evalPeriod} `}평가
+            </Link>
           )}
           {/*
             누르는 버튼은 오른쪽 끝에 한 덩어리로 모은다 — 왼쪽은 «지금 어떤

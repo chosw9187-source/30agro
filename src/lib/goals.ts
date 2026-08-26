@@ -121,6 +121,11 @@ export type GoalRow = {
   half?: string | null;
   progress: number;
   status: string;
+  /** 그 단계의 평가 — 본인 점수·사유와 1차 평가자 점수·사유(`usesEvaluation`). */
+  selfScore?: number | null;
+  selfComment?: string | null;
+  firstScore?: number | null;
+  firstComment?: string | null;
   excluded: boolean;
   excludeReason: string | null;
   /** "기타" 묶음 목표인지 — 위 층에 딱 붙지 않는 일을 모아 두는 자리. */
@@ -843,6 +848,35 @@ export function cyclePhaseRank(cycle: { name: string }): number {
  */
 export function allowsProgressInput(cycle: { name: string } | null | undefined): boolean {
   return !!cycle && cyclePhaseRank(cycle) !== 1;
+}
+
+/**
+ * 그 평가에서 «평가»를 적는가 — 사내 「개인목표 평가(상반기)」 표에 해당한다.
+ *
+ * 개인목표에만 있다. 전사·책임·팀 목표는 아래에서 굴러 올라온 값이라 사람이
+ * 점수를 매기는 자리가 아니고, 목표설정 단계에는 아직 평가할 것이 없다.
+ */
+export function usesEvaluation(
+  level: string,
+  cycle: { name: string } | null | undefined
+): boolean {
+  return level === "INDIVIDUAL" && allowsProgressInput(cycle);
+}
+
+/**
+ * 그 평가가 어느 반기를 매기는지 — 화면의 「상반기 평가」·「하반기 평가」.
+ * 단계 이름을 못 알아보면 그냥 「평가」다.
+ */
+export function evalPeriodLabel(cycle: { name: string } | null | undefined): string {
+  const rank = cycle ? cyclePhaseRank(cycle) : 9;
+  if (rank === 2) return "상반기";
+  if (rank === 3) return "하반기";
+  return "";
+}
+
+/** 점수 칸에 들어갈 수 있는 값. 평가척도가 S(110)까지라 넉넉히 잡는다. */
+export function clampScore(value: number): number {
+  return Math.max(0, Math.min(200, Math.round(value)));
 }
 
 /**
