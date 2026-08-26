@@ -201,6 +201,24 @@ async function requireCycleEditable(cycleId: string, kind: "goal" | "progress") 
   if (!allowed) throw new Error(lock.message ?? "지금은 고칠 수 없습니다.");
 }
 
+/**
+ * 지금 **보고 있는 단계**의 잠금.
+ *
+ * 목표는 「목표설정」에 한 벌 있고 중간평가·최종평가가 그걸 빌려 본다. 잠금을
+ * 목표가 저장된 사이클로만 따지면 목표설정을 마감하는 순간 중간평가에서도 목표를
+ * 못 고치는데, 한 해를 굴리다 보면 목표가 바뀐다 — 중간평가는 그걸 반영하는
+ * 자리이기도 하다. 그래서 목표설정을 마감하면 목표설정 화면에서만 잠기고,
+ * 중간평가 화면에서는 계속 고칠 수 있다. 중간평가까지 마감하면 그때 잠긴다.
+ */
+async function actingLock(formData: FormData, goalCycleId: string) {
+  const acting = await actingCycle(formData, goalCycleId);
+  const cycle = await prisma.goalCycle.findUnique({
+    where: { id: acting?.id ?? goalCycleId },
+    select: { status: true, goalsLockedAt: true },
+  });
+  return { acting, lock: cycleLock(cycle) };
+}
+
 /** 목표 id로 그 목표가 속한 사이클의 잠금을 확인한다. */
 async function requireGoalEditable(goalId: string, kind: "goal" | "progress") {
   const goal = await prisma.goal.findUnique({
@@ -680,6 +698,9 @@ async function linkFollowUpCycles(cycleId: string) {
   });
   const me = all.find((c) => c.id === cycleId);
   if (!me) return;
+  // 빌려다 보는 단계를 마감할 때는 아무것도 잇지 않는다. 빌린 것을 또 빌려주면
+  // 어디가 원본인지 따라갈 수 없다(스키마도 한 단계만 허용한다).
+  if (me.sourceCycleId) return;
 
   const myRank = cyclePhaseRank(me);
   const targets = all.filter(
@@ -1126,12 +1147,13 @@ export async function createGoal(formData: FormData) {
   const cycleId = str(formData.get("cycleId"));
   const title = str(formData.get("title"));
   if (!level || !cycleId || !title) return;
-  await requireCycleEditable(cycleId, "goal");
+  // 지금 어느 평가를 통해 세우는 중인지 — 잠금도, 달성률·상태를 받을지도
+  // 그 단계로 갈린다.
+  const acting = await actingCycle(formData, cycleId);
+  await requireCycleEditable(acting?.id ?? cycleId, "goal");
 
   const admin = await isAdmin();
   const scope = await resolveGoalScope(level, formData, session.user.id, admin);
-  // 지금 어느 평가를 통해 세우는 중인지 — 달성률과 상태를 받을지가 여기서 갈린다.
-  const acting = await actingCycle(formData, cycleId);
   requireGoalFields(level, formData, scope);
   // 개인·팀 목표 폼에는 부문 칸이 없다. 기타 사슬(전사 → 책임 → 팀)을 만들려면
   // 어느 책임 아래인지 알아야 하므로 팀에서 끌어온다.
@@ -1252,8 +1274,10 @@ export async function updateGoal(formData: FormData) {
   // 목표 확정(마감) 이후에는 내용은 그대로 두고 진척과 상태만 받는다. 여기서
   // 통째로 막지 않는 이유는, 마감한 뒤에도 "완료" 처리는 계속 해야 하기
   // 때문이다. 사이클이 완료(CLOSED)되면 그것마저 막힌다.
+  // 잠금은 **지금 보고 있는 단계**를 따른다(`actingLock`) — 목표설정을 마감해도
+  // 중간평가에서는 목표를 고칠 수 있어야 한다.
   const cycle = await prisma.goalCycle.findUnique({
-    where: { id: existing.cycleId },
+    where: { id: acting?.id ?? existing.cycleId },
     select: { status: true, goalsLockedAt: true },
   });
   const lock = cycleLock(cycle);
@@ -1310,13 +1334,20 @@ export async function updateGoal(formData: FormData) {
   revalidatePath(PATH);
 }
 
-export async function deleteGoal(goalId: string) {
+export async function deleteGoal(goalId: string, formData?: FormData) {
   await requireGoalModule();
   // 고칠 수 있는 사람이면 지울 수도 있다 — 자기가 잘못 만든 목표를 지우려고
   // 관리자를 찾아가야 하면, 대신 제목만 «(취소)»로 바꿔 둔 껍데기가 쌓인다.
   if (!(await canManageGoal(goalId))) throw new Error("이 목표를 지울 권한이 없습니다.");
 
-  await requireGoalEditable(goalId, "goal");
+  // 고치는 것과 같은 기준이다 — 보고 있는 단계가 열려 있으면 지울 수도 있다.
+  const owner = await prisma.goal.findUnique({
+    where: { id: goalId },
+    select: { cycleId: true },
+  });
+  if (!owner) throw new Error("목표를 찾을 수 없습니다.");
+  const { lock } = await actingLock(formData ?? new FormData(), owner.cycleId);
+  if (!lock.canEditGoals) throw new Error(lock.message ?? "지금은 지울 수 없습니다.");
 
   // 합의가 끝난 목표는 담당자 혼자 지울 수 없다. 수정과 같은 규칙이다 —
   // 승인한 사람 모르게 사라지면 합의라는 말이 뜻을 잃는다.

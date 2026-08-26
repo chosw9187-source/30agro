@@ -522,9 +522,16 @@ export default async function Evaluation2Page({
     return { ...g, targetExcluded: true, targetExcludeReason: state.reason };
   });
 
-  // 잠금은 목표를 실제로 담고 있는 사이클을 따른다 — 서버 액션도 그 사이클로
-  // 판단하므로, 여기서 다른 기준을 쓰면 눌리는데 저장은 안 되는 버튼이 생긴다.
-  const lock = cycleLock(sharedFrom ?? cycle);
+  /*
+    잠금은 **지금 보고 있는 단계**를 따른다. 목표는 「목표설정」에 한 벌 있고
+    중간평가·최종평가가 그걸 빌려 보는데, 목표가 저장된 사이클로만 따지면
+    목표설정을 마감하는 순간 중간평가에서도 목표를 못 고친다. 한 해를 굴리다
+    보면 목표가 바뀌고, 중간평가는 그걸 반영하는 자리이기도 하다. 그래서
+    목표설정을 마감하면 목표설정 화면에서만 잠기고, 중간평가 화면은 열려 있다 —
+    중간평가까지 마감하면 그때 잠긴다. 서버 액션도 같은 기준으로 판단한다
+    (`actingLock`) — 아니면 눌리는데 저장은 안 되는 버튼이 생긴다.
+  */
+  const lock = cycleLock(cycle);
   /*
     달성률을 적을 수 있는 단계인가. **고른 평가**로 판단한다 — 목표는 대개
     「목표설정」에 한 벌만 있고 중간평가·최종평가가 그걸 빌려 보므로, 목표가
@@ -2151,6 +2158,8 @@ export default async function Evaluation2Page({
           )}
           {editable && (
             <ActionForm action={deleteGoal.bind(null, goal.id)} successMessage="삭제되었습니다.">
+              {/* 어느 단계를 통해 지우는 중인지 — 잠금 판단이 여기서 갈린다. */}
+              <input type="hidden" name="viewCycleId" value={cycle?.id ?? ""} />
               <button
                 type="submit"
                 className="rounded-md border border-red-200 px-3 py-1 text-xs text-status-critical hover:bg-red-50"
@@ -2493,13 +2502,15 @@ export default async function Evaluation2Page({
         관리자에게만 보인다. 목표를 빌려다 보는 단계(중간평가·최종평가)에는
         띄우지 않는다 — 마감할 것은 원본 한 벌뿐이다.
       */}
-      {isAdmin && cycle && !sharedFrom && !cycle.goalsLockedAt && cycle.status !== "CLOSED" && (
+      {isAdmin && cycle && !cycle.goalsLockedAt && cycle.status !== "CLOSED" && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <span className="text-sm font-medium text-slate-800">목표 마감</span>
           <span className="text-xs text-slate-500">
-            마감하면 이 평가의 목표는 관리자를 포함해 아무도 고칠 수 없습니다
-            {followUps.length > 0 &&
-              ` — 「${followUps.map((c) => c.name).join("」 · 「")}」가 이 목표를 그대로 이어받습니다`}
+            마감하면 <b className="font-medium">이 단계에서는</b> 관리자를 포함해 아무도 목표를 고칠
+            수 없습니다
+            {!sharedFrom &&
+              followUps.length > 0 &&
+              ` — 「${followUps.map((c) => c.name).join("」 · 「")}」가 이 목표를 그대로 이어받고, 거기서는 계속 고칠 수 있습니다`}
             . 마감을 풀면 다시 고칠 수 있습니다.
           </span>
           <ActionForm
