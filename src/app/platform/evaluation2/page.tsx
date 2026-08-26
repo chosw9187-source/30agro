@@ -29,6 +29,7 @@ import {
   buildGoalTree,
   countsTowardProgress,
   flattenGoalTree,
+  goalHalf,
   groupByHalf,
   HALF_UNSET,
   GOAL_HALVES,
@@ -2016,12 +2017,17 @@ export default async function Evaluation2Page({
             묶음 하나에만 붙인다.
           */}
           <div className="ml-auto flex flex-wrap items-center gap-2">
-          {editable && (
+          {/*
+            펼쳐진 폼을 닫는 자리는 폼 아래 «저장» 옆이다 — 다 고치고 손이 가
+            있는 곳이 거기다. 이 오른쪽 위 줄에서 «수정 닫기»를 찾으려면 긴 폼을
+            거슬러 올라가야 했다. 그래서 여기는 여는 자리만 남긴다.
+          */}
+          {editable && !isEditing && (
             <Link
-              href={buildHref({ edit: isEditing ? null : goal.id })}
+              href={buildHref({ edit: goal.id })}
               className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
             >
-              {isEditing ? "수정 닫기" : "수정"}
+              수정
             </Link>
           )}
           {/*
@@ -2100,10 +2106,14 @@ export default async function Evaluation2Page({
                 그걸 빌려 보기 때문에 목표가 저장된 사이클만으로는 알 수 없다. */}
             <input type="hidden" name="viewCycleId" value={cycle?.id ?? ""} />
             <GoalFormFields level={level} goal={goal} parentOptions={parentOptions} />
-            <div className="md:col-span-2">
+            <div className="flex flex-wrap items-center gap-2 md:col-span-2">
               <button type="submit" className={PRIMARY_BUTTON_CLASS}>
                 저장
               </button>
+              {/* 저장과 나란히, 같은 모양으로 — 고친 손이 그 자리에 있다. */}
+              <Link href={buildHref({ edit: null })} className={PRIMARY_BUTTON_CLASS}>
+                닫기
+              </Link>
             </div>
           </ActionForm>
         )}
@@ -2129,14 +2139,27 @@ export default async function Evaluation2Page({
       없는 걸 맞추라는 말이 된다. 그래서 한 사람 것만 보고 있을 때는 그 사람의
       소계를, 여러 사람이 섞여 있을 때는 «아직 100%가 아닌 사람 몇 명»을 띄운다.
     */
-    const weightByOwner = new Map<string, number>();
+    /*
+      소계의 단위는 «한 사람의 한 반기»다. 상반기 100% + 하반기 100%가 제대로
+      세운 것인데 한 덩어리로 더하면 200%가 되고, 거기에 «100%로 맞춰 주세요»가
+      붙으면 맞출 수 없는 걸 맞추라는 말이 된다.
+    */
+    const buckets = new Map<string, { ownerKey: string; half: string; sum: number }>();
     for (const g of rows) {
-      const key = g.ownerId ?? g.id;
-      weightByOwner.set(key, (weightByOwner.get(key) ?? 0) + (g.weight > 0 ? g.weight : 0));
+      const ownerKey = g.ownerId ?? g.id;
+      const half = usesHalf(level) ? goalHalf(g) : "";
+      const key = `${ownerKey}|${half}`;
+      const bucket = buckets.get(key) ?? { ownerKey, half, sum: 0 };
+      bucket.sum += g.weight > 0 ? g.weight : 0;
+      buckets.set(key, bucket);
     }
-    const owners = [...weightByOwner.values()];
-    const weightSum = Math.round(owners[0] ?? 0);
-    const ownersOffTarget = owners.filter((sum) => Math.round(sum) !== 100).length;
+    const halfRank = (half: string) =>
+      half === GOAL_HALVES[0] ? 0 : half === GOAL_HALVES[1] ? 1 : 2;
+    const subtotals = [...buckets.values()].sort((a, b) => halfRank(a.half) - halfRank(b.half));
+    const ownerCount = new Set(subtotals.map((b) => b.ownerKey)).size;
+    const ownersOffTarget = new Set(
+      subtotals.filter((b) => Math.round(b.sum) !== 100).map((b) => b.ownerKey)
+    ).size;
 
     const canCreate =
       lock.canEditGoals &&
@@ -2156,17 +2179,24 @@ export default async function Evaluation2Page({
             줄마다 숫자를 눈으로 더하게 두면 아무도 확인하지 않는다. 100이 아닐
             때만 눈에 띄게 표시한다.
           */}
-          {usesWeightSubtotal(level) && rows.length > 0 && owners.length === 1 && (
-            <span
-              className={`text-sm ${
-                weightSum === 100 ? "text-slate-500" : "font-medium text-status-critical"
-              }`}
-            >
-              가중치 소계 {weightSum}%
-              {weightSum !== 100 && " — 100%로 맞춰 주세요"}
-            </span>
-          )}
-          {usesWeightSubtotal(level) && owners.length > 1 && ownersOffTarget > 0 && (
+          {usesWeightSubtotal(level) &&
+            rows.length > 0 &&
+            ownerCount === 1 &&
+            subtotals.map((bucket) => {
+              const sum = Math.round(bucket.sum);
+              return (
+                <span
+                  key={bucket.half}
+                  className={`text-sm ${
+                    sum === 100 ? "text-slate-500" : "font-medium text-status-critical"
+                  }`}
+                >
+                  {bucket.half ? `${bucket.half} ` : ""}가중치 소계 {sum}%
+                  {sum !== 100 && " — 100%로 맞춰 주세요"}
+                </span>
+              );
+            })}
+          {usesWeightSubtotal(level) && ownerCount > 1 && ownersOffTarget > 0 && (
             <span className="text-sm font-medium text-status-critical">
               가중치 소계가 100%가 아닌 사람 {ownersOffTarget}명
             </span>
