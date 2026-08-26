@@ -961,6 +961,16 @@ function requireGoalFields(
  *
  * 예외는 팀을 둘 이상 이끄는 팀장이다 — 그때는 어느 팀 목표인지 사람만 안다.
  */
+/** 이 사람이 속한 팀. 개인목표는 늘 그 사람의 팀에 걸린다. */
+async function teamOfOwner(ownerId: string | null | undefined): Promise<string | null> {
+  if (!ownerId) return null;
+  const owner = await prisma.user.findUnique({
+    where: { id: ownerId },
+    select: { teamId: true },
+  });
+  return owner?.teamId ?? null;
+}
+
 async function resolveGoalScope(
   level: GoalLevel,
   formData: FormData,
@@ -968,18 +978,27 @@ async function resolveGoalScope(
   admin: boolean
 ) {
   const scope = scopeFieldsFor(level, formData);
+
+  /*
+    개인목표는 «누구의 목표인가»만 정하면 된다 — 팀은 그 사람이 속한 팀이지
+    따로 고르는 값이 아니다. 관리자가 남을 대신 등록할 때도 피평가자만 고르면
+    팀이 따라온다. 관리자가 아니면 애초에 자기 목표만 만들 수 있다.
+  */
+  if (level === "INDIVIDUAL") {
+    if (!admin) scope.ownerId = userId;
+    scope.teamId = await teamOfOwner(scope.ownerId);
+    return scope;
+  }
+
   if (admin) return scope;
 
   const me = await prisma.user.findUnique({
     where: { id: userId },
-    select: { teamId: true, ledTeams: { select: { id: true } } },
+    select: { ledTeams: { select: { id: true } } },
   });
   const led = (me?.ledTeams ?? []).map((t) => t.id);
 
-  if (level === "INDIVIDUAL") {
-    scope.ownerId = userId;
-    scope.teamId = scope.teamId || me?.teamId || null;
-  } else if (level === "TEAM") {
+  if (level === "TEAM") {
     // 팀목표의 책임자는 그 팀의 팀장이고, 여기까지 온 사람이 곧 그 팀장이다.
     scope.ownerId = userId;
     if (!scope.teamId && led.length === 1) scope.teamId = led[0];
@@ -1089,7 +1108,12 @@ export async function updateGoal(formData: FormData) {
     칸을 요구하면 저장이 안 되는 이유를 아무도 알 수 없다.
   */
   const scope = admin
-    ? scopeFieldsFor(level, formData)
+    ? await (async () => {
+        const s = scopeFieldsFor(level, formData);
+        // 개인목표의 팀은 피평가자를 따라간다 — 폼에 팀 칸이 없다.
+        if (level === "INDIVIDUAL") s.teamId = (await teamOfOwner(s.ownerId)) ?? existing.teamId;
+        return s;
+      })()
     : { teamId: existing.teamId, ownerId: existing.ownerId };
   requireGoalFields(level, formData, scope);
 

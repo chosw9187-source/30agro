@@ -44,6 +44,8 @@ import {
   GOAL_TYPE_BADGE_CLASS,
   circledNumber,
   cyclePhaseLabel,
+  cyclePhaseRank,
+  cycleYear,
   keyResultLines,
   scaleValues,
   toDateInputValue,
@@ -407,9 +409,11 @@ export default async function Evaluation2Page({
         name: true,
         position: true,
         teamId: true,
+        employeeNumber: true,
+        jobFamily: true,
         division: true,
         businessUnit: true,
-        team: { select: { name: true } },
+        team: { select: { name: true, division: true } },
       },
     }),
   ]);
@@ -546,11 +550,34 @@ export default async function Evaluation2Page({
   */
   const evaluatorByPerson = buildEvaluatorMap(people, teams);
 
-  // 개인목표 목록 맨 위에 한 번만 적는 «기본정보» — 로그인한 사람 기준이다.
+  /*
+    개인목표 목록 맨 위의 「1. 기본사항」 — 사내 개인목표 설정 양식의 첫 표를
+    그대로 옮긴 것이다. **로그인한 사람 기준**이고, 조직도와 인사카드에서 끌어올
+    수 있는 값은 전부 자동으로 채운다. 사람이 다시 적을 이유가 없는 값이다.
+
+    1차 평가자는 조직도에서 한 칸 위, 2차 평가자는 그 위 한 칸이다 — 담당이면
+    팀장·책임, 팀장이면 책임·운영책임 순으로 붙는다.
+  */
   const mySelf = people.find((p) => p.id === session!.user.id) ?? null;
-  const myTeamName = mySelf?.team?.name ?? viewer.division ?? null;
-  const myLabel = mySelf ? `${mySelf.name} ${POSITION_LABEL[mySelf.position]}` : "-";
   const myEvaluator = evaluatorByPerson.get(session!.user.id) ?? null;
+  const mySecondEvaluator = myEvaluator ? (evaluatorByPerson.get(myEvaluator.id) ?? null) : null;
+  const myTeamText = [mySelf?.team?.division ?? mySelf?.division, mySelf?.team?.name]
+    .filter(Boolean)
+    .join(" / ");
+  /*
+    면담일정 — 그 해의 단계들을 순서대로 늘어놓는다(목표설정 → 중간평가 →
+    최종평가). 면담 날짜를 따로 저장하지는 않으므로 각 단계의 기간을 보여 준다.
+  */
+  const scheduleRows = cycle
+    ? (groupCyclesByYear(cycles).find((g) => g.year === cycleYear(cycle))?.items ?? [])
+        .slice()
+        .sort((a, b) => cyclePhaseRank(a) - cyclePhaseRank(b))
+        .map((c) => ({
+          id: c.id,
+          label: cyclePhaseLabel(c),
+          period: `${formatKSTDate(c.startDate)} ~ ${formatKSTDate(c.endDate)}`,
+        }))
+    : [];
 
   const personOptions = people.map((p) => ({
     value: p.id,
@@ -941,6 +968,92 @@ export default async function Evaluation2Page({
 
   // ---- 한 줄 보드: 책임 · 팀 · 개인 ---------------------------------------
 
+  /**
+   * 사내 「개인목표 설정」 양식의 «1. 기본사항» 표.
+   *
+   * 사람이 다시 적을 값이 하나도 없다 — 성명·직위·사번·소속은 인사카드에서,
+   * 1·2차 평가자는 조직도에서, 면담일정은 그 해의 평가 단계에서 끌어온다.
+   * 종이 양식에서는 매번 손으로 채우던 칸이라, 여기서 자동으로 채워 두면
+   * 목표를 세우는 사람은 목표만 적으면 된다.
+   *
+   * 담당업무만 비어 있다 — 사람마다 적어 두는 자리가 아직 없다(직군 `jobFamily`는
+   * «인사 기획/보상평가» 같은 담당업무와 다른 값이라 대신 쓰지 않는다).
+   */
+  function BasicInfoTable() {
+    const cellHead = "bg-slate-100 px-3 py-1.5 text-left font-medium text-slate-600 whitespace-nowrap";
+    const cellBody = "px-3 py-1.5 text-slate-800";
+    const person = (p: typeof mySelf) =>
+      p ? { name: p.name, position: POSITION_LABEL[p.position] } : { name: "-", position: "-" };
+    const first = person(myEvaluator as typeof mySelf);
+    const second = person(mySecondEvaluator as typeof mySelf);
+
+    return (
+      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <h3 className="border-b border-slate-200 bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white">
+          1. 기본사항
+        </h3>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[46rem] border-collapse text-xs">
+            <tbody>
+              <tr className="border-b border-slate-100">
+                <th rowSpan={3} className={`${cellHead} w-20 text-center align-middle`}>
+                  본인
+                </th>
+                <th className={`${cellHead} w-20`}>성명</th>
+                <td className={`${cellBody} w-40`}>{mySelf?.name ?? "-"}</td>
+                <th className={`${cellHead} w-28`}>소속 책임/팀</th>
+                <td className={cellBody}>{myTeamText || "-"}</td>
+              </tr>
+              <tr className="border-b border-slate-100">
+                <th className={cellHead}>직위</th>
+                <td className={cellBody}>{mySelf ? POSITION_LABEL[mySelf.position] : "-"}</td>
+                <th className={cellHead}>담당업무</th>
+                <td className={cellBody}>
+                  <span className="text-slate-400">인사카드에 담당업무 칸이 아직 없습니다</span>
+                </td>
+              </tr>
+              <tr className="border-b border-slate-100">
+                <th className={cellHead}>사번</th>
+                <td className={cellBody}>{mySelf?.employeeNumber ?? "-"}</td>
+                <th className={cellHead}>직군</th>
+                <td className={cellBody}>{mySelf?.jobFamily ?? "-"}</td>
+              </tr>
+              <tr className="border-b border-slate-100">
+                <th className={`${cellHead} text-center`}>1차 평가자</th>
+                <th className={cellHead}>성명</th>
+                <td className={cellBody}>{first.name}</td>
+                <th className={cellHead}>직위</th>
+                <td className={cellBody}>{first.position}</td>
+              </tr>
+              <tr>
+                <th className={`${cellHead} text-center`}>2차 평가자</th>
+                <th className={cellHead}>성명</th>
+                <td className={cellBody}>{second.name}</td>
+                <th className={cellHead}>직위</th>
+                <td className={cellBody}>{second.position}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* 면담일정 — 그 해의 평가 단계와 기간. 면담 날짜를 따로 적어 두는 자리는
+            아직 없어서, 각 단계가 열려 있는 기간을 그대로 보여 준다. */}
+        {scheduleRows.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+            <span className="font-medium text-slate-600">면담일정</span>
+            {scheduleRows.map((r, i) => (
+              <span key={r.id} className="text-slate-600">
+                <span className="text-slate-400">{i + 1}차 </span>
+                {r.label}{" "}
+                <span className="text-slate-500">{r.period}</span>
+              </span>
+            ))}
+          </div>
+        )}
+      </section>
+    );
+  }
+
   function LevelSummaryCard({ level }: { level: GoalLevel }) {
     const nodes = byLevel(level);
     const counted = nodes.filter(countsTowardProgress);
@@ -1040,11 +1153,17 @@ export default async function Evaluation2Page({
       예외는 팀을 둘 이상 이끄는 팀장이다. 그때만 어느 팀 목표인지 사람만
       알기 때문에 팀 칸을 남긴다.
     */
+    /*
+      개인목표에는 팀 칸이 없다 — 사람을 고르면 그 사람의 팀이 따라온다(서버에서
+      `teamOfOwner`). 두 칸을 다 고르게 하면 사람과 팀이 어긋난 목표가 생긴다.
+      팀목표는 팀 자체가 목표의 주인이라 팀을 고른다.
+    */
     const showTeam =
-      (level === "TEAM" || level === "INDIVIDUAL") &&
-      (isAdmin || (level === "TEAM" && viewer.ledTeamIds.length > 1));
+      level === "TEAM" && (isAdmin || viewer.ledTeamIds.length > 1);
     const showOwner = isAdmin;
-    const ownerLabel = level === "INDIVIDUAL" ? "담당자" : "책임자";
+    // 「담당자」가 아니라 「피평가자」다 — 이 목표로 평가받는 사람이고, 위의
+    // 평가자와 짝이 맞는 말이라야 누가 누구를 보는지가 한 번에 읽힌다.
+    const ownerLabel = level === "INDIVIDUAL" ? "피평가자" : "책임자";
 
     /*
       이 목표를 누가 평가하게 되는지 폼에서 미리 보여 준다. 조직도에서 따라
@@ -1081,7 +1200,14 @@ export default async function Evaluation2Page({
           )}
           {showOwner && (
             <div>
-              <label className={LABEL_CLASS}>{ownerLabel}</label>
+              <label className={LABEL_CLASS}>
+                {ownerLabel}
+                {level === "INDIVIDUAL" && (
+                  <span className="ml-1 font-normal text-slate-400">
+                    — 누구의 목표로 등록할지 고릅니다 (팀은 따라옵니다)
+                  </span>
+                )}
+              </label>
               <SearchableSelect
                 name="ownerId"
                 options={personOptions}
@@ -1920,25 +2046,7 @@ export default async function Evaluation2Page({
           **로그인한 사람 기준**이다 — 팀장·관리자가 남의 목표를 함께 볼 때는
           아래 카드마다 누구 목표인지 이름이 붙는다.
         */}
-        {level === "INDIVIDUAL" && (
-          <dl className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs">
-            <span className="font-semibold text-slate-600">기본정보</span>
-            <div className="flex items-center gap-1.5">
-              <dt className="text-slate-500">팀</dt>
-              <dd className="font-medium text-slate-800">{myTeamName ?? "-"}</dd>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <dt className="text-slate-500">피평가자</dt>
-              <dd className="font-medium text-slate-800">{myLabel}</dd>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <dt className="text-slate-500">평가자</dt>
-              <dd className="font-medium text-slate-800">
-                {myEvaluator ? evaluatorLabel(myEvaluator) : "조직도에서 찾지 못했습니다"}
-              </dd>
-            </div>
-          </dl>
-        )}
+        {level === "INDIVIDUAL" && <BasicInfoTable />}
 
         {canCreate && cycle && (
           <details className={`${CARD_CLASS} p-5`}>
