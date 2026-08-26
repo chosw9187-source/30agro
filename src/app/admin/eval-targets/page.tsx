@@ -104,6 +104,7 @@ export default async function EvalTargetsPage({
         id: true,
         name: true,
         position: true,
+        jobGrade: true,
         teamId: true,
         division: true,
         businessUnit: true,

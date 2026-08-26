@@ -25,6 +25,8 @@ export type EvaluatorPerson = {
   id: string;
   name: string;
   position: Position;
+  /** 직급. 회장 · 부회장 · 사장이 모두 Position.CEO라서, 이 값으로 갈린다. */
+  jobGrade?: string | null;
   teamId?: string | null;
   division?: string | null;
   businessUnit?: string | null;
@@ -45,12 +47,41 @@ export type EvaluatorResult = {
   note: string | null;
 };
 
-/** "정팀장 팀장" — 이름만으로는 누구인지 가릴 수 없어 직책을 붙인다. */
+const clean = (v: string | null | undefined) => (v ?? "").trim() || null;
+
+/**
+ * "정팀장 팀장" — 이름만으로는 누구인지 가릴 수 없어 직책을 붙인다.
+ *
+ * 회장 · 부회장 · 사장은 직책이 모두 CEO라 그것만으로는 «사장»이 되어 버린다.
+ * 그 자리만 직급(`jobGrade`)을 쓴다. 아래 직책들은 직급이 «과장»처럼 급수라서
+ * 여기서는 쓰지 않는다 — 지금 알고 싶은 건 누가 어느 자리에서 보느냐다.
+ */
 export function evaluatorLabel(person: EvaluatorPerson): string {
-  return `${person.name} ${POSITION_LABEL[person.position]}`;
+  const role =
+    person.position === "CEO"
+      ? (clean(person.jobGrade) ?? POSITION_LABEL.CEO)
+      : POSITION_LABEL[person.position];
+  return `${person.name} ${role}`;
 }
 
-const clean = (v: string | null | undefined) => (v ?? "").trim() || null;
+/**
+ * 평가 사슬의 맨 위는 **사장**이다.
+ *
+ * 회장 · 부회장 · 사장은 조직도에서 모두 같은 직책(`Position.CEO`)으로 들어오고
+ * 실제 자리는 직급(`jobGrade`)에 적힌다. 그래서 CEO 아무나 집으면 이름순으로
+ * 먼저 오는 사람이 걸린다 — 실제로 «오동률 운영책임의 평가자»가 부회장으로
+ * 나오는 일이 있었다. 평가는 사장이 하므로 회장·부회장은 사슬에서 뺀다.
+ *
+ * 직급이 비어 있으면 사장으로 본다 — 한 사람뿐인 조직에서 직급을 안 적어 두는
+ * 경우가 있고, 그때 사슬이 통째로 끊기는 것보다 낫다.
+ */
+const CEO_NOT_EVALUATING = ["회장", "부회장"];
+
+function isEvaluatingCeo(p: EvaluatorPerson): boolean {
+  if (p.position !== "CEO") return false;
+  const grade = clean(p.jobGrade);
+  return !grade || !CEO_NOT_EVALUATING.includes(grade);
+}
 
 export function buildEvaluatorMap(
   people: EvaluatorPerson[],
@@ -92,7 +123,7 @@ export function buildEvaluatorMap(
   let ceo: EvaluatorPerson | null = null;
   for (const p of people) {
     const { division, businessUnit } = presidesOver(p);
-    if (p.position === "CEO" && !ceo) ceo = p;
+    if (!ceo && isEvaluatingCeo(p)) ceo = p;
     if (p.position === "SENIOR_STAFF" && division && !divisionHead.has(division)) {
       divisionHead.set(division, p);
     }
@@ -157,8 +188,8 @@ export function buildEvaluatorMap(
     const note =
       first.person && first.person.position === "CEO" && first.missing.length > 0
         ? `조직도에 ${first.missing.join(", ")}이(가) 없어 사장으로 올라갔습니다`
-        : !first.person
-          ? "조직도에서 평가자를 찾지 못했습니다"
+        : !first.person && p.position !== "CEO"
+          ? "조직도에서 평가자를 찾지 못했습니다 (사장이 등록되어 있는지 확인해 주세요)"
           : null;
     map.set(p.id, { first: first.person, second: second.person, note });
   }

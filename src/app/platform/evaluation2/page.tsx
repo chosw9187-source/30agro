@@ -409,6 +409,7 @@ export default async function Evaluation2Page({
         id: true,
         name: true,
         position: true,
+        jobGrade: true,
         teamId: true,
         employeeNumber: true,
         division: true,
