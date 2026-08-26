@@ -25,6 +25,7 @@ import { TextFieldEditor } from "./text-field-editor";
 import { DateFieldEditor } from "./date-field-editor";
 import { ResetAllPasswordsButton } from "./reset-all-passwords-button";
 import { isActive, activePrismaWhere } from "@/lib/hr-analytics";
+import { POSITIONS, POSITION_LABEL } from "@/lib/permission-constants";
 
 export const dynamic = "force-dynamic";
 
@@ -209,9 +210,14 @@ export default async function UsersPage({
 
       <details className="group rounded-lg border border-slate-200 bg-white open:pb-5">
         <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium text-slate-600 hover:text-slate-900">
-          + 새 직원 등록
+          + 새 직원 등록 (인사카드 기본이력 입력)
         </summary>
         <div className="flex flex-col gap-6 border-t border-slate-100 px-4 pt-4">
+          <p className="text-xs text-slate-500">
+            여기서는 기본이력만 입력하고 등록하면 바로 그 직원의 인사카드
+            화면으로 이동합니다 — 발령/학력/경력/자격/상벌사항은 거기서
+            이어서 입력하세요.
+          </p>
           <form
             action={createUser}
             className="grid grid-cols-1 gap-3 pt-4 sm:grid-cols-2"
@@ -249,11 +255,46 @@ export default async function UsersPage({
               <option value="EMPLOYEE">직원</option>
               <option value="ADMIN">관리자</option>
             </select>
+            <select name="position" className="rounded border border-slate-300 px-3 py-2" defaultValue="STAFF">
+              {POSITIONS.map((p) => (
+                <option key={p} value={p}>
+                  {POSITION_LABEL[p]}
+                </option>
+              ))}
+            </select>
+            <input
+              name="jobGrade"
+              placeholder="직급 (예: G1)"
+              className="rounded border border-slate-300 px-3 py-2"
+            />
+            <select name="gender" className="rounded border border-slate-300 px-3 py-2" defaultValue="">
+              <option value="">성별 미지정</option>
+              <option value="남">남</option>
+              <option value="여">여</option>
+            </select>
+            <input
+              name="employmentType"
+              placeholder="사원구분 (예: 정규직)"
+              className="rounded border border-slate-300 px-3 py-2"
+            />
+            <input
+              name="jobFamily"
+              placeholder="직군 (예: 사무직)"
+              className="rounded border border-slate-300 px-3 py-2"
+            />
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">생년월일</label>
+              <input type="date" name="birthDate" className="rounded border border-slate-300 px-3 py-2" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-500">입사일 (입력 시 입사 발령이 자동 등록됩니다)</label>
+              <input type="date" name="hireDate" className="rounded border border-slate-300 px-3 py-2" />
+            </div>
             <button
               type="submit"
               className="rounded bg-brand-green px-4 py-2 text-white hover:bg-brand-green-dark sm:col-span-2 sm:self-start"
             >
-              {selectedYear}년 대상자로 추가
+              등록하고 인사카드로 이동
             </button>
           </form>
         </div>
