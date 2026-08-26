@@ -44,7 +44,6 @@ import {
   ownerFlag,
   GOAL_TYPES,
   GOAL_TYPE_BADGE_CLASS,
-  circledNumber,
   cyclePhaseLabel,
   keyResultLines,
   scaleValues,
@@ -1906,8 +1905,9 @@ export default async function Evaluation2Page({
 
         <div>
         {/*
-          Key Results. 양식과 같이 ① ② ③ 으로 번호를 붙여 늘어놓는다 — 목표
-          제목만으로는 "무엇을 해냈다고 볼지"가 안 보인다.
+          Key Results. 적은 줄을 그대로 늘어놓는다 — 번호(① ② ③)를 붙이지
+          않는다. 공통 양식이 아니라 사람마다 적는 방식이 달라서, 화면이 멋대로
+          번호를 붙이면 «1) 2)»로 적은 사람 것이 «① 1) …»로 겹쳐 읽힌다.
         */}
         {usesKeyResults(level) && keyResultLines(goal.keyResults).length > 0 && (
           <div className="mt-2">
@@ -1915,10 +1915,7 @@ export default async function Evaluation2Page({
             <p className="text-[11px] font-medium text-slate-500">Key Results (핵심결과)</p>
             <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
               {keyResultLines(goal.keyResults).map((line, i) => (
-                <li key={i} className="flex gap-1.5">
-                  <span className="shrink-0 text-slate-400">{circledNumber(i)}</span>
-                  <span>{line}</span>
-                </li>
+                <li key={i}>{line}</li>
               ))}
             </ul>
           </div>

@@ -672,12 +672,6 @@ export function keyResultLines(raw: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
-/** ① ② ③ … 양식과 같은 동그라미 숫자. 20을 넘으면 그냥 "21."로 적는다. */
-export function circledNumber(i: number): string {
-  const circled = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳";
-  return i < circled.length ? circled[i] : `${i + 1}.`;
-}
-
 /**
  * Objective / Key Results 형태로 목표를 세우는 층. 사내 양식에서 이 구성을
  * 쓰는 건 개인목표뿐이다.
