@@ -567,8 +567,9 @@ export default async function Evaluation2Page({
       )?.duty ?? ""
     : "";
   const mySelf = people.find((p) => p.id === session!.user.id) ?? null;
-  const myEvaluator = evaluatorByPerson.get(session!.user.id) ?? null;
-  const mySecondEvaluator = myEvaluator ? (evaluatorByPerson.get(myEvaluator.id) ?? null) : null;
+  const myEval = evaluatorByPerson.get(session!.user.id) ?? null;
+  const myEvaluator = myEval?.first ?? null;
+  const mySecondEvaluator = myEval?.second ?? null;
 
   const personOptions = people.map((p) => ({
     value: p.id,
@@ -1173,7 +1174,7 @@ export default async function Evaluation2Page({
       않았으면 로그인한 사람 기준으로 보여 준다 — 어차피 그 사람 목표가 된다.
     */
     const formOwnerId = goal?.ownerId ?? session!.user.id;
-    const formEvaluator = evaluatorByPerson.get(formOwnerId) ?? null;
+    const formEvaluator = evaluatorByPerson.get(formOwnerId)?.first ?? null;
     const evaluatorLine = (
       <div className="md:col-span-2">
         <label className={LABEL_CLASS}>평가자</label>
@@ -1614,7 +1615,6 @@ export default async function Evaluation2Page({
         )}
         {line("state", <>{status}{dueDate}</>)}
         {line("progress", progress)}
-        {line("evaluator", evaluatorLine)}
         {assignment}
         {line("desc", description)}
       </>
@@ -1634,7 +1634,7 @@ export default async function Evaluation2Page({
     const parentOptions = parentLevel ? visibleRows(byLevel(parentLevel)) : [];
     const flag = ownerFlag(goal, now);
     const agreement = asAgreementStatus(goal.agreementStatus);
-    const evaluator = goal.ownerId ? (evaluatorByPerson.get(goal.ownerId) ?? null) : null;
+    const evaluator = goal.ownerId ? (evaluatorByPerson.get(goal.ownerId)?.first ?? null) : null;
     const isOwner = goal.ownerId === session!.user.id;
     const canApprove =
       isAdmin || teams.some((t) => t.id === goal.teamId && t.leaderId === session!.user.id);
@@ -1802,9 +1802,12 @@ export default async function Evaluation2Page({
             책임은 운영책임. 목표를 세울 때 «누가 이걸 볼 것인가»가 보여야
             무엇을 어디까지 적을지 정할 수 있다.
           */}
-          {/* 개인목표는 목록 맨 위 «기본정보»가 이미 평가자를 적고 있어 줄마다
-              되풀이하지 않는다. 팀·책임 목표는 그런 자리가 없어 여기 붙인다. */}
-          {level !== "INDIVIDUAL" && evaluator && <span>평가자: {evaluatorLabel(evaluator)}</span>}
+          {/*
+            평가자는 팀목표에만 적는다. 개인목표는 목록 맨 위 «기본정보»가 이미
+            적고 있고, 책임목표는 그 목표를 누가 평가하는지가 화면에서 할 일과
+            이어지지 않아 줄만 길어졌다.
+          */}
+          {level === "TEAM" && evaluator && <span>평가자: {evaluatorLabel(evaluator)}</span>}
           {/*
             이 줄에는 «상위 목표»와 «가중치»만 둔다. 지표·목표수준·현수준·산출식·
             마감일·하위 건수까지 늘어놓으면 한 줄이 화면을 가로질러서, 정작 이

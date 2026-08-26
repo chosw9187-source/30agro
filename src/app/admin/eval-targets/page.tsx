@@ -12,6 +12,7 @@ import {
   type EvalTargetState,
   type GoalCycleStatus,
 } from "@/lib/goals";
+import { buildEvaluatorMap, evaluatorLabel, type EvaluatorResult } from "@/lib/evaluator";
 import { setGoalCycleHireCutoff } from "@/app/platform/evaluation2/actions";
 import { CycleSelect } from "@/app/platform/evaluation2/cycle-select";
 import { ActionForm } from "@/components/action-form";
@@ -41,6 +42,7 @@ type Person = {
   businessUnit: string | null;
   isLeader: boolean;
   goalCount: number;
+  evaluator: EvaluatorResult | null;
   target: EvalTargetState;
 };
 
@@ -64,7 +66,7 @@ export default async function EvalTargetsPage({
     ? (cycles.find((c) => c.id === cycle.sourceCycleId) ?? null)
     : null;
 
-  const [teams, users, targets, goals] = await Promise.all([
+  const [teams, users, everyone, targets, goals] = await Promise.all([
     prisma.team.findMany({
       where: { active: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -88,6 +90,25 @@ export default async function EvalTargetsPage({
         team: { select: { id: true, name: true, division: true, businessUnit: true } },
       },
     }),
+    /*
+      평가자 사슬을 만들 모수는 **조직 전체**다. 위의 평가대상자 명단은 계약직·
+      명부 비공개를 걸러낸 것이라, 그 명단으로 사슬을 만들면 걸러진 사람이 맡은
+      자리가 통째로 비어 보인다 — 실제로 사장이 명단에서 빠져 운영책임들의
+      평가자가 «찾지 못함»으로 나왔다. 누가 평가받는지와 누가 평가하는지는
+      다른 질문이다.
+    */
+    prisma.user.findMany({
+      where: activePrismaWhere(),
+      orderBy: [{ name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        position: true,
+        teamId: true,
+        division: true,
+        businessUnit: true,
+      },
+    }),
     targetCycleId
       ? prisma.goalCycleTarget.findMany({
           where: { cycleId: targetCycleId },
@@ -108,6 +129,13 @@ export default async function EvalTargetsPage({
     goals.filter((g) => g.ownerId).map((g) => [g.ownerId!, g._count._all])
   );
   const leaderIds = new Set(teams.map((t) => t.leaderId).filter((id): id is string => !!id));
+  /*
+    평가자는 조직도를 따라 올라가 계산한다(`buildEvaluatorMap`). 여기서 함께
+    보여 주는 이유는, 조직도에 부문 책임이나 본부 운영책임이 비어 있으면 사슬이
+    말없이 사장까지 올라가기 때문이다 — 목표 화면에서는 «평가자: 사장»만 보여서
+    무엇이 비었는지 알 수 없다. 여기서 한 표로 훑고 조직도를 고치면 된다.
+  */
+  const evaluators = buildEvaluatorMap(everyone, teams);
 
   const people: Person[] = users.map((u) => ({
     id: u.id,
@@ -120,6 +148,7 @@ export default async function EvalTargetsPage({
     businessUnit: u.team?.businessUnit ?? u.businessUnit ?? null,
     isLeader: leaderIds.has(u.id),
     goalCount: goalCountByUser.get(u.id) ?? 0,
+    evaluator: evaluators.get(u.id) ?? null,
     target: evalTargetState(u, sharedFrom ?? cycle, manualByUser.get(u.id) ?? null),
   }));
 
@@ -163,6 +192,8 @@ export default async function EvalTargetsPage({
   // 목표가 굴러 올라온 값이라 개인목표가 없는 게 정상이고, 이들까지 "미등록"으로
   // 세면 정작 챙겨야 할 사람이 숫자에 묻힌다.
   const needsOwnGoal = (p: Person) => p.position === "STAFF";
+  // 조직도가 비어 사슬이 사장까지 올라간 사람 수 — 고쳐야 할 자리의 개수다.
+  const evaluatorGaps = people.filter((p) => p.evaluator?.note).length;
   const withoutGoal = people.filter(
     (p) => p.target.included && needsOwnGoal(p) && p.goalCount === 0
   ).length;
@@ -252,6 +283,64 @@ export default async function EvalTargetsPage({
                   </ActionForm>
                 )}
               </div>
+            </div>
+          </section>
+
+          {/*
+            평가자 확인 — 조직도를 따라 올라간 1·2차 평가자를 한 표에서 훑는다.
+            부문 책임이나 본부 운영책임이 비어 있으면 사슬이 말없이 사장까지
+            올라가는데, 목표 화면에서는 «평가자: 사장»만 보여서 무엇이 비었는지
+            알 수 없다. 여기서 빈 자리를 짚어 주면 조직도를 고칠 수 있다.
+          */}
+          <section className={CARD_CLASS}>
+            <header className="flex flex-wrap items-baseline gap-x-2 border-b border-slate-200 px-4 py-2">
+              <h2 className="text-sm font-semibold text-slate-900">평가자 확인</h2>
+              <span className="text-xs text-slate-500">
+                조직도에서 따라 올라간 값입니다 — 담당→팀장→책임→운영책임→사장
+              </span>
+              {evaluatorGaps > 0 && (
+                <span className="ml-auto text-xs font-medium text-status-critical">
+                  조직도가 비어 사장으로 올라간 사람 {evaluatorGaps}명
+                </span>
+              )}
+            </header>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[52rem] border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-left text-slate-500">
+                    <th className="px-4 py-1.5 font-medium">이름</th>
+                    <th className="px-4 py-1.5 font-medium">소속</th>
+                    <th className="px-4 py-1.5 font-medium">1차 평가자</th>
+                    <th className="px-4 py-1.5 font-medium">2차 평가자</th>
+                    <th className="px-4 py-1.5 font-medium">확인</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {people.map((p) => (
+                    <tr key={p.id} className="border-t border-slate-100">
+                      <td className="px-4 py-1.5 font-medium text-slate-800">
+                        {p.name} {POSITION_LABEL[p.position]}
+                      </td>
+                      <td className="px-4 py-1.5 text-slate-500">
+                        {[p.division, p.teamName].filter(Boolean).join(" / ") || "-"}
+                      </td>
+                      <td className="px-4 py-1.5 text-slate-800">
+                        {p.evaluator?.first ? evaluatorLabel(p.evaluator.first) : "-"}
+                      </td>
+                      <td className="px-4 py-1.5 text-slate-800">
+                        {p.evaluator?.second ? evaluatorLabel(p.evaluator.second) : "-"}
+                      </td>
+                      <td className="px-4 py-1.5">
+                        {p.evaluator?.note ? (
+                          <span className="text-status-critical">{p.evaluator.note}</span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </section>
 
