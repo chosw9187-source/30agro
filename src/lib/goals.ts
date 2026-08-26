@@ -422,7 +422,7 @@ export type GoalViewer = {
  */
 export function visibleGoalLevels(viewer: { isAdmin: boolean; position: string }): GoalLevel[] {
   if (!viewer.isAdmin && viewer.position === "STAFF") return ["TEAM", "INDIVIDUAL"];
-  return ["DIVISION", "TEAM", "INDIVIDUAL"];
+  return ["COMPANY", "TEAM", "INDIVIDUAL"];
 }
 
 /**

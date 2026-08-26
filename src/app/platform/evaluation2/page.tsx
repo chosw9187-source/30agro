@@ -96,7 +96,7 @@ export const dynamic = "force-dynamic";
  * 뜨지 않는다.
  */
 const TAB_TO_LEVEL: Record<string, GoalLevel> = {
-  division: "DIVISION",
+  company: "COMPANY",
   team: "TEAM",
   individual: "INDIVIDUAL",
 };
@@ -1937,7 +1937,8 @@ export default async function Evaluation2Page({
     const parent = goal.parentId ? nodeById.get(goal.parentId) : null;
     // 마감 상태를 여기서 한 번에 반영한다. 진척은 목표 확정 뒤에도 올리고,
     // 목표 내용·삭제·집계 제외는 확정되면 잠긴다.
-    const editable = canManage(goal) && lock.canEditGoals;
+    // 전사목표는 「조직 목표 관리」에서만 고친다 — 아래 참조.
+    const editable = canManage(goal) && lock.canEditGoals && level !== "COMPANY";
     const isEditing = editingGoal?.id === goal.id;
     const parentLevel = GOAL_PARENT_LEVEL[level];
     // 상위 목표 후보도 볼 수 있는 범위 안에서만 고르게 한다.
@@ -2471,8 +2472,14 @@ export default async function Evaluation2Page({
       subtotals.filter((b) => Math.round(b.sum) !== 100).map((b) => b.ownerKey)
     ).size;
 
+    /*
+      전사목표는 이 탭에서 만들지 않는다. 한 벌뿐인 회사 목표를 세 군데(조직 목표
+      관리·상단 표·이 탭)에서 고칠 수 있게 두면 어디서 고친 것이 진짜인지가
+      흐려진다. 여기서는 굴러 올라온 달성률을 읽기만 한다.
+    */
     const canCreate =
       lock.canEditGoals &&
+      level !== "COMPANY" &&
       (isAdmin ||
         level === "INDIVIDUAL" ||
         (level === "TEAM" && teams.some((t) => t.leaderId === session!.user.id)));
@@ -2529,6 +2536,20 @@ export default async function Evaluation2Page({
           아래 카드마다 누구 목표인지 이름이 붙는다.
         */}
         {level === "INDIVIDUAL" && <BasicInfoTable />}
+
+        {/*
+          전사목표를 고치는 자리는 「조직 목표 관리」 한 곳이다. 여기서는 아래
+          층에서 굴러 올라온 달성률을 읽는다 — 어디서 고쳐야 하는지는 적어 준다.
+        */}
+        {level === "COMPANY" && isAdmin && (
+          <p className="text-xs text-slate-500">
+            전사목표를 세우고 고치는 자리는{" "}
+            <Link href="/admin/org-goals" className="text-brand-green-dark underline">
+              조직 목표 관리
+            </Link>
+            입니다. 여기서는 아래 층에서 굴러 올라온 달성률을 봅니다.
+          </p>
+        )}
 
         {canCreate && cycle && (
           <details className={`${CARD_CLASS} p-5`}>
