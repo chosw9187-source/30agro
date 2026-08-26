@@ -2502,7 +2502,11 @@ export default async function Evaluation2Page({
         관리자에게만 보인다. 목표를 빌려다 보는 단계(중간평가·최종평가)에는
         띄우지 않는다 — 마감할 것은 원본 한 벌뿐이다.
       */}
-      {isAdmin && cycle && !cycle.goalsLockedAt && cycle.status !== "CLOSED" && (
+      {isAdmin &&
+        cycle &&
+        !waitingForSource &&
+        !cycle.goalsLockedAt &&
+        cycle.status !== "CLOSED" && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <span className="text-sm font-medium text-slate-800">목표 마감</span>
           <span className="text-xs text-slate-500">

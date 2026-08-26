@@ -522,27 +522,19 @@ export async function seedCompanyGoalTemplate(cycleId: string) {
  * 이미 목표가 있는 사이클에는 넣지 않는다. 두 번 눌러 같은 목표가 두 벌
  * 생기면 가중치 합이 무너져 달성률이 통째로 어긋난다.
  */
-export async function copyGoalsFromCycle(formData: FormData) {
-  const session = await requireGoalModule();
-  if (!(await isAdmin())) throw new Error("목표 복사는 관리자만 할 수 있습니다.");
-
-  const targetCycleId = str(formData.get("targetCycleId"));
-  const sourceCycleId = str(formData.get("sourceCycleId"));
-  if (!targetCycleId || !sourceCycleId) throw new Error("가져올 사이클을 골라 주세요.");
-  if (targetCycleId === sourceCycleId) throw new Error("같은 사이클끼리는 복사할 수 없습니다.");
-  await requireCycleEditable(targetCycleId, "goal");
-
-  const existing = await prisma.goal.count({ where: { cycleId: targetCycleId } });
-  if (existing > 0) {
-    throw new Error("이미 목표가 있는 사이클입니다. 비운 뒤에 다시 시도해 주세요.");
-  }
-
-  const [source, target] = await Promise.all([
-    prisma.goalCycle.findUnique({ where: { id: sourceCycleId }, select: { id: true } }),
-    prisma.goalCycle.findUnique({ where: { id: targetCycleId }, select: { id: true } }),
-  ]);
-  if (!source || !target) throw new Error("사이클을 찾을 수 없습니다.");
-
+/**
+ * 목표 한 벌을 다른 사이클로 그대로 옮겨 만든다.
+ *
+ * 상하 연결(parentId)까지 옮겨야 하므로 위층부터 만들면서 옛 id → 새 id 대응표를
+ * 쌓아간다. `carryProgress`는 «같은 해의 다음 단계로 넘길 때» 쓴다 — 그때는
+ * 진척·상태·기한이 이어져야 한다. 해를 넘겨 체계만 베낄 때는 끄고 부른다.
+ */
+async function copyGoalsInto(
+  sourceCycleId: string,
+  targetCycleId: string,
+  createdById: string,
+  opts: { carryProgress?: boolean } = {}
+) {
   const rows = await prisma.goal.findMany({
     where: { cycleId: sourceCycleId },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -558,6 +550,7 @@ export async function copyGoalsFromCycle(formData: FormData) {
       weight: true,
       metric: true,
       targetValue: true,
+      currentValue: true,
       scaleS: true,
       scaleA: true,
       scaleB: true,
@@ -568,11 +561,14 @@ export async function copyGoalsFromCycle(formData: FormData) {
       keyResults: true,
       half: true,
       sortOrder: true,
+      isOther: true,
+      progress: true,
+      status: true,
+      dueDate: true,
     },
   });
 
   const newIdByOldId = new Map<string, string>();
-  // 위층부터 만들어야 아래층이 붙을 부모의 새 id가 이미 준비돼 있다.
   for (const level of GOAL_LEVELS) {
     for (const row of rows.filter((r) => r.level === level)) {
       const created = await prisma.goal.create({
@@ -598,13 +594,47 @@ export async function copyGoalsFromCycle(formData: FormData) {
           goalType: row.goalType,
           keyResults: row.keyResults,
           sortOrder: row.sortOrder,
-          createdById: session.user.id,
+          isOther: row.isOther,
+          ...(opts.carryProgress
+            ? {
+                currentValue: row.currentValue,
+                progress: row.progress,
+                status: row.status,
+                dueDate: row.dueDate,
+              }
+            : {}),
+          createdById,
         },
         select: { id: true },
       });
       newIdByOldId.set(row.id, created.id);
     }
   }
+  return newIdByOldId.size;
+}
+
+export async function copyGoalsFromCycle(formData: FormData) {
+  const session = await requireGoalModule();
+  if (!(await isAdmin())) throw new Error("목표 복사는 관리자만 할 수 있습니다.");
+
+  const targetCycleId = str(formData.get("targetCycleId"));
+  const sourceCycleId = str(formData.get("sourceCycleId"));
+  if (!targetCycleId || !sourceCycleId) throw new Error("가져올 사이클을 골라 주세요.");
+  if (targetCycleId === sourceCycleId) throw new Error("같은 사이클끼리는 복사할 수 없습니다.");
+  await requireCycleEditable(targetCycleId, "goal");
+
+  const existing = await prisma.goal.count({ where: { cycleId: targetCycleId } });
+  if (existing > 0) {
+    throw new Error("이미 목표가 있는 사이클입니다. 비운 뒤에 다시 시도해 주세요.");
+  }
+
+  const [source, target] = await Promise.all([
+    prisma.goalCycle.findUnique({ where: { id: sourceCycleId }, select: { id: true } }),
+    prisma.goalCycle.findUnique({ where: { id: targetCycleId }, select: { id: true } }),
+  ]);
+  if (!source || !target) throw new Error("사이클을 찾을 수 없습니다.");
+
+  await copyGoalsInto(sourceCycleId, targetCycleId, session.user.id);
 
   revalidatePath(PATH);
   revalidatePath("/admin/org-goals");
@@ -671,22 +701,27 @@ export async function lockGoalSetting(cycleId: string) {
     where: { id: cycleId },
     data: { goalsLockedAt: new Date(), goalsLockedById: session.user.id },
   });
-  await linkFollowUpCycles(cycleId);
+  await handOffToNextPhase(cycleId, session.user.id);
   revalidatePath(PATH);
   revalidatePath(ADMIN_PATH);
 }
 
 /**
- * 마감한 목표를 뒤 단계가 이어받게 잇는다 — 같은 해의 중간평가·최종평가다.
+ * 마감한 목표를 **다음 단계로 넘긴다** — 같은 해의 바로 다음 평가다.
  *
- * 마감은 «이 목표로 평가한다»는 선언이고, 그 다음에 할 일은 곧바로 중간평가다.
- * 그런데 잇는 것을 관리 화면에서 따로 눌러 줘야 했다면, 마감해 놓고도 중간평가는
- * 비어 있는 채로 남는다. 마감할 때 한 번에 잇는다.
+ * 참조가 아니라 **복사**로 넘긴다. 마감은 «이 목표로 평가한다»고 못을 박는
+ * 일이라, 그 뒤로 목표설정에 적어 둔 내용은 그대로 남아야 한다. 한 벌을 같이
+ * 보는 구조로 두면 중간평가에서 목표를 고친 순간 마감해 둔 원본까지 바뀌어서,
+ * «무엇을 세웠고 무엇으로 평가했는지»가 한 줄로 뭉개진다. 마감하는 순간 둘은
+ * 갈라진다.
  *
- * 이미 어디를 보고 있는 단계(sourceCycleId가 있는)와 자기 목표를 따로 들고 있는
- * 단계는 건드리지 않는다 — 남이 세워 둔 것을 마감 한 번으로 덮어쓰면 안 된다.
+ * 이미 자기 목표를 가진 단계에는 다시 넣지 않는다. 마감을 풀었다 다시 마감해도
+ * 중간평가에서 고쳐 놓은 것이 덮이지 않는다.
+ *
+ * 그 뒤 단계(최종평가)는 이 «다음 단계»가 마감될 때까지 기다리게 세워 둔다 —
+ * 사슬은 목표설정 → 중간평가 → 최종평가 한 방향이다.
  */
-async function linkFollowUpCycles(cycleId: string) {
+async function handOffToNextPhase(cycleId: string, actorId: string) {
   const all = await prisma.goalCycle.findMany({
     select: {
       id: true,
@@ -698,24 +733,43 @@ async function linkFollowUpCycles(cycleId: string) {
   });
   const me = all.find((c) => c.id === cycleId);
   if (!me) return;
-  // 빌려다 보는 단계를 마감할 때는 아무것도 잇지 않는다. 빌린 것을 또 빌려주면
-  // 어디가 원본인지 따라갈 수 없다(스키마도 한 단계만 허용한다).
+  // 빌려다 보는 단계는 넘길 것이 없다 — 자기 목표가 아니다.
   if (me.sourceCycleId) return;
 
   const myRank = cyclePhaseRank(me);
-  const targets = all.filter(
-    (c) =>
-      c.id !== cycleId &&
-      cycleYear(c) === cycleYear(me) &&
-      cyclePhaseRank(c) > myRank &&
-      !c.sourceCycleId &&
-      c._count.goals === 0
-  );
-  for (const target of targets) {
-    await prisma.goalCycle.update({
-      where: { id: target.id },
-      data: { sourceCycleId: cycleId },
+  const later = all
+    .filter((c) => c.id !== cycleId && cycleYear(c) === cycleYear(me) && cyclePhaseRank(c) > myRank)
+    .sort((a, b) => cyclePhaseRank(a) - cyclePhaseRank(b));
+  const next = later[0];
+  if (!next) return;
+
+  if (next._count.goals === 0) {
+    await copyGoalsInto(cycleId, next.id, actorId, { carryProgress: true });
+    // 「1. 기본사항」의 담당업무도 같이 넘긴다 — 그 해 무엇을 맡았는지는 단계가
+    // 바뀐다고 달라지지 않는다.
+    const sheets = await prisma.goalSheetInfo.findMany({
+      where: { cycleId },
+      select: { userId: true, duty: true },
     });
+    for (const sheet of sheets) {
+      await prisma.goalSheetInfo.upsert({
+        where: { cycleId_userId: { cycleId: next.id, userId: sheet.userId } },
+        create: { cycleId: next.id, userId: sheet.userId, duty: sheet.duty },
+        update: {},
+      });
+    }
+  }
+
+  // 넘겨받은 단계는 이제 자기 목표를 가진다 — 더 이상 남의 것을 빌려 보지 않는다.
+  if (next.sourceCycleId) {
+    await prisma.goalCycle.update({ where: { id: next.id }, data: { sourceCycleId: null } });
+  }
+
+  // 그 뒤 단계는 «다음 단계»가 마감될 때까지 기다린다.
+  for (const rest of later.slice(1)) {
+    if (rest._count.goals === 0 && rest.sourceCycleId !== next.id) {
+      await prisma.goalCycle.update({ where: { id: rest.id }, data: { sourceCycleId: next.id } });
+    }
   }
 }
 
