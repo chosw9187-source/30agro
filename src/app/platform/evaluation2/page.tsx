@@ -1975,7 +1975,7 @@ export default async function Evaluation2Page({
             {goal.agreementNote}
           </p>
         )}
-        {agreement === "AGREED" && goal.agreedAt && (
+        {needsAgreement(goal.level) && agreement === "AGREED" && goal.agreedAt && (
           <p className="mt-1 text-[11px] text-slate-400">
             {goal.agreedBy?.name ?? "팀장"} 합의 · {formatKSTDate(goal.agreedAt)}
           </p>

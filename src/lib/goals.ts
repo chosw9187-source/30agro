@@ -58,11 +58,25 @@ export const GOAL_AGREEMENT_BADGE_CLASS: Record<GoalAgreementStatus, string> = {
 };
 
 /**
+ * 합의 단계를 지금 쓰고 있는지.
+ *
+ * **꺼 두었다.** «개인이 한 해 목표를 다 적고 마감하면 팀장이 한 번에 합의한다»는
+ * 흐름으로 다시 만들기로 했고, 그때까지 목표 한 건마다 «작성중» 배지와 «팀장에게
+ * 합의 요청» 단추가 붙어 있으면 아직 없는 절차를 밟으라는 말이 된다.
+ *
+ * 저장된 값(`agreementStatus`)과 서버 액션은 그대로 둔다 — 다시 켤 때 이 값만
+ * 되돌리면 그동안 쌓인 합의 기록이 그대로 살아난다. 꺼져 있는 동안에는 «합의
+ * 완료된 목표는 못 고친다»는 잠금도 같이 풀린다. 화면에서 합의를 해제할 길이
+ * 없는데 잠금만 남으면 고칠 수도 지울 수도 없는 목표가 생긴다.
+ */
+export const AGREEMENT_ENABLED: boolean = false;
+
+/**
  * 합의가 필요한 목표인지. 개인목표만 팀원이 세워 팀장에게 올리는 구조이고,
  * 전사·책임·팀 목표는 관리자·팀장이 직접 세우는 값이라 합의 대상이 아니다.
  */
 export function needsAgreement(level: string): boolean {
-  return level === "INDIVIDUAL";
+  return AGREEMENT_ENABLED && level === "INDIVIDUAL";
 }
 
 export function asAgreementStatus(value: string): GoalAgreementStatus {

@@ -27,6 +27,7 @@ import {
   parseNameYear,
   evalTargetState,
   flattenGoalTree,
+  AGREEMENT_ENABLED,
   needsAgreement,
   GOAL_LEVELS,
   GOAL_PARENT_LEVEL,
@@ -1153,7 +1154,7 @@ export async function updateGoal(formData: FormData) {
 
   // 합의가 끝난 목표는 담당자가 혼자 바꿀 수 없다. 바꾸려면 팀장이 합의를
   // 해제하고 다시 받는 게 맞다 — 아니면 승인한 내용과 실제 목표가 달라진다.
-  if (existing.agreementStatus === "AGREED" && !(await canApproveGoal(goalId))) {
+  if (AGREEMENT_ENABLED && existing.agreementStatus === "AGREED" && !(await canApproveGoal(goalId))) {
     throw new Error("합의 완료된 목표입니다. 팀장에게 합의 해제를 요청해 주세요.");
   }
 
@@ -1266,7 +1267,7 @@ export async function deleteGoal(goalId: string) {
     where: { id: goalId },
     select: { agreementStatus: true },
   });
-  if (agreed?.agreementStatus === "AGREED" && !(await canApproveGoal(goalId))) {
+  if (AGREEMENT_ENABLED && agreed?.agreementStatus === "AGREED" && !(await canApproveGoal(goalId))) {
     throw new Error("합의 완료된 목표입니다. 팀장에게 합의 해제를 요청해 주세요.");
   }
 
