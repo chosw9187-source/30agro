@@ -73,19 +73,6 @@ export async function PlatformShell({
     // 자기 박스 안에 가둬버려서 그냥 같이 밀려 올라간다. 모바일(<md)은
     // 기존처럼 문서 스크롤을 그대로 둔다.
     <div className="flex min-w-0 flex-1 flex-col md:h-screen md:flex-none md:overflow-hidden">
-      {/*
-        본인 띠는 **화면의 맨 첫 줄**이다 — 왼쪽 메뉴와 로고 머리글보다도 위에서
-        폭 전체를 가로지른다. 머리글 아래에 두었더니 로고 띠가 위를 덮어 «맨 위»가
-        아니었다.
-
-        지금은 평가2에서만 띄운다. 사진·소속·1·2차 평가자는 목표를 세우고 평가할
-        때 쓰는 값이라, 조직도나 직원정보 조회에서까지 «내 평가자»가 따라다니면
-        화면 위 한 줄만 축낸다. 셸에 두는 이유는 자리 때문이다 — 페이지 안에서는
-        로고 머리글보다 위로 올라갈 수가 없다.
-      */}
-      <RouteOnly prefix="/platform/evaluation2">
-        <EvaluateeBanner userId={user.id} className="hidden md:block" />
-      </RouteOnly>
       <div className="flex min-w-0 flex-1 md:min-h-0 md:overflow-hidden">
         <input type="checkbox" id="mobile-nav-toggle" className="peer hidden" />
         <label
@@ -109,59 +96,41 @@ export async function PlatformShell({
           hiddenAdminMenuKeys={[...hiddenAdminMenuKeys]}
         />
         <div className="flex min-w-0 flex-1 flex-col md:min-h-0">
+          <header className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 text-sm md:px-8">
+            <div className="flex min-w-0 items-center gap-3">
+              <label
+                htmlFor="mobile-nav-toggle"
+                aria-label="메뉴 열기"
+                className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded border border-slate-300 text-lg text-slate-700 md:hidden"
+              >
+                ☰
+              </label>
+              <CompanyLogo className="h-9" />
+            </div>
+            {/*
+              좁은 화면에서는 「문의」로 줄인다. 긴 이름을 그대로 두면 줄어들 자리가
+              없어 로고 위로 올라타서 둘 다 못 읽게 된다.
+            */}
+            <Link
+              href="/platform/support"
+              className="shrink-0 rounded border border-slate-300 px-3 py-1.5 whitespace-nowrap text-slate-700 hover:border-brand-green hover:text-brand-green"
+            >
+              <span className="hidden sm:inline">관리자에게 문의하기</span>
+              <span className="sm:hidden">문의</span>
+            </Link>
+          </header>
+
           {/*
-            넓은 화면의 평가2에서는 초록 띠가 머리글을 겸한다 — 로고 줄까지 두면
-            같은 자리에 띠가 둘이라 본문이 그만큼 밀린다. 좁은 화면에서는 로고
-            줄을 그대로 두고 그 아래에 띠를 넣는다(바로 다음). 손에 쥔 화면에서는
-            띠가 맨 위를 다 차지하는 것보다, 늘 있던 로고 줄이 먼저 오는 편이
-            어느 앱인지 헷갈리지 않는다.
+            본인 띠는 로고 줄과 본문 사이 — 넓은 화면이든 손에 쥔 화면이든 같은
+            자리다. 로고 줄보다 위로 올렸더니 «어느 앱인지»가 먼저 읽히지 않았다.
+
+            평가2에서만 띄운다. 사진·소속·1·2차 평가자는 목표를 세우고 평가할 때
+            쓰는 값이라, 조직도나 직원정보 조회에서까지 «내 평가자»가 따라다니면
+            화면 위 한 줄만 축낸다. 그런데도 페이지가 아니라 셸에 두는 이유는
+            자리 때문이다 — 페이지 안에서는 로고 줄 밑에 붙을 수가 없다.
           */}
-          <RouteOnly prefix="/platform/evaluation2" invert>
-            <header className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 text-sm md:px-8">
-              <div className="flex min-w-0 items-center gap-3">
-                <label
-                  htmlFor="mobile-nav-toggle"
-                  aria-label="메뉴 열기"
-                  className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded border border-slate-300 text-lg text-slate-700 md:hidden"
-                >
-                  ☰
-                </label>
-                <CompanyLogo className="h-9" />
-              </div>
-              {/*
-            좁은 화면에서는 「문의」로 줄인다. 긴 이름을 그대로 두면 줄어들 자리가
-            없어 로고 위로 올라타서 둘 다 못 읽게 된다.
-          */}
-              <Link
-                href="/platform/support"
-                className="shrink-0 rounded border border-slate-300 px-3 py-1.5 whitespace-nowrap text-slate-700 hover:border-brand-green hover:text-brand-green"
-              >
-                <span className="hidden sm:inline">관리자에게 문의하기</span>
-                <span className="sm:hidden">문의</span>
-              </Link>
-            </header>
-          </RouteOnly>
           <RouteOnly prefix="/platform/evaluation2">
-            <header className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 text-sm md:hidden">
-              <div className="flex min-w-0 items-center gap-3">
-                <label
-                  htmlFor="mobile-nav-toggle"
-                  aria-label="메뉴 열기"
-                  className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded border border-slate-300 text-lg text-slate-700"
-                >
-                  ☰
-                </label>
-                <CompanyLogo className="h-9" />
-              </div>
-              <Link
-                href="/platform/support"
-                className="shrink-0 rounded border border-slate-300 px-3 py-1.5 whitespace-nowrap text-slate-700 hover:border-brand-green hover:text-brand-green"
-              >
-                문의
-              </Link>
-            </header>
-            {/* 좁은 화면의 띠 — 로고 줄과 「연도 · 목표」 사이. */}
-            <EvaluateeBanner userId={user.id} className="md:hidden" />
+            <EvaluateeBanner userId={user.id} />
           </RouteOnly>
           <main className="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:min-h-0 md:px-8 md:py-8">
             {children}

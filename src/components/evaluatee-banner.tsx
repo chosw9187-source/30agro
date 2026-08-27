@@ -1,5 +1,3 @@
-import { cache } from "react";
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Avatar } from "@/components/avatar";
 import { buildEvaluatorMap, evaluatorLabel } from "@/lib/evaluator";
@@ -14,22 +12,17 @@ import { POSITION_LABEL } from "@/lib/permission-constants";
  * 사진·소속은 인사카드와 조직도에서, 1·2차 평가자는 조직도를 따라 올라가
  * 계산한다. 그래서 표가 아니라 «읽기만 하는 띠»다.
  *
- * 이 띠가 평가2 안이 아니라 **셸**에 있는 이유: 어느 화면에 있든 «지금 누구의
- * 화면인가»가 먼저 읽혀야 한다. 목표설정에서만 보이던 시절에는 조직도나
- * 인사카드로 넘어가는 순간 사라져서, 남의 자료를 보는 중인지 내 화면인지가
- * 흐려졌다. 머리글 바로 아래에 붙이고 스크롤해도 따라오게 둔다.
+ * 자리는 로고 줄 바로 아래, 본문보다는 위다 — 넓은 화면이든 손에 쥔 화면이든
+ * 같다. 스크롤해도 따라 올라오지 않게 위에 붙여 둔다. 페이지가 아니라 셸에 두는
+ * 이유는 그 자리 때문이다 — 페이지 안에서는 로고 줄 밑에 붙을 수가 없다.
  *
  * 사진은 인사카드의 것을 그대로 쓴다(`/api/employees/[id]/photo`) — 직원정보
  * 조회·조직도가 보는 사진과 같은 한 장이라, 인사팀이 사진을 바꾸면 여기도 같이
  * 바뀐다. 사진이 없으면 회사 로고 자리표가 대신 든다.
  *
  * 사진 자체(Bytes)는 무거우니 «있는지»만 센다. 실제 그림은 위 API가 내려 준다.
- *
- * 띠는 한 화면에 **두 번** 놓인다 — 넓은 화면용(맨 첫 줄)과 좁은 화면용(로고 줄
- * 아래). 둘 중 하나는 늘 CSS로 감춰지지만 서버에서는 둘 다 그려지므로, 조회는
- * `cache`로 묶어 한 번만 돈다.
  */
-const loadBanner = cache(async (userId: string) => {
+export async function EvaluateeBanner({ userId }: { userId: string }) {
   const [teams, people, photoCount] = await Promise.all([
     prisma.team.findMany({
       where: { active: true },
@@ -59,18 +52,6 @@ const loadBanner = cache(async (userId: string) => {
     }),
     prisma.user.count({ where: { id: userId, photo: { not: null } } }),
   ]);
-  return { teams, people, photoCount };
-});
-
-export async function EvaluateeBanner({
-  userId,
-  className = "",
-}: {
-  userId: string;
-  className?: string;
-}) {
-  const { teams, people, photoCount } = await loadBanner(userId);
-
   const me = people.find((p) => p.id === userId) ?? null;
   // 퇴사자·미등록 계정처럼 조직도에 없는 사람에게는 띠를 그리지 않는다. 빈 칸만
   // 남은 띠는 자리만 먹고 아무것도 알려 주지 않는다.
@@ -93,7 +74,7 @@ export async function EvaluateeBanner({
     // 있어도 화면에 남는다. 모바일은 문서 전체가 굴러서 머리글째 올라가 버리니,
     // 거기서만 sticky로 붙여 둔다. 서랍 메뉴(z-40)보다는 아래여야 메뉴를 열었을 때
     // 띠가 그 위로 삐져나오지 않는다.
-    <section className={`sticky top-0 z-20 shrink-0 md:static ${className}`}>
+    <section className="sticky top-0 z-20 shrink-0 md:static">
       {/*
         크기를 rem이 아니라 px로 못 박는다. 이 앱은 화면 폭에 따라 기준 글자
         크기를 16 → 21.3px로 키우는데, 띠까지 같이 커지면 PC에서 화면 위쪽
@@ -134,17 +115,6 @@ export async function EvaluateeBanner({
             </b>
           </p>
         </div>
-        {/*
-          넓은 화면에서는 이 띠가 로고 줄을 대신하므로 「관리자에게 문의하기」를
-          여기에 둔다. 좁은 화면에는 로고 줄이 그대로 있고 거기에 같은 단추가
-          있으니, 띠에서는 감춘다.
-        */}
-        <Link
-          href="/platform/support"
-          className="hidden shrink-0 rounded border border-white/45 px-3 py-1.5 text-[12.5px] whitespace-nowrap text-white hover:bg-white/15 md:block"
-        >
-          관리자에게 문의하기
-        </Link>
       </div>
     </section>
   );
