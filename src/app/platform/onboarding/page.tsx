@@ -315,7 +315,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
                 />
               </div>
               <div>
-                <label className={LABEL_CLASS}>담당 분야 (선택)</label>
+                <label className={LABEL_CLASS}>담당 분야 (입력)</label>
                 <input name="specialty" placeholder="예: 안전보건" className={INPUT_CLASS} />
               </div>
               <div>
