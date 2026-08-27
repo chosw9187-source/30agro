@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Avatar } from "@/components/avatar";
 import { buildEvaluatorMap, evaluatorLabel } from "@/lib/evaluator";
@@ -83,12 +84,24 @@ export async function EvaluateeBanner({ userId }: { userId: string }) {
         140px을 먹어 왼쪽 메뉴의 «로그아웃»이 아래로 밀려난다. 늘 떠 있는
         자리라서 크기는 한 벌로 고정한다.
       */}
-      <div className="flex items-center gap-3 bg-[linear-gradient(100deg,#0f3d22_0%,#17643a_45%,#2a9455_100%)] px-4 py-2 text-white sm:gap-3.5 sm:px-6">
+      <div className="flex items-center gap-2.5 bg-[linear-gradient(100deg,#0f3d22_0%,#17643a_45%,#2a9455_100%)] px-3 py-2 text-white sm:gap-3.5 sm:px-6">
+        {/*
+          띠가 이 화면의 머리글 노릇까지 한다 — 위에 있던 흰 로고 줄은 접었다.
+          그 줄에 있던 두 가지를 여기로 옮긴다: 왼쪽의 서랍 메뉴 단추(휴대폰
+          전용)와 오른쪽의 「관리자에게 문의하기」.
+        */}
+        <label
+          htmlFor="mobile-nav-toggle"
+          aria-label="메뉴 열기"
+          className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded border border-white/45 text-base text-white md:hidden"
+        >
+          ☰
+        </label>
         <Avatar
           userId={me.id}
           name={me.name}
           hasPhoto={photoCount > 0}
-          className="h-[42px] w-[42px] border-2 border-white/85 sm:h-[52px] sm:w-[52px]"
+          className="h-[40px] w-[40px] border-2 border-white/85 sm:h-[52px] sm:w-[52px]"
         />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] leading-tight font-bold tracking-tight sm:text-[18px]">
@@ -102,7 +115,11 @@ export async function EvaluateeBanner({ userId }: { userId: string }) {
               {scope}
             </p>
           )}
-          <p className="mt-[3px] truncate text-[10.5px] leading-tight text-white/75 sm:text-[11.5px]">
+          {/*
+            평가자 줄만 좁은 화면에서 두 줄로 접힌다. 한 줄로 우겨넣으면 «2차
+            평가자»가 말줄임에 먹혀서, 정작 알아야 할 이름이 사라진다.
+          */}
+          <p className="mt-[3px] text-[10.5px] leading-snug break-keep text-white/75 sm:truncate sm:text-[11.5px]">
             1차 평가자{" "}
             <b className="font-bold text-white">
               {chain?.first ? evaluatorLabel(chain.first) : "미지정"}
@@ -113,6 +130,13 @@ export async function EvaluateeBanner({ userId }: { userId: string }) {
             </b>
           </p>
         </div>
+        <Link
+          href="/platform/support"
+          className="shrink-0 rounded border border-white/45 px-2.5 py-1.5 text-[11px] whitespace-nowrap text-white hover:bg-white/15 sm:px-3 sm:text-[12.5px]"
+        >
+          <span className="hidden sm:inline">관리자에게 문의하기</span>
+          <span className="sm:hidden">문의</span>
+        </Link>
       </div>
     </section>
   );
