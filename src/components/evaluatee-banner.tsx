@@ -1,3 +1,4 @@
+import { cache } from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Avatar } from "@/components/avatar";
@@ -23,8 +24,12 @@ import { POSITION_LABEL } from "@/lib/permission-constants";
  * 바뀐다. 사진이 없으면 회사 로고 자리표가 대신 든다.
  *
  * 사진 자체(Bytes)는 무거우니 «있는지»만 센다. 실제 그림은 위 API가 내려 준다.
+ *
+ * 띠는 한 화면에 **두 번** 놓인다 — 넓은 화면용(맨 첫 줄)과 좁은 화면용(로고 줄
+ * 아래). 둘 중 하나는 늘 CSS로 감춰지지만 서버에서는 둘 다 그려지므로, 조회는
+ * `cache`로 묶어 한 번만 돈다.
  */
-export async function EvaluateeBanner({ userId }: { userId: string }) {
+const loadBanner = cache(async (userId: string) => {
   const [teams, people, photoCount] = await Promise.all([
     prisma.team.findMany({
       where: { active: true },
@@ -54,6 +59,17 @@ export async function EvaluateeBanner({ userId }: { userId: string }) {
     }),
     prisma.user.count({ where: { id: userId, photo: { not: null } } }),
   ]);
+  return { teams, people, photoCount };
+});
+
+export async function EvaluateeBanner({
+  userId,
+  className = "",
+}: {
+  userId: string;
+  className?: string;
+}) {
+  const { teams, people, photoCount } = await loadBanner(userId);
 
   const me = people.find((p) => p.id === userId) ?? null;
   // 퇴사자·미등록 계정처럼 조직도에 없는 사람에게는 띠를 그리지 않는다. 빈 칸만
@@ -77,7 +93,7 @@ export async function EvaluateeBanner({ userId }: { userId: string }) {
     // 있어도 화면에 남는다. 모바일은 문서 전체가 굴러서 머리글째 올라가 버리니,
     // 거기서만 sticky로 붙여 둔다. 서랍 메뉴(z-40)보다는 아래여야 메뉴를 열었을 때
     // 띠가 그 위로 삐져나오지 않는다.
-    <section className="sticky top-0 z-20 shrink-0 md:static">
+    <section className={`sticky top-0 z-20 shrink-0 md:static ${className}`}>
       {/*
         크기를 rem이 아니라 px로 못 박는다. 이 앱은 화면 폭에 따라 기준 글자
         크기를 16 → 21.3px로 키우는데, 띠까지 같이 커지면 PC에서 화면 위쪽
@@ -85,18 +101,6 @@ export async function EvaluateeBanner({ userId }: { userId: string }) {
         자리라서 크기는 한 벌로 고정한다.
       */}
       <div className="flex items-center gap-2.5 bg-[linear-gradient(100deg,#0f3d22_0%,#17643a_45%,#2a9455_100%)] px-3 py-2 text-white sm:gap-3.5 sm:px-6">
-        {/*
-          띠가 이 화면의 머리글 노릇까지 한다 — 위에 있던 흰 로고 줄은 접었다.
-          그 줄에 있던 두 가지를 여기로 옮긴다: 왼쪽의 서랍 메뉴 단추(휴대폰
-          전용)와 오른쪽의 「관리자에게 문의하기」.
-        */}
-        <label
-          htmlFor="mobile-nav-toggle"
-          aria-label="메뉴 열기"
-          className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded border border-white/45 text-base text-white md:hidden"
-        >
-          ☰
-        </label>
         <Avatar
           userId={me.id}
           name={me.name}
@@ -130,12 +134,16 @@ export async function EvaluateeBanner({ userId }: { userId: string }) {
             </b>
           </p>
         </div>
+        {/*
+          넓은 화면에서는 이 띠가 로고 줄을 대신하므로 「관리자에게 문의하기」를
+          여기에 둔다. 좁은 화면에는 로고 줄이 그대로 있고 거기에 같은 단추가
+          있으니, 띠에서는 감춘다.
+        */}
         <Link
           href="/platform/support"
-          className="shrink-0 rounded border border-white/45 px-2.5 py-1.5 text-[11px] whitespace-nowrap text-white hover:bg-white/15 sm:px-3 sm:text-[12.5px]"
+          className="hidden shrink-0 rounded border border-white/45 px-3 py-1.5 text-[12.5px] whitespace-nowrap text-white hover:bg-white/15 md:block"
         >
-          <span className="hidden sm:inline">관리자에게 문의하기</span>
-          <span className="sm:hidden">문의</span>
+          관리자에게 문의하기
         </Link>
       </div>
     </section>
