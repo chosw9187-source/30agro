@@ -91,14 +91,28 @@ export function formatDuration(minutes: number): string {
 }
 
 /**
- * 관리자가 강사로 지정했고 아직 해제하지 않은 사람인지. [교육 프로그램 관리]
- * 탭과 세부일정 수정은 전부 이 검사를 통과해야 한다 — 탭을 숨기는 것만으로는
- * 직접 요청을 막을 수 없기 때문.
+ * [교육 프로그램 관리] 탭을 열 수 있는 사람인지. 별도의 강사 명단을 두지 않고
+ * 실제 배정으로 판단한다 — 강의를 맡은 본인이거나, 부서에 배정된 강의가 있는
+ * 그 부서의 팀장이면 열린다. 탭을 숨기는 것만으로는 직접 요청을 막을 수 없어
+ * 서버 액션도 같은 기준을 다시 확인한다.
  */
-export async function isActiveInstructor(userId: string): Promise<boolean> {
-  const row = await prisma.onboardingInstructor.findUnique({
-    where: { userId },
-    select: { active: true },
+export async function canCoordinateSessions(userId: string): Promise<boolean> {
+  const assigned = await prisma.onboardingSession.count({
+    where: { kind: "LECTURE", instructorId: userId },
   });
-  return !!row?.active;
+  if (assigned > 0) return true;
+
+  const ledTeams = await prisma.team.findMany({ where: { leaderId: userId }, select: { id: true } });
+  if (ledTeams.length === 0) return false;
+
+  const teamAssigned = await prisma.onboardingSession.count({
+    where: { kind: "LECTURE", instructorTeamId: { in: ledTeams.map((t) => t.id) } },
+  });
+  return teamAssigned > 0;
+}
+
+/** 이 사람이 그 팀의 팀장인지 — 부서 배정 강의에 강사를 지정할 권한의 기준. */
+export async function isLeaderOfTeam(userId: string, teamId: string): Promise<boolean> {
+  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { leaderId: true } });
+  return team?.leaderId === userId;
 }

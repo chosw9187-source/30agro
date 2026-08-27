@@ -122,8 +122,6 @@ model User {
   erpImportBatches ErpImportBatch[]
   pageViews        PageView[]
   onboardingPrograms    OnboardingProgram[]    @relation("OnboardingProgramCreator")
-  onboardingInstructor  OnboardingInstructor?  @relation("OnboardingInstructor")
-  onboardingAssignments OnboardingInstructor[] @relation("OnboardingInstructorAssigner")
   uploadedRegulations   Regulation[]           @relation("RegulationUploader")
   onboardingSessionsAdded OnboardingSession[]  @relation("OnboardingSessionCreator")
   onboardingSessionsTaught OnboardingSession[] @relation("OnboardingSessionInstructor")
@@ -727,25 +725,9 @@ model OnboardingSession {
 }
 
 /**
- * 강사 지정 — 관리자가 한국삼공 직원 중에서 지정한 온보딩 강사 풀.
- * 여기에 active로 올라온 사람만 일정 화면에서 예약 버튼을 볼 수 있다.
- */
-model OnboardingInstructor {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  user         User     @relation("OnboardingInstructor", fields: [userId], references: [id], onDelete: Cascade)
-  specialty    String?
-  note         String?
-  active       Boolean  @default(true)
-  assignedById String?
-  assignedBy   User?    @relation("OnboardingInstructorAssigner", fields: [assignedById], references: [id])
-  createdAt    DateTime @default(now())
-}
-
-/**
- * 기수에 참석하는 교육생(신입사원) 명단. 강사(OnboardingInstructor)와 달리
- * 기수마다 사람이 완전히 바뀌므로 프로그램에 묶는다 — 지난 기수 명단이
- * 그대로 남아야 "누가 어느 기수를 들었는지"를 나중에 확인할 수 있다.
+ * 기수에 참석하는 교육생(신입사원) 명단. 기수마다 사람이 완전히 바뀌므로
+ * 프로그램에 묶는다 — 지난 기수 명단이 그대로 남아야 "누가 어느 기수를
+ * 들었는지"를 나중에 확인할 수 있다.
  */
 model OnboardingTrainee {
   id        String            @id @default(cuid())
