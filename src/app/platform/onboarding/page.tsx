@@ -7,9 +7,10 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { ActionForm } from "@/components/action-form";
 import { activePrismaWhere } from "@/lib/hr-analytics";
 import {
-  durationMinutes,
-  formatDuration,
+  SLOTS,
+  SLOT_LABEL,
   formatSessionDay,
+  type Slot,
   formatSessionTimeRange,
   canCoordinateSessions,
   toKSTInputValues,
@@ -110,8 +111,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
             location: true,
             startAt: true,
             endAt: true,
-            minMinutes: true,
-            maxMinutes: true,
+            slot: true,
             instructorId: true,
             instructor: { select: { name: true } },
             instructorTeamId: true,
@@ -403,26 +403,20 @@ async function ManageSection({ programId }: { programId: string | null }) {
                 <input type="date" name="date" required className={INPUT_CLASS} />
               </div>
               <div>
-                <label className={LABEL_CLASS}>시작 시간</label>
-                <input type="time" name="startTime" required defaultValue="09:00" className={INPUT_CLASS} />
-              </div>
-              <div>
-                <label className={LABEL_CLASS}>종료 시간</label>
-                <input type="time" name="endTime" required defaultValue="10:00" className={INPUT_CLASS} />
+                <label className={LABEL_CLASS}>강의 시간</label>
+                <select name="slot" defaultValue="MORNING" className={INPUT_CLASS}>
+                  {SLOTS.map((v) => (
+                    <option key={v} value={v}>
+                      {SLOT_LABEL[v]}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className={LABEL_CLASS}>장소 (선택)</label>
                 <input name="location" placeholder="예: 본사 대회의실" className={INPUT_CLASS} />
               </div>
-              <div>
-                <label className={LABEL_CLASS}>최소 강의 시간 (분)</label>
-                <input type="number" name="minMinutes" min={1} defaultValue={30} className={INPUT_CLASS} />
-              </div>
-              <div>
-                <label className={LABEL_CLASS}>최대 강의 시간 (분, 선택)</label>
-                <input type="number" name="maxMinutes" min={1} placeholder="제한 없음" className={INPUT_CLASS} />
-              </div>
-              <div className="sm:col-span-2">
+              <div className="sm:col-span-3">
                 <label className={LABEL_CLASS}>설명 (선택)</label>
                 <input name="description" placeholder="교육 내용 요약" className={INPUT_CLASS} />
               </div>
@@ -441,7 +435,6 @@ async function ManageSection({ programId }: { programId: string | null }) {
             ) : (
               sessions.map((s) => {
                 const start = toKSTInputValues(s.startAt);
-                const end = toKSTInputValues(s.endAt);
                 const isBreak = s.kind === "BREAK";
                 return (
                   <div key={s.id} className="rounded-lg border border-slate-200 bg-white p-4">
@@ -452,15 +445,16 @@ async function ManageSection({ programId }: { programId: string | null }) {
                           {s.title} <StatusBadge status={s.status as SessionStatus} />
                         </p>
                         <p className="text-xs text-slate-500">
-                          {formatSessionDay(s.startAt)} {formatSessionTimeRange(s.startAt, s.endAt)} (
-                          {formatDuration(durationMinutes(s.startAt, s.endAt))})
+                          {formatSessionDay(s.startAt)}{" "}
+                          {s.status === "CONFIRMED"
+                            ? formatSessionTimeRange(s.startAt, s.endAt)
+                            : `${SLOT_LABEL[s.slot as Slot]} (시각 미확정)`}
                           {s.location && ` · ${s.location}`}
                         </p>
                         {!isBreak && (
                           <p className="mt-0.5 text-xs text-slate-500">
                             담당 {s.instructor?.name ?? (s.instructorTeam ? `${s.instructorTeam.name} (강사 미지정)` : "미배정")}{" "}
-                            · 최소 {formatDuration(s.minMinutes)}
-                            {s.maxMinutes ? ` · 최대 ${formatDuration(s.maxMinutes)}` : ""} ·{" "}
+                            ·{" "}
                             {s.attendees.length === 0 ? "교육생 전원" : `교육생 ${s.attendees.length}명 지정`}
                           </p>
                         )}
@@ -502,42 +496,19 @@ async function ManageSection({ programId }: { programId: string | null }) {
                           <input type="date" name="date" required defaultValue={start.date} className={INPUT_CLASS} />
                         </div>
                         <div>
-                          <label className={LABEL_CLASS}>시작 시간</label>
-                          <input type="time" name="startTime" required defaultValue={start.time} className={INPUT_CLASS} />
-                        </div>
-                        <div>
-                          <label className={LABEL_CLASS}>종료 시간</label>
-                          <input type="time" name="endTime" required defaultValue={end.time} className={INPUT_CLASS} />
+                          <label className={LABEL_CLASS}>강의 시간</label>
+                          <select name="slot" defaultValue={s.slot} className={INPUT_CLASS}>
+                            {SLOTS.map((v) => (
+                              <option key={v} value={v}>
+                                {SLOT_LABEL[v]}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         <div>
                           <label className={LABEL_CLASS}>장소</label>
                           <input name="location" defaultValue={s.location ?? ""} className={INPUT_CLASS} />
                         </div>
-                        {!isBreak && (
-                          <>
-                            <div>
-                              <label className={LABEL_CLASS}>최소 강의 시간 (분)</label>
-                              <input
-                                type="number"
-                                name="minMinutes"
-                                min={1}
-                                defaultValue={s.minMinutes}
-                                className={INPUT_CLASS}
-                              />
-                            </div>
-                            <div>
-                              <label className={LABEL_CLASS}>최대 강의 시간 (분, 선택)</label>
-                              <input
-                                type="number"
-                                name="maxMinutes"
-                                min={1}
-                                defaultValue={s.maxMinutes ?? ""}
-                                placeholder="제한 없음"
-                                className={INPUT_CLASS}
-                              />
-                            </div>
-                          </>
-                        )}
                         <div className="sm:col-span-2">
                           <label className={LABEL_CLASS}>설명</label>
                           <input name="description" defaultValue={s.description ?? ""} className={INPUT_CLASS} />

@@ -1,13 +1,32 @@
 import { prisma } from "@/lib/prisma";
 import { formatKSTDate, formatKSTDateTime } from "@/lib/format-kst";
 
-export const SESSION_STATUSES = ["PLANNED", "SUBMITTED", "CONFIRMED"] as const;
+export const SESSION_STATUSES = ["PLANNED", "SUBMITTED", "DECLINED", "CONFIRMED"] as const;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
 export const SESSION_STATUS_LABEL: Record<SessionStatus, string> = {
-  PLANNED: "시간 조정 중",
+  PLANNED: "강사 응답 대기",
   SUBMITTED: "강사 확정 · 승인 대기",
+  DECLINED: "강의 불가",
   CONFIRMED: "확정",
+};
+
+export const SLOTS = ["MORNING", "AFTERNOON"] as const;
+export type Slot = (typeof SLOTS)[number];
+
+export const SLOT_LABEL: Record<Slot, string> = {
+  MORNING: "오전",
+  AFTERNOON: "오후",
+};
+
+/**
+ * 슬롯의 기본 시간 범위. 관리자가 확정할 때 실제 시각을 직접 넣지만, 그
+ * 전까지는 이 범위를 자리표시로 쓴다 — 달력과 목록이 시각 없이는 그려지지
+ * 않기 때문.
+ */
+export const SLOT_DEFAULT_TIME: Record<Slot, { start: string; end: string }> = {
+  MORNING: { start: "09:00", end: "12:00" },
+  AFTERNOON: { start: "13:00", end: "18:00" },
 };
 
 /**
@@ -17,6 +36,7 @@ export const SESSION_STATUS_LABEL: Record<SessionStatus, string> = {
 export const SESSION_STATUS_BADGE_CLASS: Record<SessionStatus, string> = {
   PLANNED: "bg-red-50 text-red-700",
   SUBMITTED: "bg-blue-50 text-blue-700",
+  DECLINED: "bg-orange-100 text-orange-800",
   CONFIRMED: "bg-emerald-50 text-emerald-700",
 };
 
@@ -75,19 +95,6 @@ export function formatSessionStart(d: Date): string {
 /** 같은 날짜(KST 기준)끼리 묶기 위한 키. */
 export function kstDayKey(d: Date): string {
   return toKSTInputValues(d).date;
-}
-
-/** 분 단위 길이. 최소 강의 시간 검사와 화면 표시에 함께 쓴다. */
-export function durationMinutes(startAt: Date, endAt: Date): number {
-  return Math.round((endAt.getTime() - startAt.getTime()) / 60000);
-}
-
-/** "1시간 30분" — 강사가 시간을 조정할 때 길이를 바로 알 수 있게. */
-export function formatDuration(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}분`;
-  return m === 0 ? `${h}시간` : `${h}시간 ${m}분`;
 }
 
 /**
