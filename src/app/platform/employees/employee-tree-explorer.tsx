@@ -23,10 +23,13 @@ export type EmployeeLite = {
   major: string | null;
   teamId: string | null;
   team: { id: string; name: string; businessUnit: string | null; division: string | null } | null;
+  // 팀에 속하지 않고 사업부/구분에 직접 배치되는 임원급(EXECUTIVE_POSITIONS)용 필드
+  businessUnit: string | null;
+  division: string | null;
 };
 
-type UnitNode = { name: string; divisions: DivisionNode[]; directTeams: TeamLite[] };
-type DivisionNode = { name: string; teams: TeamLite[] };
+type UnitNode = { name: string; divisions: DivisionNode[]; directTeams: TeamLite[]; directEmployees: EmployeeLite[] };
+type DivisionNode = { name: string; teams: TeamLite[]; directEmployees: EmployeeLite[] };
 
 const UNIT_ORDER_PRIORITY = ["제품사업", "연구생산", "재무경영관리"];
 
@@ -87,7 +90,7 @@ export function EmployeeTreeExplorerProvider({
     function ensureUnit(name: string) {
       let u = unitMap.get(name);
       if (!u) {
-        u = { name, divisions: [], directTeams: [] };
+        u = { name, divisions: [], directTeams: [], directEmployees: [] };
         unitMap.set(name, u);
         unitOrder.push(name);
       }
@@ -96,7 +99,7 @@ export function EmployeeTreeExplorerProvider({
     function ensureDivision(u: UnitNode, name: string) {
       let d = u.divisions.find((x) => x.name === name);
       if (!d) {
-        d = { name, teams: [] };
+        d = { name, teams: [], directEmployees: [] };
         u.divisions.push(d);
       }
       return d;
@@ -105,6 +108,12 @@ export function EmployeeTreeExplorerProvider({
       if (t.businessUnit && t.division) ensureDivision(ensureUnit(t.businessUnit), t.division).teams.push(t);
       else if (t.businessUnit) ensureUnit(t.businessUnit).directTeams.push(t);
       else rootTeams.push(t);
+    }
+    // 팀이 없는 임원급(예: 이사)은 본인의 사업부/구분 필드로 트리에 직접 배치한다.
+    for (const e of employees) {
+      if (e.teamId) continue;
+      if (e.businessUnit && e.division) ensureDivision(ensureUnit(e.businessUnit), e.division).directEmployees.push(e);
+      else if (e.businessUnit) ensureUnit(e.businessUnit).directEmployees.push(e);
     }
     const priority = (name: string) => {
       const idx = UNIT_ORDER_PRIORITY.indexOf(name);
@@ -211,8 +220,25 @@ function GroupCheckbox({ ids }: { ids: string[] }) {
   );
 }
 
+function PersonRow({ e, childClass }: { e: EmployeeLite; childClass: string }) {
+  const { checkedIds, toggleOne } = useTreeExplorer();
+  return (
+    <label className={`flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 hover:bg-slate-100 ${childClass}`}>
+      <input
+        type="checkbox"
+        className="h-3.5 w-3.5 shrink-0 accent-brand-green"
+        checked={checkedIds.has(e.id)}
+        onChange={(ev) => toggleOne(e.id, ev.target.checked)}
+      />
+      <span className="min-w-0 flex-1 truncate text-sm text-slate-600">
+        {e.name} <span className="text-xs text-slate-400">· {POSITION_LABEL[e.position]}</span>
+      </span>
+    </label>
+  );
+}
+
 function TeamNode({ t, rowClass, childClass }: { t: TeamLite; rowClass: string; childClass: string }) {
-  const { employeesByTeam, checkedIds, toggleOne } = useTreeExplorer();
+  const { employeesByTeam } = useTreeExplorer();
   const [open, setOpen] = useState(false);
   const emps = employeesByTeam.get(t.id) ?? [];
   const ids = emps.map((e) => e.id);
@@ -233,17 +259,7 @@ function TeamNode({ t, rowClass, childClass }: { t: TeamLite; rowClass: string; 
       {ids.length > 0 && open && (
         <div className="flex flex-col">
           {emps.map((e) => (
-            <label key={e.id} className={`flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 hover:bg-slate-100 ${childClass}`}>
-              <input
-                type="checkbox"
-                className="h-3.5 w-3.5 shrink-0 accent-brand-green"
-                checked={checkedIds.has(e.id)}
-                onChange={(ev) => toggleOne(e.id, ev.target.checked)}
-              />
-              <span className="min-w-0 flex-1 truncate text-sm text-slate-600">
-                {e.name} <span className="text-xs text-slate-400">· {POSITION_LABEL[e.position]}</span>
-              </span>
-            </label>
+            <PersonRow key={e.id} e={e} childClass={childClass} />
           ))}
         </div>
       )}
@@ -256,8 +272,12 @@ function UnitNodeView({ u }: { u: UnitNode }) {
   const [open, setOpen] = useState(true);
   function unitEmpIds() {
     const ids: string[] = [];
-    u.divisions.forEach((d) => d.teams.forEach((t) => ids.push(...(employeesByTeam.get(t.id) ?? []).map((e) => e.id))));
+    u.divisions.forEach((d) => {
+      d.teams.forEach((t) => ids.push(...(employeesByTeam.get(t.id) ?? []).map((e) => e.id)));
+      ids.push(...d.directEmployees.map((e) => e.id));
+    });
     u.directTeams.forEach((t) => ids.push(...(employeesByTeam.get(t.id) ?? []).map((e) => e.id)));
+    ids.push(...u.directEmployees.map((e) => e.id));
     return ids;
   }
   const uIds = unitEmpIds();
@@ -279,6 +299,9 @@ function UnitNodeView({ u }: { u: UnitNode }) {
           {u.directTeams.map((t) => (
             <TeamNode key={t.id} t={t} rowClass="pl-4" childClass="pl-8" />
           ))}
+          {u.directEmployees.map((e) => (
+            <PersonRow key={e.id} e={e} childClass="pl-4" />
+          ))}
         </div>
       )}
     </div>
@@ -288,7 +311,7 @@ function UnitNodeView({ u }: { u: UnitNode }) {
 function DivisionNodeView({ d }: { d: DivisionNode }) {
   const { employeesByTeam } = useTreeExplorer();
   const [open, setOpen] = useState(true);
-  const dIds = d.teams.flatMap((t) => (employeesByTeam.get(t.id) ?? []).map((e) => e.id));
+  const dIds = [...d.teams.flatMap((t) => (employeesByTeam.get(t.id) ?? []).map((e) => e.id)), ...d.directEmployees.map((e) => e.id)];
   return (
     <div>
       <div className="flex items-center gap-1.5 rounded py-1 pl-4 pr-2 hover:bg-slate-100">
@@ -303,6 +326,9 @@ function DivisionNodeView({ d }: { d: DivisionNode }) {
         <div>
           {d.teams.map((t) => (
             <TeamNode key={t.id} t={t} rowClass="pl-8" childClass="pl-12" />
+          ))}
+          {d.directEmployees.map((e) => (
+            <PersonRow key={e.id} e={e} childClass="pl-8" />
           ))}
         </div>
       )}
@@ -390,7 +416,7 @@ export function EmployeeSummaryListPanel() {
               >
                 <p className="text-sm font-medium text-brand-green-dark">{e.name}</p>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  {e.team?.name ?? "팀 미지정"} · 사번 {e.employeeNumber}
+                  {e.team?.name ?? ([e.businessUnit, e.division].filter(Boolean).join(" · ") || "팀 미지정")} · 사번 {e.employeeNumber}
                 </p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1">
                   <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-[11px] font-medium text-brand-green-dark">{POSITION_LABEL[e.position]}</span>

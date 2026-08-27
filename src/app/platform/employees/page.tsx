@@ -57,6 +57,8 @@ export default async function EmployeeDirectoryPage({
         major: true,
         teamId: true,
         team: { select: { id: true, name: true, businessUnit: true, division: true } },
+        businessUnit: true,
+        division: true,
       },
     }),
     selectedUserId ? loadEmployeeCard(selectedUserId) : Promise.resolve(null),
