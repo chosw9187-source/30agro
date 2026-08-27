@@ -12,6 +12,7 @@ import {
   findMatchIndex,
   stripSpaces,
 } from "@/lib/regulation-search";
+import { buildSearchTerms } from "@/lib/regulation-query";
 
 const SNIPPET_LENGTH = 160;
 
@@ -191,37 +192,52 @@ export type ArticleSearchHit = {
   snippet: string;
 };
 
+export type RegulationAnswer = {
+  /** 질문에서 실제로 검색에 쓴 낱말. 화면에 보여줘서 왜 이 결과가 나왔는지 알린다. */
+  keywords: string[];
+  hits: ArticleSearchHit[];
+};
+
 /**
- * 조문 검색. 실제 조회와 순수 계산은 lib/regulation-search에 있다 —
- * "use server" 파일은 async 함수만 내보낼 수 있어 여기 두면 테스트에서
- * 부를 수가 없다.
+ * 질문 문장을 받아 관련 조문을 찾는다.
+ *
+ * 검색은 낱말 부분일치라서 문장을 통째로 넣으면 아무것도 못 찾는다.
+ * 질문에서 낱말을 뽑고 유의어로 넓히는 일은 lib/regulation-query가,
+ * 실제 조회는 lib/regulation-search가 한다 — "use server" 파일은 async
+ * 함수만 내보낼 수 있어 여기 두면 테스트에서 부를 수가 없다.
  */
-export async function searchArticles(query: string): Promise<ArticleSearchHit[]> {
-  if (!(await checkModuleAccess("LEGAL_LIBRARY"))) return [];
+export async function searchArticles(question: string): Promise<RegulationAnswer> {
+  if (!(await checkModuleAccess("LEGAL_LIBRARY"))) return { keywords: [], hits: [] };
 
-  const needle = stripSpaces(query);
-  if (needle.length < 2) return [];
+  const terms = buildSearchTerms(question);
+  if (terms.length === 0) return { keywords: [], hits: [] };
 
-  const hits = await findArticleRows(needle);
+  const rows = await findArticleRows(terms);
+  const needles = terms.map((t) => stripSpaces(t.term));
 
-  return hits.map((hit) => {
-    // 본문 첫머리 대신 검색어 주변을 보여줘야 왜 걸렸는지 알 수 있다.
-    const at = findMatchIndex(hit.body, needle);
-    const from = at < 0 ? 0 : Math.max(0, at - 40);
+  const hits = rows.map((row) => {
+    // 본문 첫머리 대신 걸린 낱말 주변을 보여줘야 왜 걸렸는지 알 수 있다.
+    const at = needles
+      .map((needle) => findMatchIndex(row.body, needle))
+      .find((index) => index >= 0);
+    const from = at === undefined ? 0 : Math.max(0, at - 40);
     // 표 행의 칸 구분 문자는 미리보기에서 노이즈라 공백으로 편다.
-    const snippet = hit.body
+    const snippet = row.body
       .slice(from, from + SNIPPET_LENGTH)
       .replace(/\s*\|\s*/g, " ");
 
     return {
-      id: hit.id,
-      regulationTitle: hit.regulationTitle,
-      label: hit.label,
-      title: hit.title,
-      chapter: hit.chapter,
-      snippet: (from > 0 ? "…" : "") + snippet + (from + SNIPPET_LENGTH < hit.body.length ? "…" : ""),
+      id: row.id,
+      regulationTitle: row.regulationTitle,
+      label: row.label,
+      title: row.title,
+      chapter: row.chapter,
+      snippet: (from > 0 ? "…" : "") + snippet + (from + SNIPPET_LENGTH < row.body.length ? "…" : ""),
     };
   });
+
+  // 유의어까지 다 보여주면 질문과 무관해 보인다. 질문에 직접 나온 낱말만 알린다.
+  return { keywords: terms.filter((t) => t.weight === 2).map((t) => t.term), hits };
 }
 
 export async function getArticle(id: string) {

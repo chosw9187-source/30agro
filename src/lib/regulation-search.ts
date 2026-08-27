@@ -1,4 +1,6 @@
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import type { SearchTerm } from "@/lib/regulation-query";
 
 /** 한 번에 돌려주는 조문 수 상한. */
 export const SEARCH_RESULT_LIMIT = 50;
@@ -10,6 +12,7 @@ export type ArticleRow = {
   chapter: string | null;
   body: string;
   regulationTitle: string;
+  score: number;
 };
 
 /**
@@ -46,31 +49,42 @@ export function findMatchIndex(body: string, needle: string): number {
   return at < 0 ? -1 : positions[at];
 }
 
+/** 공백을 지운 열 사본. 띄어쓰기를 무시하고 맞추기 위한 것. */
+function squashed(column: string) {
+  return Prisma.sql`regexp_replace(COALESCE(${Prisma.raw(column)}, ''), '[[:space:]]', '', 'g')`;
+}
+
 /**
  * 조문 검색. 한국어는 Postgres 기본 전문검색 사전이 없어 형태소 분석이
- * 안 되므로, 조문 제목·본문·조 번호에 대한 부분일치로 간다. 규정 전체가
- * 수천 조 규모라 인덱스 없이도 응답이 충분히 빠르다.
+ * 안 되므로 부분일치로 간다. 규정 전체가 수천 조 규모라 인덱스 없이도
+ * 응답이 충분히 빠르다.
  *
- * 비교는 양쪽에서 공백을 뺀 뒤에 한다. Prisma의 contains로는 열 값을
- * 가공할 수 없어 raw SQL로 간다 — regexp_replace로 공백을 지운 사본과
- * 맞춰본다.
+ * 낱말이 여럿이면 하나라도 걸린 조문을 모으되, 많이 걸릴수록·제목에
+ * 걸릴수록 위로 올린다. 제목에 든 낱말이 본문에 스쳐 지나가는 낱말보다
+ * 그 조문의 주제일 가능성이 높기 때문이다.
  */
-export async function findArticleRows(needle: string): Promise<ArticleRow[]> {
-  const pattern = `%${escapeLike(needle)}%`;
+export async function findArticleRows(terms: SearchTerm[]): Promise<ArticleRow[]> {
+  if (terms.length === 0) return [];
+
+  const scored = terms.map(({ term, weight }) => {
+    const pattern = `%${escapeLike(stripSpaces(term))}%`;
+    // 제목에 걸리면 3배로 친다.
+    return Prisma.sql`
+      (CASE WHEN ${squashed('a."title"')} ILIKE ${pattern} THEN ${weight * 3} ELSE 0 END)
+      + (CASE WHEN ${squashed('a."body"')} ILIKE ${pattern} THEN ${weight} ELSE 0 END)
+      + (CASE WHEN ${squashed('a."chapter"')} ILIKE ${pattern} THEN ${weight} ELSE 0 END)
+      + (CASE WHEN ${squashed('a."label"')} ILIKE ${pattern} THEN ${weight * 3} ELSE 0 END)
+    `;
+  });
 
   return prisma.$queryRaw<ArticleRow[]>`
     SELECT a."id", a."label", a."title", a."chapter", a."body",
-           r."title" AS "regulationTitle"
+           r."title" AS "regulationTitle",
+           (${Prisma.join(scored, " + ")})::float8 AS "score"
     FROM "RegulationArticle" a
     JOIN "Regulation" r ON r."id" = a."regulationId"
     WHERE r."isActive"
-      AND (
-        regexp_replace(a."body", '[[:space:]]', '', 'g') ILIKE ${pattern}
-        OR regexp_replace(COALESCE(a."title", ''), '[[:space:]]', '', 'g') ILIKE ${pattern}
-        OR regexp_replace(a."label", '[[:space:]]', '', 'g') ILIKE ${pattern}
-        OR regexp_replace(COALESCE(a."chapter", ''), '[[:space:]]', '', 'g') ILIKE ${pattern}
-      )
-    ORDER BY a."regulationId" ASC, a."order" ASC
+    ORDER BY "score" DESC, a."regulationId" ASC, a."order" ASC
     LIMIT ${SEARCH_RESULT_LIMIT}
-  `;
+  `.then((rows) => rows.filter((row) => row.score > 0));
 }

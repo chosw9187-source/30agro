@@ -12,55 +12,17 @@ type ChatMessage =
 
 /**
  * 첫 화면에서 뭘 물어봐야 할지 막막하지 않도록 대표 질문을 깔아둔다.
- * query는 실제로 조문 검색에 들어가는 키워드 — 질문 문장을 그대로 넣으면
- * 부분일치 검색이 아무것도 못 찾으므로 핵심어만 따로 들고 있는다.
+ * 질문 문장을 그대로 보낸다 — 문장에서 낱말을 뽑는 일은 서버가 한다.
  */
 const SUGGESTIONS = [
-  {
-    emoji: "🌴",
-    query: "연차",
-    title: "연차휴가는 며칠인가요?",
-    desc: "연차 발생 기준과 사용·정산 방법을 규정에서 찾아드려요.",
-  },
-  {
-    emoji: "🎗️",
-    query: "경조",
-    title: "경조사 휴가와 경조금 기준",
-    desc: "결혼·조사 등 경조사별 휴가일수와 지급 기준입니다.",
-  },
-  {
-    emoji: "🧾",
-    query: "출장",
-    title: "출장비는 어떻게 정산하나요?",
-    desc: "출장 신청 절차와 여비 지급 기준 조문을 모아 봅니다.",
-  },
-  {
-    emoji: "🍼",
-    query: "육아휴직",
-    title: "육아휴직 조건이 궁금해요",
-    desc: "신청 자격과 기간, 복직 관련 조항을 확인합니다.",
-  },
-  {
-    emoji: "⏰",
-    query: "시간외",
-    title: "시간외근무 수당 계산",
-    desc: "연장·야간·휴일근로의 가산 기준을 찾아드려요.",
-  },
-  {
-    emoji: "⚖️",
-    query: "징계",
-    title: "징계 절차가 궁금해요",
-    desc: "징계 사유와 종류, 절차 규정을 조문으로 보여드립니다.",
-  },
+  { emoji: "🌴", title: "연차휴가는 며칠인가요?", desc: "연차 발생 기준과 사용·정산 방법을 규정에서 찾아드려요." },
+  { emoji: "🎗️", title: "경조사 휴가와 경조금 기준이 어떻게 되나요?", desc: "결혼·조사 등 경조사별 휴가일수와 지급 기준입니다." },
+  { emoji: "🧾", title: "출장비는 어떻게 정산하나요?", desc: "출장 신청 절차와 여비 지급 기준 조문을 모아 봅니다." },
+  { emoji: "🍼", title: "육아휴직 조건이 궁금해요", desc: "신청 자격과 기간, 복직 관련 조항을 확인합니다." },
+  { emoji: "⏰", title: "야근하면 수당이 어떻게 되나요?", desc: "연장·야간·휴일근로의 가산 기준을 찾아드려요." },
+  { emoji: "⚖️", title: "징계 절차가 어떻게 되나요?", desc: "징계 사유와 종류, 절차 규정을 조문으로 보여드립니다." },
 ];
 
-/**
- * 조문 본문 렌더러.
- *
- * 규정에는 경조금 기준처럼 표로 된 조항이 많다. 추출 단계에서 표 한 행을
- * "| 칸 | 칸 |" 한 줄로 적어두므로, 여기서 그 줄들을 다시 표로 세운다.
- * 줄글로 흘리면 "본인결혼 6일 50만원 100만원"이 어느 열의 값인지 알 수 없다.
- */
 function ArticleBody({ text }: { text: string }) {
   const blocks: ({ kind: "text"; lines: string[] } | { kind: "table"; rows: string[][] })[] = [];
 
@@ -150,7 +112,10 @@ export function RegulationChat({ hasRegulations }: { hasRegulations: boolean }) 
     ]);
 
     startSend(async () => {
-      const hits = await searchArticles(query);
+      const { keywords, hits } = await searchArticles(query);
+      // 뽑아낸 낱말은 못 찾았을 때만 알린다 — 그때만 쓸모가 있고(무엇으로
+      // 바꿔 물을지 알려준다), 잘 찾았을 때는 군더더기다.
+      const tried = keywords.length > 0 ? `'${keywords.join("', '")}'` : `'${query}'`;
       setMessages((prev) => [
         ...prev,
         {
@@ -158,8 +123,8 @@ export function RegulationChat({ hasRegulations }: { hasRegulations: boolean }) 
           role: "bot",
           text:
             hits.length > 0
-              ? `'${query}'과(와) 관련된 조문 ${hits.length}건을 찾았어요. 조문을 누르면 전문을 볼 수 있어요.`
-              : `'${query}'에 해당하는 조문을 찾지 못했어요. 규정에 쓰인 낱말로 바꿔서 다시 물어봐 주세요. (예: '휴가' → '연차', '반차' → '연차')`,
+              ? `관련 조문 ${hits.length}건을 찾았어요. 조문을 누르면 전문을 볼 수 있어요.`
+              : `${tried}(으)로 찾아봤는데 해당하는 조문이 없어요. 규정에 쓰인 낱말로 바꿔서 다시 물어봐 주세요. (예: '반차' → '연차')`,
           hits,
         },
       ]);
@@ -348,10 +313,10 @@ export function RegulationChat({ hasRegulations }: { hasRegulations: boolean }) 
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           {SUGGESTIONS.map((suggestion) => (
             <button
-              key={suggestion.query}
+              key={suggestion.title}
               type="button"
               disabled={!hasRegulations || isSending}
-              onClick={() => ask(suggestion.query)}
+              onClick={() => ask(suggestion.title)}
               className="flex gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-brand-green hover:bg-brand-green-light disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:bg-white"
             >
               <span
