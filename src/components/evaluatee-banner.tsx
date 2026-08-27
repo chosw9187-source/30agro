@@ -22,7 +22,13 @@ import { POSITION_LABEL } from "@/lib/permission-constants";
  *
  * 사진 자체(Bytes)는 무거우니 «있는지»만 센다. 실제 그림은 위 API가 내려 준다.
  */
-export async function EvaluateeBanner({ userId }: { userId: string }) {
+export async function EvaluateeBanner({
+  userId,
+  className = "",
+}: {
+  userId: string;
+  className?: string;
+}) {
   const [teams, people, photoCount] = await Promise.all([
     prisma.team.findMany({
       where: { active: true },
@@ -70,9 +76,7 @@ export async function EvaluateeBanner({ userId }: { userId: string }) {
   const chain = buildEvaluatorMap(people, teams).get(userId) ?? null;
 
   return (
-    // 셸은 <main>만 굴리므로(overflow-hidden) 이 띠는 가만히 있어도 화면에
-    // 남는다 — 따로 붙여 둘 것이 없다.
-    <section className="shrink-0">
+    <section className={className}>
       {/*
         크기를 rem이 아니라 px로 못 박는다. 이 앱은 화면 폭에 따라 기준 글자
         크기를 16 → 21.3px로 키우는데, 띠까지 같이 커지면 PC에서 화면 위쪽
