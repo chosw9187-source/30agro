@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { SearchableSelect } from "@/components/searchable-select";
+import { Avatar } from "@/components/avatar";
 import { activePrismaWhere } from "@/lib/hr-analytics";
 import { POSITION_LABEL } from "@/lib/permission-constants";
 import { buildEvaluatorMap, evaluatorLabel } from "@/lib/evaluator";
@@ -75,7 +76,6 @@ import {
   lockGoalSetting,
   reopenGoalAgreement,
   requestGoalAgreement,
-  saveGoalSheetDuty,
   unlockGoalSetting,
   returnGoalAgreement,
   seedCompanyGoalTemplate,
@@ -679,14 +679,12 @@ export default async function Evaluation2Page({
     1차 평가자는 조직도에서 한 칸 위, 2차 평가자는 그 위 한 칸이다 — 담당이면
     팀장·책임, 팀장이면 책임·운영책임 순으로 붙는다.
   */
-  const myDuty = goalCycleId
-    ? (
-        await prisma.goalSheetInfo.findUnique({
-          where: { cycleId_userId: { cycleId: goalCycleId, userId: session!.user.id } },
-          select: { duty: true },
-        })
-      )?.duty ?? ""
-    : "";
+  /*
+    사진은 인사카드의 것을 그대로 쓴다. 사진 자체(Bytes)는 무거우니 «있는지»만
+    센다 — 실제 그림은 `/api/employees/[id]/photo`가 따로 내려 준다.
+  */
+  const myHasPhoto =
+    (await prisma.user.count({ where: { id: session!.user.id, photo: { not: null } } })) > 0;
   const mySelf = people.find((p) => p.id === session!.user.id) ?? null;
   const myEval = evaluatorByPerson.get(session!.user.id) ?? null;
   const myEvaluator = myEval?.first ?? null;
@@ -1129,104 +1127,63 @@ export default async function Evaluation2Page({
   // ---- 한 줄 보드: 책임 · 팀 · 개인 ---------------------------------------
 
   /**
-   * 사내 「개인목표 설정」 양식의 «1. 기본사항» 표.
+   * 개인목표 목록 맨 위의 **피평가자 띠**.
    *
-   * 사람이 다시 적을 값이 하나도 없다 — 성명·직위·사번·소속은 인사카드에서,
-   * 1·2차 평가자는 조직도에서, 면담일정은 그 해의 평가 단계에서 끌어온다.
-   * 종이 양식에서는 매번 손으로 채우던 칸이라, 여기서 자동으로 채워 두면
-   * 목표를 세우는 사람은 목표만 적으면 된다.
+   * 사람이 다시 적을 값이 하나도 없다 — 사진·성명·직위·사번·소속은 인사카드와
+   * 조직도에서, 1·2차 평가자는 조직도를 따라 올라가 정한다. 종이 양식에서는
+   * 매번 손으로 채우던 칸이라, 여기서 자동으로 채워 두면 목표를 세우는 사람은
+   * 목표만 적으면 된다.
    *
-   * 담당업무만 비어 있다 — 사람마다 적어 두는 자리가 아직 없다(직군 `jobFamily`는
-   * «인사 기획/보상평가» 같은 담당업무와 다른 값이라 대신 쓰지 않는다).
+   * 표가 아니라 띠로 둔 이유는 읽는 차례가 하나이기 때문이다 — 누구의 목표인지
+   * (사진·이름·직위), 어디 소속인지(사번·본부·팀), 누가 보는지(1·2차 평가자).
+   * 여섯 칸짜리 표는 이 세 줄을 굳이 격자로 흩어 놓아 휴대폰에서 옆으로 밀렸다.
+   *
+   * 사진은 인사카드의 것을 그대로 쓴다(`/api/employees/[id]/photo`) — 직원정보
+   * 조회·조직도가 보는 사진과 같은 한 장이라, 인사팀이 사진을 바꾸면 여기도 같이
+   * 바뀐다. 사진이 없으면 회사 로고 자리표가 대신 든다.
    */
-  function BasicInfoTable() {
-    // 좁은 화면에서는 여백을 줄인다 — 여섯 칸이 한 줄에 들어가야 옆으로 안 밀린다.
-    const cellHead =
-      "bg-slate-100 px-2 py-1.5 text-left font-medium whitespace-nowrap text-slate-600 sm:px-3";
-    const cellBody = "px-2 py-1.5 break-words text-slate-800 sm:px-3";
-    const person = (p: typeof mySelf) =>
-      p ? { name: p.name, position: POSITION_LABEL[p.position] } : { name: "-", position: "-" };
-    const first = person(myEvaluator as typeof mySelf);
-    const second = person(mySecondEvaluator as typeof mySelf);
+  function EvaluateeBanner() {
+    const myTeam = teams.find((t) => t.id === mySelf?.teamId) ?? null;
+    // 소속은 «사번 / 본부 / 팀» 한 줄로 읽는다. 비어 있는 값은 자리를 남기지 않는다.
+    const scope = [
+      mySelf?.employeeNumber,
+      myTeam?.businessUnit ?? mySelf?.businessUnit,
+      myTeam?.name ?? mySelf?.team?.name,
+    ]
+      .filter(Boolean)
+      .join(" / ");
 
     return (
-      <section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <h3 className="border-b border-slate-200 bg-slate-700 px-3 py-1.5 text-xs font-semibold text-white">
-          1. 기본사항
-        </h3>
-        <div className="overflow-x-auto">
-          {/*
-            좁은 화면에서는 최소 너비를 걸지 않는다 — 표가 옆으로 밀려 오른쪽 칸이
-            잘리느니, 칸 안에서 글자가 두 줄로 접히는 편이 낫다. 칸 이름과 값이
-            모두 짧아서 좁은 폭에서도 읽힌다.
-          */}
-          <table className="w-full border-collapse text-xs sm:min-w-[46rem]">
-            <tbody>
-              <tr className="border-b border-slate-100">
-                {/* «본인»이 아니라 «피평가자» — 평가자와 짝이 맞는 말이라야
-                    누가 누구를 보는지가 표 한 장에서 읽힌다. */}
-                <th rowSpan={3} className={`${cellHead} w-24 text-center align-middle`}>
-                  피평가자
-                </th>
-                <th className={`${cellHead} w-20`}>성명</th>
-                <td className={`${cellBody} w-40`}>{mySelf?.name ?? "-"}</td>
-                <th className={`${cellHead} w-24`}>소속팀</th>
-                <td className={cellBody}>{mySelf?.team?.name ?? "-"}</td>
-              </tr>
-              <tr className="border-b border-slate-100">
-                <th className={cellHead}>직위</th>
-                <td className={cellBody}>{mySelf ? POSITION_LABEL[mySelf.position] : "-"}</td>
-                <th className={cellHead}>사번</th>
-                <td className={cellBody}>{mySelf?.employeeNumber ?? "-"}</td>
-              </tr>
-              <tr className="border-b border-slate-100">
-                <th className={cellHead}>담당업무</th>
-                <td className={cellBody} colSpan={3}>
-                  {/*
-                    담당업무는 자동으로 끌어오지 않는다 — 그 해 자기가 무엇을
-                    맡았는지 적는 문장이라 인사카드에 두면 매번 인사팀을 거쳐야
-                    한다. 여기서 바로 적고 저장한다.
-                  */}
-                  <ActionForm
-                    action={saveGoalSheetDuty}
-                    successMessage="담당업무를 저장했습니다."
-                    className="flex items-center gap-1.5"
-                  >
-                    <input type="hidden" name="cycleId" value={cycle?.id ?? ""} />
-                    <input
-                      name="duty"
-                      defaultValue={myDuty}
-                      placeholder="예: 인사 기획/보상평가"
-                      aria-label="담당업무"
-                      className="w-full max-w-md rounded border border-slate-300 px-2 py-1 text-xs focus:border-brand-green focus:outline-none"
-                    />
-                    <button
-                      type="submit"
-                      className="shrink-0 rounded border border-slate-300 px-2 py-1.5 text-[11px] text-slate-600 hover:bg-slate-50 sm:py-1"
-                    >
-                      저장
-                    </button>
-                  </ActionForm>
-                </td>
-              </tr>
-              <tr className="border-b border-slate-100">
-                <th className={`${cellHead} text-center`}>1차 평가자</th>
-                <th className={cellHead}>성명</th>
-                <td className={cellBody}>{first.name}</td>
-                <th className={cellHead}>직위</th>
-                <td className={cellBody}>{first.position}</td>
-              </tr>
-              <tr>
-                <th className={`${cellHead} text-center`}>2차 평가자</th>
-                <th className={cellHead}>성명</th>
-                <td className={cellBody}>{second.name}</td>
-                <th className={cellHead}>직위</th>
-                <td className={cellBody}>{second.position}</td>
-              </tr>
-            </tbody>
-          </table>
+      <section className="overflow-hidden rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex items-center gap-3 bg-[linear-gradient(100deg,#0f3d22_0%,#17643a_45%,#2a9455_100%)] px-4 py-4 text-white sm:gap-4 sm:px-5">
+          <Avatar
+            userId={mySelf?.id ?? ""}
+            name={mySelf?.name ?? "-"}
+            hasPhoto={myHasPhoto}
+            className="h-12 w-12 border-2 border-white/85 sm:h-16 sm:w-16"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-lg font-bold tracking-tight sm:text-xl">
+              {mySelf?.name ?? "-"}
+              {mySelf && (
+                <span className="ml-2 text-sm font-semibold text-white/85">
+                  {POSITION_LABEL[mySelf.position]}
+                </span>
+              )}
+            </p>
+            {scope && <p className="mt-1 text-xs text-white/90 sm:text-sm">{scope}</p>}
+            <p className="mt-1 text-[11px] text-white/75 sm:text-xs">
+              1차 평가자{" "}
+              <b className="font-bold text-white">
+                {myEvaluator ? evaluatorLabel(myEvaluator) : "미지정"}
+              </b>{" "}
+              · 2차 평가자{" "}
+              <b className="font-bold text-white">
+                {mySecondEvaluator ? evaluatorLabel(mySecondEvaluator) : "미지정"}
+              </b>
+            </p>
+          </div>
         </div>
-
       </section>
     );
   }
@@ -2579,7 +2536,7 @@ export default async function Evaluation2Page({
           **로그인한 사람 기준**이다 — 팀장·관리자가 남의 목표를 함께 볼 때는
           아래 카드마다 누구 목표인지 이름이 붙는다.
         */}
-        {level === "INDIVIDUAL" && <BasicInfoTable />}
+        {level === "INDIVIDUAL" && <EvaluateeBanner />}
 
         {/*
           전사목표를 고치는 자리는 「조직 목표 관리」 한 곳이다. 여기서는 아래
