@@ -51,7 +51,19 @@ export function ActionForm({
   const formRef = useRef<HTMLFormElement>(null);
   const [, formAction] = useActionState(async (_prev: null, formData: FormData) => {
     try {
-      await action(formData);
+      const result = await action(formData);
+
+      // 서버 액션이 { error } 를 돌려주면 그 문구를 그대로 띄운다. 프로덕션에서
+      // Next는 던져진 오류의 메시지를 감추고 영어 안내로 바꿔 버리므로,
+      // 사용자에게 보여줄 말은 던지지 말고 돌려줘야 한다.
+      if (result && typeof result === "object" && "error" in result) {
+        const message = (result as { error?: unknown }).error;
+        if (typeof message === "string" && message) {
+          showToast(message, false);
+          return null;
+        }
+      }
+
       showToast(successMessage, true);
       if (collapseOnSuccess) {
         formRef.current?.reset();
@@ -69,10 +81,12 @@ export function ActionForm({
       ) {
         throw error;
       }
-      showToast(
-        error instanceof Error ? error.message : "처리하지 못했습니다.",
-        false
-      );
+      // 프로덕션에서 던져진 오류의 message는 "An error occurred in the Server
+      // Components render..." 같은 영어 안내로 바뀌어 있다. 그대로 띄우면
+      // 사용자는 무슨 일인지 알 수 없으므로, 그런 경우는 우리 문구로 바꾼다.
+      const raw = error instanceof Error ? error.message : "";
+      const masked = raw.startsWith("An error occurred in the Server");
+      showToast(!raw || masked ? "처리하지 못했습니다. 입력값을 확인해 주세요." : raw, false);
     }
     return null;
   }, null);
