@@ -5,7 +5,6 @@ import { auth } from "@/auth";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { SearchableSelect } from "@/components/searchable-select";
-import { Avatar } from "@/components/avatar";
 import { activePrismaWhere } from "@/lib/hr-analytics";
 import { POSITION_LABEL } from "@/lib/permission-constants";
 import { buildEvaluatorMap, evaluatorLabel } from "@/lib/evaluator";
@@ -671,25 +670,6 @@ export default async function Evaluation2Page({
   */
   const evaluatorByPerson = buildEvaluatorMap(people, teams);
 
-  /*
-    개인목표 목록 맨 위의 「1. 기본사항」 — 사내 개인목표 설정 양식의 첫 표를
-    그대로 옮긴 것이다. **로그인한 사람 기준**이고, 조직도와 인사카드에서 끌어올
-    수 있는 값은 전부 자동으로 채운다. 사람이 다시 적을 이유가 없는 값이다.
-
-    1차 평가자는 조직도에서 한 칸 위, 2차 평가자는 그 위 한 칸이다 — 담당이면
-    팀장·책임, 팀장이면 책임·운영책임 순으로 붙는다.
-  */
-  /*
-    사진은 인사카드의 것을 그대로 쓴다. 사진 자체(Bytes)는 무거우니 «있는지»만
-    센다 — 실제 그림은 `/api/employees/[id]/photo`가 따로 내려 준다.
-  */
-  const myHasPhoto =
-    (await prisma.user.count({ where: { id: session!.user.id, photo: { not: null } } })) > 0;
-  const mySelf = people.find((p) => p.id === session!.user.id) ?? null;
-  const myEval = evaluatorByPerson.get(session!.user.id) ?? null;
-  const myEvaluator = myEval?.first ?? null;
-  const mySecondEvaluator = myEval?.second ?? null;
-
   const personOptions = people.map((p) => ({
     value: p.id,
     label: `${p.name} ${POSITION_LABEL[p.position]}`,
@@ -1125,68 +1105,6 @@ export default async function Evaluation2Page({
   }
 
   // ---- 한 줄 보드: 책임 · 팀 · 개인 ---------------------------------------
-
-  /**
-   * 개인목표 목록 맨 위의 **피평가자 띠**.
-   *
-   * 사람이 다시 적을 값이 하나도 없다 — 사진·성명·직위·사번·소속은 인사카드와
-   * 조직도에서, 1·2차 평가자는 조직도를 따라 올라가 정한다. 종이 양식에서는
-   * 매번 손으로 채우던 칸이라, 여기서 자동으로 채워 두면 목표를 세우는 사람은
-   * 목표만 적으면 된다.
-   *
-   * 표가 아니라 띠로 둔 이유는 읽는 차례가 하나이기 때문이다 — 누구의 목표인지
-   * (사진·이름·직위), 어디 소속인지(사번·본부·팀), 누가 보는지(1·2차 평가자).
-   * 여섯 칸짜리 표는 이 세 줄을 굳이 격자로 흩어 놓아 휴대폰에서 옆으로 밀렸다.
-   *
-   * 사진은 인사카드의 것을 그대로 쓴다(`/api/employees/[id]/photo`) — 직원정보
-   * 조회·조직도가 보는 사진과 같은 한 장이라, 인사팀이 사진을 바꾸면 여기도 같이
-   * 바뀐다. 사진이 없으면 회사 로고 자리표가 대신 든다.
-   */
-  function EvaluateeBanner() {
-    const myTeam = teams.find((t) => t.id === mySelf?.teamId) ?? null;
-    // 소속은 «사번 / 본부 / 팀» 한 줄로 읽는다. 비어 있는 값은 자리를 남기지 않는다.
-    const scope = [
-      mySelf?.employeeNumber,
-      myTeam?.businessUnit ?? mySelf?.businessUnit,
-      myTeam?.name ?? mySelf?.team?.name,
-    ]
-      .filter(Boolean)
-      .join(" / ");
-
-    return (
-      <section className="overflow-hidden rounded-xl border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-3 bg-[linear-gradient(100deg,#0f3d22_0%,#17643a_45%,#2a9455_100%)] px-4 py-4 text-white sm:gap-4 sm:px-5">
-          <Avatar
-            userId={mySelf?.id ?? ""}
-            name={mySelf?.name ?? "-"}
-            hasPhoto={myHasPhoto}
-            className="h-12 w-12 border-2 border-white/85 sm:h-16 sm:w-16"
-          />
-          <div className="min-w-0 flex-1">
-            <p className="text-lg font-bold tracking-tight sm:text-xl">
-              {mySelf?.name ?? "-"}
-              {mySelf && (
-                <span className="ml-2 text-sm font-semibold text-white/85">
-                  {POSITION_LABEL[mySelf.position]}
-                </span>
-              )}
-            </p>
-            {scope && <p className="mt-1 text-xs text-white/90 sm:text-sm">{scope}</p>}
-            <p className="mt-1 text-[11px] text-white/75 sm:text-xs">
-              1차 평가자{" "}
-              <b className="font-bold text-white">
-                {myEvaluator ? evaluatorLabel(myEvaluator) : "미지정"}
-              </b>{" "}
-              · 2차 평가자{" "}
-              <b className="font-bold text-white">
-                {mySecondEvaluator ? evaluatorLabel(mySecondEvaluator) : "미지정"}
-              </b>
-            </p>
-          </div>
-        </div>
-      </section>
-    );
-  }
 
   function LevelSummaryCard({ level }: { level: GoalLevel }) {
     /*
@@ -2693,13 +2611,6 @@ export default async function Evaluation2Page({
 
       {/* 인사평가 선택이 먼저, 층 선택 탭이 그 아래. */}
       {cycleBar()}
-
-      {/*
-        피평가자 띠는 **화면 맨 위**다 — 어느 탭을 보든 «지금 누구의 화면인가»가
-        먼저 읽혀야 한다. 개인목표 탭 안에 두었더니 전사·팀 목표를 보는 동안에는
-        사라져서, 남의 목표를 보는 중인지 내 화면인지가 흐려졌다.
-      */}
-      {mySelf && <EvaluateeBanner />}
 
       {tabBar()}
 
