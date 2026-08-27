@@ -8,6 +8,7 @@ import { SessionHeartbeat } from "@/components/session-heartbeat";
 import { ToastHost } from "@/components/toast";
 import { NumberStepGuard } from "@/components/number-step-guard";
 import { EvaluateeBanner } from "@/components/evaluatee-banner";
+import { RouteOnly } from "@/components/route-only";
 import {
   getVisibleModules,
   getModuleUiConfig,
@@ -75,9 +76,16 @@ export async function PlatformShell({
       {/*
         본인 띠는 **화면의 맨 첫 줄**이다 — 왼쪽 메뉴와 로고 머리글보다도 위에서
         폭 전체를 가로지른다. 머리글 아래에 두었더니 로고 띠가 위를 덮어 «맨 위»가
-        아니었다. 어느 메뉴에 있든 «지금 누구의 화면인가»를 가장 먼저 읽히게 한다.
+        아니었다.
+
+        지금은 평가2에서만 띄운다. 사진·소속·1·2차 평가자는 목표를 세우고 평가할
+        때 쓰는 값이라, 조직도나 직원정보 조회에서까지 «내 평가자»가 따라다니면
+        화면 위 한 줄만 축낸다. 셸에 두는 이유는 자리 때문이다 — 페이지 안에서는
+        로고 머리글보다 위로 올라갈 수가 없다.
       */}
-      <EvaluateeBanner userId={user.id} />
+      <RouteOnly prefix="/platform/evaluation2">
+        <EvaluateeBanner userId={user.id} />
+      </RouteOnly>
       <div className="flex min-w-0 flex-1 md:min-h-0 md:overflow-hidden">
         <input type="checkbox" id="mobile-nav-toggle" className="peer hidden" />
         <label

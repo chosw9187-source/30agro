@@ -229,14 +229,14 @@ export function PlatformSidebar({
   }
 
   return (
-    <nav className="fixed inset-y-0 left-0 z-40 flex h-screen w-64 -translate-x-full flex-col overflow-hidden bg-brand-green px-3 py-6 transition-transform duration-200 peer-checked:translate-x-0 md:sticky md:top-0 md:left-auto md:z-auto md:h-full md:w-60 md:shrink-0 md:translate-x-0">
+    <nav className="fixed inset-y-0 left-0 z-40 flex h-screen w-64 -translate-x-full flex-col overflow-hidden bg-brand-green px-3 py-5 transition-transform duration-200 peer-checked:translate-x-0 md:sticky md:top-0 md:left-auto md:z-auto md:h-full md:w-60 md:shrink-0 md:translate-x-0">
       {/*
         메뉴 목록만 구르고, 아래의 «로그아웃»은 늘 제자리에 둔다. 예전에는 nav
         전체가 굴러서, 화면이 조금만 낮아도(노트북, 또는 위에 띠가 붙은 지금)
         로그아웃이 아래로 밀려 사라졌다 — 찾으려면 메뉴를 끝까지 내려야 했다.
       */}
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
-        <div className="px-3 pb-5">
+        <div className="px-3 pb-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-200">
             SG HR PLATFORM
           </p>
@@ -254,7 +254,7 @@ export function PlatformSidebar({
           ))}
         </div>
 
-        <div className="my-3 border-t border-white/20" />
+        <div className="my-2 border-t border-white/20" />
 
         {sections.map((section) => {
           if (section.items.length === 0) return null;
