@@ -1,19 +1,19 @@
 import { prisma } from "@/lib/prisma";
 import { formatKSTDate, formatKSTDateTime } from "@/lib/format-kst";
 
-export const BOOKING_STATUSES = ["REQUESTED", "CONFIRMED", "DECLINED"] as const;
-export type BookingStatus = (typeof BOOKING_STATUSES)[number];
+export const SESSION_STATUSES = ["PLANNED", "SUBMITTED", "CONFIRMED"] as const;
+export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
-export const BOOKING_STATUS_LABEL: Record<BookingStatus, string> = {
-  REQUESTED: "신청",
+export const SESSION_STATUS_LABEL: Record<SessionStatus, string> = {
+  PLANNED: "시간 조정 중",
+  SUBMITTED: "강사 확정 · 승인 대기",
   CONFIRMED: "확정",
-  DECLINED: "반려",
 };
 
-export const BOOKING_STATUS_BADGE_CLASS: Record<BookingStatus, string> = {
-  REQUESTED: "bg-amber-50 text-amber-700",
+export const SESSION_STATUS_BADGE_CLASS: Record<SessionStatus, string> = {
+  PLANNED: "bg-slate-100 text-slate-600",
+  SUBMITTED: "bg-amber-50 text-amber-700",
   CONFIRMED: "bg-emerald-50 text-emerald-700",
-  DECLINED: "bg-slate-100 text-slate-500",
 };
 
 /**
@@ -73,9 +73,22 @@ export function kstDayKey(d: Date): string {
   return toKSTInputValues(d).date;
 }
 
+/** 분 단위 길이. 최소 강의 시간 검사와 화면 표시에 함께 쓴다. */
+export function durationMinutes(startAt: Date, endAt: Date): number {
+  return Math.round((endAt.getTime() - startAt.getTime()) / 60000);
+}
+
+/** "1시간 30분" — 강사가 시간을 조정할 때 길이를 바로 알 수 있게. */
+export function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}분`;
+  return m === 0 ? `${h}시간` : `${h}시간 ${m}분`;
+}
+
 /**
- * 관리자가 강사로 지정했고 아직 해제하지 않은 사람인지. 예약 관련 서버
- * 액션은 전부 이 검사를 통과해야 한다 — 사이드바 링크를 숨기는 것만으로는
+ * 관리자가 강사로 지정했고 아직 해제하지 않은 사람인지. [교육 프로그램 관리]
+ * 탭과 세부일정 수정은 전부 이 검사를 통과해야 한다 — 탭을 숨기는 것만으로는
  * 직접 요청을 막을 수 없기 때문.
  */
 export async function isActiveInstructor(userId: string): Promise<boolean> {
