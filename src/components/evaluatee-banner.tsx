@@ -28,7 +28,13 @@ export async function EvaluateeBanner({ userId }: { userId: string }) {
     prisma.team.findMany({
       where: { active: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, division: true, businessUnit: true, leaderId: true },
+      select: {
+        id: true,
+        name: true,
+        division: true,
+        businessUnit: true,
+        leaderId: true,
+      },
     }),
     prisma.user.findMany({
       where: activePrismaWhere(),
@@ -68,24 +74,35 @@ export async function EvaluateeBanner({ userId }: { userId: string }) {
   return (
     // 셸이 데스크톱에서는 <main>만 굴리므로(md:overflow-hidden) 이 띠는 가만히
     // 있어도 화면에 남는다. 모바일은 문서 전체가 굴러서 머리글째 올라가 버리니,
-    // 거기서만 sticky로 붙여 둔다.
-    <section className="sticky top-0 z-20 md:static">
-      <div className="flex items-center gap-3 bg-[linear-gradient(100deg,#0f3d22_0%,#17643a_45%,#2a9455_100%)] px-4 py-2.5 text-white sm:gap-4 sm:py-4 md:px-8">
+    // 거기서만 sticky로 붙여 둔다. 서랍 메뉴(z-40)보다는 아래여야 메뉴를 열었을 때
+    // 띠가 그 위로 삐져나오지 않는다.
+    <section className="sticky top-0 z-20 shrink-0 md:static">
+      {/*
+        크기를 rem이 아니라 px로 못 박는다. 이 앱은 화면 폭에 따라 기준 글자
+        크기를 16 → 21.3px로 키우는데, 띠까지 같이 커지면 PC에서 화면 위쪽
+        140px을 먹어 왼쪽 메뉴의 «로그아웃»이 아래로 밀려난다. 늘 떠 있는
+        자리라서 크기는 한 벌로 고정한다.
+      */}
+      <div className="flex items-center gap-3 bg-[linear-gradient(100deg,#0f3d22_0%,#17643a_45%,#2a9455_100%)] px-4 py-2 text-white sm:gap-3.5 sm:px-6">
         <Avatar
           userId={me.id}
           name={me.name}
           hasPhoto={photoCount > 0}
-          className="h-10 w-10 border-2 border-white/85 sm:h-14 sm:w-14"
+          className="h-[42px] w-[42px] border-2 border-white/85 sm:h-[52px] sm:w-[52px]"
         />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-bold tracking-tight sm:text-xl">
+          <p className="truncate text-[15px] leading-tight font-bold tracking-tight sm:text-[18px]">
             {me.name}
-            <span className="ml-2 text-xs font-semibold text-white/85 sm:text-sm">
+            <span className="ml-2 text-[11px] font-semibold text-white/85 sm:text-[12.5px]">
               {POSITION_LABEL[me.position]}
             </span>
           </p>
-          {scope && <p className="mt-0.5 truncate text-xs text-white/90 sm:text-sm">{scope}</p>}
-          <p className="mt-0.5 truncate text-[11px] text-white/75 sm:text-xs">
+          {scope && (
+            <p className="mt-[3px] truncate text-[11px] leading-tight text-white/90 sm:text-[12.5px]">
+              {scope}
+            </p>
+          )}
+          <p className="mt-[3px] truncate text-[10.5px] leading-tight text-white/75 sm:text-[11.5px]">
             1차 평가자{" "}
             <b className="font-bold text-white">
               {chain?.first ? evaluatorLabel(chain.first) : "미지정"}
