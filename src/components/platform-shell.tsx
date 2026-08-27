@@ -124,19 +124,24 @@ export async function PlatformShell({
             </Link>
           </header>
 
-          {/*
-            본인 띠는 로고 줄과 본문 사이 — 넓은 화면이든 손에 쥔 화면이든 같은
-            자리다. 로고 줄보다 위로 올렸더니 «어느 앱인지»가 먼저 읽히지 않았다.
-
-            평가2에서만 띄운다. 사진·소속·1·2차 평가자는 목표를 세우고 평가할 때
-            쓰는 값이라, 조직도나 직원정보 조회에서까지 «내 평가자»가 따라다니면
-            화면 위 한 줄만 축낸다. 그런데도 페이지가 아니라 셸에 두는 이유는
-            자리 때문이다 — 페이지 안에서는 로고 줄 밑에 붙을 수가 없다.
-          */}
-          <RouteOnly prefix="/platform/evaluation2">
-            <EvaluateeBanner userId={user.id} />
-          </RouteOnly>
           <main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-8 md:py-8">
+            {/*
+              본인 띠는 본문 **안**, 맨 앞이다 — 로고 줄만 제자리에 남고 띠부터
+              아래는 본문과 함께 굴러 내려간다. 띠를 로고 줄 옆에 붙여 두었더니
+              화면 위가 늘 그만큼 잠겨서, 목록을 볼 때도 자리를 내주지 않았다.
+
+              좌우·위 여백은 음수 마진으로 도로 빼내 본문 폭을 가득 채운다. 안쪽에
+              끼워 넣은 카드처럼 보이면 «머리 띠»로 읽히지 않는다.
+
+              평가2에서만 띄운다. 사진·소속·1·2차 평가자는 목표를 세우고 평가할 때
+              쓰는 값이라, 조직도나 직원정보 조회에서까지 따라다니면 자리만 축낸다.
+            */}
+            <RouteOnly prefix="/platform/evaluation2">
+              <EvaluateeBanner
+                userId={user.id}
+                className="-mx-4 -mt-6 mb-6 md:-mx-8 md:-mt-8 md:mb-8"
+              />
+            </RouteOnly>
             {children}
           </main>
         </div>
