@@ -52,6 +52,21 @@ html {
   overflow-x: hidden;
 }
 
+/*
+  휴대폰에서는 입력칸 글자를 16px로 고정한다.
+
+  iOS 사파리는 글자가 16px보다 작은 칸을 누르면 화면을 확대해 버린다 — 한 칸
+  적을 때마다 화면이 커졌다 작아졌다 하고, 확대된 채로 남아 옆이 잘려 보인다.
+  칸이 조금 커지는 대신 손가락으로 누르기도 쉬워진다.
+*/
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 /* 태블릿 */
 @media (min-width: 640px) {
   html {

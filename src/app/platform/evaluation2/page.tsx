@@ -205,11 +205,13 @@ function ProgressDonut({
   color,
   size = 132,
   stroke = 13,
+  className,
 }: {
   value: number;
   color: string;
   size?: number;
   stroke?: number;
+  className?: string;
 }) {
   const v = Math.min(100, Math.max(0, value));
   const r = (size - stroke) / 2;
@@ -222,6 +224,7 @@ function ProgressDonut({
       width={size}
       height={size}
       viewBox={`0 0 ${size} ${size}`}
+      className={className}
       role="img"
       aria-label={`달성률 ${v}퍼센트`}
     >
@@ -877,13 +880,13 @@ export default async function Evaluation2Page({
           <div className="ml-auto flex items-center gap-2 whitespace-nowrap">
             <Link
               href="/admin/org-goals"
-              className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+              className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs sm:py-1 text-slate-600 hover:bg-slate-50"
             >
               조직 목표 관리
             </Link>
             <Link
               href="/admin/eval-targets"
-              className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+              className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs sm:py-1 text-slate-600 hover:bg-slate-50"
             >
               평가대상자 관리
             </Link>
@@ -901,7 +904,7 @@ export default async function Evaluation2Page({
           <Link
             key={t.key}
             href={buildHref({ tab: t.key })}
-            className={`rounded-full px-3 py-1 transition-colors ${
+            className={`rounded-full px-3 py-2 transition-colors sm:py-1 ${
               tab === t.key
                 ? "bg-brand-green text-white"
                 : "border border-slate-300 text-slate-600 hover:bg-slate-50"
@@ -1199,7 +1202,7 @@ export default async function Evaluation2Page({
                     />
                     <button
                       type="submit"
-                      className="shrink-0 rounded border border-slate-300 px-2 py-1 text-[11px] text-slate-600 hover:bg-slate-50"
+                      className="shrink-0 rounded border border-slate-300 px-2 py-1.5 text-[11px] text-slate-600 hover:bg-slate-50 sm:py-1"
                     >
                       저장
                     </button>
@@ -1261,7 +1264,15 @@ export default async function Evaluation2Page({
 
         {showsProgress && (
           <div className="relative mt-5 flex items-center justify-center">
-            <ProgressDonut value={percent} color={LEVEL_COLOR[level]} size={188} stroke={18} />
+            {/* 휴대폰에서는 조금 줄인다 — 카드 한 장이 화면을 다 먹으면 두 장을
+                견줘 볼 수가 없다. viewBox가 있어 폭만 줄이면 그대로 작아진다. */}
+            <ProgressDonut
+              value={percent}
+              color={LEVEL_COLOR[level]}
+              size={188}
+              stroke={18}
+              className="h-auto w-36 sm:w-[188px]"
+            />
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-5xl leading-none font-semibold tabular-nums text-slate-900">
                 {percent}
@@ -2015,7 +2026,7 @@ export default async function Evaluation2Page({
             >
               <button
                 type="submit"
-                className="rounded-md bg-brand-green px-3 py-1 text-xs font-medium text-white hover:bg-brand-green-dark"
+                className="rounded-md bg-brand-green px-3 py-1.5 text-xs sm:py-1 font-medium text-white hover:bg-brand-green-dark"
               >
                 팀장에게 합의 요청
               </button>
@@ -2038,7 +2049,7 @@ export default async function Evaluation2Page({
               />
               <button
                 type="submit"
-                className="rounded-md bg-brand-green px-3 py-1 text-xs font-medium text-white hover:bg-brand-green-dark"
+                className="rounded-md bg-brand-green px-3 py-1.5 text-xs sm:py-1 font-medium text-white hover:bg-brand-green-dark"
               >
                 합의 승인
               </button>
@@ -2059,7 +2070,7 @@ export default async function Evaluation2Page({
               />
               <button
                 type="submit"
-                className="rounded-md border border-red-200 px-3 py-1 text-xs text-status-critical hover:bg-red-50"
+                className="rounded-md border border-red-200 px-3 py-1.5 text-xs sm:py-1 text-status-critical hover:bg-red-50"
               >
                 되돌리기
               </button>
@@ -2072,7 +2083,7 @@ export default async function Evaluation2Page({
             >
               <button
                 type="submit"
-                className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-white"
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs sm:py-1 hover:bg-white"
               >
                 합의 해제
               </button>
@@ -2222,7 +2233,30 @@ export default async function Evaluation2Page({
           한 칸도 안 채웠으면 빈 표를 띄우지 않는다.
         */}
         {usesScales(level) && scaleValues(goal).some((sc) => sc.value) && (
-          <div className="mt-2 overflow-x-auto">
+          <div className="mt-2">
+            {/*
+              휴대폰에서는 다섯 칸을 한 줄에 늘어놓지 않는다 — 한 칸이 65px이면
+              «3천만원 이상 절감»이 글자 하나씩 끊겨 읽힌다. 등급별로 한 줄씩
+              쌓아 두면 폭이 좁아도 그대로 읽힌다.
+            */}
+            <dl className="grid grid-cols-[3.5rem_1fr] overflow-hidden rounded border border-slate-200 text-xs sm:hidden">
+              {scaleValues(goal).map((sc) => (
+                <div key={sc.field} className="contents">
+                  <dt className="border-b border-slate-200 bg-slate-100 px-2 py-1.5 font-semibold text-slate-700">
+                    {sc.grade}
+                    <span className="ml-0.5 font-normal text-slate-500">({sc.score})</span>
+                  </dt>
+                  <dd className="border-b border-slate-200 px-2 py-1.5 text-slate-600">
+                    {sc.value || <span className="text-slate-300">—</span>}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+
+        {usesScales(level) && scaleValues(goal).some((sc) => sc.value) && (
+          <div className="mt-2 hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[560px] table-fixed border-collapse text-xs">
               <thead>
                 <tr>
@@ -2285,7 +2319,7 @@ export default async function Evaluation2Page({
           {showEvalEntry && (
             <Link
               href={buildHref({ edit: goal.id })}
-              className={`rounded-md border px-3 py-1 text-xs font-medium ${
+              className={`rounded-md border px-3 py-1.5 text-xs sm:py-1 font-medium ${
                 evalDone
                   ? "border-status-critical bg-status-critical/10 text-status-critical hover:bg-status-critical hover:text-white"
                   : "border-brand-green bg-brand-green-light text-brand-green-dark hover:bg-brand-green hover:text-white"
@@ -2310,7 +2344,7 @@ export default async function Evaluation2Page({
           {editable && !isEditing && (
             <Link
               href={buildHref({ edit: goal.id })}
-              className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs sm:py-1 hover:bg-slate-50"
             >
               수정
             </Link>
@@ -2331,7 +2365,7 @@ export default async function Evaluation2Page({
             >
               <button
                 type="submit"
-                className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs sm:py-1 hover:bg-slate-50"
               >
                 {goal.status === "DROPPED" ? "중단 해제" : "중단 처리"}
               </button>
@@ -2354,7 +2388,7 @@ export default async function Evaluation2Page({
               )}
               <button
                 type="submit"
-                className="rounded-md border border-slate-300 px-3 py-1 text-xs hover:bg-slate-50"
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs sm:py-1 hover:bg-slate-50"
               >
                 {goal.excluded ? "집계에 포함" : "집계 제외"}
               </button>
@@ -2366,7 +2400,7 @@ export default async function Evaluation2Page({
               <input type="hidden" name="viewCycleId" value={cycle?.id ?? ""} />
               <button
                 type="submit"
-                className="rounded-md border border-red-200 px-3 py-1 text-xs text-status-critical hover:bg-red-50"
+                className="rounded-md border border-red-200 px-3 py-1.5 text-xs sm:py-1 text-status-critical hover:bg-red-50"
               >
                 삭제
               </button>
@@ -2739,7 +2773,7 @@ export default async function Evaluation2Page({
             >
               <button
                 type="submit"
-                className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs sm:py-1 text-slate-700 hover:bg-slate-50"
               >
                 마감 해제
               </button>

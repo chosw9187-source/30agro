@@ -30,7 +30,7 @@ export function CollapseAllButton() {
         });
         setCollapsed(next);
       }}
-      className="rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50"
+      className="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50 sm:py-1"
     >
       {collapsed ? "모두 펼치기" : "모두 접기"}
     </button>
