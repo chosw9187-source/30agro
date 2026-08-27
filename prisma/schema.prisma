@@ -254,6 +254,7 @@ model Team {
   createdAt DateTime @default(now())
 
   members       User[]         @relation("TeamMember")
+  onboardingSessions OnboardingSession[] @relation("OnboardingSessionTeam")
   templateItems TemplateItem[]
   jobDescription JobDescription?
   tasks         Task[]
@@ -719,6 +720,13 @@ model OnboardingSession {
   instructorId String?
   instructor   User?   @relation("OnboardingSessionInstructor", fields: [instructorId], references: [id])
 
+  // 사람을 못 박지 않고 부서에 맡기는 경우 — 그 날 시간이 되는 사람이 맡는
+  // 식이라 미리 이름을 적을 수 없다. 팀이 배정되면 그 팀 소속 강사 누구나
+  // 시간을 잡을 수 있고, 먼저 전송한 사람이 instructorId로 들어간다.
+  // 끝까지 정해지지 않으면 최종 스케줄에는 팀 이름으로 나간다.
+  instructorTeamId String?
+  instructorTeam   Team?   @relation("OnboardingSessionTeam", fields: [instructorTeamId], references: [id])
+
   // 강사가 관리자에게 남기는 의견(예: "실습 자료 필요", "오전만 가능").
   instructorNote String?
   submittedAt    DateTime?
@@ -733,6 +741,7 @@ model OnboardingSession {
 
   @@index([programId, startAt])
   @@index([instructorId, status])
+  @@index([instructorTeamId, status])
 }
 
 /**

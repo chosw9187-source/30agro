@@ -41,8 +41,20 @@ type FinalSession = {
   startAt: Date;
   endAt: Date;
   instructor: { name: string; team: { name: string } | null } | null;
+  instructorTeam: { name: string } | null;
   attendees: { traineeId: string }[];
 };
+
+/**
+ * 화면에 싣는 담당 표기. 사람이 정해졌으면 이름, 부서에 맡긴 채 사람이 아직
+ * 안 정해졌으면 부서 이름으로 나간다 — 교육생 입장에서는 "어디서 나오는
+ * 강의인지"만 알면 되고, 당일 누가 오는지는 그때 정해지기도 한다.
+ */
+function instructorLabel(s: FinalSession): string {
+  if (s.instructor) return s.instructor.name;
+  if (s.instructorTeam) return `${s.instructorTeam.name} (담당자 당일 지정)`;
+  return "미정";
+}
 
 /** 쉬는 시간은 강사도 대상자도 없다 — 시간표에 자리만 차지한다. */
 function isBreak(s: FinalSession) {
@@ -113,6 +125,7 @@ export async function FinalScheduleSection({
         startAt: true,
         endAt: true,
         instructor: { select: { name: true, team: { select: { name: true } } } },
+        instructorTeam: { select: { name: true } },
         attendees: { select: { traineeId: true } },
       },
     }),
@@ -388,7 +401,7 @@ function DayList({
                       ) : (
                         <>
                           {s.location ?? "장소 미정"} ·{" "}
-                          <span className="text-slate-700">강사 {s.instructor?.name ?? "미정"}</span>
+                          <span className="text-slate-700">강사 {instructorLabel(s)}</span>
                           {" · "}
                           {s.attendees.length === 0 ? "기수 전원" : `지정 ${s.attendees.length}명`}
                         </>
@@ -460,6 +473,11 @@ function SessionDetail({
                 {session.instructor.team && (
                   <span className="ml-1 text-xs text-slate-400">{session.instructor.team.name}</span>
                 )}
+              </span>
+            ) : session.instructorTeam ? (
+              <span className="text-slate-800">
+                {session.instructorTeam.name}
+                <span className="ml-1 text-xs text-slate-400">담당자 당일 지정</span>
               </span>
             ) : (
               <span className="text-slate-400">-</span>

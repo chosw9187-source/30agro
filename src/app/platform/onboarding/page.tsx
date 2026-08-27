@@ -19,6 +19,7 @@ import {
   addTrainee,
   addTraineesBulk,
   assignInstructor,
+  assignTeamInstructors,
   createProgram,
   createSession,
   deleteProgram,
@@ -31,6 +32,7 @@ import {
   updateSession,
 } from "./actions";
 import { ProgramPeriodFields } from "./program-period-fields";
+import { AssignFields } from "./assign-fields";
 import { FinalScheduleSection, finalHref } from "./final-schedule";
 import { ProgramManagementSection, StatusBadge } from "./program-management";
 import { SelectAllToggle } from "./select-all-toggle";
@@ -70,7 +72,7 @@ function TabLink({ tab, active, programId }: { tab: (typeof TABS)[number]; activ
  * 강사와 주고받는다.
  */
 async function ManageSection({ programId }: { programId: string | null }) {
-  const [programs, employees, instructors] = await Promise.all([
+  const [programs, employees, teams, instructors] = await Promise.all([
     prisma.onboardingProgram.findMany({
       orderBy: [{ active: "desc" }, { createdAt: "desc" }],
       select: {
@@ -87,6 +89,11 @@ async function ManageSection({ programId }: { programId: string | null }) {
       where: activePrismaWhere(),
       orderBy: { name: "asc" },
       select: { id: true, name: true, employeeNumber: true, team: { select: { name: true } } },
+    }),
+    prisma.team.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, division: true, _count: { select: { members: true } } },
     }),
     prisma.onboardingInstructor.findMany({
       where: { active: true },
@@ -122,6 +129,8 @@ async function ManageSection({ programId }: { programId: string | null }) {
             maxMinutes: true,
             instructorId: true,
             instructor: { select: { name: true } },
+            instructorTeamId: true,
+            instructorTeam: { select: { name: true } },
             attendees: { select: { traineeId: true } },
           },
         }),
@@ -142,6 +151,11 @@ async function ManageSection({ programId }: { programId: string | null }) {
     value: i.user.id,
     label: i.user.name,
     sublabel: i.specialty ?? i.user.team?.name ?? i.user.employeeNumber,
+  }));
+  const teamOptions = teams.map((t) => ({
+    value: t.id,
+    label: t.name,
+    sublabel: t.division ?? `${t._count.members}명`,
   }));
   const employeeOptions = employees.map((e) => ({
     value: e.id,
@@ -329,6 +343,34 @@ async function ManageSection({ programId }: { programId: string | null }) {
               </div>
             </ActionForm>
 
+            <details className="mt-3">
+              <summary className="cursor-pointer text-xs text-brand-green-dark">부서 인원 한 번에 등록</summary>
+              <ActionForm
+                action={assignTeamInstructors}
+                className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3"
+                successMessage="부서 인원을 강사 명단에 등록했습니다."
+              >
+                <div>
+                  <label className={LABEL_CLASS}>부서</label>
+                  <SearchableSelect
+                    name="teamId"
+                    options={teamOptions}
+                    placeholder="부서 검색..."
+                    emptyLabel="선택 안 함"
+                  />
+                </div>
+                <div className="flex items-end sm:col-span-2">
+                  <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                    부서 전체 등록
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500 sm:col-span-3">
+                  그 부서 재직자를 모두 강사 명단에 넣습니다. 이미 있는 사람은 건너뜁니다. 부서 배정으로 운영하려면
+                  그 부서 사람들이 명단에 있어야 [교육 프로그램 관리]가 보입니다.
+                </p>
+              </ActionForm>
+            </details>
+
             {instructors.length === 0 ? (
               <p className="mt-4 rounded border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">
                 등록된 강사가 없습니다.
@@ -467,15 +509,12 @@ async function ManageSection({ programId }: { programId: string | null }) {
                   <option value="BREAK">쉬는 시간</option>
                 </select>
               </div>
-              <div>
-                <label className={LABEL_CLASS}>담당 강사 (쉬는 시간은 비움)</label>
-                <SearchableSelect
-                  name="instructorId"
-                  options={instructorOptions}
-                  placeholder="강사 검색..."
-                  emptyLabel="나중에 지정"
-                />
-              </div>
+              <AssignFields
+                instructorOptions={instructorOptions}
+                teamOptions={teamOptions}
+                inputClassName={INPUT_CLASS}
+                labelClassName={LABEL_CLASS}
+              />
               <div>
                 <label className={LABEL_CLASS}>날짜</label>
                 <input type="date" name="date" required className={INPUT_CLASS} />
@@ -536,7 +575,8 @@ async function ManageSection({ programId }: { programId: string | null }) {
                         </p>
                         {!isBreak && (
                           <p className="mt-0.5 text-xs text-slate-500">
-                            강사 {s.instructor?.name ?? "미배정"} · 최소 {formatDuration(s.minMinutes)}
+                            담당 {s.instructor?.name ?? (s.instructorTeam ? `${s.instructorTeam.name} (되는 사람이 맡음)` : "미배정")}{" "}
+                            · 최소 {formatDuration(s.minMinutes)}
                             {s.maxMinutes ? ` · 최대 ${formatDuration(s.maxMinutes)}` : ""} ·{" "}
                             {s.attendees.length === 0 ? "교육생 전원" : `교육생 ${s.attendees.length}명 지정`}
                           </p>
@@ -565,16 +605,14 @@ async function ManageSection({ programId }: { programId: string | null }) {
                           <input name="title" required defaultValue={s.title} className={INPUT_CLASS} />
                         </div>
                         {!isBreak && (
-                          <div className="sm:col-span-2">
-                            <label className={LABEL_CLASS}>담당 강사</label>
-                            <SearchableSelect
-                              name="instructorId"
-                              options={instructorOptions}
-                              defaultValue={s.instructorId ?? ""}
-                              placeholder="강사 검색..."
-                              emptyLabel="미배정"
-                            />
-                          </div>
+                          <AssignFields
+                            instructorOptions={instructorOptions}
+                            teamOptions={teamOptions}
+                            defaultInstructorId={s.instructorId ?? ""}
+                            defaultTeamId={s.instructorTeamId ?? ""}
+                            inputClassName={INPUT_CLASS}
+                            labelClassName={LABEL_CLASS}
+                          />
                         )}
                         <div>
                           <label className={LABEL_CLASS}>날짜</label>

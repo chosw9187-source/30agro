@@ -48,6 +48,39 @@ function whenLabel(startAt: Date, endAt: Date) {
   return `${formatSessionDay(startAt)} ${formatSessionTimeRange(startAt, endAt)}`;
 }
 
+/**
+ * 폼에서 넘어온 담당 배정을 읽는다. 개인 배정(사람)과 부서 배정(팀)은 서로
+ * 배타적이다 — 둘 다 들어오면 무엇이 우선인지 화면과 서버가 어긋난다.
+ *
+ * 부서 배정은 "그 날 되는 사람이 맡는다"는 뜻이라 이 시점엔 사람이 없고,
+ * 나중에 그 팀 강사 중 먼저 전송한 사람이 담당으로 들어간다.
+ */
+async function readAssignment(formData: FormData) {
+  const mode = text(formData, "assignMode");
+  if (mode === "TEAM") {
+    const instructorTeamId = text(formData, "instructorTeamId");
+    if (!instructorTeamId) fail("담당 부서를 선택해 주세요.");
+    const team = await prisma.team.findUnique({ where: { id: instructorTeamId }, select: { id: true } });
+    if (!team) fail("존재하지 않는 부서입니다");
+    return { instructorId: null, instructorTeamId };
+  }
+
+  const instructorId = text(formData, "instructorId") || null;
+  if (instructorId && !(await isActiveInstructor(instructorId))) {
+    fail("강사 명단에 없는 사람입니다. [일정 관리 · 강사 명단]에 먼저 등록해 주세요.");
+  }
+  return { instructorId, instructorTeamId: null };
+}
+
+/** 이 팀에서 강의를 맡을 수 있는 사람들 — 팀 소속이면서 강사 명단에 있는 사람. */
+async function teamInstructorIds(teamId: string): Promise<string[]> {
+  const rows = await prisma.onboardingInstructor.findMany({
+    where: { active: true, user: { teamId, ...activePrismaWhere() } },
+    select: { userId: true },
+  });
+  return rows.map((r) => r.userId);
+}
+
 /** 재직 중인 임직원인지. 폼에서 고르는 값이지만 얼마든지 바꿔 보낼 수 있다. */
 async function assertEmployeeExists(userId: string) {
   const found = await prisma.user.findFirst({
@@ -207,10 +240,9 @@ export async function createSession(formData: FormData) {
   const maxMinutes = isBreak || !maxRaw ? null : positiveInt(maxRaw, 0) || null;
   if (maxMinutes && maxMinutes < minMinutes) fail("최대 강의 시간이 최소 강의 시간보다 짧습니다.");
 
-  const instructorId = isBreak ? null : text(formData, "instructorId") || null;
-  if (instructorId && !(await isActiveInstructor(instructorId))) {
-    fail("강사 명단에 없는 사람입니다. [일정 관리 · 강사 명단]에 먼저 등록해 주세요.");
-  }
+  const { instructorId, instructorTeamId } = isBreak
+    ? { instructorId: null, instructorTeamId: null }
+    : await readAssignment(formData);
 
   const created = await prisma.onboardingSession.create({
     data: {
@@ -227,19 +259,24 @@ export async function createSession(formData: FormData) {
       minMinutes,
       maxMinutes,
       instructorId,
+      instructorTeamId,
       createdById: session.user.id,
     },
   });
 
-  if (instructorId) {
-    await notifyUser(
-      instructorId,
-      "ONBOARDING_BOOKING_REQUESTED",
-      `[온보딩] "${created.title}" 강의가 배정되었습니다. 세부일정을 확인해 주세요.`,
-      undefined,
-      LINK_PROGRAM
-    );
-  }
+  // 부서 배정이면 그 팀 강사 전원에게 알린다 — 누가 맡을지 아직 모르므로
+  // 다 같이 보고 그중 한 명이 잡는다.
+  const recipients = instructorId
+    ? [instructorId]
+    : instructorTeamId
+      ? await teamInstructorIds(instructorTeamId)
+      : [];
+  await notifyUsers(
+    recipients,
+    "ONBOARDING_BOOKING_REQUESTED",
+    `[온보딩] "${created.title}" 강의가 배정되었습니다. 세부일정을 확인해 주세요.`,
+    LINK_PROGRAM
+  );
   revalidatePath(PATH);
 }
 
@@ -249,7 +286,7 @@ export async function updateSession(sessionId: string, formData: FormData) {
 
   const target = await prisma.onboardingSession.findUnique({
     where: { id: sessionId },
-    select: { kind: true, programId: true, instructorId: true, title: true },
+    select: { kind: true, programId: true, instructorId: true, instructorTeamId: true, title: true },
   });
   if (!target) fail("일정을 찾을 수 없습니다.");
 
@@ -266,10 +303,9 @@ export async function updateSession(sessionId: string, formData: FormData) {
   const maxMinutes = isBreak || !maxRaw ? null : positiveInt(maxRaw, 0) || null;
   if (maxMinutes && maxMinutes < minMinutes) fail("최대 강의 시간이 최소 강의 시간보다 짧습니다.");
 
-  const instructorId = isBreak ? null : text(formData, "instructorId") || null;
-  if (instructorId && !(await isActiveInstructor(instructorId))) {
-    fail("강사 명단에 없는 사람입니다. [일정 관리 · 강사 명단]에 먼저 등록해 주세요.");
-  }
+  const { instructorId, instructorTeamId } = isBreak
+    ? { instructorId: null, instructorTeamId: null }
+    : await readAssignment(formData);
 
   await prisma.onboardingSession.update({
     where: { id: sessionId },
@@ -282,16 +318,24 @@ export async function updateSession(sessionId: string, formData: FormData) {
       minMinutes,
       maxMinutes,
       instructorId,
+      instructorTeamId,
     },
   });
 
-  // 새로 배정된 강사에게만 알린다 — 같은 사람에게 반복해서 보내지 않는다.
-  if (instructorId && instructorId !== target.instructorId) {
-    await notifyUser(
-      instructorId,
+  // 배정이 실제로 바뀐 경우에만 알린다 — 같은 사람·같은 팀에 반복해서 보내지
+  // 않는다.
+  const assignmentChanged =
+    instructorId !== target.instructorId || instructorTeamId !== target.instructorTeamId;
+  if (assignmentChanged) {
+    const recipients = instructorId
+      ? [instructorId]
+      : instructorTeamId
+        ? await teamInstructorIds(instructorTeamId)
+        : [];
+    await notifyUsers(
+      recipients,
       "ONBOARDING_BOOKING_REQUESTED",
       `[온보딩] "${title}" 강의가 배정되었습니다. 세부일정을 확인해 주세요.`,
-      undefined,
       LINK_PROGRAM
     );
   }
@@ -306,7 +350,14 @@ export async function deleteSession(sessionId: string) {
 
 /* ------------------------------------------------- 강사의 세부일정 조정 */
 
-/** 이 사람이 이 칸을 고칠 수 있는지 — 배정된 강사 본인이고 아직 확정 전. */
+/**
+ * 이 사람이 이 칸을 고칠 수 있는지 — 아직 확정 전이고, 본인에게 배정됐거나
+ * 본인이 속한 부서에 배정된 강의여야 한다.
+ *
+ * 부서 배정은 담당자가 아직 없는 상태이므로 그 팀 소속 강사면 누구나 열 수
+ * 있다. 다만 이미 팀의 다른 사람이 맡기로 하고 자기 이름을 걸었다면 그
+ * 사람의 것이 된다 — 그래야 두 사람이 서로의 시간을 덮어쓰지 않는다.
+ */
 async function requireOwnPlannedSession(sessionId: string, userId: string) {
   const target = await prisma.onboardingSession.findUnique({
     where: { id: sessionId },
@@ -316,6 +367,8 @@ async function requireOwnPlannedSession(sessionId: string, userId: string) {
       kind: true,
       status: true,
       instructorId: true,
+      instructorTeamId: true,
+      instructor: { select: { name: true } },
       programId: true,
       minMinutes: true,
       maxMinutes: true,
@@ -323,8 +376,25 @@ async function requireOwnPlannedSession(sessionId: string, userId: string) {
   });
   if (!target) fail("일정을 찾을 수 없습니다.");
   if (target.kind === "BREAK") fail("쉬는 시간은 관리자만 수정할 수 있습니다.");
-  if (target.instructorId !== userId) fail("본인에게 배정된 강의만 수정할 수 있습니다.");
   if (target.status === "CONFIRMED") fail("이미 확정된 강의입니다. 변경이 필요하면 관리자에게 요청해 주세요.");
+
+  if (target.instructorId) {
+    if (target.instructorId !== userId) {
+      fail(
+        target.instructorTeamId
+          ? `이미 ${target.instructor?.name ?? "다른 강사"}님이 맡기로 한 강의입니다.`
+          : "본인에게 배정된 강의만 수정할 수 있습니다."
+      );
+    }
+    return target;
+  }
+
+  if (!target.instructorTeamId) fail("담당이 지정되지 않은 강의입니다. 관리자에게 문의해 주세요.");
+
+  const me = await prisma.user.findUnique({ where: { id: userId }, select: { teamId: true } });
+  if (me?.teamId !== target.instructorTeamId) {
+    fail("본인 부서에 배정된 강의만 수정할 수 있습니다.");
+  }
   return target;
 }
 
@@ -348,12 +418,17 @@ export async function saveSessionDetail(sessionId: string, formData: FormData) {
 
   const submitting = text(formData, "intent") === "submit";
 
+  // 부서 배정이었다면 전송하는 순간 이 사람이 담당 강사가 된다 — 먼저 잡는
+  // 사람이 맡는 방식이라, 전송 전까지는 아무도 이름을 걸지 않는다.
+  const claiming = submitting && !target.instructorId && !!target.instructorTeamId;
+
   const updated = await prisma.onboardingSession.update({
     where: { id: sessionId },
     data: {
       startAt,
       endAt,
       instructorNote: text(formData, "instructorNote") || null,
+      ...(claiming ? { instructorId: session.user.id } : {}),
       ...(submitting ? { status: "SUBMITTED" as const, submittedAt: new Date() } : {}),
     },
     select: { title: true, startAt: true, endAt: true, instructorNote: true },
@@ -409,7 +484,7 @@ export async function unconfirmSession(sessionId: string) {
   await requireRole("ADMIN");
   const target = await prisma.onboardingSession.findUnique({
     where: { id: sessionId },
-    select: { title: true, instructorId: true, kind: true },
+    select: { title: true, instructorId: true, instructorTeamId: true, kind: true },
   });
   if (!target) fail("일정을 찾을 수 없습니다.");
   if (target.kind === "BREAK") fail("쉬는 시간은 확정 해제 대상이 아닙니다.");
@@ -447,6 +522,34 @@ export async function assignInstructor(formData: FormData) {
     where: { userId },
     create: { userId, specialty, note, assignedById: session.user.id },
     update: { specialty, note, active: true, assignedById: session.user.id },
+  });
+  revalidatePath(PATH);
+}
+
+/**
+ * 한 부서의 재직자를 통째로 강사 명단에 넣는다. 부서 배정으로 운영하려면 그
+ * 팀 사람들이 명단에 있어야 [교육 프로그램 관리]가 보이는데, 열 명을 한 명씩
+ * 검색해 넣는 건 현실적이지 않다.
+ */
+export async function assignTeamInstructors(formData: FormData) {
+  const session = await requireRole("ADMIN");
+  const teamId = text(formData, "teamId");
+  if (!teamId) fail("부서를 선택해 주세요.");
+
+  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { name: true } });
+  if (!team) fail("존재하지 않는 부서입니다");
+
+  const members = await prisma.user.findMany({
+    where: { teamId, ...activePrismaWhere() },
+    select: { id: true },
+  });
+  if (members.length === 0) fail(`${team.name}에 재직 중인 인원이 없습니다.`);
+
+  // 이미 명단에 있는 사람은 건너뛴다 — 해제해 둔 사람을 여기서 되살리면
+  // 일부러 뺀 사람이 조용히 돌아온다.
+  await prisma.onboardingInstructor.createMany({
+    data: members.map((m) => ({ userId: m.id, assignedById: session.user.id })),
+    skipDuplicates: true,
   });
   revalidatePath(PATH);
 }
