@@ -67,7 +67,7 @@ function TabLink({ tab, active, programId }: { tab: (typeof TABS)[number]; activ
 /**
  * 관리자 전용. 기수를 만들고, 교육 일정의 틀을 짜고, 교육
  * 대상자 명단을 관리한다. 강의 담당은 사람으로 직접 지정하거나 부서에 맡기고,
- * 부서에 맡긴 경우 누가 할지는 그 부서 팀장이 [교육 프로그램 관리]에서 정한다.
+ * 부서에 맡긴 경우 누가 할지는 그 부서 사람이 [교육 프로그램 관리]에서 정한다.
  */
 async function ManageSection({ programId }: { programId: string | null }) {
   const [programs, employees, teams] = await Promise.all([

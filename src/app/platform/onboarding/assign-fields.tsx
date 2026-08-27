@@ -9,7 +9,7 @@ type Option = { value: string; label: string; sublabel?: string };
  * 담당 배정 입력 — 개인(지정 강사) 또는 부서 중 하나를 고른다.
  *
  * 부서 배정은 "그 부서가 맡되 누가 할지는 팀 사정에 맡긴다"는 뜻이라, 이
- * 시점에는 사람을 못 박지 않는다 — 그 부서 팀장이 나중에 강사를 지정한다.
+ * 시점에는 사람을 못 박지 않는다 — 그 부서 사람이 나중에 강사를 지정한다.
  * 두 값이 동시에 넘어가면 서버가 무엇을 우선할지 모호해지므로 고른 쪽만
  * 폼에 남긴다.
  */
@@ -41,7 +41,7 @@ export function AssignFields({
           className={inputClassName}
         >
           <option value="PERSON">지정 강사</option>
-          <option value="TEAM">부서 (팀장이 강사 지정)</option>
+          <option value="TEAM">부서 내 지정</option>
         </select>
       </div>
       <div>

@@ -12,7 +12,7 @@ import {
   canCoordinateSessions,
   formatSessionDay,
   formatSessionTimeRange,
-  isLeaderOfTeam,
+  isMemberOfTeam,
   parseKSTDateTime,
   toKSTInputValues,
   type Slot,
@@ -116,12 +116,15 @@ async function readAssignment(formData: FormData) {
 }
 
 /**
- * 부서 배정을 알릴 대상 — 그 부서의 팀장. 강사를 고르는 것은 팀장의 몫이라,
- * 팀원 전원에게 뿌리지 않고 팀장에게만 보낸다.
+ * 부서 배정을 알릴 대상 — 그 부서 재직자 전원. 누구나 강사를 지정할 수 있으므로
+ * 한 사람에게만 보내면 그 사람이 자리에 없을 때 아무도 모른 채 넘어간다.
  */
-async function teamLeaderId(teamId: string): Promise<string[]> {
-  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { leaderId: true } });
-  return team?.leaderId ? [team.leaderId] : [];
+async function teamMemberIds(teamId: string): Promise<string[]> {
+  const members = await prisma.user.findMany({
+    where: { teamId, ...activePrismaWhere() },
+    select: { id: true },
+  });
+  return members.map((m) => m.id);
 }
 
 /** 재직 중인 임직원인지. 폼에서 고르는 값이지만 얼마든지 바꿔 보낼 수 있다. */
@@ -279,7 +282,7 @@ export async function createSession(formData: FormData) {
       );
     } else if (instructorTeamId) {
       await notifyUsers(
-        await teamLeaderId(instructorTeamId),
+        await teamMemberIds(instructorTeamId),
         "ONBOARDING_BOOKING_REQUESTED",
         `[온보딩] "${created.title}" 강의가 부서에 배정되었습니다 (${when}). 담당 강사를 지정해 주세요.`,
         LINK_PROGRAM
@@ -338,7 +341,7 @@ export async function updateSession(sessionId: string, formData: FormData) {
         );
       } else if (instructorTeamId) {
         await notifyUsers(
-          await teamLeaderId(instructorTeamId),
+          await teamMemberIds(instructorTeamId),
           "ONBOARDING_BOOKING_REQUESTED",
           `[온보딩] "${title}" 강의가 부서에 배정되었습니다 (${when}). 담당 강사를 지정해 주세요.`,
           LINK_PROGRAM
@@ -357,12 +360,12 @@ export async function deleteSession(sessionId: string) {
   });
 }
 
-/* ------------------------------------------------- 강사·팀장의 응답 */
+/* --------------------------------------------------- 부서·강사의 응답 */
 
 /**
  * 이 사람이 이 강의에 답할 수 있는지. 담당 강사 본인이거나, 부서 배정 강의의
- * 그 부서 팀장이면 된다 — 팀장이 팀원 사정을 알고 대신 조율해 주는 경우가
- * 있어 팀장도 답할 수 있게 열어 둔다.
+ * 그 부서 소속이면 된다 — 부서 안에서 서로 사정을 알고 대신 조율해 주는
+ * 경우가 있어 같은 부서 사람이면 직급과 무관하게 답할 수 있게 열어 둔다.
  */
 async function requireResponder(sessionId: string, userId: string, isAdmin: boolean) {
   const target = await prisma.onboardingSession.findUnique({
@@ -384,7 +387,7 @@ async function requireResponder(sessionId: string, userId: string, isAdmin: bool
 
   if (isAdmin) return target;
   if (target.instructorId === userId) return target;
-  if (target.instructorTeamId && (await isLeaderOfTeam(userId, target.instructorTeamId))) return target;
+  if (target.instructorTeamId && (await isMemberOfTeam(userId, target.instructorTeamId))) return target;
 
   fail(
     target.instructorId
@@ -394,7 +397,7 @@ async function requireResponder(sessionId: string, userId: string, isAdmin: bool
 }
 
 /**
- * 강사(또는 부서 팀장)가 가능 여부를 답한다. 가능하면 되는 시간대를 고르고
+ * 강사(또는 같은 부서 사람)가 가능 여부를 답한다. 가능하면 되는 시간대를 고르고
  * 필요하면 단서를 적고, 불가하면 사유를 남긴다 — 관리자가 다음 수를 두려면
  * "왜 안 되는지"가 있어야 다른 날로 옮기든 다른 사람을 찾든 할 수 있다.
  *
@@ -411,7 +414,7 @@ export async function replyAvailability(sessionId: string, formData: FormData) {
 
     const target = await requireResponder(sessionId, session.user.id, isAdmin);
     if (!target.instructorId) {
-      fail("담당 강사가 지정되지 않았습니다. 부서 팀장이 강사를 먼저 지정해야 합니다.");
+      fail("담당 강사가 지정되지 않았습니다. 부서에서 강사를 먼저 지정해야 합니다.");
     }
 
     const available = text(formData, "available") === "yes";
@@ -527,8 +530,9 @@ export async function unconfirmSession(sessionId: string) {
 }
 
 /**
- * 부서에 배정된 강의의 담당 강사를 그 부서 팀장이 지정한다. 관리자는 "이 강의는
- * OO팀"까지만 정하고, 그 안에서 누가 할지는 팀 사정을 아는 팀장이 정한다.
+ * 부서에 배정된 강의의 담당 강사를 그 부서에서 지정한다. 관리자는 "이 강의는
+ * OO팀"까지만 정하고, 그 안에서 누가 할지는 부서가 알아서 정한다 — 직급은
+ * 보지 않는다. 팀장이 아니라 일정을 아는 사람이 먼저 손대는 경우가 많다.
  */
 export async function designateTeamInstructor(sessionId: string, formData: FormData) {
   return run(async () => {
@@ -550,8 +554,8 @@ export async function designateTeamInstructor(sessionId: string, formData: FormD
     if (target.status === "CONFIRMED") fail("이미 확정된 강의입니다. 관리자에게 요청해 주세요.");
 
     const isAdmin = session.user.role === "ADMIN";
-    if (!isAdmin && !(await isLeaderOfTeam(session.user.id, target.instructorTeamId))) {
-      fail("해당 부서의 팀장만 강사를 지정할 수 있습니다.");
+    if (!isAdmin && !(await isMemberOfTeam(session.user.id, target.instructorTeamId))) {
+      fail("해당 부서 소속만 강사를 지정할 수 있습니다.");
     }
 
     const instructorId = text(formData, "instructorId");
@@ -581,7 +585,7 @@ export async function designateTeamInstructor(sessionId: string, formData: FormD
     await notifyUsers(
       await adminIds(),
       "ONBOARDING_BOOKING_REQUESTED",
-      `[온보딩] ${target.instructorTeam?.name ?? "부서"} 팀장이 "${target.title}" 강의 강사로 ${picked.name}님을 지정했습니다 (${when}).`,
+      `[온보딩] ${target.instructorTeam?.name ?? "부서"}에서 "${target.title}" 강의 강사로 ${picked.name}님을 지정했습니다 (${when}).`,
       LINK_PROGRAM
     );
     revalidatePath(PATH);

@@ -29,7 +29,7 @@ export function StatusBadge({ status }: { status: SessionStatus }) {
  * 강의 일정을 조율하는 화면.
  *
  * 관리자가 [일정 관리]에서 "이 날 오전"까지만 가이드라인을 잡아 두면, 배정된
- * 강사(또는 부서 팀장)가 가능한지 답한다. 가능하면 되는 시간대를 고르고,
+ * 강사(또는 같은 부서 사람)가 가능한지 답한다. 가능하면 되는 시간대를 고르고,
  * 불가하면 사유를 남긴다. 그 답을 보고 관리자가 실제 시각을 짜서 확정하며,
  * 확정된 것만 [최종 스케줄]에 나간다.
  *
@@ -47,23 +47,13 @@ export async function ProgramManagementSection({
 }) {
   if (!programId) return <EmptyBox>등록된 온보딩 기수가 없습니다.</EmptyBox>;
 
-  // 부서에 배정된 강의는 담당 강사를 그 부서 팀장이 정한다. 팀장이 팀원 사정을
-  // 알고 시간까지 대신 조율해 주는 경우가 있어, 팀장에게는 본인이 맡은 강의뿐
-  // 아니라 본인이 이끄는 팀에 걸린 강의도 보인다.
-  const ledTeams = await prisma.team.findMany({
-    where: { leaderId: viewerId },
-    select: {
-      id: true,
-      name: true,
-      members: {
-        where: activePrismaWhere(),
-        orderBy: { name: "asc" },
-        select: { id: true, name: true, employeeNumber: true },
-      },
-    },
+  // 부서에 배정된 강의는 그 부서가 알아서 강사를 정한다 — 직급은 보지 않으므로
+  // 본인 부서에 걸린 강의는 팀원 누구에게나 보이고, 누구나 지정할 수 있다.
+  const me = await prisma.user.findUnique({
+    where: { id: viewerId },
+    select: { teamId: true },
   });
-  const ledTeamIds = ledTeams.map((t) => t.id);
-  const membersByTeam = new Map(ledTeams.map((t) => [t.id, t.members]));
+  const myTeamId = me?.teamId ?? null;
 
   const [program, sessions] = await Promise.all([
     prisma.onboardingProgram.findUnique({
@@ -78,7 +68,7 @@ export async function ProgramManagementSection({
           : {
               OR: [
                 { instructorId: viewerId },
-                ...(ledTeamIds.length ? [{ instructorTeamId: { in: ledTeamIds } }] : []),
+                ...(myTeamId ? [{ instructorTeamId: myTeamId }] : []),
               ],
             }),
       },
@@ -106,6 +96,22 @@ export async function ProgramManagementSection({
 
   if (!program) return <EmptyBox>선택한 프로그램을 찾을 수 없습니다.</EmptyBox>;
 
+  const assignedTeamIds = [...new Set(sessions.map((s) => s.instructorTeamId).filter((v): v is string => !!v))];
+  const teamMembersById = new Map(
+    (
+      await prisma.user.findMany({
+        where: { teamId: { in: assignedTeamIds }, ...activePrismaWhere() },
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, employeeNumber: true, teamId: true },
+      })
+    ).reduce((acc, u) => {
+      const list = acc.get(u.teamId!) ?? [];
+      list.push(u);
+      acc.set(u.teamId!, list);
+      return acc;
+    }, new Map<string, { id: string; name: string; employeeNumber: string }[]>())
+  );
+
   const waiting = sessions.filter((s) => s.status === "SUBMITTED");
   const declined = sessions.filter((s) => s.status === "DECLINED");
 
@@ -119,9 +125,7 @@ export async function ProgramManagementSection({
         <p className="mt-2 text-sm text-slate-600">
           {isAdmin
             ? "강사가 보내온 답을 보고 실제 시각을 정해 확정합니다. 확정한 일정만 [최종 스케줄]에 나타납니다."
-            : ledTeams.length > 0
-              ? "부서에 배정된 강의는 담당 강사를 지정하고, 가능 여부를 알려 주세요. 실제 시각은 관리자가 정합니다."
-              : "배정된 강의의 가능 여부를 알려 주세요. 되는 시간대만 골라 주시면 실제 시각은 관리자가 정합니다."}
+            : "배정된 강의의 가능 여부를 알려 주세요. 부서에 배정된 강의는 담당 강사도 정해 주세요. 실제 시각은 관리자가 정합니다."}
         </p>
         {isAdmin && waiting.length > 0 && (
           <p className="mt-3 rounded border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">
@@ -147,12 +151,11 @@ export async function ProgramManagementSection({
           const answered = s.instructorSlot as Slot | null;
           const mine = s.instructorId === viewerId;
           const locked = s.status === "CONFIRMED";
-          // 담당 강사 본인, 또는 부서 배정 강의의 그 부서 팀장이 답할 수 있다.
-          const canReply =
-            !locked && !!s.instructorId && (mine || (!!s.instructorTeamId && ledTeamIds.includes(s.instructorTeamId)));
-          const canDesignate =
-            !locked && !!s.instructorTeamId && (isAdmin || ledTeamIds.includes(s.instructorTeamId));
-          const teamMembers = s.instructorTeamId ? membersByTeam.get(s.instructorTeamId) ?? [] : [];
+          // 담당 강사 본인, 또는 부서 배정 강의의 그 부서 소속이면 답할 수 있다.
+          const myTeamsSession = !!s.instructorTeamId && s.instructorTeamId === myTeamId;
+          const canReply = !locked && !!s.instructorId && (mine || myTeamsSession);
+          const canDesignate = !locked && !!s.instructorTeamId && (isAdmin || myTeamsSession);
+          const teamMembers = s.instructorTeamId ? teamMembersById.get(s.instructorTeamId) ?? [] : [];
           const newDay = i === 0 || kstDayKey(s.startAt) !== kstDayKey(sessions[i - 1].startAt);
           const defaults = SLOT_DEFAULT_TIME[answered ?? slot];
 
@@ -228,7 +231,7 @@ export async function ProgramManagementSection({
                   </p>
                 )}
 
-                {/* --------------------------------------- 팀장의 강사 지정 */}
+                {/* ------------------------------------- 부서 안에서 강사 지정 */}
                 {canDesignate && (
                   <div className="mt-3 rounded border border-blue-200 bg-blue-50 p-3">
                     <p className="text-xs font-medium text-blue-800">
@@ -266,7 +269,7 @@ export async function ProgramManagementSection({
                   </div>
                 )}
 
-                {/* ------------------------------------- 강사·팀장의 가능 응답 */}
+                {/* ------------------------------------ 강사·부서의 가능 응답 */}
                 {canReply && (
                   <div className="mt-3 border-t border-slate-100 pt-3">
                     <p className="text-xs font-medium text-slate-600">
