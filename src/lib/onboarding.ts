@@ -10,9 +10,13 @@ export const SESSION_STATUS_LABEL: Record<SessionStatus, string> = {
   CONFIRMED: "확정",
 };
 
+/**
+ * 한눈에 진행 단계가 읽히도록 색을 단계별로 맞춘다 — 빨강(아직 조율 안 됨)
+ * → 파랑(강사가 시간을 확정해 보냄) → 초록(관리자 최종 확정).
+ */
 export const SESSION_STATUS_BADGE_CLASS: Record<SessionStatus, string> = {
-  PLANNED: "bg-slate-100 text-slate-600",
-  SUBMITTED: "bg-amber-50 text-amber-700",
+  PLANNED: "bg-red-50 text-red-700",
+  SUBMITTED: "bg-blue-50 text-blue-700",
   CONFIRMED: "bg-emerald-50 text-emerald-700",
 };
 

@@ -48,6 +48,15 @@ function whenLabel(startAt: Date, endAt: Date) {
   return `${formatSessionDay(startAt)} ${formatSessionTimeRange(startAt, endAt)}`;
 }
 
+/** 재직 중인 임직원인지. 폼에서 고르는 값이지만 얼마든지 바꿔 보낼 수 있다. */
+async function assertEmployeeExists(userId: string) {
+  const found = await prisma.user.findFirst({
+    where: { id: userId, ...activePrismaWhere() },
+    select: { id: true },
+  });
+  if (!found) fail("존재하지 않는 임직원 입니다");
+}
+
 async function adminIds(): Promise<string[]> {
   const admins = await prisma.user.findMany({
     where: { role: "ADMIN", ...activePrismaWhere() },
@@ -428,6 +437,7 @@ export async function assignInstructor(formData: FormData) {
   const session = await requireRole("ADMIN");
   const userId = text(formData, "userId");
   if (!userId) fail("직원을 선택해 주세요.");
+  await assertEmployeeExists(userId);
 
   const specialty = text(formData, "specialty") || null;
   const note = text(formData, "note") || null;
@@ -466,6 +476,7 @@ export async function addTrainee(formData: FormData) {
   const userId = text(formData, "userId");
   if (!programId) fail("기수를 먼저 선택해 주세요.");
   if (!userId) fail("직원을 선택해 주세요.");
+  await assertEmployeeExists(userId);
 
   await prisma.onboardingTrainee.upsert({
     where: { programId_userId: { programId, userId } },
@@ -526,11 +537,12 @@ export async function addTraineesBulk(formData: FormData) {
   revalidatePath(PATH);
 
   const problems = [
-    unmatched.length ? `찾을 수 없음: ${unmatched.join(", ")}` : "",
-    ambiguous.length ? `이름이 겹쳐 사번이 필요함: ${ambiguous.join(", ")}` : "",
+    unmatched.length ? `존재하지 않는 임직원 입니다: ${unmatched.join(", ")}` : "",
+    ambiguous.length ? `이름이 겹쳐 사번이 필요합니다: ${ambiguous.join(", ")}` : "",
   ].filter(Boolean);
   if (problems.length > 0) {
-    fail(`${matched.length}명 등록했습니다. ${problems.join(" / ")}`);
+    // 한 명도 못 넣었으면 "0명 등록했습니다"를 앞에 붙일 이유가 없다.
+    fail(matched.length > 0 ? `${matched.length}명 등록했습니다. ${problems.join(" / ")}` : problems.join(" / "));
   }
 }
 

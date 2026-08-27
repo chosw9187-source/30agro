@@ -7,6 +7,7 @@ import {
   formatDuration,
   formatSessionDay,
   formatSessionTimeRange,
+  kstDayKey,
   toKSTInputValues,
   type SessionStatus,
 } from "@/lib/onboarding";
@@ -52,7 +53,9 @@ export async function ProgramManagementSection({
         kind: "LECTURE",
         ...(isAdmin ? {} : { instructorId: viewerId }),
       },
-      orderBy: { startAt: "asc" },
+      // 교육 날짜 · 시간 순. 같은 시각이 겹쳐도 순서가 흔들리지 않도록
+      // 종료 시각과 과정명까지 보조 기준으로 둔다.
+      orderBy: [{ startAt: "asc" }, { endAt: "asc" }, { title: "asc" }],
       select: {
         id: true,
         title: true,
@@ -101,15 +104,21 @@ export async function ProgramManagementSection({
             : "배정된 강의가 없습니다. 관리자가 강의를 배정하면 여기에 나타납니다."}
         </EmptyBox>
       ) : (
-        sessions.map((s) => {
+        sessions.map((s, i) => {
           const start = toKSTInputValues(s.startAt);
           const end = toKSTInputValues(s.endAt);
           const mine = s.instructorId === viewerId;
           const locked = s.status === "CONFIRMED";
           const editable = mine && !locked;
+          // 건수가 늘어나면 날짜 경계가 보여야 순서가 읽힌다.
+          const newDay = i === 0 || kstDayKey(s.startAt) !== kstDayKey(sessions[i - 1].startAt);
 
           return (
-            <div key={s.id} className="rounded-lg border border-slate-200 bg-white p-5">
+            <div key={s.id}>
+              {newDay && (
+                <p className="mb-2 mt-2 text-sm font-semibold text-slate-700">{formatSessionDay(s.startAt)}</p>
+              )}
+              <div className="rounded-lg border border-slate-200 bg-white p-5">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <h3 className="text-base font-semibold text-slate-800">
@@ -162,12 +171,25 @@ export async function ProgramManagementSection({
               )}
 
               {locked ? (
-                <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
-                  확정된 일정입니다. 변경이 필요하면 {isAdmin ? "확정을 해제한 뒤 조정하세요." : "관리자에게 요청해 주세요."}
+                <p className="mt-3 border-t border-slate-100 pt-3 text-xs">
+                  <span className="font-bold text-blue-700">확정된 일정입니다.</span>{" "}
+                  <span className="text-slate-500">
+                    변경이 필요하면 {isAdmin ? "확정을 해제한 뒤 조정하세요." : "관리자에게 요청해 주세요."}
+                  </span>
                 </p>
               ) : editable ? (
                 <div className="mt-3 border-t border-slate-100 pt-3">
-                  <p className="text-xs font-medium text-slate-600">세부일정</p>
+                  <p className="text-xs">
+                    {s.status === "SUBMITTED" ? (
+                      <>
+                        <span className="font-bold text-blue-700">확정된 일정입니다.</span>{" "}
+                        <span className="text-slate-500">다시 보내면 관리자가 새 시간으로 확인합니다.</span>
+                      </>
+                    ) : (
+                      <span className="font-bold text-red-600">아직 시간이 조율되지 않았습니다.</span>
+                    )}
+                  </p>
+                  <p className="mt-2 text-xs font-medium text-slate-600">세부일정</p>
                   <ActionForm
                     action={saveSessionDetail.bind(null, s.id)}
                     className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-4"
@@ -220,12 +242,18 @@ export async function ProgramManagementSection({
                   </ActionForm>
                 </div>
               ) : (
-                <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
-                  {s.status === "SUBMITTED"
-                    ? `강사가 시간 선택을 확정하였습니다${s.submittedAt ? "" : ""} — 관리자 확정을 기다리는 중입니다.`
-                    : "담당 강사가 시간을 조정하는 중입니다."}
+                <p className="mt-3 border-t border-slate-100 pt-3 text-xs">
+                  {s.status === "SUBMITTED" ? (
+                    <>
+                      <span className="font-bold text-blue-700">확정된 일정입니다.</span>{" "}
+                      <span className="text-slate-500">강사가 시간 선택을 확정하였습니다 — 관리자 확정을 기다리는 중입니다.</span>
+                    </>
+                  ) : (
+                    <span className="font-bold text-red-600">아직 시간이 조율되지 않았습니다.</span>
+                  )}
                 </p>
               )}
+              </div>
             </div>
           );
         })
