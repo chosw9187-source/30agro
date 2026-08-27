@@ -1,19 +1,20 @@
 import { prisma } from "@/lib/prisma";
 import { activePrismaWhere } from "@/lib/hr-analytics";
 import { ActionForm } from "@/components/action-form";
+import { SearchableSelect } from "@/components/searchable-select";
 import {
   SESSION_STATUS_BADGE_CLASS,
   SESSION_STATUS_LABEL,
-  durationMinutes,
-  formatDuration,
+  SLOTS,
+  SLOT_DEFAULT_TIME,
+  SLOT_LABEL,
   formatSessionDay,
   formatSessionTimeRange,
   kstDayKey,
-  toKSTInputValues,
   type SessionStatus,
+  type Slot,
 } from "@/lib/onboarding";
-import { SearchableSelect } from "@/components/searchable-select";
-import { confirmSession, designateTeamInstructor, saveSessionDetail, unconfirmSession } from "./actions";
+import { confirmSession, designateTeamInstructor, replyAvailability, unconfirmSession } from "./actions";
 import { EmptyBox, INPUT_CLASS, LABEL_CLASS, PRIMARY_BUTTON_CLASS, programPeriod } from "./ui";
 
 export function StatusBadge({ status }: { status: SessionStatus }) {
@@ -25,10 +26,12 @@ export function StatusBadge({ status }: { status: SessionStatus }) {
 }
 
 /**
- * 강의 일정을 조율하는 화면. 관리자가 [일정 관리]에서 틀(과정·담당 강사·최소
- * 강의 시간)을 잡아 두면, 배정된 강사가 여기서 실제 날짜·시간을 정하고 의견을
- * 남겨 보낸다. 관리자는 보내온 것을 확정하고, 확정된 것만 [최종 스케줄]에
- * 나간다.
+ * 강의 일정을 조율하는 화면.
+ *
+ * 관리자가 [일정 관리]에서 "이 날 오전"까지만 가이드라인을 잡아 두면, 배정된
+ * 강사(또는 부서 팀장)가 가능한지 답한다. 가능하면 되는 시간대를 고르고,
+ * 불가하면 사유를 남긴다. 그 답을 보고 관리자가 실제 시각을 짜서 확정하며,
+ * 확정된 것만 [최종 스케줄]에 나간다.
  *
  * 강사는 본인에게 배정된 강의만 본다 — 남의 강의까지 보이면 이 화면이 다시
  * 전체 시간표가 되어 버린다. 관리자는 조율 상황을 봐야 하므로 전부 본다.
@@ -44,12 +47,20 @@ export async function ProgramManagementSection({
 }) {
   if (!programId) return <EmptyBox>등록된 온보딩 기수가 없습니다.</EmptyBox>;
 
-  // 부서에 배정된 강의는 담당 강사를 그 부서 팀장이 정한다. 그래서 팀장에게는
-  // 본인이 맡은 강의뿐 아니라 본인이 이끄는 팀에 걸린 강의도 보여야 한다.
+  // 부서에 배정된 강의는 담당 강사를 그 부서 팀장이 정한다. 팀장이 팀원 사정을
+  // 알고 시간까지 대신 조율해 주는 경우가 있어, 팀장에게는 본인이 맡은 강의뿐
+  // 아니라 본인이 이끄는 팀에 걸린 강의도 보인다.
   const ledTeams = await prisma.team.findMany({
     where: { leaderId: viewerId },
-    select: { id: true, name: true, members: { where: activePrismaWhere(), orderBy: { name: "asc" },
-      select: { id: true, name: true, employeeNumber: true } } },
+    select: {
+      id: true,
+      name: true,
+      members: {
+        where: activePrismaWhere(),
+        orderBy: { name: "asc" },
+        select: { id: true, name: true, employeeNumber: true },
+      },
+    },
   });
   const ledTeamIds = ledTeams.map((t) => t.id);
   const membersByTeam = new Map(ledTeams.map((t) => [t.id, t.members]));
@@ -68,7 +79,6 @@ export async function ProgramManagementSection({
           : {
               OR: [
                 { instructorId: viewerId },
-                // 내가 팀장인 부서에 배정된 강의 — 강사를 지정해야 한다.
                 ...(ledTeamIds.length ? [{ instructorTeamId: { in: ledTeamIds } }] : []),
               ],
             }),
@@ -84,10 +94,9 @@ export async function ProgramManagementSection({
         startAt: true,
         endAt: true,
         status: true,
-        minMinutes: true,
-        maxMinutes: true,
+        slot: true,
+        instructorSlot: true,
         instructorNote: true,
-        submittedAt: true,
         instructorId: true,
         instructor: { select: { name: true, team: { select: { name: true } } } },
         instructorTeamId: true,
@@ -99,6 +108,7 @@ export async function ProgramManagementSection({
   if (!program) return <EmptyBox>선택한 프로그램을 찾을 수 없습니다.</EmptyBox>;
 
   const waiting = sessions.filter((s) => s.status === "SUBMITTED");
+  const declined = sessions.filter((s) => s.status === "DECLINED");
 
   return (
     <div className="flex flex-col gap-4">
@@ -109,14 +119,19 @@ export async function ProgramManagementSection({
         </div>
         <p className="mt-2 text-sm text-slate-600">
           {isAdmin
-            ? "강사가 보내온 시간을 확인하고 확정합니다. 확정한 일정만 [최종 스케줄]에 나타납니다."
+            ? "강사가 보내온 답을 보고 실제 시각을 정해 확정합니다. 확정한 일정만 [최종 스케줄]에 나타납니다."
             : ledTeams.length > 0
-              ? "부서에 배정된 강의는 담당 강사를 지정해 주세요. 본인이 맡은 강의는 날짜·시간을 정한 뒤 [관리자에게 전송]을 눌러 주세요."
-              : "배정된 강의의 날짜·시간을 정하고 의견을 남긴 뒤 [관리자에게 전송]을 눌러 주세요."}
+              ? "부서에 배정된 강의는 담당 강사를 지정하고, 가능 여부를 알려 주세요. 실제 시각은 관리자가 정합니다."
+              : "배정된 강의의 가능 여부를 알려 주세요. 되는 시간대만 골라 주시면 실제 시각은 관리자가 정합니다."}
         </p>
         {isAdmin && waiting.length > 0 && (
-          <p className="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
-            강사가 시간 선택을 확정한 강의가 {waiting.length}건 있습니다 — 확인 후 확정해 주세요.
+          <p className="mt-3 rounded border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">
+            강사가 가능으로 답한 강의가 {waiting.length}건 있습니다 — 시각을 정해 확정해 주세요.
+          </p>
+        )}
+        {isAdmin && declined.length > 0 && (
+          <p className="mt-2 rounded border border-orange-300 bg-orange-50 px-3 py-2 text-sm font-medium text-orange-800">
+            강의 불가로 답한 건이 {declined.length}건 있습니다 — 날짜를 옮기거나 다른 분을 배정해 주세요.
           </p>
         )}
       </div>
@@ -129,17 +144,18 @@ export async function ProgramManagementSection({
         </EmptyBox>
       ) : (
         sessions.map((s, i) => {
-          const start = toKSTInputValues(s.startAt);
-          const end = toKSTInputValues(s.endAt);
+          const slot = s.slot as Slot;
+          const answered = s.instructorSlot as Slot | null;
           const mine = s.instructorId === viewerId;
           const locked = s.status === "CONFIRMED";
-          const editable = mine && !locked;
-          // 내가 팀장인 부서에 배정된 강의면 담당 강사를 지정할 수 있다.
+          // 담당 강사 본인, 또는 부서 배정 강의의 그 부서 팀장이 답할 수 있다.
+          const canReply =
+            !locked && !!s.instructorId && (mine || (!!s.instructorTeamId && ledTeamIds.includes(s.instructorTeamId)));
           const canDesignate =
             !locked && !!s.instructorTeamId && (isAdmin || ledTeamIds.includes(s.instructorTeamId));
           const teamMembers = s.instructorTeamId ? membersByTeam.get(s.instructorTeamId) ?? [] : [];
-          // 건수가 늘어나면 날짜 경계가 보여야 순서가 읽힌다.
           const newDay = i === 0 || kstDayKey(s.startAt) !== kstDayKey(sessions[i - 1].startAt);
+          const defaults = SLOT_DEFAULT_TIME[answered ?? slot];
 
           return (
             <div key={s.id}>
@@ -147,188 +163,230 @@ export async function ProgramManagementSection({
                 <p className="mb-2 mt-2 text-sm font-semibold text-slate-700">{formatSessionDay(s.startAt)}</p>
               )}
               <div className="rounded-lg border border-slate-200 bg-white p-5">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <h3 className="text-base font-semibold text-slate-800">
-                    {s.title} <StatusBadge status={s.status as SessionStatus} />
-                  </h3>
-                  {s.description && <p className="mt-1 text-sm text-slate-600">{s.description}</p>}
-                  <p className="mt-1 text-xs text-slate-500">
-                    현재 {formatSessionDay(s.startAt)} {formatSessionTimeRange(s.startAt, s.endAt)} (
-                    {formatDuration(durationMinutes(s.startAt, s.endAt))})
-                    {s.location && ` · ${s.location}`}
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    {s.instructor ? (
-                      <>
-                        담당 강사 {s.instructor.name}
-                        {s.instructor.team && <span className="ml-1 text-slate-400">{s.instructor.team.name}</span>}
-                      </>
-                    ) : s.instructorTeam ? (
-                      <>
-                        담당 {s.instructorTeam.name}
-                        <span className="ml-1 text-slate-400">— 강사 미지정</span>
-                      </>
-                    ) : (
-                      "담당 미배정"
-                    )}
-                    {" · "}
-                    최소 {formatDuration(s.minMinutes)}
-                    {s.maxMinutes ? ` · 최대 ${formatDuration(s.maxMinutes)}` : ""}
-                  </p>
-                </div>
-                {isAdmin && (
-                  <div className="flex flex-wrap items-center gap-3 text-xs">
-                    {s.status !== "CONFIRMED" ? (
-                      <ActionForm
-                        action={confirmSession.bind(null, s.id)}
-                        successMessage="일정을 확정했습니다. 최종 스케줄에 반영됩니다."
-                      >
-                        <button type="submit" className="rounded bg-brand-green px-3 py-1.5 font-medium text-white hover:bg-brand-green-dark">
-                          확정
-                        </button>
-                      </ActionForm>
-                    ) : (
-                      <ActionForm
-                        action={unconfirmSession.bind(null, s.id)}
-                        successMessage="확정을 해제했습니다."
-                        confirmMessage="확정을 해제하면 최종 스케줄에서 빠지고 강사가 다시 시간을 조정할 수 있습니다. 해제할까요?"
-                      >
-                        <button type="submit" className="text-slate-600 hover:underline">
-                          확정 해제
-                        </button>
-                      </ActionForm>
-                    )}
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-800">
+                      {s.title} <StatusBadge status={s.status as SessionStatus} />
+                    </h3>
+                    {s.description && <p className="mt-1 text-sm text-slate-600">{s.description}</p>}
+                    <p className="mt-1 text-xs text-slate-500">
+                      {formatSessionDay(s.startAt)}{" "}
+                      {locked ? (
+                        <span className="font-medium text-slate-700">{formatSessionTimeRange(s.startAt, s.endAt)}</span>
+                      ) : (
+                        <>
+                          <span className="font-medium text-slate-700">{SLOT_LABEL[slot]}</span>
+                          <span className="ml-1 text-slate-400">(관리자 가이드라인 · 시각 미확정)</span>
+                        </>
+                      )}
+                      {s.location && ` · ${s.location}`}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {s.instructor ? (
+                        <>
+                          담당 강사 {s.instructor.name}
+                          {s.instructor.team && <span className="ml-1 text-slate-400">{s.instructor.team.name}</span>}
+                        </>
+                      ) : s.instructorTeam ? (
+                        <>
+                          담당 {s.instructorTeam.name}
+                          <span className="ml-1 text-slate-400">— 강사 미지정</span>
+                        </>
+                      ) : (
+                        "담당 미배정"
+                      )}
+                    </p>
                   </div>
-                )}
-              </div>
-
-              {canDesignate && (
-                <div className="mt-3 rounded border border-blue-200 bg-blue-50 p-3">
-                  <p className="text-xs font-medium text-blue-800">
-                    {s.instructorId ? "담당 강사 변경" : "담당 강사 지정"}
-                    <span className="ml-1 font-normal text-blue-700">
-                      — {s.instructorTeam?.name}에 배정된 강의입니다. 이번에 강의할 분을 정해 주세요.
-                    </span>
-                  </p>
-                  <ActionForm
-                    action={designateTeamInstructor.bind(null, s.id)}
-                    className="mt-2 flex flex-wrap items-end gap-3"
-                    successMessage="담당 강사를 지정했습니다. 관리자에게도 알림이 갔습니다."
-                  >
-                    <div className="min-w-[14rem]">
-                      <label className={LABEL_CLASS}>강사</label>
-                      <SearchableSelect
-                        name="instructorId"
-                        options={teamMembers.map((m) => ({
-                          value: m.id,
-                          label: m.name,
-                          sublabel: m.employeeNumber,
-                        }))}
-                        defaultValue={s.instructorId ?? ""}
-                        placeholder="팀원 검색..."
-                        emptyLabel="선택 안 함"
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      className="rounded bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark"
+                  {isAdmin && locked && (
+                    <ActionForm
+                      action={unconfirmSession.bind(null, s.id)}
+                      successMessage="확정을 해제했습니다."
+                      confirmMessage="확정을 해제하면 최종 스케줄에서 빠지고 강사가 다시 답해야 합니다. 해제할까요?"
                     >
-                      {s.instructorId ? "변경" : "지정"}
-                    </button>
-                  </ActionForm>
+                      <button type="submit" className="text-xs text-slate-600 hover:underline">
+                        확정 해제
+                      </button>
+                    </ActionForm>
+                  )}
                 </div>
-              )}
 
-              {s.instructorNote && (
-                <p className="mt-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                  강사 의견: {s.instructorNote}
-                </p>
-              )}
-
-              {locked ? (
-                <p className="mt-3 border-t border-slate-100 pt-3 text-xs">
-                  <span className="font-bold text-blue-700">확정된 일정입니다.</span>{" "}
-                  <span className="text-slate-500">
-                    변경이 필요하면 {isAdmin ? "확정을 해제한 뒤 조정하세요." : "관리자에게 요청해 주세요."}
-                  </span>
-                </p>
-              ) : editable ? (
-                <div className="mt-3 border-t border-slate-100 pt-3">
-                  <p className="text-xs">
-                    {s.status === "SUBMITTED" ? (
-                      <>
-                        <span className="font-bold text-blue-700">확정된 일정입니다.</span>{" "}
-                        <span className="text-slate-500">다시 보내면 관리자가 새 시간으로 확인합니다.</span>
-                      </>
-                    ) : (
-                      <span className="font-bold text-red-600">아직 시간이 조율되지 않았습니다.</span>
-                    )}
+                {/* ------------------------------------------- 강사 응답 결과 */}
+                {s.status === "SUBMITTED" && (
+                  <p className="mt-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm">
+                    <span className="font-bold text-blue-700">강의 가능</span>
+                    <span className="ml-1 text-blue-800">— {SLOT_LABEL[answered ?? slot]} 가능</span>
+                    {s.instructorNote && <span className="ml-1 text-slate-700">· {s.instructorNote}</span>}
                   </p>
-                  <p className="mt-2 text-xs font-medium text-slate-600">세부일정</p>
-                  <ActionForm
-                    action={saveSessionDetail.bind(null, s.id)}
-                    className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-4"
-                    successMessage="저장했습니다."
-                  >
-                    <div>
-                      <label className={LABEL_CLASS}>날짜</label>
-                      <input type="date" name="date" required defaultValue={start.date} className={INPUT_CLASS} />
-                    </div>
-                    <div>
-                      <label className={LABEL_CLASS}>시작 시간</label>
-                      <input type="time" name="startTime" required defaultValue={start.time} className={INPUT_CLASS} />
-                    </div>
-                    <div>
-                      <label className={LABEL_CLASS}>종료 시간</label>
-                      <input type="time" name="endTime" required defaultValue={end.time} className={INPUT_CLASS} />
-                    </div>
-                    <div className="flex items-end">
-                      <span className="pb-2 text-xs text-slate-500">최소 {formatDuration(s.minMinutes)} 이상</span>
-                    </div>
-                    <div className="sm:col-span-4">
-                      <label className={LABEL_CLASS}>비고 (관리자에게 전달할 의견)</label>
-                      <input
-                        name="instructorNote"
-                        defaultValue={s.instructorNote ?? ""}
-                        placeholder="예: 실습 자료 필요 · 오전만 가능"
-                        className={INPUT_CLASS}
-                      />
-                    </div>
-                    <div className="sm:col-span-4 flex flex-wrap items-center gap-3">
-                      {/* 같은 폼에 버튼 두 개 — 눌린 버튼의 intent 값이 함께
-                          넘어가서, 저장만 할지 전송까지 할지를 서버가 안다. */}
+                )}
+                {s.status === "DECLINED" && (
+                  <p className="mt-3 rounded border border-orange-300 bg-orange-50 px-3 py-2 text-sm">
+                    <span className="font-bold text-orange-800">강의 불가</span>
+                    {s.instructorNote && <span className="ml-1 text-orange-900">— {s.instructorNote}</span>}
+                  </p>
+                )}
+
+                {/* --------------------------------------- 팀장의 강사 지정 */}
+                {canDesignate && (
+                  <div className="mt-3 rounded border border-blue-200 bg-blue-50 p-3">
+                    <p className="text-xs font-medium text-blue-800">
+                      {s.instructorId ? "담당 강사 변경" : "담당 강사 지정"}
+                      <span className="ml-1 font-normal text-blue-700">
+                        — {s.instructorTeam?.name}에 배정된 강의입니다. 이번에 강의할 분을 정해 주세요.
+                      </span>
+                    </p>
+                    <ActionForm
+                      action={designateTeamInstructor.bind(null, s.id)}
+                      className="mt-2 flex flex-wrap items-end gap-3"
+                      successMessage="담당 강사를 지정했습니다."
+                    >
+                      <div className="min-w-[14rem]">
+                        <label className={LABEL_CLASS}>강사</label>
+                        <SearchableSelect
+                          name="instructorId"
+                          options={teamMembers.map((m) => ({
+                            value: m.id,
+                            label: m.name,
+                            sublabel: m.employeeNumber,
+                          }))}
+                          defaultValue={s.instructorId ?? ""}
+                          placeholder="팀원 검색..."
+                          emptyLabel="선택 안 함"
+                        />
+                      </div>
                       <button
                         type="submit"
-                        name="intent"
-                        value="save"
-                        className="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                        className="rounded bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark"
                       >
-                        저장
+                        {s.instructorId ? "변경" : "지정"}
                       </button>
-                      <button type="submit" name="intent" value="submit" className={PRIMARY_BUTTON_CLASS}>
-                        관리자에게 전송
-                      </button>
-                      <span className="text-xs text-slate-500">
-                        {s.status === "SUBMITTED"
-                          ? "이미 전송했습니다. 다시 보내면 관리자가 새 시간으로 확인합니다."
-                          : "전송하면 관리자에게 확정 요청이 갑니다."}
+                    </ActionForm>
+                  </div>
+                )}
+
+                {/* ------------------------------------- 강사·팀장의 가능 응답 */}
+                {canReply && (
+                  <div className="mt-3 border-t border-slate-100 pt-3">
+                    <p className="text-xs font-medium text-slate-600">
+                      가능 여부 {s.status !== "PLANNED" && <span className="text-slate-400">(다시 답하면 새로 반영됩니다)</span>}
+                    </p>
+
+                    <ActionForm
+                      action={replyAvailability.bind(null, s.id)}
+                      className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-4"
+                      successMessage="가능으로 답했습니다. 관리자가 시각을 정합니다."
+                    >
+                      <input type="hidden" name="available" value="yes" />
+                      <div>
+                        <label className={LABEL_CLASS}>가능한 시간대</label>
+                        <select name="instructorSlot" defaultValue={answered ?? slot} className={INPUT_CLASS}>
+                          {SLOTS.map((v) => (
+                            <option key={v} value={v}>
+                              {SLOT_LABEL[v]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="sm:col-span-3">
+                        <label className={LABEL_CLASS}>설명 (선택)</label>
+                        <input
+                          name="note"
+                          defaultValue={s.status === "SUBMITTED" ? s.instructorNote ?? "" : ""}
+                          placeholder="예: 오전은 가능하지만 10시~11시는 불가능합니다."
+                          className={INPUT_CLASS}
+                        />
+                      </div>
+                      <div className="sm:col-span-4">
+                        <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                          강의 가능
+                        </button>
+                      </div>
+                    </ActionForm>
+
+                    <details className="mt-3" open={s.status === "DECLINED"}>
+                      <summary className="cursor-pointer text-xs text-orange-700">이 날은 강의가 어렵습니다</summary>
+                      <ActionForm
+                        action={replyAvailability.bind(null, s.id)}
+                        className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-4"
+                        successMessage="불가로 답했습니다. 관리자에게 사유가 전달됩니다."
+                      >
+                        <input type="hidden" name="available" value="no" />
+                        <div className="sm:col-span-4">
+                          <label className={LABEL_CLASS}>불가 사유</label>
+                          <input
+                            name="note"
+                            required
+                            defaultValue={s.status === "DECLINED" ? s.instructorNote ?? "" : ""}
+                            placeholder="예: 해당일은 연차라 강의가 불가능합니다. / 오전에 외근인 관계로 강의가 어렵습니다."
+                            className={INPUT_CLASS}
+                          />
+                        </div>
+                        <div className="sm:col-span-4">
+                          <button
+                            type="submit"
+                            className="rounded bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700"
+                          >
+                            강의 불가로 보내기
+                          </button>
+                        </div>
+                      </ActionForm>
+                    </details>
+                  </div>
+                )}
+
+                {/* --------------------------------------- 관리자의 시각 확정 */}
+                {isAdmin && !locked && (
+                  <div className="mt-3 border-t border-slate-100 pt-3">
+                    <p className="text-xs font-medium text-slate-600">
+                      시각 확정
+                      <span className="ml-1 font-normal text-slate-400">
+                        — {formatSessionDay(s.startAt)} 안에서 실제 시각을 정합니다.
                       </span>
-                    </div>
-                  </ActionForm>
-                </div>
-              ) : (
-                <p className="mt-3 border-t border-slate-100 pt-3 text-xs">
-                  {s.status === "SUBMITTED" ? (
-                    <>
-                      <span className="font-bold text-blue-700">확정된 일정입니다.</span>{" "}
-                      <span className="text-slate-500">강사가 시간 선택을 확정하였습니다 — 관리자 확정을 기다리는 중입니다.</span>
-                    </>
-                  ) : (
-                    <span className="font-bold text-red-600">아직 시간이 조율되지 않았습니다.</span>
-                  )}
-                </p>
-              )}
+                    </p>
+                    <ActionForm
+                      action={confirmSession.bind(null, s.id)}
+                      className="mt-2 flex flex-wrap items-end gap-3"
+                      successMessage="일정을 확정했습니다. 최종 스케줄에 반영됩니다."
+                    >
+                      <div>
+                        <label className={LABEL_CLASS}>시작 시간</label>
+                        <input
+                          type="time"
+                          name="startTime"
+                          required
+                          defaultValue={defaults.start}
+                          className={INPUT_CLASS}
+                        />
+                      </div>
+                      <div>
+                        <label className={LABEL_CLASS}>종료 시간</label>
+                        <input type="time" name="endTime" required defaultValue={defaults.end} className={INPUT_CLASS} />
+                      </div>
+                      <button
+                        type="submit"
+                        className="rounded bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark"
+                      >
+                        확정
+                      </button>
+                      {s.status === "PLANNED" && (
+                        <span className="pb-2 text-xs text-slate-500">아직 강사 응답이 없습니다.</span>
+                      )}
+                    </ActionForm>
+                  </div>
+                )}
+
+                {locked && (
+                  <p className="mt-3 border-t border-slate-100 pt-3 text-xs">
+                    <span className="font-bold text-blue-700">확정된 일정입니다.</span>{" "}
+                    <span className="text-slate-500">
+                      변경이 필요하면 {isAdmin ? "확정을 해제한 뒤 조정하세요." : "관리자에게 요청해 주세요."}
+                    </span>
+                  </p>
+                )}
+                {!locked && !canReply && !canDesignate && !isAdmin && (
+                  <p className="mt-3 border-t border-slate-100 pt-3 text-xs">
+                    <span className="font-bold text-red-600">아직 담당 강사가 지정되지 않았습니다.</span>
+                  </p>
+                )}
               </div>
             </div>
           );
