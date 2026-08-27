@@ -42,6 +42,14 @@ export async function ProgramManagementSection({
 }) {
   if (!programId) return <EmptyBox>등록된 온보딩 기수가 없습니다.</EmptyBox>;
 
+  // 부서에 배정된 강의는 담당자가 아직 없으므로, 본인 팀에 걸린 것도 함께
+  // 보여야 그중 하나를 잡을 수 있다.
+  const me = await prisma.user.findUnique({
+    where: { id: viewerId },
+    select: { teamId: true, name: true },
+  });
+  const viewerName = me?.name ?? "본인";
+
   const [program, sessions] = await Promise.all([
     prisma.onboardingProgram.findUnique({
       where: { id: programId },
@@ -51,7 +59,15 @@ export async function ProgramManagementSection({
       where: {
         programId,
         kind: "LECTURE",
-        ...(isAdmin ? {} : { instructorId: viewerId }),
+        ...(isAdmin
+          ? {}
+          : {
+              OR: [
+                { instructorId: viewerId },
+                // 아직 아무도 안 잡은 우리 부서 강의
+                ...(me?.teamId ? [{ instructorTeamId: me.teamId, instructorId: null }] : []),
+              ],
+            }),
       },
       // 교육 날짜 · 시간 순. 같은 시각이 겹쳐도 순서가 흔들리지 않도록
       // 종료 시각과 과정명까지 보조 기준으로 둔다.
@@ -70,6 +86,8 @@ export async function ProgramManagementSection({
         submittedAt: true,
         instructorId: true,
         instructor: { select: { name: true, team: { select: { name: true } } } },
+        instructorTeamId: true,
+        instructorTeam: { select: { name: true } },
       },
     }),
   ]);
@@ -108,8 +126,11 @@ export async function ProgramManagementSection({
           const start = toKSTInputValues(s.startAt);
           const end = toKSTInputValues(s.endAt);
           const mine = s.instructorId === viewerId;
+          // 부서 배정인데 아직 아무도 이름을 걸지 않았으면 그 부서 사람이 잡을
+          // 수 있다 — 전송하는 순간 그 사람이 담당이 된다.
+          const openToMyTeam = !s.instructorId && !!s.instructorTeamId && s.instructorTeamId === me?.teamId;
           const locked = s.status === "CONFIRMED";
-          const editable = mine && !locked;
+          const editable = (mine || openToMyTeam) && !locked;
           // 건수가 늘어나면 날짜 경계가 보여야 순서가 읽힌다.
           const newDay = i === 0 || kstDayKey(s.startAt) !== kstDayKey(sessions[i - 1].startAt);
 
@@ -131,8 +152,19 @@ export async function ProgramManagementSection({
                     {s.location && ` · ${s.location}`}
                   </p>
                   <p className="mt-0.5 text-xs text-slate-500">
-                    담당 강사 {s.instructor?.name ?? "미배정"}
-                    {s.instructor?.team && <span className="ml-1 text-slate-400">{s.instructor.team.name}</span>}
+                    {s.instructor ? (
+                      <>
+                        담당 강사 {s.instructor.name}
+                        {s.instructor.team && <span className="ml-1 text-slate-400">{s.instructor.team.name}</span>}
+                      </>
+                    ) : s.instructorTeam ? (
+                      <>
+                        담당 {s.instructorTeam.name}
+                        <span className="ml-1 text-slate-400">— 되는 사람이 맡습니다</span>
+                      </>
+                    ) : (
+                      "담당 미배정"
+                    )}
                     {" · "}
                     최소 {formatDuration(s.minMinutes)}
                     {s.maxMinutes ? ` · 최대 ${formatDuration(s.maxMinutes)}` : ""}
@@ -189,6 +221,12 @@ export async function ProgramManagementSection({
                       <span className="font-bold text-red-600">아직 시간이 조율되지 않았습니다.</span>
                     )}
                   </p>
+                  {openToMyTeam && (
+                    <p className="mt-2 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                      부서에 배정된 강의입니다. 전송하면 {viewerName}님이 담당 강사로 확정되며, 그 뒤에는 같은 부서의
+                      다른 분이 시간을 바꿀 수 없습니다.
+                    </p>
+                  )}
                   <p className="mt-2 text-xs font-medium text-slate-600">세부일정</p>
                   <ActionForm
                     action={saveSessionDetail.bind(null, s.id)}
