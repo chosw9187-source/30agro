@@ -1000,12 +1000,20 @@ export default async function Evaluation2Page({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm">
+            {/*
+              좁은 화면에서는 최소 너비를 걸지 않는다. 걸어 두면 표가 자기 상자
+              안에서 옆으로 밀려 목표 이름의 오른쪽이 잘린 채 읽힌다 — 휴대폰에서는
+              이름이 여러 줄로 접히는 편이 낫다. 달성률 칸도 좁은 화면에서는 막대를
+              접고 숫자만 남긴다.
+            */}
+            <table className="w-full text-sm sm:min-w-[860px]">
               <thead className="bg-slate-100 text-slate-600">
                 <tr>
-                  <th className="px-4 py-1.5 text-left text-xs font-semibold">목표</th>
+                  <th className="px-3 py-1.5 text-left text-xs font-semibold sm:px-4">목표</th>
                   {showsProgress && (
-                    <th className="w-56 px-4 py-1.5 text-left text-xs font-semibold">달성률</th>
+                    <th className="w-16 px-3 py-1.5 text-left text-xs font-semibold sm:w-56 sm:px-4">
+                      달성률
+                    </th>
                   )}
                 </tr>
               </thead>
@@ -1050,9 +1058,11 @@ export default async function Evaluation2Page({
                         )}
                       </td>
                       {showsProgress && (
-                      <td className="px-4 py-2">
+                      <td className="px-3 py-2 sm:px-4">
                         <div className="flex items-center gap-2">
-                          <Meter value={g.rollupProgress} size="md" />
+                          <span className="hidden flex-1 sm:block">
+                            <Meter value={g.rollupProgress} size="md" />
+                          </span>
                           <span className="w-10 shrink-0 text-right text-sm font-semibold tabular-nums text-slate-800">
                             {g.rollupProgress}%
                           </span>
@@ -1127,8 +1137,10 @@ export default async function Evaluation2Page({
    * «인사 기획/보상평가» 같은 담당업무와 다른 값이라 대신 쓰지 않는다).
    */
   function BasicInfoTable() {
-    const cellHead = "bg-slate-100 px-3 py-1.5 text-left font-medium text-slate-600 whitespace-nowrap";
-    const cellBody = "px-3 py-1.5 text-slate-800";
+    // 좁은 화면에서는 여백을 줄인다 — 여섯 칸이 한 줄에 들어가야 옆으로 안 밀린다.
+    const cellHead =
+      "bg-slate-100 px-2 py-1.5 text-left font-medium whitespace-nowrap text-slate-600 sm:px-3";
+    const cellBody = "px-2 py-1.5 break-words text-slate-800 sm:px-3";
     const person = (p: typeof mySelf) =>
       p ? { name: p.name, position: POSITION_LABEL[p.position] } : { name: "-", position: "-" };
     const first = person(myEvaluator as typeof mySelf);
@@ -1140,7 +1152,12 @@ export default async function Evaluation2Page({
           1. 기본사항
         </h3>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[46rem] border-collapse text-xs">
+          {/*
+            좁은 화면에서는 최소 너비를 걸지 않는다 — 표가 옆으로 밀려 오른쪽 칸이
+            잘리느니, 칸 안에서 글자가 두 줄로 접히는 편이 낫다. 칸 이름과 값이
+            모두 짧아서 좁은 폭에서도 읽힌다.
+          */}
+          <table className="w-full border-collapse text-xs sm:min-w-[46rem]">
             <tbody>
               <tr className="border-b border-slate-100">
                 {/* «본인»이 아니라 «피평가자» — 평가자와 짝이 맞는 말이라야

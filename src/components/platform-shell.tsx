@@ -78,8 +78,8 @@ export async function PlatformShell({
         hiddenAdminMenuKeys={[...hiddenAdminMenuKeys]}
       />
       <div className="flex min-w-0 flex-1 flex-col md:min-h-0">
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 text-sm md:px-8">
-          <div className="flex items-center gap-3">
+        <header className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 text-sm md:px-8">
+          <div className="flex min-w-0 items-center gap-3">
             <label
               htmlFor="mobile-nav-toggle"
               aria-label="메뉴 열기"
@@ -89,11 +89,16 @@ export async function PlatformShell({
             </label>
             <CompanyLogo className="h-9" />
           </div>
+          {/*
+            좁은 화면에서는 「문의」로 줄인다. 긴 이름을 그대로 두면 줄어들 자리가
+            없어 로고 위로 올라타서 둘 다 못 읽게 된다.
+          */}
           <Link
             href="/platform/support"
-            className="rounded border border-slate-300 px-3 py-1.5 text-slate-700 hover:border-brand-green hover:text-brand-green"
+            className="shrink-0 rounded border border-slate-300 px-3 py-1.5 whitespace-nowrap text-slate-700 hover:border-brand-green hover:text-brand-green"
           >
-            관리자에게 문의하기
+            <span className="hidden sm:inline">관리자에게 문의하기</span>
+            <span className="sm:hidden">문의</span>
           </Link>
         </header>
         <main className="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:min-h-0 md:px-8 md:py-8">
