@@ -12,15 +12,20 @@ import { usePathname } from "next/navigation";
  *
  * `prefix` 아래 하위 주소까지 함께 친다 — /platform/evaluation2 와
  * /platform/evaluation2/settings 는 같은 메뉴다.
+ *
+ * `invert`를 주면 반대로 «그 메뉴에서만 감춘다»가 된다. 한 화면이 자기만의
+ * 머리글을 갖는 경우(평가2의 초록 띠)에 공용 머리글을 접는 데 쓴다.
  */
 export function RouteOnly({
   prefix,
+  invert = false,
   children,
 }: {
   prefix: string;
+  invert?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const match = pathname === prefix || pathname.startsWith(`${prefix}/`);
-  return match ? <>{children}</> : null;
+  return match !== invert ? <>{children}</> : null;
 }

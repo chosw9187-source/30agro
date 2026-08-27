@@ -109,29 +109,36 @@ export async function PlatformShell({
           hiddenAdminMenuKeys={[...hiddenAdminMenuKeys]}
         />
         <div className="flex min-w-0 flex-1 flex-col md:min-h-0">
-          <header className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 text-sm md:px-8">
-            <div className="flex min-w-0 items-center gap-3">
-              <label
-                htmlFor="mobile-nav-toggle"
-                aria-label="메뉴 열기"
-                className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded border border-slate-300 text-lg text-slate-700 md:hidden"
-              >
-                ☰
-              </label>
-              <CompanyLogo className="h-9" />
-            </div>
-            {/*
+          {/*
+            평가2에서는 초록 띠가 머리글을 겸한다 — 로고 줄까지 두면 같은 자리에
+            띠가 둘이라 본문이 그만큼 밀린다. 서랍 메뉴 단추와 「관리자에게
+            문의하기」는 띠 안으로 옮겨 두었다.
+          */}
+          <RouteOnly prefix="/platform/evaluation2" invert>
+            <header className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 text-sm md:px-8">
+              <div className="flex min-w-0 items-center gap-3">
+                <label
+                  htmlFor="mobile-nav-toggle"
+                  aria-label="메뉴 열기"
+                  className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded border border-slate-300 text-lg text-slate-700 md:hidden"
+                >
+                  ☰
+                </label>
+                <CompanyLogo className="h-9" />
+              </div>
+              {/*
             좁은 화면에서는 「문의」로 줄인다. 긴 이름을 그대로 두면 줄어들 자리가
             없어 로고 위로 올라타서 둘 다 못 읽게 된다.
           */}
-            <Link
-              href="/platform/support"
-              className="shrink-0 rounded border border-slate-300 px-3 py-1.5 whitespace-nowrap text-slate-700 hover:border-brand-green hover:text-brand-green"
-            >
-              <span className="hidden sm:inline">관리자에게 문의하기</span>
-              <span className="sm:hidden">문의</span>
-            </Link>
-          </header>
+              <Link
+                href="/platform/support"
+                className="shrink-0 rounded border border-slate-300 px-3 py-1.5 whitespace-nowrap text-slate-700 hover:border-brand-green hover:text-brand-green"
+              >
+                <span className="hidden sm:inline">관리자에게 문의하기</span>
+                <span className="sm:hidden">문의</span>
+              </Link>
+            </header>
+          </RouteOnly>
           <main className="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:min-h-0 md:px-8 md:py-8">
             {children}
           </main>
