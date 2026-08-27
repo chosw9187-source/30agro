@@ -196,9 +196,19 @@ export function EmployeeTreeExplorerProvider({
 
 function Chevron({ open }: { open: boolean }) {
   return (
-    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" className={`shrink-0 transition-transform ${open ? "rotate-90" : ""}`}>
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className={`shrink-0 transition-transform ${open ? "rotate-90" : ""}`}>
       <path d="M5 3l6 5-6 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+function AvatarPlaceholder() {
+  return (
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-400">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.4 0-8 2.2-8 5v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1c0-2.8-3.6-5-8-5Z" />
+      </svg>
+    </span>
   );
 }
 
@@ -223,15 +233,16 @@ function GroupCheckbox({ ids }: { ids: string[] }) {
 function PersonRow({ e, childClass }: { e: EmployeeLite; childClass: string }) {
   const { checkedIds, toggleOne } = useTreeExplorer();
   return (
-    <label className={`flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 hover:bg-slate-100 ${childClass}`}>
+    <label className={`flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-slate-100 ${childClass}`}>
       <input
         type="checkbox"
         className="h-3.5 w-3.5 shrink-0 accent-brand-green"
         checked={checkedIds.has(e.id)}
         onChange={(ev) => toggleOne(e.id, ev.target.checked)}
       />
-      <span className="min-w-0 flex-1 truncate text-sm text-slate-600">
-        {e.name} <span className="text-xs text-slate-400">· {POSITION_LABEL[e.position]}</span>
+      <AvatarPlaceholder />
+      <span className="min-w-0 flex-1 truncate text-sm text-slate-700">
+        {e.name} <span className="text-slate-400">{POSITION_LABEL[e.position]}</span>
       </span>
     </label>
   );
@@ -244,17 +255,19 @@ function TeamNode({ t, rowClass, childClass }: { t: TeamLite; rowClass: string; 
   const ids = emps.map((e) => e.id);
   return (
     <div>
-      <div className={`flex items-center gap-1.5 rounded px-2 py-1 hover:bg-slate-100 ${rowClass}`}>
+      <div className={`flex items-center gap-1.5 rounded px-2 py-1.5 hover:bg-slate-100 ${rowClass}`}>
         {ids.length > 0 ? (
           <button type="button" onClick={() => setOpen((o) => !o)} className="text-slate-400 hover:text-slate-600" aria-label={open ? "접기" : "펼치기"}>
             <Chevron open={open} />
           </button>
         ) : (
-          <span className="w-2.5 shrink-0" />
+          <span className="w-3 shrink-0" />
         )}
         <GroupCheckbox ids={ids} />
-        <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{t.name}</span>
-        <span className="shrink-0 text-xs text-slate-400">{ids.length}</span>
+        <span className="min-w-0 flex-1 truncate text-sm text-slate-700">
+          {t.name}
+          <span className="text-slate-400">({ids.length})</span>
+        </span>
       </div>
       {ids.length > 0 && open && (
         <div className="flex flex-col">
@@ -283,13 +296,15 @@ function UnitNodeView({ u }: { u: UnitNode }) {
   const uIds = unitEmpIds();
   return (
     <div>
-      <div className="flex items-center gap-1.5 rounded px-2 py-1 font-medium hover:bg-slate-100">
+      <div className="flex items-center gap-1.5 rounded px-2 py-1.5 font-semibold hover:bg-slate-100">
         <button type="button" onClick={() => setOpen((o) => !o)} className="text-slate-400 hover:text-slate-600" aria-label={open ? "접기" : "펼치기"}>
           <Chevron open={open} />
         </button>
         <GroupCheckbox ids={uIds} />
-        <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{u.name}</span>
-        <span className="shrink-0 text-xs text-slate-400">{uIds.length}</span>
+        <span className="min-w-0 flex-1 truncate text-[15px] text-slate-800">
+          {u.name}
+          <span className="font-normal text-slate-400">({uIds.length})</span>
+        </span>
       </div>
       {open && (
         <div>
@@ -297,7 +312,7 @@ function UnitNodeView({ u }: { u: UnitNode }) {
             <DivisionNodeView key={`${u.name}/${d.name}`} d={d} />
           ))}
           {u.directTeams.map((t) => (
-            <TeamNode key={t.id} t={t} rowClass="pl-4" childClass="pl-8" />
+            <TeamNode key={t.id} t={t} rowClass="pl-4" childClass="pl-9" />
           ))}
           {u.directEmployees.map((e) => (
             <PersonRow key={e.id} e={e} childClass="pl-4" />
@@ -314,18 +329,20 @@ function DivisionNodeView({ d }: { d: DivisionNode }) {
   const dIds = [...d.teams.flatMap((t) => (employeesByTeam.get(t.id) ?? []).map((e) => e.id)), ...d.directEmployees.map((e) => e.id)];
   return (
     <div>
-      <div className="flex items-center gap-1.5 rounded py-1 pl-4 pr-2 hover:bg-slate-100">
+      <div className="flex items-center gap-1.5 rounded py-1.5 pl-4 pr-2 font-medium hover:bg-slate-100">
         <button type="button" onClick={() => setOpen((o) => !o)} className="text-slate-400 hover:text-slate-600" aria-label={open ? "접기" : "펼치기"}>
           <Chevron open={open} />
         </button>
         <GroupCheckbox ids={dIds} />
-        <span className="min-w-0 flex-1 truncate text-sm text-slate-700">{d.name}</span>
-        <span className="shrink-0 text-xs text-slate-400">{dIds.length}</span>
+        <span className="min-w-0 flex-1 truncate text-sm text-slate-700">
+          {d.name}
+          <span className="font-normal text-slate-400">({dIds.length})</span>
+        </span>
       </div>
       {open && (
         <div>
           {d.teams.map((t) => (
-            <TeamNode key={t.id} t={t} rowClass="pl-8" childClass="pl-12" />
+            <TeamNode key={t.id} t={t} rowClass="pl-8" childClass="pl-[52px]" />
           ))}
           {d.directEmployees.map((e) => (
             <PersonRow key={e.id} e={e} childClass="pl-8" />
