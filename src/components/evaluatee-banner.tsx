@@ -80,8 +80,11 @@ export async function EvaluateeBanner({ userId }: { userId: string }) {
         크기를 16 → 21.3px로 키우는데, 띠까지 같이 커지면 PC에서 화면 위쪽
         140px을 먹어 왼쪽 메뉴의 «로그아웃»이 아래로 밀려난다. 늘 떠 있는
         자리라서 크기는 한 벌로 고정한다.
+
+        위아래 여백은 py-2에서 키웠다 — 세 줄이 위아래로 눌려 답답해 보였다.
+        그래도 PC 96px로, 위에서 말한 140px 한계 안에 둔다.
       */}
-      <div className="flex items-center gap-2.5 bg-[linear-gradient(100deg,#0f3d22_0%,#17643a_45%,#2a9455_100%)] px-3 py-2 text-white sm:gap-3.5 sm:px-6">
+      <div className="flex items-center gap-2.5 bg-[linear-gradient(100deg,#0f3d22_0%,#17643a_45%,#2a9455_100%)] px-3 py-3.5 text-white sm:gap-3.5 sm:px-6 sm:py-4">
         <Avatar
           userId={me.id}
           name={me.name}
@@ -96,7 +99,7 @@ export async function EvaluateeBanner({ userId }: { userId: string }) {
             </span>
           </p>
           {scope && (
-            <p className="mt-[3px] truncate text-[11px] leading-tight text-white/90 sm:text-[12.5px]">
+            <p className="mt-[5px] truncate text-[11px] leading-tight text-white/90 sm:text-[12.5px]">
               {scope}
             </p>
           )}
@@ -104,7 +107,7 @@ export async function EvaluateeBanner({ userId }: { userId: string }) {
             평가자 줄만 좁은 화면에서 두 줄로 접힌다. 한 줄로 우겨넣으면 «2차
             평가자»가 말줄임에 먹혀서, 정작 알아야 할 이름이 사라진다.
           */}
-          <p className="mt-[3px] text-[10.5px] leading-snug break-keep text-white/75 sm:truncate sm:text-[11.5px]">
+          <p className="mt-[5px] text-[10.5px] leading-snug break-keep text-white/75 sm:truncate sm:text-[11.5px]">
             1차 평가자{" "}
             <b className="font-bold text-white">
               {chain?.first ? evaluatorLabel(chain.first) : "미지정"}
