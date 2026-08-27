@@ -28,6 +28,8 @@ export type EmployeeLite = {
 type UnitNode = { name: string; divisions: DivisionNode[]; directTeams: TeamLite[] };
 type DivisionNode = { name: string; teams: TeamLite[] };
 
+const UNIT_ORDER_PRIORITY = ["제품사업", "연구생산", "재무경영관리"];
+
 type Ctx = {
   teams: TeamLite[];
   units: UnitNode[];
@@ -104,7 +106,12 @@ export function EmployeeTreeExplorerProvider({
       else if (t.businessUnit) ensureUnit(t.businessUnit).directTeams.push(t);
       else rootTeams.push(t);
     }
-    return { units: unitOrder.map((n) => unitMap.get(n)!), rootTeams, employeesByTeam };
+    const priority = (name: string) => {
+      const idx = UNIT_ORDER_PRIORITY.indexOf(name);
+      return idx === -1 ? UNIT_ORDER_PRIORITY.length : idx;
+    };
+    const sortedUnitNames = [...unitOrder].sort((a, b) => priority(a) - priority(b));
+    return { units: sortedUnitNames.map((n) => unitMap.get(n)!), rootTeams, employeesByTeam };
   }, [teams, employees]);
 
   function toggleGroup(ids: string[], makeChecked: boolean) {
@@ -246,7 +253,7 @@ function TeamNode({ t, rowClass, childClass }: { t: TeamLite; rowClass: string; 
 
 function UnitNodeView({ u }: { u: UnitNode }) {
   const { employeesByTeam } = useTreeExplorer();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   function unitEmpIds() {
     const ids: string[] = [];
     u.divisions.forEach((d) => d.teams.forEach((t) => ids.push(...(employeesByTeam.get(t.id) ?? []).map((e) => e.id))));
@@ -280,7 +287,7 @@ function UnitNodeView({ u }: { u: UnitNode }) {
 
 function DivisionNodeView({ d }: { d: DivisionNode }) {
   const { employeesByTeam } = useTreeExplorer();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const dIds = d.teams.flatMap((t) => (employeesByTeam.get(t.id) ?? []).map((e) => e.id));
   return (
     <div>
