@@ -1095,6 +1095,13 @@ model Goal {
    */
   selfScore    Int?
   selfComment  String?
+
+  /**
+   * 1차 평가자가 매긴 값. **적혀 있으면 이것이 그 목표의 달성률·점수다.**
+   * 피평가자가 적은 값(progress·selfScore)은 «본인은 이렇게 봤다»는 기록으로
+   * 남고, 위로 굴러 올라가는 숫자는 평가자 것이 된다(`effectiveProgress`).
+   */
+  firstProgress Int?
   firstScore   Int?
   firstComment String?
 

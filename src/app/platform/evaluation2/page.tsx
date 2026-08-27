@@ -527,6 +527,7 @@ export default async function Evaluation2Page({
           status: true,
           evalDoneAt: true,
           selfScore: true,
+          firstProgress: true,
           selfComment: true,
           firstScore: true,
           firstComment: true,
@@ -1782,6 +1783,23 @@ export default async function Evaluation2Page({
           <div className="grid gap-3 md:grid-cols-4">
             <div>
               <label className={LABEL_CLASS}>
+                달성률(%)
+                <HelpMark text="1차 평가자가 본 달성률입니다. 여기에 적으면 이 값이 그 목표의 달성률이 되어 팀·책임·전사 목표로 굴러 올라갑니다. 비워 두면 본인이 적은 달성률을 그대로 씁니다." />
+              </label>
+              <input
+                type="number"
+                name="firstProgress"
+                min={0}
+                max={100}
+                step={1}
+                defaultValue={goal?.firstProgress ?? ""}
+                disabled={!canWriteFirst}
+                placeholder={`본인 ${goal?.progress ?? 0}%`}
+                className={INPUT_CLASS}
+              />
+            </div>
+            <div>
+              <label className={LABEL_CLASS}>
                 {period && `${period} `}평가점수
                 <HelpMark text={scoreHelp} />
               </label>
@@ -1797,7 +1815,7 @@ export default async function Evaluation2Page({
                 className={INPUT_CLASS}
               />
             </div>
-            <div className="md:col-span-3">
+            <div className="md:col-span-2">
               <label className={LABEL_CLASS}>{period && `${period} `}평가사유</label>
               <textarea
                 name="firstComment"

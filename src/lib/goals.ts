@@ -124,6 +124,7 @@ export type GoalRow = {
   /** 그 단계의 평가 — 본인 점수·사유와 1차 평가자 점수·사유(`usesEvaluation`). */
   evalDoneAt?: Date | null;
   selfScore?: number | null;
+  firstProgress?: number | null;
   selfComment?: string | null;
   firstScore?: number | null;
   firstComment?: string | null;
@@ -204,8 +205,35 @@ export function isAutoCalculated(level: string): boolean {
  * 그때 완료 건수는 올라가는데 달성률은 0%에 머물러 "달성했는데 반영이 안
  * 된다"로 보인다. 완료면 100%가 사람이 기대하는 값이다.
  */
-export function leafProgress(goal: { status: string; progress: number }): number {
-  return goal.status === "DONE" ? 100 : goal.progress;
+export function leafProgress(goal: {
+  status: string;
+  progress: number;
+  firstProgress?: number | null;
+}): number {
+  return goal.status === "DONE" ? 100 : effectiveProgress(goal);
+}
+
+/**
+ * 이 목표의 달성률 — **1차 평가자가 적었으면 그 값이다.**
+ *
+ * 본인이 50%, 팀장이 70%로 봤다면 위로 굴러 올라가는 숫자는 70%다. 평가는
+ * 「본인은 이렇게 봤다」를 적어 두고 평가자가 매기는 일이라, 둘이 다를 때
+ * 무엇이 성적인지는 한 가지여야 한다. 본인이 적은 값은 지우지 않고 남긴다 —
+ * 무엇을 보고 그렇게 매겼는지가 나중에 읽혀야 한다.
+ */
+export function effectiveProgress(goal: {
+  progress: number;
+  firstProgress?: number | null;
+}): number {
+  return goal.firstProgress ?? goal.progress;
+}
+
+/** 이 목표의 점수 — 같은 규칙이다. 아무도 안 적었으면 null. */
+export function effectiveScore(goal: {
+  selfScore?: number | null;
+  firstScore?: number | null;
+}): number | null {
+  return goal.firstScore ?? goal.selfScore ?? null;
 }
 
 /**
@@ -229,8 +257,17 @@ export function deriveStatus(
   countedChildren: number
 ): GoalStatus {
   const stored = node.status as GoalStatus;
-  if (!isAutoCalculated(node.level)) return stored;
   if (stored === "DROPPED") return stored;
+  /*
+    개인목표는 사람이 상태를 직접 고르는 층이지만, 1차 평가자가 달성률을 매겨
+    100%가 되면 «진행중»으로 남겨 둘 수 없다 — 평가자가 다 됐다고 본 목표가
+    목록에서 진행중으로 읽힌다. 굴려 올린 값이 곧 그 목표의 달성률이므로
+    (`effectiveProgress`) 그 값으로 완료를 판단한다.
+  */
+  if (!isAutoCalculated(node.level)) {
+    if (node.rollupProgress >= 100) return "DONE";
+    return stored === "DONE" ? "ACTIVE" : stored;
+  }
   if (countedChildren > 0 && node.rollupProgress >= 100) return "DONE";
   return stored === "DONE" ? "ACTIVE" : stored;
 }

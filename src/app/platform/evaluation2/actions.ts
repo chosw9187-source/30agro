@@ -1299,6 +1299,13 @@ async function firstEvaluatorIdOf(ownerId: string | null | undefined): Promise<s
   return buildEvaluatorMap(people, teams).get(ownerId)?.first?.id ?? null;
 }
 
+/** 평가자가 매긴 달성률. 비워 두면 «아직 안 적음»이라 null이다. */
+function progressField(formData: FormData, name: string): number | null {
+  const raw = str(formData.get(name));
+  if (!raw) return null;
+  return clampProgress(parseNumber(raw, 0));
+}
+
 /**
  * 평가 칸에서 온 값. 비워 두면 «아직 안 적음»이라 null로 저장한다.
  *
@@ -1324,6 +1331,7 @@ export async function updateGoal(formData: FormData) {
       progress: true,
       status: true,
       weight: true,
+      firstProgress: true,
       agreementStatus: true,
       teamId: true,
       ownerId: true,
@@ -1362,6 +1370,7 @@ export async function updateGoal(formData: FormData) {
     await prisma.goal.update({
       where: { id: goalId },
       data: {
+        firstProgress: progressField(formData, "firstProgress"),
         firstScore: scoreField(formData, "firstScore", existing.weight),
         firstComment: str(formData.get("firstComment")) || null,
       },
@@ -1410,6 +1419,7 @@ export async function updateGoal(formData: FormData) {
           : {}),
         ...(admin || isFirstEvaluator
           ? {
+              firstProgress: progressField(formData, "firstProgress"),
               firstScore: scoreField(formData, "firstScore", weightValue),
               firstComment: str(formData.get("firstComment")) || null,
             }
