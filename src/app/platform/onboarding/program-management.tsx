@@ -167,7 +167,11 @@ export async function ProgramManagementSection({
                     <h3 className="text-base font-semibold text-slate-800">
                       {s.title} <StatusBadge status={s.status as SessionStatus} />
                     </h3>
-                    {s.description && <p className="mt-1 text-sm text-slate-600">{s.description}</p>}
+                    {/* 관리자가 편성할 때 적어 둔 설명. 강사가 놓치면 안 되는
+                        전달사항이 여기 담기므로 눈에 띄게 둔다. */}
+                    {s.description && (
+                      <p className="mt-1 text-sm font-bold text-brand-green-dark">{s.description}</p>
+                    )}
                     <p className="mt-1 text-xs text-slate-500">
                       {formatSessionDay(s.startAt)}{" "}
                       {locked ? (
