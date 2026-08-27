@@ -70,11 +70,9 @@ export async function EvaluateeBanner({ userId }: { userId: string }) {
   const chain = buildEvaluatorMap(people, teams).get(userId) ?? null;
 
   return (
-    // 셸이 데스크톱에서는 <main>만 굴리므로(md:overflow-hidden) 이 띠는 가만히
-    // 있어도 화면에 남는다. 모바일은 문서 전체가 굴러서 머리글째 올라가 버리니,
-    // 거기서만 sticky로 붙여 둔다. 서랍 메뉴(z-40)보다는 아래여야 메뉴를 열었을 때
-    // 띠가 그 위로 삐져나오지 않는다.
-    <section className="sticky top-0 z-20 shrink-0 md:static">
+    // 셸은 <main>만 굴리므로(overflow-hidden) 이 띠는 가만히 있어도 화면에
+    // 남는다 — 따로 붙여 둘 것이 없다.
+    <section className="shrink-0">
       {/*
         크기를 rem이 아니라 px로 못 박는다. 이 앱은 화면 폭에 따라 기준 글자
         크기를 16 → 21.3px로 키우는데, 띠까지 같이 커지면 PC에서 화면 위쪽

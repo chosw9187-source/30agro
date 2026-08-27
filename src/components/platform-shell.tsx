@@ -67,13 +67,17 @@ export async function PlatformShell({
     .join(" · ");
 
   return (
-    // 데스크톱에서는 셸을 화면 높이에 묶어서 <main>이 실제 스크롤 영역이
-    // 되게 한다. 이래야 본문 안의 sticky 헤더(예: 평가2 전사목표)가 화면
-    // 상단에 고정된다 — 문서 전체가 스크롤되면 main의 overflow가 sticky를
-    // 자기 박스 안에 가둬버려서 그냥 같이 밀려 올라간다. 모바일(<md)은
-    // 기존처럼 문서 스크롤을 그대로 둔다.
-    <div className="flex min-w-0 flex-1 flex-col md:h-screen md:flex-none md:overflow-hidden">
-      <div className="flex min-w-0 flex-1 md:min-h-0 md:overflow-hidden">
+    // 셸을 화면 높이에 묶어서 <main>만 굴린다 — 로고 줄과 본인 띠는 그 바깥에
+    // 있으니 스크롤과 무관하게 제자리에 남고, main 안의 sticky(평가2의 연도 ·
+    // 목표 · 탭 줄)는 화면 위가 아니라 «본문 위»에 붙는다. 그래서 붙는 자리를
+    // 픽셀로 맞출 일이 없다.
+    //
+    // 예전에는 좁은 화면만 문서 전체를 굴렸는데, 그러면 main의 overflow가
+    // sticky를 자기 박스 안에 가둬 버려서 본문 안의 고정 줄이 그냥 같이 밀려
+    // 올라갔다. 높이는 100dvh다 — iOS에서 100vh는 주소창 높이를 빼지 않아
+    // 화면 아래가 잘린다.
+    <div className="flex h-[100dvh] min-w-0 flex-none flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <input type="checkbox" id="mobile-nav-toggle" className="peer hidden" />
         <label
           htmlFor="mobile-nav-toggle"
@@ -95,8 +99,8 @@ export async function PlatformShell({
           moduleUiConfig={moduleUiConfig}
           hiddenAdminMenuKeys={[...hiddenAdminMenuKeys]}
         />
-        <div className="flex min-w-0 flex-1 flex-col md:min-h-0">
-          <header className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 text-sm md:px-8">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <header className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 text-sm md:px-8">
             <div className="flex min-w-0 items-center gap-3">
               <label
                 htmlFor="mobile-nav-toggle"
@@ -132,7 +136,7 @@ export async function PlatformShell({
           <RouteOnly prefix="/platform/evaluation2">
             <EvaluateeBanner userId={user.id} />
           </RouteOnly>
-          <main className="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:min-h-0 md:px-8 md:py-8">
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-8 md:py-8">
             {children}
           </main>
         </div>

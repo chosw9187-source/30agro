@@ -105,7 +105,10 @@ const TAB_TO_LEVEL: Record<string, GoalLevel> = {
 function tabsFor(levels: GoalLevel[]) {
   return [
     { key: "dashboard", label: "대시보드" },
-    ...levels.map((level) => ({ key: level.toLowerCase(), label: GOAL_LEVEL_LABEL[level] })),
+    ...levels.map((level) => ({
+      key: level.toLowerCase(),
+      label: GOAL_LEVEL_LABEL[level],
+    })),
   ];
 }
 
@@ -259,7 +262,9 @@ function StatusBadge({ status }: { status: string }) {
     : "ACTIVE";
   if (s === "ACTIVE") return null;
   return (
-    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${STATUS_BADGE_CLASS[s]}`}>
+    <span
+      className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${STATUS_BADGE_CLASS[s]}`}
+    >
       {GOAL_STATUS_LABEL[s]}
     </span>
   );
@@ -299,7 +304,9 @@ function ExcludedBadge({ reason }: { reason: string | null }) {
 function AgreementBadge({ status }: { status: string }) {
   const s = asAgreementStatus(status);
   return (
-    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${GOAL_AGREEMENT_BADGE_CLASS[s]}`}>
+    <span
+      className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${GOAL_AGREEMENT_BADGE_CLASS[s]}`}
+    >
       {GOAL_AGREEMENT_LABEL[s]}
     </span>
   );
@@ -324,7 +331,10 @@ function OwnerFlagBadge({ label }: { label: string }) {
  * 반기가 갈리는지 안 보인다 — 묶음마다 테두리를 두르고 바탕색을 달리해서, 스크롤
  * 중에도 «지금 하반기 것을 보는 중»이 한눈에 읽히게 한다.
  */
-const HALF_TONE: Record<string, { border: string; panel: string; head: string; text: string; badge: string }> = {
+const HALF_TONE: Record<
+  string,
+  { border: string; panel: string; head: string; text: string; badge: string }
+> = {
   상반기: {
     border: "border-brand-green/30",
     panel: "bg-brand-green-light/40",
@@ -398,7 +408,9 @@ export default async function Evaluation2Page({
   const myLevels = visibleGoalLevels(viewer);
   const TABS = tabsFor(myLevels);
   // 볼 수 없는 층을 URL로 직접 치고 들어와도 대시보드로 되돌린다.
-  const tab = TABS.some((t) => t.key === params.tab) ? params.tab! : "dashboard";
+  const tab = TABS.some((t) => t.key === params.tab)
+    ? params.tab!
+    : "dashboard";
 
   const cycles = await prisma.goalCycle.findMany({
     orderBy: GOAL_CYCLE_ORDER,
@@ -426,7 +438,9 @@ export default async function Evaluation2Page({
     ? (cycles.find((c) => c.id === params.cycleId) ?? null)
     : null;
 
-  const years = Array.from(new Set(cycles.map((c) => cycleYear(c)))).sort((a, b) => b - a);
+  const years = Array.from(new Set(cycles.map((c) => cycleYear(c)))).sort(
+    (a, b) => b - a,
+  );
   const todayYear = new Date().getFullYear();
   const selectedYear = legacyCycle
     ? cycleYear(legacyCycle)
@@ -439,7 +453,8 @@ export default async function Evaluation2Page({
     .sort((a, b) => cyclePhaseRank(a) - cyclePhaseRank(b));
 
   const PROGRESS_PHASE = "progress";
-  const phaseKey = (c: { name: string; year: number }) => String(cyclePhaseRank(c));
+  const phaseKey = (c: { name: string; year: number }) =>
+    String(cyclePhaseRank(c));
   const selectedPhase = legacyCycle
     ? phaseKey(legacyCycle)
     : (params.phase ?? PROGRESS_PHASE);
@@ -454,7 +469,9 @@ export default async function Evaluation2Page({
     by: ["cycleId"],
     _count: { _all: true },
   });
-  const countByCycle = new Map(goalCounts.map((g) => [g.cycleId, g._count._all]));
+  const countByCycle = new Map(
+    goalCounts.map((g) => [g.cycleId, g._count._all]),
+  );
   const progressCycle =
     [...yearCycles].reverse().find((c) => (countByCycle.get(c.id) ?? 0) > 0) ??
     yearCycles[0] ??
@@ -479,7 +496,13 @@ export default async function Evaluation2Page({
     prisma.team.findMany({
       where: { active: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, division: true, businessUnit: true, leaderId: true },
+      select: {
+        id: true,
+        name: true,
+        division: true,
+        businessUnit: true,
+        leaderId: true,
+      },
     }),
     prisma.user.findMany({
       where: activePrismaWhere(),
@@ -574,7 +597,7 @@ export default async function Evaluation2Page({
     const state = evalTargetState(
       { hireDate: g.owner?.hireDate ?? null },
       cycle,
-      manualByUser.get(g.ownerId) ?? null
+      manualByUser.get(g.ownerId) ?? null,
     );
     if (state.included) return g;
     return { ...g, targetExcluded: true, targetExcludeReason: state.reason };
@@ -626,7 +649,7 @@ export default async function Evaluation2Page({
         (c) =>
           c.id !== cycle.id &&
           cycleYear(c) === cycleYear(cycle) &&
-          cyclePhaseRank(c) > cyclePhaseRank(cycle)
+          cyclePhaseRank(c) > cyclePhaseRank(cycle),
       )
     : [];
   const tree = buildGoalTree(goalsWithTarget);
@@ -673,7 +696,11 @@ export default async function Evaluation2Page({
   const personOptions = people.map((p) => ({
     value: p.id,
     label: `${p.name} ${POSITION_LABEL[p.position]}`,
-    sublabel: p.team?.name ? `(${p.team.name})` : p.division ? `(${p.division})` : undefined,
+    sublabel: p.team?.name
+      ? `(${p.team.name})`
+      : p.division
+        ? `(${p.division})`
+        : undefined,
   }));
 
   // 조직도(본부 > 책임 > 팀)를 되짚는 표. 목표에는 팀만 붙어 있어서, 이 사람이
@@ -709,9 +736,10 @@ export default async function Evaluation2Page({
     divisionUnit: (division: string) => unitByDivision.get(division) ?? null,
   };
   /** 이 사람에게 목록으로 보여 줄 목표만 남긴다. */
-  const visibleRows = (rows: GoalNode[]) => rows.filter((g) => canViewGoalRow(g, viewer, org));
+  const visibleRows = (rows: GoalNode[]) =>
+    rows.filter((g) => canViewGoalRow(g, viewer, org));
 
-  const editingGoal = params.edit ? nodeById.get(params.edit) ?? null : null;
+  const editingGoal = params.edit ? (nodeById.get(params.edit) ?? null) : null;
 
   function buildHref(next: { tab?: string; edit?: string | null }) {
     const qs = new URLSearchParams();
@@ -729,22 +757,32 @@ export default async function Evaluation2Page({
   const now = new Date();
   const counted = allNodes.filter(countsTowardProgress);
   const overallProgress =
-    companyGoals.length > 0 ? weightedProgress(companyGoals) : averageProgress(counted);
+    companyGoals.length > 0
+      ? weightedProgress(companyGoals)
+      : averageProgress(counted);
   /*
     머리글의 건수는 «전사 목표»라는 제목 아래 붙으므로 전사목표만 센다.
     예전에는 네 층을 전부 세서, 전사목표 6건은 하나도 완료가 아닌데 «완료 1»이
     떴다 — 아래층 어딘가의 개인목표 한 건이었다. 옆의 «전사 종합 %»도 전사목표
     기준이라 이제 한 줄이 같은 것을 말한다.
   */
-  const doneCount = companyGoals.filter((g) => g.rollupStatus === "DONE" && !g.excluded).length;
-  const excludedCount = companyGoals.filter((g) => g.excluded || g.targetExcluded).length;
+  const doneCount = companyGoals.filter(
+    (g) => g.rollupStatus === "DONE" && !g.excluded,
+  ).length;
+  const excludedCount = companyGoals.filter(
+    (g) => g.excluded || g.targetExcluded,
+  ).length;
   // 상위에 안 매달린 목표는 아무리 달성해도 전사 달성률을 못 움직인다.
   // 숫자가 안 오르는 가장 흔한 이유라 화면에 대놓고 알려준다.
   const unlinked = allNodes.filter(
     (g) =>
-      GOAL_PARENT_LEVEL[g.level as GoalLevel] !== null && !g.parentId && canViewGoalRow(g, viewer, org)
+      GOAL_PARENT_LEVEL[g.level as GoalLevel] !== null &&
+      !g.parentId &&
+      canViewGoalRow(g, viewer, org),
   );
-  const overdueCount = companyGoals.filter((g) => isOverdue(g, now) && !g.excluded).length;
+  const overdueCount = companyGoals.filter(
+    (g) => isOverdue(g, now) && !g.excluded,
+  ).length;
 
   /**
    * 아래 안내문들은 **읽는 사람이 손댈 수 있는 것만** 센다.
@@ -759,22 +797,22 @@ export default async function Evaluation2Page({
   // 담당자가 퇴사·부서이동했는데 아직 집계에 들어 있는 목표 — 빼는 건 관리자
   // 몫이라 관리자에게만 알린다.
   const needsReviewCount = myNodes.filter(
-    (g) => !g.excluded && !g.targetExcluded && ownerFlag(g, now) && canExclude()
+    (g) =>
+      !g.excluded && !g.targetExcluded && ownerFlag(g, now) && canExclude(),
   ).length;
 
   // 합의 현황. 내가 승인해야 할 건과, 내 범위에서 아직 확정되지 않은 개인목표.
   const individualGoals = myNodes.filter(
-    (g) => needsAgreement(g.level) && !g.excluded && !g.targetExcluded
+    (g) => needsAgreement(g.level) && !g.excluded && !g.targetExcluded,
   );
   const myTeamIdsForApproval = new Set(
-    teams.filter((t) => t.leaderId === session!.user.id).map((t) => t.id)
+    teams.filter((t) => t.leaderId === session!.user.id).map((t) => t.id),
   );
   const awaitingMyApproval = individualGoals.filter(
     (g) =>
       g.agreementStatus === "REQUESTED" &&
-      (isAdmin || (g.teamId && myTeamIdsForApproval.has(g.teamId)))
+      (isAdmin || (g.teamId && myTeamIdsForApproval.has(g.teamId))),
   ).length;
-
 
   function canManage(goal: GoalNode): boolean {
     if (isAdmin) return true;
@@ -809,7 +847,9 @@ export default async function Evaluation2Page({
   function cycleBar() {
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
-        <span className="text-xs font-medium text-slate-500">연도 · 목표</span>
+        <span className="hidden text-xs font-medium text-slate-500 sm:inline">
+          연도 · 목표
+        </span>
         {cycles.length > 0 ? (
           <YearPhaseSelect
             years={years.map((y) => ({ value: String(y), label: `${y}년` }))}
@@ -830,12 +870,15 @@ export default async function Evaluation2Page({
             phase={selectedPhase}
           />
         ) : (
-          <span className="text-xs text-slate-400">등록된 인사평가가 없습니다</span>
+          <span className="text-xs text-slate-400">
+            등록된 인사평가가 없습니다
+          </span>
         )}
         {/* 진행현황은 «보는» 자리다 — 어느 단계의 목표를 읽고 있는지는 적어 준다. */}
         {progressView && cycle && (
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
-            「{cyclePhaseLabel(cycle)}」의 목표를 읽는 중입니다 · 여기서는 고칠 수 없습니다
+            「{cyclePhaseLabel(cycle)}」의 목표를 읽는 중입니다 · 여기서는 고칠
+            수 없습니다
           </span>
         )}
 
@@ -849,7 +892,9 @@ export default async function Evaluation2Page({
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
             「{sharedFrom.name}」의 목표를 이어받습니다{" "}
             {!sharedFrom.goalsLockedAt && (
-              <span className="text-status-critical">· 아직 마감 전이라 내용이 바뀔 수 있습니다</span>
+              <span className="text-status-critical">
+                · 아직 마감 전이라 내용이 바뀔 수 있습니다
+              </span>
             )}
           </span>
         )}
@@ -910,7 +955,9 @@ export default async function Evaluation2Page({
                 <span className="text-[11px] text-slate-500">전사 종합</span>
                 <span className="text-xl leading-none font-semibold tabular-nums text-slate-900">
                   {overallProgress}
-                  <span className="ml-0.5 text-xs font-normal text-slate-400">%</span>
+                  <span className="ml-0.5 text-xs font-normal text-slate-400">
+                    %
+                  </span>
                 </span>
               </>
             )}
@@ -918,7 +965,9 @@ export default async function Evaluation2Page({
             <dl className="hidden items-center gap-2.5 text-xs text-slate-500 sm:flex">
               <div className="flex items-center gap-1">
                 <dt>목표</dt>
-                <dd className="font-semibold text-slate-800">{companyGoals.length}</dd>
+                <dd className="font-semibold text-slate-800">
+                  {companyGoals.length}
+                </dd>
               </div>
               <div className="flex items-center gap-1">
                 <dt>완료</dt>
@@ -937,7 +986,9 @@ export default async function Evaluation2Page({
               {excludedCount > 0 && (
                 <div className="flex items-center gap-1">
                   <dt>제외</dt>
-                  <dd className="font-semibold text-slate-400">{excludedCount}</dd>
+                  <dd className="font-semibold text-slate-400">
+                    {excludedCount}
+                  </dd>
                 </div>
               )}
             </dl>
@@ -947,68 +998,77 @@ export default async function Evaluation2Page({
         {/* 표는 펼친 채로 연다. 자리가 아깝다 싶으면 머리글을 눌러 접는다. */}
         <details open>
           <summary className="flex cursor-pointer items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-1.5 text-xs text-slate-600 hover:bg-slate-100">
-            <span className="font-medium">전사 목표 {companyGoals.length}건</span>
+            <span className="font-medium">
+              전사 목표 {companyGoals.length}건
+            </span>
             <span className="text-slate-400">· 눌러서 접기 / 펼치기</span>
           </summary>
-        {companyGoals.length === 0 ? (
-          <div className="border-t border-slate-200 px-5 py-6">
-            <p className="text-sm text-slate-500">
-              등록된 전사목표가 없습니다.
-              {isAdmin && " 여기에 등록하면 이 자리에 고정되어 모두에게 보입니다."}
-            </p>
-            {isAdmin && cycle && (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <ActionForm
-                  action={seedCompanyGoalTemplate.bind(null, goalCycleId ?? cycle.id)}
-                  successMessage="조직 목표 양식을 넣었습니다."
-                >
-                  <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-                    조직 단위별 목표 양식으로 채우기
-                  </button>
-                </ActionForm>
-                <Link
-                  href={buildHref({ tab: "company" })}
-                  className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
-                >
-                  하나씩 직접 등록
-                </Link>
-                <span className="text-xs text-slate-500">
-                  제품기획마케팅 · 영업고객관리 · 기술연구 · 생산 · 재무경영관리 다섯 줄이 한 번에
-                  들어갑니다. 내용은 등록 후 수정하세요.
-                </span>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            {/*
+          {companyGoals.length === 0 ? (
+            <div className="border-t border-slate-200 px-5 py-6">
+              <p className="text-sm text-slate-500">
+                등록된 전사목표가 없습니다.
+                {isAdmin &&
+                  " 여기에 등록하면 이 자리에 고정되어 모두에게 보입니다."}
+              </p>
+              {isAdmin && cycle && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <ActionForm
+                    action={seedCompanyGoalTemplate.bind(
+                      null,
+                      goalCycleId ?? cycle.id,
+                    )}
+                    successMessage="조직 목표 양식을 넣었습니다."
+                  >
+                    <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                      조직 단위별 목표 양식으로 채우기
+                    </button>
+                  </ActionForm>
+                  <Link
+                    href={buildHref({ tab: "company" })}
+                    className="rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50"
+                  >
+                    하나씩 직접 등록
+                  </Link>
+                  <span className="text-xs text-slate-500">
+                    제품기획마케팅 · 영업고객관리 · 기술연구 · 생산 ·
+                    재무경영관리 다섯 줄이 한 번에 들어갑니다. 내용은 등록 후
+                    수정하세요.
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              {/*
               좁은 화면에서는 최소 너비를 걸지 않는다. 걸어 두면 표가 자기 상자
               안에서 옆으로 밀려 목표 이름의 오른쪽이 잘린 채 읽힌다 — 휴대폰에서는
               이름이 여러 줄로 접히는 편이 낫다. 달성률 칸도 좁은 화면에서는 막대를
               접고 숫자만 남긴다.
             */}
-            <table className="w-full text-sm sm:min-w-[860px]">
-              <thead className="bg-slate-100 text-slate-600">
-                <tr>
-                  <th className="px-3 py-1.5 text-left text-xs font-semibold sm:px-4">목표</th>
-                  {showsProgress && (
-                    <th className="w-16 px-3 py-1.5 text-left text-xs font-semibold sm:w-56 sm:px-4">
-                      달성률
+              <table className="w-full text-sm sm:min-w-[860px]">
+                <thead className="bg-slate-100 text-slate-600">
+                  <tr>
+                    <th className="px-3 py-1.5 text-left text-xs font-semibold sm:px-4">
+                      목표
                     </th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {companyGoals.map((g, i) => {
-                  return (
-                    <tr
-                      key={g.id}
-                      className={`border-t border-slate-100 align-top ${
-                        i % 2 === 1 ? "bg-slate-50/70" : ""
-                      }`}
-                    >
-                      <td className="px-4 py-2">
-                        {/*
+                    {showsProgress && (
+                      <th className="w-16 px-3 py-1.5 text-left text-xs font-semibold sm:w-56 sm:px-4">
+                        달성률
+                      </th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {companyGoals.map((g, i) => {
+                    return (
+                      <tr
+                        key={g.id}
+                        className={`border-t border-slate-100 align-top ${
+                          i % 2 === 1 ? "bg-slate-50/70" : ""
+                        }`}
+                      >
+                        <td className="px-4 py-2">
+                          {/*
                           전사목표 줄은 누르는 자리가 아니다. 한때 눌러서 «이
                           갈래만 보기»로 걸러 줬는데, 한 번 누르면 아직 아무것도
                           안 달린 책임목표가 나와 비어 보이고 다시 눌러야 원래
@@ -1016,89 +1076,98 @@ export default async function Evaluation2Page({
                           아래 층과의 연결(달성률이 굴러 올라오는 것)은 그대로다.
                           전사목표를 고치는 일은 관리자 화면에서 한다.
                         */}
-                        <div className="flex items-start gap-1.5">
-                          {/* 구분 칸을 없앤 대신 순번만 남긴다. 표가 목표와 달성률
+                          <div className="flex items-start gap-1.5">
+                            {/* 구분 칸을 없앤 대신 순번만 남긴다. 표가 목표와 달성률
                               두 칸이라, 몇 번째 줄인지는 여기서 붙여 준다. */}
-                          <span className="w-5 shrink-0 pt-0.5 text-xs text-slate-400">
-                            {i + 1}.
-                          </span>
-                          <span className="font-medium text-slate-800">{goalTitle(g)}</span>
-                        </div>
-                        {/* 기타 자리에는 지표도 설명도 붙이지 않는다 — 담아 두는
+                            <span className="w-5 shrink-0 pt-0.5 text-xs text-slate-400">
+                              {i + 1}.
+                            </span>
+                            <span className="font-medium text-slate-800">
+                              {goalTitle(g)}
+                            </span>
+                          </div>
+                          {/* 기타 자리에는 지표도 설명도 붙이지 않는다 — 담아 두는
                             칸이지 그 자체로 세운 목표가 아니다. */}
-                        {!g.isOther && (g.metric || g.targetValue || g.description) && (
-                          <p className="mt-0.5 pl-5 text-xs text-slate-500">
-                            {[
-                              g.metric,
-                              g.targetValue ? `목표 ${g.targetValue}` : null,
-                              g.description,
-                            ]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </p>
-                        )}
-                      </td>
-                      {showsProgress && (
-                      <td className="px-3 py-2 sm:px-4">
-                        <div className="flex items-center gap-2">
-                          <span className="hidden flex-1 sm:block">
-                            <Meter value={g.rollupProgress} size="md" />
-                          </span>
-                          <span className="w-10 shrink-0 text-right text-sm font-semibold tabular-nums text-slate-800">
-                            {g.rollupProgress}%
-                          </span>
-                        </div>
-                        {/*
+                          {!g.isOther &&
+                            (g.metric || g.targetValue || g.description) && (
+                              <p className="mt-0.5 pl-5 text-xs text-slate-500">
+                                {[
+                                  g.metric,
+                                  g.targetValue
+                                    ? `목표 ${g.targetValue}`
+                                    : null,
+                                  g.description,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </p>
+                            )}
+                        </td>
+                        {showsProgress && (
+                          <td className="px-3 py-2 sm:px-4">
+                            <div className="flex items-center gap-2">
+                              <span className="hidden flex-1 sm:block">
+                                <Meter value={g.rollupProgress} size="md" />
+                              </span>
+                              <span className="w-10 shrink-0 text-right text-sm font-semibold tabular-nums text-slate-800">
+                                {g.rollupProgress}%
+                              </span>
+                            </div>
+                            {/*
                           막대와 % 말고는 지연 배지만 남긴다. "완료" 배지는 막대가
                           이미 100%로 말하고 있고, "하위 N건 가중평균"은 어차피
                           모든 전사목표가 그렇게 계산되는 값이라 줄마다 반복할
                           이유가 없다. 표는 목표와 달성률 두 칸이 전부다.
                         */}
-                        {isOverdue(g, now) && (
-                          <div className="mt-1">
-                            <OverdueBadge />
-                          </div>
+                            {isOverdue(g, now) && (
+                              <div className="mt-1">
+                                <OverdueBadge />
+                              </div>
+                            )}
+                          </td>
                         )}
-                      </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-        )}
+          )}
 
-        {/*
+          {/*
           여기 남는 건 "지금 뭔가 어긋나 있고, 이렇게 고치면 된다"는 세 줄뿐이다.
           설명문·안내문 종류는 전부 뺐다 — 아무도 손댈 게 없는 문장이 표 아래
           붙어 있으면 읽히지도 않으면서 고정 영역만 먹는다. 세 줄 모두 읽는
           사람이 실제로 할 수 있는 일일 때만, 그 사람 범위의 건수로만 뜬다.
         */}
-        {(unlinked.length > 0 || needsReviewCount > 0 || awaitingMyApproval > 0) && (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/70 px-5 py-2.5">
-            <div className="space-y-1 text-xs text-slate-500">
-              {awaitingMyApproval > 0 && (
-                <p className="font-medium text-brand-green-dark">
-                  합의를 기다리는 개인목표 {awaitingMyApproval}건이 있습니다 — 개인목표 탭에서
-                  승인하거나 되돌릴 수 있습니다.
-                </p>
-              )}
-              {needsReviewCount > 0 && (
-                <p className="text-amber-700">
-                  담당자가 퇴사했거나 부서를 옮긴 목표 {needsReviewCount}건이 아직 집계에 들어
-                  있습니다 — 해당 목표에서 「집계 제외」를 눌러 빼실 수 있습니다.
-                </p>
-              )}
-              {unlinked.length > 0 && (
-                <p className="text-status-critical">
-                  상위 목표에 연결되지 않은 목표 {unlinked.length}건은 전사 달성률에 반영되지
-                  않습니다 — 해당 목표를 열어 「상위 목표」를 지정해 주세요.
-                </p>
-              )}
+          {(unlinked.length > 0 ||
+            needsReviewCount > 0 ||
+            awaitingMyApproval > 0) && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/70 px-5 py-2.5">
+              <div className="space-y-1 text-xs text-slate-500">
+                {awaitingMyApproval > 0 && (
+                  <p className="font-medium text-brand-green-dark">
+                    합의를 기다리는 개인목표 {awaitingMyApproval}건이 있습니다 —
+                    개인목표 탭에서 승인하거나 되돌릴 수 있습니다.
+                  </p>
+                )}
+                {needsReviewCount > 0 && (
+                  <p className="text-amber-700">
+                    담당자가 퇴사했거나 부서를 옮긴 목표 {needsReviewCount}건이
+                    아직 집계에 들어 있습니다 — 해당 목표에서 「집계 제외」를
+                    눌러 빼실 수 있습니다.
+                  </p>
+                )}
+                {unlinked.length > 0 && (
+                  <p className="text-status-critical">
+                    상위 목표에 연결되지 않은 목표 {unlinked.length}건은 전사
+                    달성률에 반영되지 않습니다 — 해당 목표를 열어 「상위
+                    목표」를 지정해 주세요.
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
         </details>
       </section>
     );
@@ -1115,8 +1184,12 @@ export default async function Evaluation2Page({
     */
     const nodes = visibleRows(byLevel(level));
     const counted = nodes.filter(countsTowardProgress);
-    const done = nodes.filter((g) => g.rollupStatus === "DONE" && !g.excluded).length;
-    const overdue = nodes.filter((g) => isOverdue(g, now) && !g.excluded).length;
+    const done = nodes.filter(
+      (g) => g.rollupStatus === "DONE" && !g.excluded,
+    ).length;
+    const overdue = nodes.filter(
+      (g) => isOverdue(g, now) && !g.excluded,
+    ).length;
     // 전사 목표는 사이클 전체를 대표하는 값이라 가중평균, 나머지 층은 그 층에
     // 속한 목표들의 평균을 쓴다.
     const percent =
@@ -1127,14 +1200,18 @@ export default async function Evaluation2Page({
         : averageProgress(nodes);
 
     const href =
-      level === "COMPANY" ? "/admin/org-goals" : buildHref({ tab: level.toLowerCase() });
+      level === "COMPANY"
+        ? "/admin/org-goals"
+        : buildHref({ tab: level.toLowerCase() });
     const linkable = level !== "COMPANY" || isAdmin;
 
     const body = (
       <>
         <div className="flex items-center gap-2">
           <LevelDot level={level} />
-          <h2 className="text-base font-semibold text-slate-800">{GOAL_LEVEL_LABEL[level]}</h2>
+          <h2 className="text-base font-semibold text-slate-800">
+            {GOAL_LEVEL_LABEL[level]}
+          </h2>
         </div>
 
         {showsProgress && (
@@ -1151,7 +1228,9 @@ export default async function Evaluation2Page({
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-5xl leading-none font-semibold tabular-nums text-slate-900">
                 {percent}
-                <span className="ml-0.5 text-xl font-normal text-slate-400">%</span>
+                <span className="ml-0.5 text-xl font-normal text-slate-400">
+                  %
+                </span>
               </span>
               <span className="mt-1.5 text-xs text-slate-500">
                 {level === "COMPANY" ? "가중평균" : "평균 달성률"}
@@ -1163,11 +1242,15 @@ export default async function Evaluation2Page({
         <dl className="mt-5 grid grid-cols-3 gap-1 border-t border-slate-100 pt-4 text-center">
           <div>
             <dt className="text-xs text-slate-500">전체</dt>
-            <dd className="text-2xl font-semibold tabular-nums text-slate-800">{counted.length}</dd>
+            <dd className="text-2xl font-semibold tabular-nums text-slate-800">
+              {counted.length}
+            </dd>
           </div>
           <div>
             <dt className="text-xs text-slate-500">완료</dt>
-            <dd className="text-2xl font-semibold tabular-nums text-brand-green-dark">{done}</dd>
+            <dd className="text-2xl font-semibold tabular-nums text-brand-green-dark">
+              {done}
+            </dd>
           </div>
           <div>
             <dt className="text-xs text-slate-500">지연</dt>
@@ -1186,7 +1269,10 @@ export default async function Evaluation2Page({
     const className = `${CARD_CLASS} flex flex-col p-6`;
 
     return linkable ? (
-      <Link href={href} className={`${className} transition-colors hover:border-brand-green`}>
+      <Link
+        href={href}
+        className={`${className} transition-colors hover:border-brand-green`}
+      >
         {body}
       </Link>
     ) : (
@@ -1245,9 +1331,14 @@ export default async function Evaluation2Page({
       평가는 팀장이 받는다. 팀을 아직 고르지 않았으면 누구인지 알 수 없다.
     */
     const formTeamId =
-      goal?.teamId ?? (viewer.ledTeamIds.length === 1 ? viewer.ledTeamIds[0] : null);
-    const formSubjectId = formTeamId ? (teamById.get(formTeamId)?.leaderId ?? null) : null;
-    const formEval = formSubjectId ? (evaluatorByPerson.get(formSubjectId) ?? null) : null;
+      goal?.teamId ??
+      (viewer.ledTeamIds.length === 1 ? viewer.ledTeamIds[0] : null);
+    const formSubjectId = formTeamId
+      ? (teamById.get(formTeamId)?.leaderId ?? null)
+      : null;
+    const formEval = formSubjectId
+      ? (evaluatorByPerson.get(formSubjectId) ?? null)
+      : null;
     const evaluatorLine = (
       <div className="md:col-span-2">
         <label className={LABEL_CLASS}>1차 평가자</label>
@@ -1328,7 +1419,12 @@ export default async function Evaluation2Page({
         <label className={LABEL_CLASS}>
           {isTeam ? "핵심 업무 목표" : isOkr ? "Objective (목표)" : "목표명"}
         </label>
-        <input name="title" defaultValue={goal?.title ?? ""} required className={INPUT_CLASS} />
+        <input
+          name="title"
+          defaultValue={goal?.title ?? ""}
+          required
+          className={INPUT_CLASS}
+        />
       </div>
     );
 
@@ -1339,7 +1435,9 @@ export default async function Evaluation2Page({
       하나면 된다. 이미 기타에 매달린 목표를 고칠 때는 그 「기타」 항목이
       골라진 것으로 보여 준다.
     */
-    const currentParent = goal?.parentId ? (nodeById.get(goal.parentId) ?? null) : null;
+    const currentParent = goal?.parentId
+      ? (nodeById.get(goal.parentId) ?? null)
+      : null;
     const parentIsOther = !!currentParent?.isOther;
     /*
       지금 매달려 있는 상위가 내가 볼 수 있는 범위 밖일 수 있다 — 다른 부문의
@@ -1348,15 +1446,23 @@ export default async function Evaluation2Page({
       이미 그 이름이 «상위: …»로 보이고 있으므로 목록에도 넣어 준다.
     */
     const parentChoices = parentOptions.filter((p) => !p.isOther);
-    if (currentParent && !parentIsOther && !parentChoices.some((p) => p.id === currentParent.id)) {
+    if (
+      currentParent &&
+      !parentIsOther &&
+      !parentChoices.some((p) => p.id === currentParent.id)
+    ) {
       parentChoices.push(currentParent);
     }
     const parent = parentLevel && (
       <div className={isTeam ? "md:col-span-2" : undefined}>
-        <label className={LABEL_CLASS}>상위 {GOAL_LEVEL_LABEL[parentLevel]}</label>
+        <label className={LABEL_CLASS}>
+          상위 {GOAL_LEVEL_LABEL[parentLevel]}
+        </label>
         <select
           name="parentId"
-          defaultValue={parentIsOther ? OTHER_PARENT_VALUE : (goal?.parentId ?? "")}
+          defaultValue={
+            parentIsOther ? OTHER_PARENT_VALUE : (goal?.parentId ?? "")
+          }
           required
           className={INPUT_CLASS}
         >
@@ -1377,14 +1483,18 @@ export default async function Evaluation2Page({
             아무리 달성해도 전사 달성률이 안 움직이므로, 층마다 「기타」
             한 칸을 두고 거기에 매단다(없으면 자동으로 만들어진다).
           */}
-          <option value={OTHER_PARENT_VALUE}>기타 (딱 맞는 상위 목표가 없을 시)</option>
+          <option value={OTHER_PARENT_VALUE}>
+            기타 (딱 맞는 상위 목표가 없을 시)
+          </option>
         </select>
       </div>
     );
 
     const metric = (
       <div>
-        <label className={LABEL_CLASS}>{isTeam ? "성과지표(KPI)" : "측정지표"}</label>
+        <label className={LABEL_CLASS}>
+          {isTeam ? "성과지표(KPI)" : "측정지표"}
+        </label>
         <input
           name="metric"
           defaultValue={goal?.metric ?? ""}
@@ -1397,7 +1507,9 @@ export default async function Evaluation2Page({
 
     const currentValue = (
       <div>
-        <label className={LABEL_CLASS}>{isTeam ? "목표수준 · 현수준" : "현재수준"}</label>
+        <label className={LABEL_CLASS}>
+          {isTeam ? "목표수준 · 현수준" : "현재수준"}
+        </label>
         <input
           name="currentValue"
           defaultValue={goal?.currentValue ?? ""}
@@ -1410,7 +1522,9 @@ export default async function Evaluation2Page({
 
     const targetValue = (
       <div>
-        <label className={LABEL_CLASS}>{isTeam ? "목표수준 · 목표치" : "목표수준"}</label>
+        <label className={LABEL_CLASS}>
+          {isTeam ? "목표수준 · 목표치" : "목표수준"}
+        </label>
         <input
           name="targetValue"
           defaultValue={goal?.targetValue ?? ""}
@@ -1422,22 +1536,25 @@ export default async function Evaluation2Page({
 
     const weight = (
       <div>
-        <label className={LABEL_CLASS}>{isTeam || isOkr ? "가중치(비중, %)" : "가중치(%)"}</label>
+        <label className={LABEL_CLASS}>
+          {isTeam || isOkr ? "가중치(비중, %)" : "가중치(%)"}
+        </label>
         {usesDerivedWeight(level) ? (
           <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
-            담당자 한 사람이 100씩, 그 합으로 자동 계산됩니다 (직접 입력하지 않습니다)
+            담당자 한 사람이 100씩, 그 합으로 자동 계산됩니다 (직접 입력하지
+            않습니다)
           </p>
         ) : (
-        <input
-          type="number"
-          name="weight"
-          min={0}
-          max={100}
-          step={1}
-          defaultValue={goal?.weight ?? 0}
-          required={req}
-          className={INPUT_CLASS}
-        />
+          <input
+            type="number"
+            name="weight"
+            min={0}
+            max={100}
+            step={1}
+            defaultValue={goal?.weight ?? 0}
+            required={req}
+            className={INPUT_CLASS}
+          />
         )}
       </div>
     );
@@ -1447,14 +1564,17 @@ export default async function Evaluation2Page({
         {/* 등급별로 "어디까지 해야 그 등급인지"를 목표 세울 때 못박는다.
             연말에 가서 정하면 사람마다 다르게 읽는다. */}
         <label className={LABEL_CLASS}>
-          평가척도 <HelpMark text="등급별로 «어디까지 해야 그 등급인지»를 목표 세울 때 적어 둡니다. 연말에 가서 정하면 사람마다 다르게 읽습니다. 예) S: 3천만원 이상 절감 / A: 2천만원 이상 절감" />
+          평가척도{" "}
+          <HelpMark text="등급별로 «어디까지 해야 그 등급인지»를 목표 세울 때 적어 둡니다. 연말에 가서 정하면 사람마다 다르게 읽습니다. 예) S: 3천만원 이상 절감 / A: 2천만원 이상 절감" />
         </label>
         <div className="grid gap-2 sm:grid-cols-5">
           {GOAL_SCALES.map((sc) => (
             <div key={sc.field}>
               <div className="mb-1 rounded-t-md bg-slate-100 px-2 py-1 text-center text-xs font-semibold text-slate-700">
                 {sc.grade}
-                <span className="ml-0.5 font-normal text-slate-500">({sc.score})</span>
+                <span className="ml-0.5 font-normal text-slate-500">
+                  ({sc.score})
+                </span>
               </div>
               <textarea
                 name={sc.field}
@@ -1487,7 +1607,7 @@ export default async function Evaluation2Page({
       사람의 판단이라 아래에서 뒤집을 수 있는 값이 아니다.
     */
     const statusChoices = GOAL_STATUSES.filter(
-      (v) => !(isAutoCalculated(level) && v === "DONE")
+      (v) => !(isAutoCalculated(level) && v === "DONE"),
     );
     /*
       목표설정 단계의 팀·개인 목표는 상태를 고르지 않는다 — 전부 «진행중»이다.
@@ -1506,7 +1626,11 @@ export default async function Evaluation2Page({
     ) : (
       <div>
         <label className={LABEL_CLASS}>상태</label>
-        <select name="status" defaultValue={goal?.status ?? "ACTIVE"} className={INPUT_CLASS}>
+        <select
+          name="status"
+          defaultValue={goal?.status ?? "ACTIVE"}
+          className={INPUT_CLASS}
+        >
           {statusChoices.map((s) => (
             <option key={s} value={s}>
               {GOAL_STATUS_LABEL[s]}
@@ -1605,7 +1729,8 @@ export default async function Evaluation2Page({
     const evalFirst = evalResult?.first ?? null;
     const evalNote = evalResult?.note ?? null;
     const canWriteSelf = isAdmin || evalSubjectId === session!.user.id;
-    const canWriteFirst = isAdmin || (!!evalFirst && evalFirst.id === session!.user.id);
+    const canWriteFirst =
+      isAdmin || (!!evalFirst && evalFirst.id === session!.user.id);
     // 내용(제목·가중치·상위)을 고칠 수 있는 사람. 평가만 하는 사람은 못 고친다.
     const canEditContent = !goal || canManage(goal);
     /*
@@ -1613,7 +1738,8 @@ export default async function Evaluation2Page({
       없으면 가중치 10짜리에 100점을 적어 두고 «다 했다»가 되어 비중을 나눠 놓은
       뜻이 사라진다. 가중치를 아직 안 적었으면 막지 않는다.
     */
-    const scoreCeiling = goal && goal.weight > 0 ? maxScore(goal.weight) : undefined;
+    const scoreCeiling =
+      goal && goal.weight > 0 ? maxScore(goal.weight) : undefined;
     const scoreHelp =
       `점수는 가중치의 110%까지입니다.` +
       (scoreCeiling
@@ -1628,7 +1754,9 @@ export default async function Evaluation2Page({
         </p>
 
         <div className="rounded-lg border border-brand-green/40 bg-brand-green-light/50 p-3">
-          <p className="mb-2 block text-xs font-semibold text-brand-green-dark">피평가자(본인)</p>
+          <p className="mb-2 block text-xs font-semibold text-brand-green-dark">
+            피평가자(본인)
+          </p>
           <div className="grid gap-3 md:grid-cols-4">
             <div>
               <label className={LABEL_CLASS}>달성률(%)</label>
@@ -1675,14 +1803,17 @@ export default async function Evaluation2Page({
 
         <div className="rounded-lg border border-goal-3/40 bg-amber-50/70 p-3">
           <p className="mb-2 block text-xs font-semibold text-goal-3">
-            1차 평가자{evalFirst ? `(${POSITION_LABEL[evalFirst.position]})` : ""}
+            1차 평가자
+            {evalFirst ? `(${POSITION_LABEL[evalFirst.position]})` : ""}
           </p>
           {/*
             사슬이 팀장을 건너뛰었으면 왜 건너뛰었는지 적는다 — 대개 그 팀에
             팀장이 지정돼 있지 않아서다. 이 말이 없으면 «왜 우리 팀장이 아니지»가
             화면만 보고는 풀리지 않는다.
           */}
-          {evalNote && <p className="mb-2 text-[11px] text-status-critical">{evalNote}</p>}
+          {evalNote && (
+            <p className="mb-2 text-[11px] text-status-critical">{evalNote}</p>
+          )}
           <div className="grid gap-3 md:grid-cols-4">
             <div>
               <label className={LABEL_CLASS}>
@@ -1719,7 +1850,9 @@ export default async function Evaluation2Page({
               />
             </div>
             <div className="md:col-span-2">
-              <label className={LABEL_CLASS}>{period && `${period} `}평가사유</label>
+              <label className={LABEL_CLASS}>
+                {period && `${period} `}평가사유
+              </label>
               <textarea
                 name="firstComment"
                 rows={2}
@@ -1743,11 +1876,35 @@ export default async function Evaluation2Page({
       return (
         <>
           {line("parent", parent)}
-          {line("what", <>{title}{metric}</>)}
-          {line("level", <>{currentValue}{targetValue}</>)}
+          {line(
+            "what",
+            <>
+              {title}
+              {metric}
+            </>,
+          )}
+          {line(
+            "level",
+            <>
+              {currentValue}
+              {targetValue}
+            </>,
+          )}
           {line("weight", weight)}
-          {line("scale", <>{scales}{formula}</>)}
-          {line("progress", <>{status}{progress}</>)}
+          {line(
+            "scale",
+            <>
+              {scales}
+              {formula}
+            </>,
+          )}
+          {line(
+            "progress",
+            <>
+              {status}
+              {progress}
+            </>,
+          )}
           {line("due", dueDate)}
           {line("evaluator", evaluatorLine)}
           {assignment}
@@ -1805,12 +1962,34 @@ export default async function Evaluation2Page({
           */}
           <fieldset disabled={!canEditContent} className="contents">
             {line("parent", parent)}
-            {line("kind", <>{half}{goalType}</>)}
+            {line(
+              "kind",
+              <>
+                {half}
+                {goalType}
+              </>,
+            )}
             {line("objective", title)}
             {line("kr", keyResults)}
             {/* 달성률은 평가 칸으로 올라갔다 — 같은 칸을 두 번 두지 않는다. */}
-            {line("weight", showEval ? weight : <>{weight}{progress}</>)}
-            {line("state", <>{status}{dueDate}</>)}
+            {line(
+              "weight",
+              showEval ? (
+                weight
+              ) : (
+                <>
+                  {weight}
+                  {progress}
+                </>
+              ),
+            )}
+            {line(
+              "state",
+              <>
+                {status}
+                {dueDate}
+              </>,
+            )}
             {line("desc", description)}
             {assignment}
           </fieldset>
@@ -1840,9 +2019,15 @@ export default async function Evaluation2Page({
                 </option>
               ))}
             </select>
-          </div>
+          </div>,
         )}
-        {line("state", <>{status}{dueDate}</>)}
+        {line(
+          "state",
+          <>
+            {status}
+            {dueDate}
+          </>,
+        )}
         {line("progress", progress)}
         {assignment}
         {line("desc", description)}
@@ -1856,7 +2041,8 @@ export default async function Evaluation2Page({
     // 마감 상태를 여기서 한 번에 반영한다. 진척은 목표 확정 뒤에도 올리고,
     // 목표 내용·삭제·집계 제외는 확정되면 잠긴다.
     // 전사목표는 「조직 목표 관리」에서만 고친다 — 아래 참조.
-    const editable = canManage(goal) && lock.canEditGoals && level !== "COMPANY";
+    const editable =
+      canManage(goal) && lock.canEditGoals && level !== "COMPANY";
     const isEditing = editingGoal?.id === goal.id;
     const parentLevel = GOAL_PARENT_LEVEL[level];
     // 상위 목표 후보도 볼 수 있는 범위 안에서만 고르게 한다.
@@ -1868,7 +2054,9 @@ export default async function Evaluation2Page({
       어느 쪽이든 정수로 끊는다 — 33.333333333333336%가 줄에 박히면 그 줄을
       읽을 수가 없다.
     */
-    const shownWeight = Math.round(usesDerivedWeight(level) ? goal.rollupWeight : goal.weight);
+    const shownWeight = Math.round(
+      usesDerivedWeight(level) ? goal.rollupWeight : goal.weight,
+    );
     /*
       평가를 여는 자리. 목표를 관리하는 사람(본인·팀장·관리자)뿐 아니라 조직도가
       정한 1차 평가자에게도 띄운다 — 팀장의 개인목표를 평가하는 건 책임·운영책임인데,
@@ -1876,7 +2064,9 @@ export default async function Evaluation2Page({
     */
     const evalPeriod = evalPeriodLabel(cycle);
     const subject = goalSubject(goal);
-    const subjectEval = subject ? (evaluatorByPerson.get(subject.id) ?? null) : null;
+    const subjectEval = subject
+      ? (evaluatorByPerson.get(subject.id) ?? null)
+      : null;
     const evaluator = subjectEval?.first ?? null;
     const evalDone = !!goal.evalDoneAt;
     // 평가완료는 1차 평가자와 관리자만 누른다 — 피평가자가 스스로 «다 됐다»고
@@ -1889,7 +2079,10 @@ export default async function Evaluation2Page({
       (canManage(goal) || evaluator?.id === session!.user.id);
     const isOwner = goal.ownerId === session!.user.id;
     const canApprove =
-      isAdmin || teams.some((t) => t.id === goal.teamId && t.leaderId === session!.user.id);
+      isAdmin ||
+      teams.some(
+        (t) => t.id === goal.teamId && t.leaderId === session!.user.id,
+      );
     const agreementActions =
       needsAgreement(goal.level) && (isOwner || canApprove) ? (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 p-2">
@@ -1908,7 +2101,9 @@ export default async function Evaluation2Page({
             </ActionForm>
           )}
           {isOwner && agreement === "REQUESTED" && (
-            <span className="text-[11px] text-slate-500">팀장 승인 대기 중입니다.</span>
+            <span className="text-[11px] text-slate-500">
+              팀장 승인 대기 중입니다.
+            </span>
           )}
           {canApprove && agreement === "REQUESTED" && (
             <ActionForm
@@ -1988,365 +2183,420 @@ export default async function Evaluation2Page({
         }`}
       >
         <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* 접힘 표시. 눌러서 펼치는 자리라는 걸 알려 주는 유일한 표시다. */}
-          <span className="select-none text-[10px] text-slate-400 group-open:hidden">▶</span>
-          <span className="hidden select-none text-[10px] text-slate-400 group-open:inline">▼</span>
-          <LevelDot level={level} />
-          <span className="text-sm font-medium text-slate-800">{goalTitle(goal)}</span>
-          {/*
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 접힘 표시. 눌러서 펼치는 자리라는 걸 알려 주는 유일한 표시다. */}
+            <span className="select-none text-[10px] text-slate-400 group-open:hidden">
+              ▶
+            </span>
+            <span className="hidden select-none text-[10px] text-slate-400 group-open:inline">
+              ▼
+            </span>
+            <LevelDot level={level} />
+            <span className="text-sm font-medium text-slate-800">
+              {goalTitle(goal)}
+            </span>
+            {/*
             책임목표에는 부문 이름을 붙이지 않는다. 책임목표 탭은 그 자체가
             부문별 목록이라 «재무경영관리»가 줄마다 되풀이될 뿐이고, 정작 읽어야
             할 목표 이름 옆자리를 먹는다. 팀목표의 팀 이름과 개인목표의 담당자
             이름은 남긴다 — 여러 팀·여러 사람 것이 한 목록에 섞여 나오므로 그건
             누구 목표인지 가려 주는 유일한 표시다.
           */}
-          <StatusBadge status={goal.rollupStatus} />
-          {isOverdue(goal, now) && <OverdueBadge />}
-          {needsAgreement(goal.level) && <AgreementBadge status={goal.agreementStatus} />}
-          {goal.goalType && (
-            <span
-              className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                GOAL_TYPE_BADGE_CLASS[goal.goalType] ?? "bg-slate-100 text-slate-700"
-              }`}
-            >
-              {goal.goalType}
-            </span>
-          )}
-          {goal.excluded && <ExcludedBadge reason={goal.excludeReason} />}
-          {!goal.excluded && goal.targetExcluded && (
-            <ExcludedBadge reason={goal.targetExcludeReason ?? "평가대상 아님"} />
-          )}
-          {flag && !goal.excluded && !goal.targetExcluded && <OwnerFlagBadge label={flag.label} />}
-          {/*
+            <StatusBadge status={goal.rollupStatus} />
+            {isOverdue(goal, now) && <OverdueBadge />}
+            {needsAgreement(goal.level) && (
+              <AgreementBadge status={goal.agreementStatus} />
+            )}
+            {goal.goalType && (
+              <span
+                className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                  GOAL_TYPE_BADGE_CLASS[goal.goalType] ??
+                  "bg-slate-100 text-slate-700"
+                }`}
+              >
+                {goal.goalType}
+              </span>
+            )}
+            {goal.excluded && <ExcludedBadge reason={goal.excludeReason} />}
+            {!goal.excluded && goal.targetExcluded && (
+              <ExcludedBadge
+                reason={goal.targetExcludeReason ?? "평가대상 아님"}
+              />
+            )}
+            {flag && !goal.excluded && !goal.targetExcluded && (
+              <OwnerFlagBadge label={flag.label} />
+            )}
+            {/*
             «상위 · 가중치 · 피평가자»는 제목 옆에 붙인다. 아래 줄로 내려 두면 한
             카드가 두 줄이 되어, 목록을 훑을 때 눈이 줄마다 두 번 꺾인다. 이 줄에
             더 넣지 않는다 — 지표·목표수준·마감일까지 늘어놓으면 정작 목표 이름이
             밀린다. 자세한 값은 카드를 펴서 본다.
           */}
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-normal text-slate-500">
-            {parent && (
-              <span>
-                상위: {parent.title} ({GOAL_LEVEL_LABEL[parent.level as GoalLevel]})
-              </span>
-            )}
-            {!parent && parentLevel && (
-              <span className="text-status-critical">상위 목표 미연결</span>
-            )}
-            {shownWeight > 0 && <span>가중치 {shownWeight}%</span>}
-            {level === "INDIVIDUAL" && subject && <span>피평가자: {evaluatorLabel(subject)}</span>}
-            {level === "TEAM" && evaluator && <span>1차 평가자: {evaluatorLabel(evaluator)}</span>}
-            {/*
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-normal text-slate-500">
+              {parent && (
+                <span>
+                  상위: {parent.title} (
+                  {GOAL_LEVEL_LABEL[parent.level as GoalLevel]})
+                </span>
+              )}
+              {!parent && parentLevel && (
+                <span className="text-status-critical">상위 목표 미연결</span>
+              )}
+              {shownWeight > 0 && <span>가중치 {shownWeight}%</span>}
+              {level === "INDIVIDUAL" && subject && (
+                <span>피평가자: {evaluatorLabel(subject)}</span>
+              )}
+              {level === "TEAM" && evaluator && (
+                <span>1차 평가자: {evaluatorLabel(evaluator)}</span>
+              )}
+              {/*
               사슬이 사장까지 올라갔다면 조직도 어딘가가 비어 있다는 뜻이다.
             */}
-            {level === "TEAM" && subjectEval?.note && (
-              <span className="text-status-critical">{subjectEval.note}</span>
-            )}
-          </span>
-          <span className="ml-auto flex items-center gap-2">
-            {/*
+              {level === "TEAM" && subjectEval?.note && (
+                <span className="text-status-critical">{subjectEval.note}</span>
+              )}
+            </span>
+            <span className="ml-auto flex items-center gap-2">
+              {/*
               «왜 0%인지»는 숫자 바로 옆에 있어야 읽힌다. 아래 버튼 줄에 두면
               숫자와 설명이 멀어서 0%만 보고 «고장인가»가 된다. 0%가 아닐 때는
               설명할 것이 없으므로 띄우지 않는다.
             */}
-            {/*
+              {/*
               0%인 까닭은 «하위가 없어서»일 때만 적는다. 하위가 붙어 있는데
               아직 아무도 진척을 안 올려서 0인 경우(목표설정 단계에는 늘 그렇다)
               까지 «하위 목표가 없어»라고 적으면, 방금 연결한 개인목표가 안
               붙은 줄 알고 다시 연결하러 가게 된다.
             */}
-            {isAutoCalculated(level) && goal.rollupCounted === 0 && (
-              <span className="text-xs font-normal text-slate-500">
-                {goal.children.length === 0
-                  ? showsProgress
-                    ? "하위 목표가 없어 0%입니다"
-                    : "하위 목표가 없습니다"
-                  : showsProgress
-                    ? "집계할 하위 목표가 없어 0%입니다"
-                    : "집계할 하위 목표가 없습니다"}
-              </span>
-            )}
-            {showsProgress && (
-              <span className="text-sm font-semibold tabular-nums text-slate-700">
-                {goal.rollupProgress}%
-              </span>
-            )}
-          </span>
-        </div>
+              {isAutoCalculated(level) && goal.rollupCounted === 0 && (
+                <span className="text-xs font-normal text-slate-500">
+                  {goal.children.length === 0
+                    ? showsProgress
+                      ? "하위 목표가 없어 0%입니다"
+                      : "하위 목표가 없습니다"
+                    : showsProgress
+                      ? "집계할 하위 목표가 없어 0%입니다"
+                      : "집계할 하위 목표가 없습니다"}
+                </span>
+              )}
+              {showsProgress && (
+                <span className="text-sm font-semibold tabular-nums text-slate-700">
+                  {goal.rollupProgress}%
+                </span>
+              )}
+            </span>
+          </div>
 
-        {/*
+          {/*
           목표설정 단계에서는 값이 아니라 **선**이다. 달성률을 안 띄우는 단계인데
           막대만 차 있으면 «무슨 수치지»가 되고, 숫자가 없어 확인할 길도 없다.
           빈 막대로 두어 제목과 아래 줄을 갈라 주는 선 노릇만 하게 한다.
         */}
-        <div className="mt-2">
-          <Meter value={showsProgress ? goal.rollupProgress : 0} size="md" />
-        </div>
+          <div className="mt-2">
+            <Meter value={showsProgress ? goal.rollupProgress : 0} size="md" />
+          </div>
         </summary>
 
         <div>
-        {/*
+          {/*
           Key Results. 적은 줄을 그대로 늘어놓는다 — 번호(① ② ③)를 붙이지
           않는다. 공통 양식이 아니라 사람마다 적는 방식이 달라서, 화면이 멋대로
           번호를 붙이면 «1) 2)»로 적은 사람 것이 «① 1) …»로 겹쳐 읽힌다.
         */}
-        {usesKeyResults(level) && keyResultLines(goal.keyResults).length > 0 && (
-          <div className="mt-2">
-            {/* ① ② 만 늘어놓으면 이게 무슨 목록인지가 안 읽힌다. */}
-            <p className="text-[11px] font-medium text-slate-500">Key Results (핵심결과)</p>
-            <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
-              {keyResultLines(goal.keyResults).map((line, i) => (
-                <li key={i}>{line}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+          {usesKeyResults(level) &&
+            keyResultLines(goal.keyResults).length > 0 && (
+              <div className="mt-2">
+                {/* ① ② 만 늘어놓으면 이게 무슨 목록인지가 안 읽힌다. */}
+                <p className="text-[11px] font-medium text-slate-500">
+                  Key Results (핵심결과)
+                </p>
+                <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
+                  {keyResultLines(goal.keyResults).map((line, i) => (
+                    <li key={i}>{line}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-        {/*
+          {/*
           평가척도. 사내 양식과 같은 다섯 칸을 그대로 늘어놓는다 — 등급 기준은
           목표를 볼 때 같이 보여야 "이 정도면 몇 등급인가"를 매번 다시 묻지 않는다.
           한 칸도 안 채웠으면 빈 표를 띄우지 않는다.
         */}
-        {usesScales(level) && scaleValues(goal).some((sc) => sc.value) && (
-          <div className="mt-2">
-            {/*
+          {usesScales(level) && scaleValues(goal).some((sc) => sc.value) && (
+            <div className="mt-2">
+              {/*
               휴대폰에서는 다섯 칸을 한 줄에 늘어놓지 않는다 — 한 칸이 65px이면
               «3천만원 이상 절감»이 글자 하나씩 끊겨 읽힌다. 등급별로 한 줄씩
               쌓아 두면 폭이 좁아도 그대로 읽힌다.
             */}
-            <dl className="grid grid-cols-[3.5rem_1fr] overflow-hidden rounded border border-slate-200 text-xs sm:hidden">
-              {scaleValues(goal).map((sc) => (
-                <div key={sc.field} className="contents">
-                  <dt className="border-b border-slate-200 bg-slate-100 px-2 py-1.5 font-semibold text-slate-700">
-                    {sc.grade}
-                    <span className="ml-0.5 font-normal text-slate-500">({sc.score})</span>
-                  </dt>
-                  <dd className="border-b border-slate-200 px-2 py-1.5 text-slate-600">
-                    {sc.value || <span className="text-slate-300">—</span>}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        )}
-
-        {usesScales(level) && scaleValues(goal).some((sc) => sc.value) && (
-          <div className="mt-2 hidden overflow-x-auto sm:block">
-            <table className="w-full min-w-[560px] table-fixed border-collapse text-xs">
-              <thead>
-                <tr>
-                  {GOAL_SCALES.map((sc) => (
-                    <th
-                      key={sc.field}
-                      className="border border-slate-200 bg-slate-100 px-2 py-1 font-semibold text-slate-700"
-                    >
+              <dl className="grid grid-cols-[3.5rem_1fr] overflow-hidden rounded border border-slate-200 text-xs sm:hidden">
+                {scaleValues(goal).map((sc) => (
+                  <div key={sc.field} className="contents">
+                    <dt className="border-b border-slate-200 bg-slate-100 px-2 py-1.5 font-semibold text-slate-700">
                       {sc.grade}
-                      <span className="ml-0.5 font-normal text-slate-500">({sc.score})</span>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  {scaleValues(goal).map((sc) => (
-                    <td
-                      key={sc.field}
-                      className="border border-slate-200 px-2 py-1.5 align-top text-slate-600"
-                    >
+                      <span className="ml-0.5 font-normal text-slate-500">
+                        ({sc.score})
+                      </span>
+                    </dt>
+                    <dd className="border-b border-slate-200 px-2 py-1.5 text-slate-600">
                       {sc.value || <span className="text-slate-300">—</span>}
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        )}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
 
-        {goal.description && <p className="mt-2 text-xs text-slate-600">{goal.description}</p>}
+          {usesScales(level) && scaleValues(goal).some((sc) => sc.value) && (
+            <div className="mt-2 hidden overflow-x-auto sm:block">
+              <table className="w-full min-w-[560px] table-fixed border-collapse text-xs">
+                <thead>
+                  <tr>
+                    {GOAL_SCALES.map((sc) => (
+                      <th
+                        key={sc.field}
+                        className="border border-slate-200 bg-slate-100 px-2 py-1 font-semibold text-slate-700"
+                      >
+                        {sc.grade}
+                        <span className="ml-0.5 font-normal text-slate-500">
+                          ({sc.score})
+                        </span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    {scaleValues(goal).map((sc) => (
+                      <td
+                        key={sc.field}
+                        className="border border-slate-200 px-2 py-1.5 align-top text-slate-600"
+                      >
+                        {sc.value || <span className="text-slate-300">—</span>}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
 
-        {needsAgreement(goal.level) && goal.agreementNote && (
-          <p
-            className={`mt-2 rounded-md px-2 py-1 text-xs ${
-              agreement === "RETURNED"
-                ? "bg-status-critical/10 text-status-critical"
-                : "bg-slate-50 text-slate-600"
-            }`}
-          >
-            {agreement === "RETURNED" ? "되돌린 사유: " : "합의 메모: "}
-            {goal.agreementNote}
-          </p>
-        )}
-        {needsAgreement(goal.level) && agreement === "AGREED" && goal.agreedAt && (
-          <p className="mt-1 text-[11px] text-slate-400">
-            {goal.agreedBy?.name ?? "팀장"} 합의 · {formatKSTDate(goal.agreedAt)}
-          </p>
-        )}
+          {goal.description && (
+            <p className="mt-2 text-xs text-slate-600">{goal.description}</p>
+          )}
 
-        {agreementActions}
+          {needsAgreement(goal.level) && goal.agreementNote && (
+            <p
+              className={`mt-2 rounded-md px-2 py-1 text-xs ${
+                agreement === "RETURNED"
+                  ? "bg-status-critical/10 text-status-critical"
+                  : "bg-slate-50 text-slate-600"
+              }`}
+            >
+              {agreement === "RETURNED" ? "되돌린 사유: " : "합의 메모: "}
+              {goal.agreementNote}
+            </p>
+          )}
+          {needsAgreement(goal.level) &&
+            agreement === "AGREED" &&
+            goal.agreedAt && (
+              <p className="mt-1 text-[11px] text-slate-400">
+                {goal.agreedBy?.name ?? "팀장"} 합의 ·{" "}
+                {formatKSTDate(goal.agreedAt)}
+              </p>
+            )}
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {/*
+          {agreementActions}
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {/*
             달성률·현재수준·메모를 이 줄에서 바로 받던 자리다. 이제 그 값들은
             평가 칸(폼 맨 위)에서 사유와 같이 적는다 — 숫자만 툭 올려 두면
             «왜 그 숫자인지»가 아무 데도 남지 않는다. 대신 그 자리에 평가를 여는
             자리를 둔다. 「수정」과 같은 폼을 연다.
           */}
-          {showEvalEntry && (
-            <Link
-              href={buildHref({ edit: goal.id })}
-              className={`rounded-md border px-3 py-1.5 text-xs sm:py-1 font-medium ${
-                evalDone
-                  ? "border-status-critical bg-status-critical/10 text-status-critical hover:bg-status-critical hover:text-white"
-                  : "border-brand-green bg-brand-green-light text-brand-green-dark hover:bg-brand-green hover:text-white"
-              }`}
-            >
-              {evalPeriod && `${evalPeriod} `}평가{evalDone && " 완료"}
-            </Link>
-          )}
-          {/*
+            {showEvalEntry && (
+              <Link
+                href={buildHref({ edit: goal.id })}
+                className={`rounded-md border px-3 py-1.5 text-xs sm:py-1 font-medium ${
+                  evalDone
+                    ? "border-status-critical bg-status-critical/10 text-status-critical hover:bg-status-critical hover:text-white"
+                    : "border-brand-green bg-brand-green-light text-brand-green-dark hover:bg-brand-green hover:text-white"
+                }`}
+              >
+                {evalPeriod && `${evalPeriod} `}평가{evalDone && " 완료"}
+              </Link>
+            )}
+            {/*
             누르는 버튼은 오른쪽 끝에 한 덩어리로 모은다 — 왼쪽은 «지금 어떤
             상태인가»(합의·진척)를 읽는 자리이고, 오른쪽은 «내가 무엇을 할 수
             있나»를 누르는 자리다. 섞여 있으면 읽는 도중에 버튼이 끼어든다.
             버튼마다 ml-auto를 붙이면 어떤 버튼이 보이느냐에 따라 줄이 갈라지므로
             묶음 하나에만 붙인다.
           */}
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-          {/*
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {/*
             펼쳐진 폼을 닫는 자리는 폼 아래 «저장» 옆이다 — 다 고치고 손이 가
             있는 곳이 거기다. 이 오른쪽 위 줄에서 «수정 닫기»를 찾으려면 긴 폼을
             거슬러 올라가야 했다. 그래서 여기는 여는 자리만 남긴다.
           */}
-          {editable && !isEditing && (
-            <Link
-              href={buildHref({ edit: goal.id })}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs sm:py-1 hover:bg-slate-50"
-            >
-              수정
-            </Link>
-          )}
-          {/*
+              {editable && !isEditing && (
+                <Link
+                  href={buildHref({ edit: goal.id })}
+                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs sm:py-1 hover:bg-slate-50"
+                >
+                  수정
+                </Link>
+              )}
+              {/*
             중단 처리 — 연중에 접은 목표를 남겨 두면 «달성 못 한 목표»로 계속
             세어져 팀 달성률을 끌어내린다. 목표를 확정(마감)한 뒤에도 눌러야
             하므로 내용 잠금이 아니라 진척 잠금을 따른다. 목표설정 단계에는
             띄우지 않는다 — 아직 시작도 안 한 목표를 접을 일은 없다.
           */}
-          {isAdmin && canWriteProgress && lock.canEditProgress && (
-            <ActionForm
-              action={setGoalDropped.bind(null, goal.id, goal.status !== "DROPPED")}
-              successMessage={
-                goal.status === "DROPPED" ? "중단을 해제했습니다." : "중단 처리했습니다."
-              }
-
-            >
-              <button
-                type="submit"
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs sm:py-1 hover:bg-slate-50"
-              >
-                {goal.status === "DROPPED" ? "중단 해제" : "중단 처리"}
-              </button>
-            </ActionForm>
-          )}
-          {canExclude() && lock.canEditProgress && (
-            <ActionForm
-              action={setGoalExcluded.bind(null, goal.id, !goal.excluded)}
-              successMessage={goal.excluded ? "집계에 다시 포함했습니다." : "집계에서 제외했습니다."}
-              className="flex items-center gap-1"
-            >
-              {!goal.excluded && (
-                <input
-                  name="excludeReason"
-                  defaultValue={flag ? `담당자 ${flag.label}` : ""}
-                  placeholder="제외 사유"
-                  aria-label="집계 제외 사유"
-                  className="w-32 rounded-md border border-slate-300 px-2 py-1 text-xs"
-                />
+              {isAdmin && canWriteProgress && lock.canEditProgress && (
+                <ActionForm
+                  action={setGoalDropped.bind(
+                    null,
+                    goal.id,
+                    goal.status !== "DROPPED",
+                  )}
+                  successMessage={
+                    goal.status === "DROPPED"
+                      ? "중단을 해제했습니다."
+                      : "중단 처리했습니다."
+                  }
+                >
+                  <button
+                    type="submit"
+                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs sm:py-1 hover:bg-slate-50"
+                  >
+                    {goal.status === "DROPPED" ? "중단 해제" : "중단 처리"}
+                  </button>
+                </ActionForm>
               )}
-              <button
-                type="submit"
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs sm:py-1 hover:bg-slate-50"
-              >
-                {goal.excluded ? "집계에 포함" : "집계 제외"}
-              </button>
-            </ActionForm>
-          )}
-          {editable && (
-            <ActionForm action={deleteGoal.bind(null, goal.id)} successMessage="삭제되었습니다.">
-              {/* 어느 단계를 통해 지우는 중인지 — 잠금 판단이 여기서 갈린다. */}
-              <input type="hidden" name="viewCycleId" value={cycle?.id ?? ""} />
-              <button
-                type="submit"
-                className="rounded-md border border-red-200 px-3 py-1.5 text-xs sm:py-1 text-status-critical hover:bg-red-50"
-              >
-                삭제
-              </button>
-            </ActionForm>
-          )}
+              {canExclude() && lock.canEditProgress && (
+                <ActionForm
+                  action={setGoalExcluded.bind(null, goal.id, !goal.excluded)}
+                  successMessage={
+                    goal.excluded
+                      ? "집계에 다시 포함했습니다."
+                      : "집계에서 제외했습니다."
+                  }
+                  className="flex items-center gap-1"
+                >
+                  {!goal.excluded && (
+                    <input
+                      name="excludeReason"
+                      defaultValue={flag ? `담당자 ${flag.label}` : ""}
+                      placeholder="제외 사유"
+                      aria-label="집계 제외 사유"
+                      className="w-32 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                    />
+                  )}
+                  <button
+                    type="submit"
+                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xs sm:py-1 hover:bg-slate-50"
+                  >
+                    {goal.excluded ? "집계에 포함" : "집계 제외"}
+                  </button>
+                </ActionForm>
+              )}
+              {editable && (
+                <ActionForm
+                  action={deleteGoal.bind(null, goal.id)}
+                  successMessage="삭제되었습니다."
+                >
+                  {/* 어느 단계를 통해 지우는 중인지 — 잠금 판단이 여기서 갈린다. */}
+                  <input
+                    type="hidden"
+                    name="viewCycleId"
+                    value={cycle?.id ?? ""}
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-md border border-red-200 px-3 py-1.5 text-xs sm:py-1 text-status-critical hover:bg-red-50"
+                  >
+                    삭제
+                  </button>
+                </ActionForm>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/*
+          {/*
           고침 폼. 저장하면 스스로 닫힌다(`successHref`) — 다 고치고 저장을
           눌렀는데 긴 폼이 그대로 펼쳐져 있으면 저장이 됐는지도 헷갈리고,
           목록으로 돌아오려면 «수정 닫기»를 또 찾아 눌러야 한다.
         */}
-        {isEditing && (
-          <ActionForm
-            action={updateGoal}
-            successMessage="수정되었습니다."
-            successHref={buildHref({ edit: null })}
-            className="mt-4 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-2"
-          >
-            <input type="hidden" name="goalId" value={goal.id} />
-            {/* 지금 어느 평가를 통해 고치는 중인지. 달성률을 적을 수 있는
+          {isEditing && (
+            <ActionForm
+              action={updateGoal}
+              successMessage="수정되었습니다."
+              successHref={buildHref({ edit: null })}
+              className="mt-4 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-2"
+            >
+              <input type="hidden" name="goalId" value={goal.id} />
+              {/* 지금 어느 평가를 통해 고치는 중인지. 달성률을 적을 수 있는
                 단계인지가 여기서 갈린다 — 목표는 한 벌이고 중간·최종평가가
                 그걸 빌려 보기 때문에 목표가 저장된 사이클만으로는 알 수 없다. */}
-            <input type="hidden" name="viewCycleId" value={cycle?.id ?? ""} />
-            <GoalFormFields level={level} goal={goal} parentOptions={parentOptions} />
-            <div className="flex flex-wrap items-center gap-2 md:col-span-2">
-              <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-                저장
-              </button>
-              {/* 저장과 나란히, 같은 모양으로 — 고친 손이 그 자리에 있다. */}
-              <Link href={buildHref({ edit: null })} className={PRIMARY_BUTTON_CLASS}>
-                닫기
-              </Link>
-              {/*
+              <input type="hidden" name="viewCycleId" value={cycle?.id ?? ""} />
+              <GoalFormFields
+                level={level}
+                goal={goal}
+                parentOptions={parentOptions}
+              />
+              <div className="flex flex-wrap items-center gap-2 md:col-span-2">
+                <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                  저장
+                </button>
+                {/* 저장과 나란히, 같은 모양으로 — 고친 손이 그 자리에 있다. */}
+                <Link
+                  href={buildHref({ edit: null })}
+                  className={PRIMARY_BUTTON_CLASS}
+                >
+                  닫기
+                </Link>
+                {/*
                 평가완료는 저장과 다른 일이라 색을 달리한다 — 저장은 적은 것을
                 남기는 일이고, 이건 «이 평가는 여기서 끝»이라고 못을 박는 일이다.
                 폼 안에 폼을 넣을 수 없어서 아래에 따로 둔 폼을 `form` 속성으로
                 잇는다.
               */}
-              {usesEvaluation(level, cycle) && canFinishEval && (
-                <button
-                  type="submit"
-                  form={`evaldone-${goal.id}`}
-                  className={`rounded-md px-4 py-2 text-sm font-medium ${
-                    evalDone
-                      ? "border border-status-critical text-status-critical hover:bg-red-50"
-                      : "bg-goal-3 text-white hover:brightness-95"
-                  }`}
-                >
-                  {evalDone ? "평가완료 취소" : "평가완료"}
-                </button>
-              )}
-            </div>
-          </ActionForm>
-        )}
-        {/*
+                {usesEvaluation(level, cycle) && canFinishEval && (
+                  <button
+                    type="submit"
+                    form={`evaldone-${goal.id}`}
+                    className={`rounded-md px-4 py-2 text-sm font-medium ${
+                      evalDone
+                        ? "border border-status-critical text-status-critical hover:bg-red-50"
+                        : "bg-goal-3 text-white hover:brightness-95"
+                    }`}
+                  >
+                    {evalDone ? "평가완료 취소" : "평가완료"}
+                  </button>
+                )}
+              </div>
+            </ActionForm>
+          )}
+          {/*
           위 폼의 «평가완료» 단추가 눌러 보내는 폼. 폼끼리 겹칠 수 없어 밖에 둔다.
           누르고 나면 폼은 닫는다 — 결과는 목록의 붉은 «완료»로 읽힌다.
         */}
-        {isEditing && usesEvaluation(level, cycle) && canFinishEval && (
-          <ActionForm
-            id={`evaldone-${goal.id}`}
-            action={setGoalEvalDone.bind(null, goal.id, !evalDone)}
-            successMessage={evalDone ? "평가완료를 취소했습니다." : "평가를 완료했습니다."}
-            successHref={buildHref({ edit: null })}
-            className="hidden"
-          >
-            <input type="hidden" name="viewCycleId" value={cycle?.id ?? ""} />
-          </ActionForm>
-        )}
+          {isEditing && usesEvaluation(level, cycle) && canFinishEval && (
+            <ActionForm
+              id={`evaldone-${goal.id}`}
+              action={setGoalEvalDone.bind(null, goal.id, !evalDone)}
+              successMessage={
+                evalDone ? "평가완료를 취소했습니다." : "평가를 완료했습니다."
+              }
+              successHref={buildHref({ edit: null })}
+              className="hidden"
+            >
+              <input type="hidden" name="viewCycleId" value={cycle?.id ?? ""} />
+            </ActionForm>
+          )}
         </div>
       </details>
     );
@@ -2374,7 +2624,10 @@ export default async function Evaluation2Page({
       세운 것인데 한 덩어리로 더하면 200%가 되고, 거기에 «100%로 맞춰 주세요»가
       붙으면 맞출 수 없는 걸 맞추라는 말이 된다.
     */
-    const buckets = new Map<string, { ownerKey: string; half: string; sum: number }>();
+    const buckets = new Map<
+      string,
+      { ownerKey: string; half: string; sum: number }
+    >();
     for (const g of rows) {
       const ownerKey = g.ownerId ?? g.id;
       const half = usesHalf(level) ? goalHalf(g) : "";
@@ -2385,10 +2638,12 @@ export default async function Evaluation2Page({
     }
     const halfRank = (half: string) =>
       half === GOAL_HALVES[0] ? 0 : half === GOAL_HALVES[1] ? 1 : 2;
-    const subtotals = [...buckets.values()].sort((a, b) => halfRank(a.half) - halfRank(b.half));
+    const subtotals = [...buckets.values()].sort(
+      (a, b) => halfRank(a.half) - halfRank(b.half),
+    );
     const ownerCount = new Set(subtotals.map((b) => b.ownerKey)).size;
     const ownersOffTarget = new Set(
-      subtotals.filter((b) => Math.round(b.sum) !== 100).map((b) => b.ownerKey)
+      subtotals.filter((b) => Math.round(b.sum) !== 100).map((b) => b.ownerKey),
     ).size;
 
     /*
@@ -2401,7 +2656,8 @@ export default async function Evaluation2Page({
       level !== "COMPANY" &&
       (isAdmin ||
         level === "INDIVIDUAL" ||
-        (level === "TEAM" && teams.some((t) => t.leaderId === session!.user.id)));
+        (level === "TEAM" &&
+          teams.some((t) => t.leaderId === session!.user.id)));
 
     return (
       <div data-goal-list className="flex flex-col gap-4">
@@ -2410,7 +2666,9 @@ export default async function Evaluation2Page({
           <h2 className="text-lg font-semibold">{GOAL_LEVEL_LABEL[level]}</h2>
           <span className="text-sm text-slate-500">{rows.length}건</span>
           {showsProgress && (
-            <span className="text-sm text-slate-500">평균 달성률 {averageProgress(rows)}%</span>
+            <span className="text-sm text-slate-500">
+              평균 달성률 {averageProgress(rows)}%
+            </span>
           )}
           {/*
             사내 양식의 "소계" 줄. 가중치 합이 100이어야 비중이 의도대로 먹는데,
@@ -2426,7 +2684,9 @@ export default async function Evaluation2Page({
                 <span
                   key={bucket.half}
                   className={`text-sm ${
-                    sum === 100 ? "text-slate-500" : "font-medium text-status-critical"
+                    sum === 100
+                      ? "text-slate-500"
+                      : "font-medium text-status-critical"
                   }`}
                 >
                   {bucket.half ? `${bucket.half} ` : ""}가중치 소계 {sum}%
@@ -2434,11 +2694,13 @@ export default async function Evaluation2Page({
                 </span>
               );
             })}
-          {usesWeightSubtotal(level) && ownerCount > 1 && ownersOffTarget > 0 && (
-            <span className="text-sm font-medium text-status-critical">
-              가중치 소계가 100%가 아닌 사람 {ownersOffTarget}명
-            </span>
-          )}
+          {usesWeightSubtotal(level) &&
+            ownerCount > 1 &&
+            ownersOffTarget > 0 && (
+              <span className="text-sm font-medium text-status-critical">
+                가중치 소계가 100%가 아닌 사람 {ownersOffTarget}명
+              </span>
+            )}
           {/* 목록을 훑을 때는 머리글만 보면 된다 — 한 번에 접는 자리. */}
           {rows.length > 0 && (
             <span className="ml-auto">
@@ -2454,7 +2716,10 @@ export default async function Evaluation2Page({
         {level === "COMPANY" && isAdmin && (
           <p className="text-xs text-slate-500">
             전사목표를 세우고 고치는 자리는{" "}
-            <Link href="/admin/org-goals" className="text-brand-green-dark underline">
+            <Link
+              href="/admin/org-goals"
+              className="text-brand-green-dark underline"
+            >
               조직 목표 관리
             </Link>
             입니다. 여기서는 아래 층에서 굴러 올라온 달성률을 봅니다.
@@ -2472,7 +2737,11 @@ export default async function Evaluation2Page({
               collapseOnSuccess
               className="mt-4 grid gap-3 md:grid-cols-2"
             >
-              <input type="hidden" name="cycleId" value={goalCycleId ?? cycle.id} />
+              <input
+                type="hidden"
+                name="cycleId"
+                value={goalCycleId ?? cycle.id}
+              />
               <input type="hidden" name="viewCycleId" value={cycle.id} />
               <input type="hidden" name="level" value={level} />
               <GoalFormFields level={level} parentOptions={parentOptions} />
@@ -2487,7 +2756,9 @@ export default async function Evaluation2Page({
 
         {/* 양식 하단의 산식. 가중치를 왜 100%로 맞춰야 하는지가 이 한 줄로 읽힌다. */}
         {usesKeyResults(level) && rows.length > 0 && (
-          <p className="text-xs text-slate-500">* 점수 = 가중치(비중) × 평가자 점수</p>
+          <p className="text-xs text-slate-500">
+            * 점수 = 가중치(비중) × 평가자 점수
+          </p>
         )}
 
         {rows.length === 0 ? (
@@ -2513,7 +2784,9 @@ export default async function Evaluation2Page({
                     className={`flex flex-wrap items-center gap-2 border-b ${tone.border} ${tone.head} px-4 py-2.5`}
                   >
                     <h3 className={`text-sm font-semibold ${tone.text}`}>
-                      {group.half === HALF_UNSET ? "구분 미지정" : `${group.half} 목표`}
+                      {group.half === HALF_UNSET
+                        ? "구분 미지정"
+                        : `${group.half} 목표`}
                     </h3>
                     <span
                       className={`rounded-full ${tone.badge} px-2 py-0.5 text-[11px] font-medium tabular-nums`}
@@ -2551,7 +2824,10 @@ export default async function Evaluation2Page({
   // 사이클이 하나도 없을 때 폼에 미리 채워둘 연도. 한 해의 평가는 세 단계가
   // 한 벌이라 연도만 넣으면 되고, 기간은 서버가 상·하반기로 나눠 넣는다.
   const thisYear = Number(
-    new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric" }).format(now)
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Seoul",
+      year: "numeric",
+    }).format(now),
   );
 
   // 사이클이 하나도 없을 때만 이 첫 실행 화면을 보여준다. "아직 안 고른 것"과
@@ -2609,10 +2885,23 @@ export default async function Evaluation2Page({
       {/* 다른 사람이 목표를 고쳐도 이 화면이 알아서 최신 값을 받아온다. */}
       <AutoRefresh />
 
-      {/* 인사평가 선택이 먼저, 층 선택 탭이 그 아래. */}
-      {cycleBar()}
+      {/*
+        무엇을 보는지 고르는 두 줄은 본문 위에 붙여 둔다 — 인사평가 선택이 먼저,
+        층 선택 탭이 그 아래.
 
-      {tabBar()}
+        목록이 길어서 조금만 내려도 이 두 줄이 화면 밖으로 나갔는데, 그러면 다른
+        해로 옮기거나 팀목표로 건너뛰려고 매번 맨 위까지 되돌아가야 했다. 지금
+        보는 자리가 어디인지도 함께 사라졌다.
+
+        붙는 자리는 본문 스크롤 영역(<main>)의 위쪽이라, 위에 있는 로고 줄과 본인
+        띠의 높이를 픽셀로 맞출 필요가 없다. 좌우 여백을 음수 마진으로 도로
+        빼내어 띠가 본문 폭을 가득 덮게 한다 — 그래야 밑으로 지나가는 카드가
+        가장자리로 비어져 나오지 않는다.
+      */}
+      <div className="sticky -top-6 z-20 -mx-4 -mt-6 flex flex-col gap-3 bg-slate-50 px-4 pt-6 pb-3 md:-top-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
+        {cycleBar()}
+        {tabBar()}
+      </div>
 
       {/* 마감 안내 — 왜 수정 버튼이 사라졌는지 화면에서 바로 읽히게 한다. */}
       {lock.message && (
@@ -2647,7 +2936,10 @@ export default async function Evaluation2Page({
             </ActionForm>
           )}
           {isAdmin && cycle?.status === "CLOSED" && (
-            <Link href="/admin/org-goals" className="ml-2 text-xs text-brand-green-dark underline">
+            <Link
+              href="/admin/org-goals"
+              className="ml-2 text-xs text-brand-green-dark underline"
+            >
               관리 화면에서 되돌리기
             </Link>
           )}
@@ -2667,31 +2959,33 @@ export default async function Evaluation2Page({
         !waitingForSource &&
         !cycle.goalsLockedAt &&
         cycle.status !== "CLOSED" && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-          <span className="text-sm font-medium text-slate-800">목표 마감</span>
-          <span className="text-xs text-slate-500">
-            마감하면 <b className="font-medium">이 단계에서는</b> 관리자를 포함해 아무도 목표를 고칠
-            수 없습니다
-            {!sharedFrom &&
-              followUps.length > 0 &&
-              ` — 「${followUps.map((c) => c.name).join("」 · 「")}」가 이 목표를 그대로 이어받고, 거기서는 계속 고칠 수 있습니다`}
-            . 마감을 풀면 다시 고칠 수 있습니다.
-          </span>
-          <ActionForm
-            action={lockGoalSetting.bind(null, cycle.id)}
-            successMessage="목표를 마감했습니다."
-            confirmMessage="이 평가의 목표를 전체 마감할까요? 마감하면 아무도 목표를 고칠 수 없습니다."
-            className="ml-auto"
-          >
-            <button
-              type="submit"
-              className="rounded-md bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark"
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <span className="text-sm font-medium text-slate-800">
+              목표 마감
+            </span>
+            <span className="text-xs text-slate-500">
+              마감하면 <b className="font-medium">이 단계에서는</b> 관리자를
+              포함해 아무도 목표를 고칠 수 없습니다
+              {!sharedFrom &&
+                followUps.length > 0 &&
+                ` — 「${followUps.map((c) => c.name).join("」 · 「")}」가 이 목표를 그대로 이어받고, 거기서는 계속 고칠 수 있습니다`}
+              . 마감을 풀면 다시 고칠 수 있습니다.
+            </span>
+            <ActionForm
+              action={lockGoalSetting.bind(null, cycle.id)}
+              successMessage="목표를 마감했습니다."
+              confirmMessage="이 평가의 목표를 전체 마감할까요? 마감하면 아무도 목표를 고칠 수 없습니다."
+              className="ml-auto"
             >
-              전체 마감
-            </button>
-          </ActionForm>
-        </div>
-      )}
+              <button
+                type="submit"
+                className="rounded-md bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark"
+              >
+                전체 마감
+              </button>
+            </ActionForm>
+          </div>
+        )}
 
       {!cycle ? (
         // 인사평가를 고르기 전에는 어느 탭이든 비워 둔다. 어느 해 숫자인지
@@ -2701,7 +2995,8 @@ export default async function Evaluation2Page({
             {selectedYear}년에 만들어진 인사평가가 없습니다
           </p>
           <p className="mt-1 text-sm text-slate-500">
-            왼쪽 위에서 다른 연도를 고르면 그 해의 전사 · 책임 · 팀 · 개인 목표가 보입니다.
+            왼쪽 위에서 다른 연도를 고르면 그 해의 전사 · 책임 · 팀 · 개인
+            목표가 보입니다.
           </p>
           {cycles.length === 0 && (
             <p className="mt-4 text-xs text-slate-400">
@@ -2724,8 +3019,8 @@ export default async function Evaluation2Page({
             「{sharedFrom!.name}」이 아직 마감되지 않았습니다
           </p>
           <p className="mt-1 max-w-md text-sm text-slate-500">
-            이 평가는 「{sharedFrom!.name}」에서 확정된 목표를 그대로 이어받습니다. 목표를
-            마감하면 그 내용이 여기에 그대로 뜹니다.
+            이 평가는 「{sharedFrom!.name}」에서 확정된 목표를 그대로
+            이어받습니다. 목표를 마감하면 그 내용이 여기에 그대로 뜹니다.
           </p>
           {isAdmin ? (
             <Link
