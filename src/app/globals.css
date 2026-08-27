@@ -119,5 +119,10 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
-  overflow-x: hidden;
+  /*
+    가로 넘침을 막는 일은 <html> 한 곳에서만 한다. body에도 걸어 두면 body가
+    «스크롤 상자»가 되어 버리는데, 정작 세로로 구르는 것은 <html>이라서
+    body 안의 position: sticky가 붙을 자리를 잃는다 — 휴대폰에서 상단의
+    본인 띠가 그냥 같이 밀려 올라가던 원인이 이것이었다.
+  */
 }

@@ -7,6 +7,7 @@ import { Watermark } from "@/components/watermark";
 import { SessionHeartbeat } from "@/components/session-heartbeat";
 import { ToastHost } from "@/components/toast";
 import { NumberStepGuard } from "@/components/number-step-guard";
+import { EvaluateeBanner } from "@/components/evaluatee-banner";
 import { getVisibleModules, getModuleUiConfig, getHiddenAdminMenuKeys, type Position } from "@/lib/permissions";
 import { logPageView } from "@/lib/page-view";
 
@@ -101,6 +102,12 @@ export async function PlatformShell({
             <span className="sm:hidden">문의</span>
           </Link>
         </header>
+        {/*
+          본인 띠는 머리글 바로 아래, 모든 화면의 맨 위다 — 평가2의 연도·목표
+          선택줄보다도 위. 어느 메뉴에 있든 «지금 누구의 화면인가»가 먼저
+          읽혀야 해서, 한 화면 안에 넣지 않고 셸에 한 번만 붙였다.
+        */}
+        <EvaluateeBanner userId={user.id} />
         <main className="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:min-h-0 md:px-8 md:py-8">
           {children}
         </main>
