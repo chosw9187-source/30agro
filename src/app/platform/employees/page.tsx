@@ -45,12 +45,18 @@ export default async function EmployeeDirectoryPage({
         id: true,
         name: true,
         employeeNumber: true,
+        email: true,
         position: true,
         birthDate: true,
         hireDate: true,
         jobGrade: true,
+        gender: true,
+        employmentType: true,
+        jobFamily: true,
+        school: true,
+        major: true,
         teamId: true,
-        team: { select: { id: true, name: true } },
+        team: { select: { id: true, name: true, businessUnit: true, division: true } },
       },
     }),
     selectedUserId ? loadEmployeeCard(selectedUserId) : Promise.resolve(null),
@@ -61,7 +67,7 @@ export default async function EmployeeDirectoryPage({
       <div className="shrink-0">
         <h1 className="text-2xl font-semibold">직원정보 조회</h1>
         <p className="mt-1 text-sm text-slate-600">
-          왼쪽 조직도에서 부서나 인원을 체크하면 가운데 목록이 좁혀집니다. 이름을 클릭하면 오른쪽에 인사카드가 표시됩니다. (재직자만 표시됩니다)
+          왼쪽 조직도에서 부서나 인원을 체크하면 가운데에 대상자 목록이 나타납니다. 이름을 클릭하면 오른쪽에 인사카드가 표시됩니다. (재직자만 표시됩니다)
         </p>
       </div>
 

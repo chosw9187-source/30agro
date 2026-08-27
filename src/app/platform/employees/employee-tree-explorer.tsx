@@ -11,12 +11,18 @@ export type EmployeeLite = {
   id: string;
   name: string;
   employeeNumber: string;
+  email: string | null;
   position: Position;
   birthDate: Date | null;
   hireDate: Date | null;
   jobGrade: string | null;
+  gender: string | null;
+  employmentType: string | null;
+  jobFamily: string | null;
+  school: string | null;
+  major: string | null;
   teamId: string | null;
-  team: { id: string; name: string } | null;
+  team: { id: string; name: string; businessUnit: string | null; division: string | null } | null;
 };
 
 type UnitNode = { name: string; divisions: DivisionNode[]; directTeams: TeamLite[] };
@@ -122,13 +128,29 @@ export function EmployeeTreeExplorerProvider({
     setPosition("");
   }
 
+  // 검색어가 있으면 체크 여부와 무관하게 전체 인원에서 찾고, 검색어가 없으면
+  // 체크된 인원만 보여준다 (검색은 독립적인 조회 수단, 체크는 좁혀보기 수단).
   const filteredList = useMemo(() => {
     const q = query.trim().toLowerCase();
     return employees.filter((e) => {
-      if (checkedIds.size > 0 && !checkedIds.has(e.id)) return false;
+      if (!q && !checkedIds.has(e.id)) return false;
       if (position && e.position !== position) return false;
       if (!q) return true;
-      const hay = [e.name, e.employeeNumber, e.team?.name ?? "", POSITION_LABEL[e.position] ?? "", e.jobGrade ?? ""]
+      const hay = [
+        e.name,
+        e.employeeNumber,
+        e.email ?? "",
+        e.team?.name ?? "",
+        e.team?.businessUnit ?? "",
+        e.team?.division ?? "",
+        POSITION_LABEL[e.position] ?? "",
+        e.jobGrade ?? "",
+        e.gender ?? "",
+        e.employmentType ?? "",
+        e.jobFamily ?? "",
+        e.school ?? "",
+        e.major ?? "",
+      ]
         .join(" ")
         .toLowerCase();
       return hay.includes(q);
@@ -332,15 +354,22 @@ export function EmployeeTreeFilterPanel() {
 }
 
 export function EmployeeSummaryListPanel() {
-  const { filteredList, checkedIds, basePath, focusedUserId } = useTreeExplorer();
+  const { filteredList, checkedIds, query, basePath, focusedUserId } = useTreeExplorer();
+  const hasQuery = query.trim().length > 0;
   return (
     <div className="flex h-full min-h-0 flex-col p-3">
       <div className="mb-2 flex shrink-0 items-baseline justify-between px-1">
-        <span className="text-sm font-semibold text-slate-700">{checkedIds.size > 0 ? "체크된 인원" : "전체 인원"}</span>
+        <span className="text-sm font-semibold text-slate-700">{hasQuery ? "검색 결과" : "체크된 인원"}</span>
         <span className="text-xs text-slate-400">{filteredList.length}명</span>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {filteredList.length === 0 ? (
+        {checkedIds.size === 0 && !hasQuery ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+            왼쪽에서 검색하거나 조직도를 체크하면
+            <br />
+            여기에 목록이 표시됩니다.
+          </div>
+        ) : filteredList.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">검색 결과가 없습니다.</div>
         ) : (
           <div className="flex flex-col gap-1.5">
