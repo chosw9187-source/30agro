@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 const CARD_CLASS = "rounded-xl border border-slate-200 bg-white shadow-sm";
 const SMALL_BUTTON_CLASS =
-  "rounded-md border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50";
+  "inline-block rounded-md border border-slate-300 px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50 sm:py-1";
 
 /** 조직도와 같은 순서로 본부를 세운다. */
 const UNIT_PRIORITY: Record<string, number> = {
@@ -262,7 +262,8 @@ export default async function EvalTargetsPage({
                 </span>
               </ActionForm>
 
-              <div className="ml-auto flex items-center gap-5 whitespace-nowrap">
+              {/* 좁은 화면에서는 줄바꿈을 허용한다 — 한 줄로 묶어 두면 옆으로 밀린다. */}
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 sm:ml-auto sm:flex-nowrap sm:whitespace-nowrap">
                 <span className="text-sm">
                   대상 <b className="tabular-nums">{includedCount}</b>명
                 </span>

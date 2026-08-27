@@ -41,7 +41,7 @@ export default async function TemplatesPage() {
             <label className="text-sm text-slate-600">평가 유형</label>
             <select
               name="kind"
-              className="w-fit rounded border border-slate-300 px-3 py-2"
+              className="w-fit max-w-full rounded border border-slate-300 px-3 py-2"
             >
               <option value="COMPETENCY">역량평가 (항목별 1~5점)</option>
               <option value="PERFORMANCE">

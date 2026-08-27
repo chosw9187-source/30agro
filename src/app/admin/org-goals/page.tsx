@@ -846,7 +846,7 @@ export default async function OrgGoalsAdminPage({
                   </ActionForm>
                   <Link
                     href={cycleHref(c.id)}
-                    className="text-xs text-brand-green-dark hover:underline"
+                    className="inline-block py-1 text-xs text-brand-green-dark hover:underline sm:py-0"
                   >
                     이 사이클 열기
                   </Link>
