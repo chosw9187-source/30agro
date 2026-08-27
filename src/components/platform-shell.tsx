@@ -84,7 +84,7 @@ export async function PlatformShell({
         로고 머리글보다 위로 올라갈 수가 없다.
       */}
       <RouteOnly prefix="/platform/evaluation2">
-        <EvaluateeBanner userId={user.id} />
+        <EvaluateeBanner userId={user.id} className="hidden md:block" />
       </RouteOnly>
       <div className="flex min-w-0 flex-1 md:min-h-0 md:overflow-hidden">
         <input type="checkbox" id="mobile-nav-toggle" className="peer hidden" />
@@ -110,9 +110,11 @@ export async function PlatformShell({
         />
         <div className="flex min-w-0 flex-1 flex-col md:min-h-0">
           {/*
-            평가2에서는 초록 띠가 머리글을 겸한다 — 로고 줄까지 두면 같은 자리에
-            띠가 둘이라 본문이 그만큼 밀린다. 서랍 메뉴 단추와 「관리자에게
-            문의하기」는 띠 안으로 옮겨 두었다.
+            넓은 화면의 평가2에서는 초록 띠가 머리글을 겸한다 — 로고 줄까지 두면
+            같은 자리에 띠가 둘이라 본문이 그만큼 밀린다. 좁은 화면에서는 로고
+            줄을 그대로 두고 그 아래에 띠를 넣는다(바로 다음). 손에 쥔 화면에서는
+            띠가 맨 위를 다 차지하는 것보다, 늘 있던 로고 줄이 먼저 오는 편이
+            어느 앱인지 헷갈리지 않는다.
           */}
           <RouteOnly prefix="/platform/evaluation2" invert>
             <header className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 text-sm md:px-8">
@@ -138,6 +140,28 @@ export async function PlatformShell({
                 <span className="sm:hidden">문의</span>
               </Link>
             </header>
+          </RouteOnly>
+          <RouteOnly prefix="/platform/evaluation2">
+            <header className="flex items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 text-sm md:hidden">
+              <div className="flex min-w-0 items-center gap-3">
+                <label
+                  htmlFor="mobile-nav-toggle"
+                  aria-label="메뉴 열기"
+                  className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded border border-slate-300 text-lg text-slate-700"
+                >
+                  ☰
+                </label>
+                <CompanyLogo className="h-9" />
+              </div>
+              <Link
+                href="/platform/support"
+                className="shrink-0 rounded border border-slate-300 px-3 py-1.5 whitespace-nowrap text-slate-700 hover:border-brand-green hover:text-brand-green"
+              >
+                문의
+              </Link>
+            </header>
+            {/* 좁은 화면의 띠 — 로고 줄과 「연도 · 목표」 사이. */}
+            <EvaluateeBanner userId={user.id} className="md:hidden" />
           </RouteOnly>
           <main className="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:min-h-0 md:px-8 md:py-8">
             {children}
