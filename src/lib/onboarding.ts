@@ -105,7 +105,7 @@ export function kstDayKey(d: Date): string {
  */
 export async function canCoordinateSessions(userId: string): Promise<boolean> {
   const assigned = await prisma.onboardingSession.count({
-    where: { kind: "LECTURE", instructorId: userId },
+    where: { instructorId: userId },
   });
   if (assigned > 0) return true;
 
@@ -113,7 +113,7 @@ export async function canCoordinateSessions(userId: string): Promise<boolean> {
   if (ledTeams.length === 0) return false;
 
   const teamAssigned = await prisma.onboardingSession.count({
-    where: { kind: "LECTURE", instructorTeamId: { in: ledTeams.map((t) => t.id) } },
+    where: { instructorTeamId: { in: ledTeams.map((t) => t.id) } },
   });
   return teamAssigned > 0;
 }

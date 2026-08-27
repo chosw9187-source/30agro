@@ -73,7 +73,6 @@ export async function ProgramManagementSection({
     prisma.onboardingSession.findMany({
       where: {
         programId,
-        kind: "LECTURE",
         ...(isAdmin
           ? {}
           : {

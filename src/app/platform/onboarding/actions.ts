@@ -211,7 +211,7 @@ export async function deleteProgram(programId: string) {
 
 /* ------------------------------------------------------------- 일정 편성 */
 
-/** 한 강사가 같은 시간에 두 강의를 맡지 않도록. 쉬는 시간은 강사가 없다. */
+/** 한 강사가 같은 시간에 두 강의를 맡지 않도록. */
 async function assertNoInstructorOverlap(
   instructorId: string,
   startAt: Date,
@@ -237,7 +237,7 @@ async function assertNoInstructorOverlap(
 /**
  * 관리자가 시간표 한 칸의 가이드라인을 만든다. 분 단위까지 정하지 않고 "그 날
  * 오전" 정도만 잡아 두면, 배정된 강사가 되는지 답하고 관리자가 마지막에 실제
- * 시각을 짠다. 쉬는 시간은 물어볼 사람이 없어 만들자마자 확정 상태로 둔다.
+ * 시각을 짠다.
  */
 export async function createSession(formData: FormData) {
   return run(async () => {
@@ -245,24 +245,17 @@ export async function createSession(formData: FormData) {
 
     const programId = text(formData, "programId");
     const title = text(formData, "title");
-    const isBreak = text(formData, "kind") === "BREAK";
     const slot = readSlot(formData, "slot");
 
     if (!programId) fail("기수를 먼저 선택해 주세요.");
-    if (!title) fail(isBreak ? "쉬는 시간 이름을 입력해 주세요." : "과정명을 입력해 주세요.");
+    if (!title) fail("과정명을 입력해 주세요.");
 
     const { startAt, endAt } = slotPlaceholderTimes(formData.get("date"), slot);
-
-    const { instructorId, instructorTeamId } = isBreak
-      ? { instructorId: null, instructorTeamId: null }
-      : await readAssignment(formData);
+    const { instructorId, instructorTeamId } = await readAssignment(formData);
 
     const created = await prisma.onboardingSession.create({
       data: {
         programId,
-        kind: isBreak ? "BREAK" : "LECTURE",
-        status: isBreak ? "CONFIRMED" : "PLANNED",
-        confirmedAt: isBreak ? new Date() : null,
         title,
         description: text(formData, "description") || null,
         location: text(formData, "location") || null,
@@ -303,20 +296,16 @@ export async function updateSession(sessionId: string, formData: FormData) {
 
     const target = await prisma.onboardingSession.findUnique({
       where: { id: sessionId },
-      select: { kind: true, status: true, instructorId: true, instructorTeamId: true },
+      select: { status: true, instructorId: true, instructorTeamId: true },
     });
     if (!target) fail("일정을 찾을 수 없습니다.");
 
     const title = text(formData, "title");
     if (!title) fail("과정명을 입력해 주세요.");
 
-    const isBreak = target.kind === "BREAK";
     const slot = readSlot(formData, "slot");
     const { startAt, endAt } = slotPlaceholderTimes(formData.get("date"), slot);
-
-    const { instructorId, instructorTeamId } = isBreak
-      ? { instructorId: null, instructorTeamId: null }
-      : await readAssignment(formData);
+    const { instructorId, instructorTeamId } = await readAssignment(formData);
 
     // 아직 확정 전이라면 시각은 가이드라인 자리표시로 되돌린다. 확정된 뒤에는
     // 관리자가 짜 둔 실제 시각을 덮어쓰지 않는다.
@@ -381,7 +370,6 @@ async function requireResponder(sessionId: string, userId: string, isAdmin: bool
     select: {
       id: true,
       title: true,
-      kind: true,
       status: true,
       slot: true,
       startAt: true,
@@ -392,7 +380,6 @@ async function requireResponder(sessionId: string, userId: string, isAdmin: bool
     },
   });
   if (!target) fail("일정을 찾을 수 없습니다.");
-  if (target.kind === "BREAK") fail("쉬는 시간은 관리자만 다룹니다.");
   if (target.status === "CONFIRMED") fail("이미 확정된 강의입니다. 변경이 필요하면 관리자에게 요청해 주세요.");
 
   if (isAdmin) return target;
@@ -517,10 +504,9 @@ export async function unconfirmSession(sessionId: string) {
     await requireRole("ADMIN");
     const target = await prisma.onboardingSession.findUnique({
       where: { id: sessionId },
-      select: { title: true, instructorId: true, kind: true },
+      select: { title: true, instructorId: true },
     });
     if (!target) fail("일정을 찾을 수 없습니다.");
-    if (target.kind === "BREAK") fail("쉬는 시간은 확정 해제 대상이 아닙니다.");
 
     await prisma.onboardingSession.update({
       where: { id: sessionId },
@@ -552,7 +538,6 @@ export async function designateTeamInstructor(sessionId: string, formData: FormD
       where: { id: sessionId },
       select: {
         title: true,
-        kind: true,
         status: true,
         slot: true,
         startAt: true,
@@ -561,7 +546,6 @@ export async function designateTeamInstructor(sessionId: string, formData: FormD
       },
     });
     if (!target) fail("일정을 찾을 수 없습니다.");
-    if (target.kind === "BREAK") fail("쉬는 시간에는 강사를 지정하지 않습니다.");
     if (!target.instructorTeamId) fail("부서에 배정된 강의가 아닙니다.");
     if (target.status === "CONFIRMED") fail("이미 확정된 강의입니다. 관리자에게 요청해 주세요.");
 

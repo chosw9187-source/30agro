@@ -34,7 +34,6 @@ export function finalHref(opts: {
 
 type FinalSession = {
   id: string;
-  kind: "LECTURE" | "BREAK";
   title: string;
   description: string | null;
   location: string | null;
@@ -56,18 +55,12 @@ function instructorLabel(s: FinalSession): string {
   return "미정";
 }
 
-/** 쉬는 시간은 강사도 대상자도 없다 — 시간표에 자리만 차지한다. */
-function isBreak(s: FinalSession) {
-  return s.kind === "BREAK";
-}
-
 
 type Trainee = { id: string; userId: string; user: { name: string; team: { name: string } | null } };
 
 /** 달력 칩 색 — 지난 일정 / 내가 참석할 일정 / 그 밖의 일정. */
 function chipTone(s: FinalSession, mine: boolean, now: Date) {
   if (s.endAt <= now) return "border-slate-300 bg-slate-100 text-slate-400";
-  if (isBreak(s)) return "border-slate-200 bg-slate-50 text-slate-500";
   return mine
     ? "border-brand-green bg-brand-green-light text-brand-green-dark"
     : "border-slate-300 bg-white text-slate-600";
@@ -118,7 +111,6 @@ export async function FinalScheduleSection({
       orderBy: { startAt: "asc" },
       select: {
         id: true,
-        kind: true,
         title: true,
         description: true,
         location: true,
@@ -140,16 +132,14 @@ export async function FinalScheduleSection({
   // 있는 것을 "전원 대상"으로 읽는다.
   const audienceOf = (s: FinalSession): Trainee[] =>
     s.attendees.length === 0 ? trainees : trainees.filter((t) => s.attendees.some((a) => a.traineeId === t.id));
-  // 쉬는 시간은 "내 교육"으로 세지 않는다 — 참석 건수에 섞이면 몇 개를
-  // 들어야 하는지가 흐려진다.
   const isForMe = (s: FinalSession) =>
-    !isBreak(s) && !!myTrainee && audienceOf(s).some((t) => t.id === myTrainee.id);
+    !!myTrainee && audienceOf(s).some((t) => t.id === myTrainee.id);
 
   const myCount = myTrainee ? sessions.filter(isForMe).length : 0;
   // 가장 자주 필요한 정보는 "다음에 내가 어디로 가면 되는지" 한 줄이다.
   const nextForMe = myTrainee ? sessions.find((s) => isForMe(s) && s.endAt > new Date()) ?? null : null;
   const shown = onlyMine && myTrainee ? sessions.filter(isForMe) : sessions;
-  const lectureCount = sessions.filter((s) => !isBreak(s)).length;
+  const lectureCount = sessions.length;
 
   const now = new Date();
   const todayKey = kstDayKey(now);
@@ -396,16 +386,10 @@ function DayList({
                       )}
                     </p>
                     <p className="mt-0.5 text-xs text-slate-500">
-                      {isBreak(s) ? (
-                        "쉬는 시간"
-                      ) : (
-                        <>
-                          {s.location ?? "장소 미정"} ·{" "}
-                          <span className="text-slate-700">강사 {instructorLabel(s)}</span>
-                          {" · "}
-                          {s.attendees.length === 0 ? "기수 전원" : `지정 ${s.attendees.length}명`}
-                        </>
-                      )}
+                      {s.location ?? "장소 미정"} ·{" "}
+                      <span className="text-slate-700">강사 {instructorLabel(s)}</span>
+                      {" · "}
+                      {s.attendees.length === 0 ? "기수 전원" : `지정 ${s.attendees.length}명`}
                     </p>
                   </div>
                 </Link>
@@ -464,7 +448,7 @@ function SessionDetail({
           <dt className="text-xs font-medium text-slate-500">교육 장소</dt>
           <dd className="mt-0.5 text-sm text-slate-800">{session.location ?? "미정"}</dd>
         </div>
-        <div className={isBreak(session) ? "hidden" : ""}>
+        <div>
           <dt className="text-xs font-medium text-slate-500">강사</dt>
           <dd className="mt-0.5 text-sm">
             {session.instructor ? (
@@ -486,7 +470,7 @@ function SessionDetail({
         </div>
       </dl>
 
-      <div className={`mt-4 border-t border-slate-100 pt-4 ${isBreak(session) ? "hidden" : ""}`}>
+      <div className="mt-4 border-t border-slate-100 pt-4">
         <p className="text-xs font-medium text-slate-500">
           교육 대상자 {audience.length}명
           <span className="ml-1 font-normal text-slate-400">

@@ -65,7 +65,7 @@ function TabLink({ tab, active, programId }: { tab: (typeof TABS)[number]; activ
 /* --------------------------------------------------------------- 일정 관리 */
 
 /**
- * 관리자 전용. 기수를 만들고, 시간표의 틀(강의·쉬는 시간)을 짜고, 교육
+ * 관리자 전용. 기수를 만들고, 교육 일정의 틀을 짜고, 교육
  * 대상자 명단을 관리한다. 강의 담당은 사람으로 직접 지정하거나 부서에 맡기고,
  * 부서에 맡긴 경우 누가 할지는 그 부서 팀장이 [교육 프로그램 관리]에서 정한다.
  */
@@ -104,7 +104,6 @@ async function ManageSection({ programId }: { programId: string | null }) {
           orderBy: { startAt: "asc" },
           select: {
             id: true,
-            kind: true,
             status: true,
             title: true,
             description: true,
@@ -372,8 +371,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
             <h2 className="text-lg font-semibold text-slate-800">교육 일정 편성</h2>
             <p className="mt-1 text-sm text-slate-600">
               전체 일정의 틀을 잡습니다. 강의는 담당 강사를 정해 두면 그 강사가 [교육 프로그램 관리]에서 최소 시간
-              안에서 시간을 조정해 보내고, 관리자가 확정하면 [최종 스케줄]에 나타납니다. 쉬는 시간은 등록 즉시
-              확정됩니다.
+              안에서 가능 여부를 답하고, 관리자가 실제 시각을 정해 확정하면 [최종 스케줄]에 나타납니다.
             </p>
             <ActionForm
               action={createSession}
@@ -384,13 +382,6 @@ async function ManageSection({ programId }: { programId: string | null }) {
               <div className="sm:col-span-2">
                 <label className={LABEL_CLASS}>과정명</label>
                 <input name="title" required placeholder="예: 회사 소개 / 점심 시간" className={INPUT_CLASS} />
-              </div>
-              <div>
-                <label className={LABEL_CLASS}>구분</label>
-                <select name="kind" defaultValue="LECTURE" className={INPUT_CLASS}>
-                  <option value="LECTURE">강의</option>
-                  <option value="BREAK">쉬는 시간</option>
-                </select>
               </div>
               <AssignFields
                 instructorOptions={employeeOptions}
@@ -435,13 +426,11 @@ async function ManageSection({ programId }: { programId: string | null }) {
             ) : (
               sessions.map((s) => {
                 const start = toKSTInputValues(s.startAt);
-                const isBreak = s.kind === "BREAK";
                 return (
                   <div key={s.id} className="rounded-lg border border-slate-200 bg-white p-4">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <p className="font-medium text-slate-800">
-                          {isBreak && <span className="mr-1 text-slate-400">[쉬는 시간]</span>}
                           {s.title} <StatusBadge status={s.status as SessionStatus} />
                         </p>
                         <p className="text-xs text-slate-500">
@@ -451,13 +440,11 @@ async function ManageSection({ programId }: { programId: string | null }) {
                             : `${SLOT_LABEL[s.slot as Slot]} (시각 미확정)`}
                           {s.location && ` · ${s.location}`}
                         </p>
-                        {!isBreak && (
-                          <p className="mt-0.5 text-xs text-slate-500">
-                            담당 {s.instructor?.name ?? (s.instructorTeam ? `${s.instructorTeam.name} (강사 미지정)` : "미배정")}{" "}
-                            ·{" "}
-                            {s.attendees.length === 0 ? "교육생 전원" : `교육생 ${s.attendees.length}명 지정`}
-                          </p>
-                        )}
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          담당 {s.instructor?.name ?? (s.instructorTeam ? `${s.instructorTeam.name} (강사 미지정)` : "미배정")}{" "}
+                          ·{" "}
+                          {s.attendees.length === 0 ? "교육생 전원" : `교육생 ${s.attendees.length}명 지정`}
+                        </p>
                       </div>
                       <ActionForm
                         action={deleteSession.bind(null, s.id)}
@@ -481,16 +468,14 @@ async function ManageSection({ programId }: { programId: string | null }) {
                           <label className={LABEL_CLASS}>과정명</label>
                           <input name="title" required defaultValue={s.title} className={INPUT_CLASS} />
                         </div>
-                        {!isBreak && (
-                          <AssignFields
-                            instructorOptions={employeeOptions}
-                            teamOptions={teamOptions}
-                            defaultInstructorId={s.instructorId ?? ""}
-                            defaultTeamId={s.instructorTeamId ?? ""}
-                            inputClassName={INPUT_CLASS}
-                            labelClassName={LABEL_CLASS}
-                          />
-                        )}
+                        <AssignFields
+                          instructorOptions={employeeOptions}
+                          teamOptions={teamOptions}
+                          defaultInstructorId={s.instructorId ?? ""}
+                          defaultTeamId={s.instructorTeamId ?? ""}
+                          inputClassName={INPUT_CLASS}
+                          labelClassName={LABEL_CLASS}
+                        />
                         <div>
                           <label className={LABEL_CLASS}>날짜</label>
                           <input type="date" name="date" required defaultValue={start.date} className={INPUT_CLASS} />
@@ -524,7 +509,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
                       </ActionForm>
                     </details>
 
-                    {!isBreak && trainees.length > 0 && (
+                    {trainees.length > 0 && (
                       <details className="mt-2">
                         <summary className="cursor-pointer text-xs text-brand-green-dark">참석 대상 지정</summary>
                         <ActionForm
