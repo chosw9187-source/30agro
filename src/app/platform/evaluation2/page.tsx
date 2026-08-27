@@ -847,9 +847,7 @@ export default async function Evaluation2Page({
   function cycleBar() {
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
-        <span className="hidden text-xs font-medium text-slate-500 sm:inline">
-          연도 · 목표
-        </span>
+        <span className="text-xs font-medium text-slate-500">연도 · 목표</span>
         {cycles.length > 0 ? (
           <YearPhaseSelect
             years={years.map((y) => ({ value: String(y), label: `${y}년` }))}
@@ -2886,22 +2884,15 @@ export default async function Evaluation2Page({
       <AutoRefresh />
 
       {/*
-        무엇을 보는지 고르는 두 줄은 본문 위에 붙여 둔다 — 인사평가 선택이 먼저,
-        층 선택 탭이 그 아래.
+        인사평가 선택이 먼저, 층 선택 탭이 그 아래.
 
-        목록이 길어서 조금만 내려도 이 두 줄이 화면 밖으로 나갔는데, 그러면 다른
-        해로 옮기거나 팀목표로 건너뛰려고 매번 맨 위까지 되돌아가야 했다. 지금
-        보는 자리가 어디인지도 함께 사라졌다.
-
-        붙는 자리는 본문 스크롤 영역(<main>)의 위쪽이라, 위에 있는 로고 줄과 본인
-        띠의 높이를 픽셀로 맞출 필요가 없다. 좌우 여백을 음수 마진으로 도로
-        빼내어 띠가 본문 폭을 가득 덮게 한다 — 그래야 밑으로 지나가는 카드가
-        가장자리로 비어져 나오지 않는다.
+        본문 위에 붙여 두었더니(sticky) 밑을 지나가는 도넛과 표가 이 두 줄에
+        가려 반쯤 잘려 보였다. 늘 보이는 것은 위쪽 띠 하나로 충분하고, 나머지는
+        평범하게 함께 굴러야 «가려진 것이 있나» 의심할 일이 없다.
       */}
-      <div className="sticky -top-6 z-20 -mx-4 -mt-6 flex flex-col gap-3 bg-slate-50 px-4 pt-6 pb-3 md:-top-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-8">
-        {cycleBar()}
-        {tabBar()}
-      </div>
+      {cycleBar()}
+
+      {tabBar()}
 
       {/* 마감 안내 — 왜 수정 버튼이 사라졌는지 화면에서 바로 읽히게 한다. */}
       {lock.message && (
