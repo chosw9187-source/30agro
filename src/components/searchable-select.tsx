@@ -54,6 +54,18 @@ export function SearchableSelect({
           setValue("");
           setOpen(true);
         }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setOpen(false);
+            return;
+          }
+          if (e.key !== "Enter" || !open) return;
+          // 검색 중의 엔터는 폼 제출이 아니라 "첫 후보 선택"이어야 한다.
+          // 이름을 치고 엔터를 누르면 아무것도 고르지 않은 채 폼이 제출돼
+          // "직원을 선택해 주세요"만 돌아왔다.
+          e.preventDefault();
+          if (filtered.length > 0) select(filtered[0]);
+        }}
         className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
       />
       {open && (
