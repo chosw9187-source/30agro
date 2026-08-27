@@ -637,12 +637,6 @@ model PageView {
   @@index([userId, createdAt])
 }
 
-/** 쉬는 시간도 시간표의 한 칸이라 같은 표에 담되, 강사·대상자는 없다. */
-enum OnboardingSessionKind {
-  LECTURE
-  BREAK
-}
-
 /**
  * 일정 한 칸의 진행 상태. 관리자가 틀을 잡으면 PLANNED, 배정된 강사가
  * 시간을 조정해 보내면 SUBMITTED, 관리자가 확정하면 CONFIRMED가 되고 그때
@@ -686,15 +680,14 @@ model OnboardingProgram {
 }
 
 /**
- * 시간표의 한 칸. 관리자가 "언제쯤 · 몇 분 이상 · 누가" 라는 틀만 잡아 두면,
- * 배정된 강사가 그 틀 안에서 실제 날짜와 시간을 정해 보내고, 관리자가
- * 확정한다. 확정된 칸만 [최종 스케줄]에 나간다.
+ * 시간표의 한 칸. 관리자가 "이 날 오전에 이 강의를" 정도의 틀만 잡아 두면,
+ * 배정된 강사가 가능 여부를 답하고, 관리자가 실제 시각을 정해 확정한다.
+ * 확정된 칸만 [최종 스케줄]에 나간다.
  */
 model OnboardingSession {
   id          String                @id @default(cuid())
   programId   String
   program     OnboardingProgram     @relation(fields: [programId], references: [id], onDelete: Cascade)
-  kind        OnboardingSessionKind @default(LECTURE)
   status      OnboardingSessionStatus @default(PLANNED)
   title       String
   description String?
@@ -705,8 +698,8 @@ model OnboardingSession {
   // 관리자가 주는 가이드라인 — 이 날 이 시간대에 해 달라는 정도까지만.
   slot OnboardingSlot @default(MORNING)
 
-  // 이 칸을 맡은 강사. 쉬는 시간에는 없다. 강사는 본인에게 배정된 칸만
-  // 고칠 수 있으므로, 권한 판단의 기준이기도 하다.
+  // 이 칸을 맡은 강사. 강사는 본인에게 배정된 칸에만 답할 수 있으므로,
+  // 권한 판단의 기준이기도 하다.
   instructorId String?
   instructor   User?   @relation("OnboardingSessionInstructor", fields: [instructorId], references: [id])
 
