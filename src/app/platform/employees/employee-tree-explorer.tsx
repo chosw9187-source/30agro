@@ -29,7 +29,7 @@ export type EmployeeLite = {
 };
 
 type UnitNode = { name: string; divisions: DivisionNode[]; directTeams: TeamLite[]; directEmployees: EmployeeLite[] };
-type DivisionNode = { name: string; teams: TeamLite[]; directEmployees: EmployeeLite[] };
+type DivisionNode = { name: string; teams: TeamLite[] };
 
 const UNIT_ORDER_PRIORITY = ["제품사업", "연구생산", "재무경영관리"];
 
@@ -99,7 +99,7 @@ export function EmployeeTreeExplorerProvider({
     function ensureDivision(u: UnitNode, name: string) {
       let d = u.divisions.find((x) => x.name === name);
       if (!d) {
-        d = { name, teams: [], directEmployees: [] };
+        d = { name, teams: [] };
         u.divisions.push(d);
       }
       return d;
@@ -109,11 +109,10 @@ export function EmployeeTreeExplorerProvider({
       else if (t.businessUnit) ensureUnit(t.businessUnit).directTeams.push(t);
       else rootTeams.push(t);
     }
-    // 팀이 없는 임원급(예: 이사)은 본인의 사업부/구분 필드로 트리에 직접 배치한다.
+    // 팀이 없는 임원급(예: 이사)은 구분과 무관하게 본인 사업부 바로 아래에 배치한다.
     for (const e of employees) {
       if (e.teamId) continue;
-      if (e.businessUnit && e.division) ensureDivision(ensureUnit(e.businessUnit), e.division).directEmployees.push(e);
-      else if (e.businessUnit) ensureUnit(e.businessUnit).directEmployees.push(e);
+      if (e.businessUnit) ensureUnit(e.businessUnit).directEmployees.push(e);
     }
     const priority = (name: string) => {
       const idx = UNIT_ORDER_PRIORITY.indexOf(name);
@@ -285,12 +284,11 @@ function UnitNodeView({ u }: { u: UnitNode }) {
   const [open, setOpen] = useState(true);
   function unitEmpIds() {
     const ids: string[] = [];
+    ids.push(...u.directEmployees.map((e) => e.id));
     u.divisions.forEach((d) => {
       d.teams.forEach((t) => ids.push(...(employeesByTeam.get(t.id) ?? []).map((e) => e.id)));
-      ids.push(...d.directEmployees.map((e) => e.id));
     });
     u.directTeams.forEach((t) => ids.push(...(employeesByTeam.get(t.id) ?? []).map((e) => e.id)));
-    ids.push(...u.directEmployees.map((e) => e.id));
     return ids;
   }
   const uIds = unitEmpIds();
@@ -308,14 +306,14 @@ function UnitNodeView({ u }: { u: UnitNode }) {
       </div>
       {open && (
         <div>
+          {u.directEmployees.map((e) => (
+            <PersonRow key={e.id} e={e} childClass="pl-4" />
+          ))}
           {u.divisions.map((d) => (
             <DivisionNodeView key={`${u.name}/${d.name}`} d={d} />
           ))}
           {u.directTeams.map((t) => (
             <TeamNode key={t.id} t={t} rowClass="pl-4" childClass="pl-9" />
-          ))}
-          {u.directEmployees.map((e) => (
-            <PersonRow key={e.id} e={e} childClass="pl-4" />
           ))}
         </div>
       )}
@@ -326,7 +324,7 @@ function UnitNodeView({ u }: { u: UnitNode }) {
 function DivisionNodeView({ d }: { d: DivisionNode }) {
   const { employeesByTeam } = useTreeExplorer();
   const [open, setOpen] = useState(true);
-  const dIds = [...d.teams.flatMap((t) => (employeesByTeam.get(t.id) ?? []).map((e) => e.id)), ...d.directEmployees.map((e) => e.id)];
+  const dIds = d.teams.flatMap((t) => (employeesByTeam.get(t.id) ?? []).map((e) => e.id));
   return (
     <div>
       <div className="flex items-center gap-1.5 rounded py-1.5 pl-4 pr-2 font-medium hover:bg-slate-100">
@@ -343,9 +341,6 @@ function DivisionNodeView({ d }: { d: DivisionNode }) {
         <div>
           {d.teams.map((t) => (
             <TeamNode key={t.id} t={t} rowClass="pl-8" childClass="pl-[52px]" />
-          ))}
-          {d.directEmployees.map((e) => (
-            <PersonRow key={e.id} e={e} childClass="pl-8" />
           ))}
         </div>
       )}
