@@ -52,7 +52,7 @@ type FinalSession = {
  */
 function instructorLabel(s: FinalSession): string {
   if (s.instructor) return s.instructor.name;
-  if (s.instructorTeam) return `${s.instructorTeam.name} (담당자 당일 지정)`;
+  if (s.instructorTeam) return `${s.instructorTeam.name} (강사 미지정)`;
   return "미정";
 }
 
@@ -477,7 +477,7 @@ function SessionDetail({
             ) : session.instructorTeam ? (
               <span className="text-slate-800">
                 {session.instructorTeam.name}
-                <span className="ml-1 text-xs text-slate-400">담당자 당일 지정</span>
+                <span className="ml-1 text-xs text-slate-400">강사 미지정</span>
               </span>
             ) : (
               <span className="text-slate-400">-</span>

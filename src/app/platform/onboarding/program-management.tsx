@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { activePrismaWhere } from "@/lib/hr-analytics";
 import { ActionForm } from "@/components/action-form";
 import {
   SESSION_STATUS_BADGE_CLASS,
@@ -11,7 +12,8 @@ import {
   toKSTInputValues,
   type SessionStatus,
 } from "@/lib/onboarding";
-import { confirmSession, saveSessionDetail, unconfirmSession } from "./actions";
+import { SearchableSelect } from "@/components/searchable-select";
+import { confirmSession, designateTeamInstructor, saveSessionDetail, unconfirmSession } from "./actions";
 import { EmptyBox, INPUT_CLASS, LABEL_CLASS, PRIMARY_BUTTON_CLASS, programPeriod } from "./ui";
 
 export function StatusBadge({ status }: { status: SessionStatus }) {
@@ -42,13 +44,15 @@ export async function ProgramManagementSection({
 }) {
   if (!programId) return <EmptyBox>등록된 온보딩 기수가 없습니다.</EmptyBox>;
 
-  // 부서에 배정된 강의는 담당자가 아직 없으므로, 본인 팀에 걸린 것도 함께
-  // 보여야 그중 하나를 잡을 수 있다.
-  const me = await prisma.user.findUnique({
-    where: { id: viewerId },
-    select: { teamId: true, name: true },
+  // 부서에 배정된 강의는 담당 강사를 그 부서 팀장이 정한다. 그래서 팀장에게는
+  // 본인이 맡은 강의뿐 아니라 본인이 이끄는 팀에 걸린 강의도 보여야 한다.
+  const ledTeams = await prisma.team.findMany({
+    where: { leaderId: viewerId },
+    select: { id: true, name: true, members: { where: activePrismaWhere(), orderBy: { name: "asc" },
+      select: { id: true, name: true, employeeNumber: true } } },
   });
-  const viewerName = me?.name ?? "본인";
+  const ledTeamIds = ledTeams.map((t) => t.id);
+  const membersByTeam = new Map(ledTeams.map((t) => [t.id, t.members]));
 
   const [program, sessions] = await Promise.all([
     prisma.onboardingProgram.findUnique({
@@ -64,8 +68,8 @@ export async function ProgramManagementSection({
           : {
               OR: [
                 { instructorId: viewerId },
-                // 아직 아무도 안 잡은 우리 부서 강의
-                ...(me?.teamId ? [{ instructorTeamId: me.teamId, instructorId: null }] : []),
+                // 내가 팀장인 부서에 배정된 강의 — 강사를 지정해야 한다.
+                ...(ledTeamIds.length ? [{ instructorTeamId: { in: ledTeamIds } }] : []),
               ],
             }),
       },
@@ -106,7 +110,9 @@ export async function ProgramManagementSection({
         <p className="mt-2 text-sm text-slate-600">
           {isAdmin
             ? "강사가 보내온 시간을 확인하고 확정합니다. 확정한 일정만 [최종 스케줄]에 나타납니다."
-            : "배정된 강의의 날짜·시간을 정하고 의견을 남긴 뒤 [관리자에게 전송]을 눌러 주세요."}
+            : ledTeams.length > 0
+              ? "부서에 배정된 강의는 담당 강사를 지정해 주세요. 본인이 맡은 강의는 날짜·시간을 정한 뒤 [관리자에게 전송]을 눌러 주세요."
+              : "배정된 강의의 날짜·시간을 정하고 의견을 남긴 뒤 [관리자에게 전송]을 눌러 주세요."}
         </p>
         {isAdmin && waiting.length > 0 && (
           <p className="mt-3 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">
@@ -126,11 +132,12 @@ export async function ProgramManagementSection({
           const start = toKSTInputValues(s.startAt);
           const end = toKSTInputValues(s.endAt);
           const mine = s.instructorId === viewerId;
-          // 부서 배정인데 아직 아무도 이름을 걸지 않았으면 그 부서 사람이 잡을
-          // 수 있다 — 전송하는 순간 그 사람이 담당이 된다.
-          const openToMyTeam = !s.instructorId && !!s.instructorTeamId && s.instructorTeamId === me?.teamId;
           const locked = s.status === "CONFIRMED";
-          const editable = (mine || openToMyTeam) && !locked;
+          const editable = mine && !locked;
+          // 내가 팀장인 부서에 배정된 강의면 담당 강사를 지정할 수 있다.
+          const canDesignate =
+            !locked && !!s.instructorTeamId && (isAdmin || ledTeamIds.includes(s.instructorTeamId));
+          const teamMembers = s.instructorTeamId ? membersByTeam.get(s.instructorTeamId) ?? [] : [];
           // 건수가 늘어나면 날짜 경계가 보여야 순서가 읽힌다.
           const newDay = i === 0 || kstDayKey(s.startAt) !== kstDayKey(sessions[i - 1].startAt);
 
@@ -160,7 +167,7 @@ export async function ProgramManagementSection({
                     ) : s.instructorTeam ? (
                       <>
                         담당 {s.instructorTeam.name}
-                        <span className="ml-1 text-slate-400">— 되는 사람이 맡습니다</span>
+                        <span className="ml-1 text-slate-400">— 강사 미지정</span>
                       </>
                     ) : (
                       "담당 미배정"
@@ -196,6 +203,43 @@ export async function ProgramManagementSection({
                 )}
               </div>
 
+              {canDesignate && (
+                <div className="mt-3 rounded border border-blue-200 bg-blue-50 p-3">
+                  <p className="text-xs font-medium text-blue-800">
+                    {s.instructorId ? "담당 강사 변경" : "담당 강사 지정"}
+                    <span className="ml-1 font-normal text-blue-700">
+                      — {s.instructorTeam?.name}에 배정된 강의입니다. 이번에 강의할 분을 정해 주세요.
+                    </span>
+                  </p>
+                  <ActionForm
+                    action={designateTeamInstructor.bind(null, s.id)}
+                    className="mt-2 flex flex-wrap items-end gap-3"
+                    successMessage="담당 강사를 지정했습니다. 관리자에게도 알림이 갔습니다."
+                  >
+                    <div className="min-w-[14rem]">
+                      <label className={LABEL_CLASS}>강사</label>
+                      <SearchableSelect
+                        name="instructorId"
+                        options={teamMembers.map((m) => ({
+                          value: m.id,
+                          label: m.name,
+                          sublabel: m.employeeNumber,
+                        }))}
+                        defaultValue={s.instructorId ?? ""}
+                        placeholder="팀원 검색..."
+                        emptyLabel="선택 안 함"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="rounded bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark"
+                    >
+                      {s.instructorId ? "변경" : "지정"}
+                    </button>
+                  </ActionForm>
+                </div>
+              )}
+
               {s.instructorNote && (
                 <p className="mt-3 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
                   강사 의견: {s.instructorNote}
@@ -221,12 +265,6 @@ export async function ProgramManagementSection({
                       <span className="font-bold text-red-600">아직 시간이 조율되지 않았습니다.</span>
                     )}
                   </p>
-                  {openToMyTeam && (
-                    <p className="mt-2 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-                      부서에 배정된 강의입니다. 전송하면 {viewerName}님이 담당 강사로 확정되며, 그 뒤에는 같은 부서의
-                      다른 분이 시간을 바꿀 수 없습니다.
-                    </p>
-                  )}
                   <p className="mt-2 text-xs font-medium text-slate-600">세부일정</p>
                   <ActionForm
                     action={saveSessionDetail.bind(null, s.id)}

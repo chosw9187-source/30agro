@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
-import { checkModuleAccess, POSITION_LABEL, type Position } from "@/lib/permissions";
+import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { SearchableSelect } from "@/components/searchable-select";
 import { ActionForm } from "@/components/action-form";
@@ -11,20 +11,17 @@ import {
   formatDuration,
   formatSessionDay,
   formatSessionTimeRange,
-  isActiveInstructor,
+  canCoordinateSessions,
   toKSTInputValues,
   type SessionStatus,
 } from "@/lib/onboarding";
 import {
   addTrainee,
   addTraineesBulk,
-  assignInstructor,
-  assignTeamInstructors,
   createProgram,
   createSession,
   deleteProgram,
   deleteSession,
-  removeInstructor,
   removeTrainee,
   setSessionAudience,
   toggleProgramActive,
@@ -67,12 +64,12 @@ function TabLink({ tab, active, programId }: { tab: (typeof TABS)[number]; activ
 /* --------------------------------------------------------------- 일정 관리 */
 
 /**
- * 관리자 전용. 기수를 만들고, 시간표의 틀(강의·쉬는 시간)을 짜고, 교육생
- * 명단과 강사 명단을 관리한다. 실제 시간 조율은 [교육 프로그램 관리]에서
- * 강사와 주고받는다.
+ * 관리자 전용. 기수를 만들고, 시간표의 틀(강의·쉬는 시간)을 짜고, 교육
+ * 대상자 명단을 관리한다. 강의 담당은 사람으로 직접 지정하거나 부서에 맡기고,
+ * 부서에 맡긴 경우 누가 할지는 그 부서 팀장이 [교육 프로그램 관리]에서 정한다.
  */
 async function ManageSection({ programId }: { programId: string | null }) {
-  const [programs, employees, teams, instructors] = await Promise.all([
+  const [programs, employees, teams] = await Promise.all([
     prisma.onboardingProgram.findMany({
       orderBy: [{ active: "desc" }, { createdAt: "desc" }],
       select: {
@@ -94,18 +91,6 @@ async function ManageSection({ programId }: { programId: string | null }) {
       where: { active: true },
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       select: { id: true, name: true, division: true, _count: { select: { members: true } } },
-    }),
-    prisma.onboardingInstructor.findMany({
-      where: { active: true },
-      orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        specialty: true,
-        note: true,
-        user: {
-          select: { id: true, name: true, employeeNumber: true, position: true, team: { select: { name: true } } },
-        },
-      },
     }),
   ]);
 
@@ -146,12 +131,6 @@ async function ManageSection({ programId }: { programId: string | null }) {
       ])
     : [[], []];
 
-  const instructorIds = new Set(instructors.map((i) => i.user.id));
-  const instructorOptions = instructors.map((i) => ({
-    value: i.user.id,
-    label: i.user.name,
-    sublabel: i.specialty ?? i.user.team?.name ?? i.user.employeeNumber,
-  }));
   const teamOptions = teams.map((t) => ({
     value: t.id,
     label: t.name,
@@ -307,102 +286,6 @@ async function ManageSection({ programId }: { programId: string | null }) {
             </ActionForm>
           </details>
 
-          {/* ---------------------------------------------------- 강사 명단 */}
-          <div className="rounded-lg border border-slate-200 bg-white p-5">
-            <h2 className="text-lg font-semibold text-slate-800">강사 명단</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              이번 온보딩에 강사로 참여하는 사람들입니다. 여기에 등록된 사람만 강의에 배정할 수 있고,
-              [교육 프로그램 관리] 탭이 보입니다.
-            </p>
-            <ActionForm
-              action={assignInstructor}
-              className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4"
-              successMessage="강사로 등록했습니다."
-            >
-              <div>
-                <label className={LABEL_CLASS}>직원</label>
-                <SearchableSelect
-                  name="userId"
-                  options={employeeOptions.filter((o) => !instructorIds.has(o.value))}
-                  placeholder="이름 검색..."
-                  emptyLabel="선택 안 함"
-                />
-              </div>
-              <div>
-                <label className={LABEL_CLASS}>담당 분야 (입력)</label>
-                <input name="specialty" placeholder="예: 안전보건" className={INPUT_CLASS} />
-              </div>
-              <div>
-                <label className={LABEL_CLASS}>비고 (선택)</label>
-                <input name="note" placeholder="예: 오전만 가능" className={INPUT_CLASS} />
-              </div>
-              <div className="flex items-end">
-                <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-                  강사 등록
-                </button>
-              </div>
-            </ActionForm>
-
-            <details className="mt-3">
-              <summary className="cursor-pointer text-xs text-brand-green-dark">부서 인원 한 번에 등록</summary>
-              <ActionForm
-                action={assignTeamInstructors}
-                className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3"
-                successMessage="부서 인원을 강사 명단에 등록했습니다."
-              >
-                <div>
-                  <label className={LABEL_CLASS}>부서</label>
-                  <SearchableSelect
-                    name="teamId"
-                    options={teamOptions}
-                    placeholder="부서 검색..."
-                    emptyLabel="선택 안 함"
-                  />
-                </div>
-                <div className="flex items-end sm:col-span-2">
-                  <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-                    부서 전체 등록
-                  </button>
-                </div>
-                <p className="text-xs text-slate-500 sm:col-span-3">
-                  그 부서 재직자를 모두 강사 명단에 넣습니다. 이미 있는 사람은 건너뜁니다. 부서 배정으로 운영하려면
-                  그 부서 사람들이 명단에 있어야 [교육 프로그램 관리]가 보입니다.
-                </p>
-              </ActionForm>
-            </details>
-
-            {instructors.length === 0 ? (
-              <p className="mt-4 rounded border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">
-                등록된 강사가 없습니다.
-              </p>
-            ) : (
-              <ul className="mt-4 flex flex-wrap gap-2">
-                {instructors.map((i) => (
-                  <li
-                    key={i.id}
-                    className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 py-1 pl-3 pr-2 text-xs"
-                  >
-                    <span className="font-medium text-slate-700">{i.user.name}</span>
-                    <span className="text-slate-400">
-                      {i.user.team?.name ?? i.user.employeeNumber}
-                      <span className="ml-1">{POSITION_LABEL[i.user.position as Position]}</span>
-                    </span>
-                    {i.specialty && <span className="text-slate-500">· {i.specialty}</span>}
-                    <ActionForm
-                      action={removeInstructor.bind(null, i.id)}
-                      successMessage="강사를 명단에서 제외했습니다."
-                      confirmMessage="이 강사를 명단에서 제외할까요?"
-                    >
-                      <button type="submit" className="text-red-500 hover:underline" aria-label={`${i.user.name} 제외`}>
-                        ×
-                      </button>
-                    </ActionForm>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
           {/* -------------------------------------------------- 교육생 명단 */}
           <div className="rounded-lg border border-slate-200 bg-white p-5">
             <h2 className="text-lg font-semibold text-slate-800">교육 대상자 명단</h2>
@@ -510,7 +393,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
                 </select>
               </div>
               <AssignFields
-                instructorOptions={instructorOptions}
+                instructorOptions={employeeOptions}
                 teamOptions={teamOptions}
                 inputClassName={INPUT_CLASS}
                 labelClassName={LABEL_CLASS}
@@ -575,7 +458,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
                         </p>
                         {!isBreak && (
                           <p className="mt-0.5 text-xs text-slate-500">
-                            담당 {s.instructor?.name ?? (s.instructorTeam ? `${s.instructorTeam.name} (되는 사람이 맡음)` : "미배정")}{" "}
+                            담당 {s.instructor?.name ?? (s.instructorTeam ? `${s.instructorTeam.name} (강사 미지정)` : "미배정")}{" "}
                             · 최소 {formatDuration(s.minMinutes)}
                             {s.maxMinutes ? ` · 최대 ${formatDuration(s.maxMinutes)}` : ""} ·{" "}
                             {s.attendees.length === 0 ? "교육생 전원" : `교육생 ${s.attendees.length}명 지정`}
@@ -606,7 +489,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
                         </div>
                         {!isBreak && (
                           <AssignFields
-                            instructorOptions={instructorOptions}
+                            instructorOptions={employeeOptions}
                             teamOptions={teamOptions}
                             defaultInstructorId={s.instructorId ?? ""}
                             defaultTeamId={s.instructorTeamId ?? ""}
@@ -736,7 +619,7 @@ export default async function OnboardingPage({
   const session = await auth();
   const viewerId = session!.user.id;
   const isAdmin = session!.user.role === "ADMIN";
-  const amInstructor = await isActiveInstructor(viewerId);
+  const amInstructor = await canCoordinateSessions(viewerId);
 
   const {
     tab: tabParam,
