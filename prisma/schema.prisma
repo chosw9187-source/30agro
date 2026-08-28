@@ -656,23 +656,6 @@ model PageView {
 }
 
 /**
- * 일정 한 칸의 진행 상태. 관리자가 틀을 잡으면 PLANNED, 배정된 강사가
- * 시간을 조정해 보내면 SUBMITTED, 관리자가 확정하면 CONFIRMED가 되고 그때
- * 비로소 [최종 스케줄]에 나타난다.
- */
-enum OnboardingSessionStatus {
-  PLANNED
-  SUBMITTED
-  DECLINED
-  CONFIRMED
-}
-
-/**
- * 관리자가 주는 가이드라인의 단위. 분 단위까지 미리 정하지 않고 "그 날 오전"
- * 정도만 잡아 두면, 강사가 되는 쪽을 고르고 관리자가 마지막에 실제 시각을
- * 짠다.
- */
-/**
  * 온보딩 프로그램 = 한 기수(차수). 실제 교육 시간표는 이 아래
  * OnboardingSession으로 달린다 — 기수가 바뀌어도 지난 기수의 일정과 강사
  * 배정 이력이 그대로 남아야 하므로 세션을 프로그램에 묶는다.
@@ -683,6 +666,13 @@ model OnboardingProgram {
   description String?
   startDate   DateTime?
   endDate     DateTime?
+
+  // 온보딩 안내서에 싣는 것들. 일정만큼이나 "어디서 자고 어떻게 가는지"를
+  // 묻는 일이 많아, 기수마다 한 번 적어 두고 참여자가 꺼내 보게 한다.
+  lodging   String?
+  transport String?
+  notice    String? @db.Text
+
   active      Boolean   @default(true)
   createdById String
   createdBy   User      @relation("OnboardingProgramCreator", fields: [createdById], references: [id])
@@ -693,46 +683,27 @@ model OnboardingProgram {
 }
 
 /**
- * 시간표의 한 칸. 관리자가 날짜와 시각을 잡아 두고, 강사에게 물어볼 일이면
- * 배정된 강사가 가능 여부를 답한 뒤 관리자가 시각을 확정한다. 물어볼 것 없이
- * 관리자가 바로 확정하는 경우도 있다. 확정된 칸만 [최종 스케줄]에 나간다.
+ * 시간표의 한 칸. 일정과 강사는 이 화면 밖에서 미리 합의하고 여기에는 그
+ * 결과만 적는다 — 그래서 적히는 즉시 확정본이고, 상태나 조율 절차가 없다.
  */
 model OnboardingSession {
-  id          String                @id @default(cuid())
+  id          String            @id @default(cuid())
   programId   String
-  program     OnboardingProgram     @relation(fields: [programId], references: [id], onDelete: Cascade)
-  status      OnboardingSessionStatus @default(PLANNED)
+  program     OnboardingProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
   title       String
   description String?
   startAt     DateTime
   endAt       DateTime
   location    String?
 
-  // 이 칸을 맡은 강사. 강사는 본인에게 배정된 칸에만 답할 수 있으므로,
-  // 권한 판단의 기준이기도 하다.
+  // 이 칸을 맡은 강사.
   instructorId String?
   instructor   User?   @relation("OnboardingSessionInstructor", fields: [instructorId], references: [id])
 
-  // 사람을 못 박지 않고 부서에 맡기는 경우 — 그 날 시간이 되는 사람이 맡는
-  // 식이라 미리 이름을 적을 수 없다. 팀이 배정되면 그 팀 소속 강사 누구나
-  // 시간을 잡을 수 있고, 먼저 전송한 사람이 instructorId로 들어간다.
-  // 끝까지 정해지지 않으면 최종 스케줄에는 팀 이름으로 나간다.
+  // 사람 대신 부서가 맡는 경우 — 그 날 시간이 되는 사람이 나가는 식이라
+  // 이름을 미리 적을 수 없다. 안내서에는 부서 이름으로 나간다.
   instructorTeamId String?
   instructorTeam   Team?   @relation("OnboardingSessionTeam", fields: [instructorTeamId], references: [id])
-
-  // 부서에 맡길 때, 강사를 정할 권한을 팀장 한 사람으로 좁힐지. 부서원 전원이
-  // 지정할 수 있으면 두 사람이 동시에 손대 서로의 지정을 덮어쓸 수 있어서,
-  // 그럴 여지를 없애야 하는 부서를 위해 둔다.
-  leaderOnly Boolean @default(false)
-
-  // 강사(또는 부서 팀장)의 응답. 가능하면 되는 시각을 적고, 불가하면 사유를
-  // 남긴다 — 어느 쪽이든 관리자가 다음 수를 두려면 이유가 필요하다.
-  // 관리자가 제안한 시각(startAt·endAt)과 다를 수 있어 따로 담는다.
-  instructorStartAt DateTime?
-  instructorEndAt   DateTime?
-  instructorNote    String?
-  respondedAt    DateTime?
-  confirmedAt    DateTime?
 
   createdById String?
   createdBy   User?    @relation("OnboardingSessionCreator", fields: [createdById], references: [id])
@@ -742,8 +713,8 @@ model OnboardingSession {
   attendees OnboardingSessionAttendee[]
 
   @@index([programId, startAt])
-  @@index([instructorId, status])
-  @@index([instructorTeamId, status])
+  @@index([instructorId])
+  @@index([instructorTeamId])
 }
 
 /**

@@ -10,9 +10,8 @@ import {
   DEFAULT_SESSION_TIME,
   formatSessionDay,
   formatSessionTimeRange,
-  canCoordinateSessions,
+  hasAnyOnboardingAccess,
   toKSTInputValues,
-  type SessionStatus,
 } from "@/lib/onboarding";
 import {
   addTrainee,
@@ -28,22 +27,18 @@ import {
   updateSession,
 } from "./actions";
 import { ProgramPeriodFields } from "./program-period-fields";
-import { ConfirmModeField } from "./confirm-mode-field";
 import { AssignFields } from "./assign-fields";
 import { FinalScheduleSection, finalHref } from "./final-schedule";
-import { ProgramManagementSection, StatusBadge } from "./program-management";
 import { SelectAllToggle } from "./select-all-toggle";
 import { EmptyBox, INPUT_CLASS, LABEL_CLASS, PRIMARY_BUTTON_CLASS, programPeriod } from "./ui";
 
 export const dynamic = "force-dynamic";
 
-// 세 개면 충분하다 — 보는 곳(최종 스케줄), 관리자가 짜는 곳(일정 관리),
-// 강사가 조율하는 곳(교육 프로그램 관리). [교육 프로그램 관리]는 관리자가
-// 지정한 강사에게만 보이고, 관리자는 확정을 위해 함께 본다.
+// 둘이면 충분하다 — 참여자가 보는 곳(최종 스케줄), 관리자가 채우는 곳
+// (일정 관리). 일정은 이 화면 밖에서 미리 합의하고 오므로 조율용 탭은 없다.
 const TABS = [
   { key: "final", label: "최종 스케줄", role: "all" },
   { key: "manage", label: "일정 관리", role: "admin" },
-  { key: "program", label: "교육 프로그램 관리", role: "staff" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -64,9 +59,11 @@ function TabLink({ tab, active, programId }: { tab: (typeof TABS)[number]; activ
 /* --------------------------------------------------------------- 일정 관리 */
 
 /**
- * 관리자 전용. 기수를 만들고, 교육 일정의 틀을 짜고, 교육
- * 대상자 명단을 관리한다. 강의 담당은 사람으로 직접 지정하거나 부서에 맡기고,
- * 부서에 맡긴 경우 누가 할지는 그 부서 사람이 [교육 프로그램 관리]에서 정한다.
+ * 관리자 전용. 기수를 만들고(숙박·교통·공지 포함), 교육 대상자 명단을
+ * 관리하고, 이미 합의된 교육 일정을 적어 넣는다.
+ *
+ * 일정 조율은 이 화면의 일이 아니다 — 언제 누가 할지는 밖에서 정하고 오고,
+ * 여기에는 그 결과만 옮겨 적는다. 그래서 적히는 즉시 [최종 스케줄]에 실린다.
  */
 async function ManageSection({ programId }: { programId: string | null }) {
   const [programs, employees, teams] = await Promise.all([
@@ -78,6 +75,9 @@ async function ManageSection({ programId }: { programId: string | null }) {
         description: true,
         startDate: true,
         endDate: true,
+        lodging: true,
+        transport: true,
+        notice: true,
         active: true,
         _count: { select: { sessions: true, trainees: true } },
       },
@@ -103,7 +103,6 @@ async function ManageSection({ programId }: { programId: string | null }) {
           orderBy: { startAt: "asc" },
           select: {
             id: true,
-            status: true,
             title: true,
             description: true,
             location: true,
@@ -113,7 +112,6 @@ async function ManageSection({ programId }: { programId: string | null }) {
             instructor: { select: { name: true } },
             instructorTeamId: true,
             instructorTeam: { select: { name: true } },
-            leaderOnly: true,
             attendees: { select: { traineeId: true } },
           },
         }),
@@ -158,7 +156,8 @@ async function ManageSection({ programId }: { programId: string | null }) {
       >
         <h2 className="text-lg font-semibold text-slate-800">온보딩 프로그램 등록</h2>
         <p className="mt-1 text-sm text-slate-600">
-          기수를 만든 뒤 아래에서 교육 일정·교육생 명단·강사를 채웁니다. 관리자만 등록할 수 있습니다.
+          기수를 만든 뒤 아래에서 교육 대상자 명단과 교육 일정을 채웁니다. 숙박·교통·공지도 여기서 적어 두면
+          참여자가 [최종 스케줄]에서 함께 봅니다. 관리자만 등록할 수 있습니다.
         </p>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
           <div className="sm:col-span-2">
@@ -169,6 +168,21 @@ async function ManageSection({ programId }: { programId: string | null }) {
           <div className="sm:col-span-4">
             <label className={LABEL_CLASS}>설명 (선택)</label>
             <input name="description" placeholder="대상·목적 등" className={INPUT_CLASS} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={LABEL_CLASS}>숙박 장소 (선택)</label>
+            <input name="lodging" placeholder="예: 삼공연수원 생활관 3층" className={INPUT_CLASS} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={LABEL_CLASS}>교통편 (선택)</label>
+            <input name="transport" placeholder="예: 8/3 08:00 본사 정문 전세버스 출발" className={INPUT_CLASS} />
+          </div>
+          <div className="sm:col-span-4">
+            <label className={LABEL_CLASS}>공지사항 (선택)</label>
+            <textarea name="notice" rows={3} placeholder={"예)\n· 편한 복장으로 오세요.\n· 노트북과 필기구를 지참해 주세요."} className={INPUT_CLASS} />
+            <p className="mt-1 text-[11px] text-slate-400">
+              숙박·교통·공지는 [최종 스케줄]의 «온보딩 안내»에 참여자 모두에게 보입니다. 줄바꿈은 그대로 나옵니다.
+            </p>
           </div>
         </div>
         <button type="submit" className={`mt-4 ${PRIMARY_BUTTON_CLASS}`}>
@@ -283,6 +297,22 @@ async function ManageSection({ programId }: { programId: string | null }) {
                 <label className={LABEL_CLASS}>설명</label>
                 <input name="description" defaultValue={selected.description ?? ""} className={INPUT_CLASS} />
               </div>
+              <div className="sm:col-span-2">
+                <label className={LABEL_CLASS}>숙박 장소 (선택)</label>
+                <input name="lodging" className={INPUT_CLASS} defaultValue={selected.lodging ?? ""} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className={LABEL_CLASS}>교통편 (선택)</label>
+                <input name="transport" className={INPUT_CLASS} defaultValue={selected.transport ?? ""} />
+              </div>
+              <div className="sm:col-span-4">
+                <label className={LABEL_CLASS}>공지사항 (선택)</label>
+                <textarea name="notice" rows={3} className={INPUT_CLASS} defaultValue={selected.notice ?? ""} />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  숙박·교통·공지는 [최종 스케줄]의 «온보딩 안내»에 참여자 모두에게 보입니다. 줄바꿈은 그대로 나옵니다.
+                </p>
+              </div>
+
               <div className="sm:col-span-4">
                 <button type="submit" className={PRIMARY_BUTTON_CLASS}>
                   저장
@@ -376,9 +406,8 @@ async function ManageSection({ programId }: { programId: string | null }) {
           <div className="rounded-lg border border-slate-200 bg-white p-5">
             <h2 className="text-lg font-semibold text-slate-800">교육 일정 편성</h2>
             <p className="mt-1 text-sm text-slate-600">
-              날짜와 시각을 정해 시간표를 채웁니다. 강사에게 확인이 필요한 강의는 «강사에게 확인»으로 두면 담당
-              강사가 [교육 프로그램 관리]에서 가능 여부를 답하고, 그 답을 보고 관리자가 확정합니다. 이미 정해진
-              강의는 «바로 확정»으로 두면 그 자리에서 [최종 스케줄]에 올라갑니다.
+              이미 합의된 일정을 적어 넣는 자리입니다. 저장하는 즉시 [최종 스케줄]에 올라가고 교육생과 강사에게
+              알림이 갑니다.
             </p>
             <ActionForm
               action={createSession}
@@ -431,10 +460,13 @@ async function ManageSection({ programId }: { programId: string | null }) {
                 <label className={LABEL_CLASS}>장소 (선택)</label>
                 <input name="location" placeholder="예: 본사 대회의실" className={INPUT_CLASS} />
               </div>
-              <ConfirmModeField inputClassName={INPUT_CLASS} labelClassName={LABEL_CLASS} />
-              <div className="sm:col-span-3">
-                <label className={LABEL_CLASS}>설명 (선택)</label>
-                <input name="description" placeholder="교육 내용 요약" className={INPUT_CLASS} />
+              <div className="sm:col-span-4">
+                <label className={LABEL_CLASS}>강사 전달사항 (선택)</label>
+                <input
+                  name="description"
+                  placeholder="예: 노트북 지참 안내 / 진행 방식 메모 — 강사에게만 보입니다"
+                  className={INPUT_CLASS}
+                />
               </div>
               <div className="sm:col-span-4">
                 <button type="submit" className={PRIMARY_BUTTON_CLASS}>
@@ -456,20 +488,17 @@ async function ManageSection({ programId }: { programId: string | null }) {
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <p className="font-medium text-slate-800">
-                          {s.title} <StatusBadge status={s.status as SessionStatus} />
+                          {s.title}
                         </p>
                         <p className="text-xs text-slate-500">
                           {formatSessionDay(s.startAt)} {formatSessionTimeRange(s.startAt, s.endAt)}
-                          {s.status !== "CONFIRMED" && (
-                            <span className="ml-1 text-slate-400">(확정 전)</span>
-                          )}
                           {s.location && ` · ${s.location}`}
                         </p>
                         <p className="mt-0.5 text-xs text-slate-500">
                           담당{" "}
                           {s.instructor?.name ??
                             (s.instructorTeam
-                              ? `${s.instructorTeam.name} (${s.leaderOnly ? "팀장이 지정" : "부서 내 지정"} · 강사 미지정)`
+                              ? `${s.instructorTeam.name} (강사 미정)`
                               : "미배정")}{" "}
                           ·{" "}
                           {s.attendees.length === 0 ? "교육생 전원" : `교육생 ${s.attendees.length}명 지정`}
@@ -502,7 +531,6 @@ async function ManageSection({ programId }: { programId: string | null }) {
                           teamOptions={teamOptions}
                           defaultInstructorId={s.instructorId ?? ""}
                           defaultTeamId={s.instructorTeamId ?? ""}
-                          defaultLeaderOnly={s.leaderOnly}
                           inputClassName={INPUT_CLASS}
                           labelClassName={LABEL_CLASS}
                         />
@@ -615,7 +643,9 @@ export default async function OnboardingPage({
   const session = await auth();
   const viewerId = session!.user.id;
   const isAdmin = session!.user.role === "ADMIN";
-  const amInstructor = await canCoordinateSessions(viewerId);
+  // 온보딩 안내는 이 기수에 얽힌 사람만 본다. 하나도 볼 게 없는 사람에게는
+  // 탭 자체를 감춘다 — 눌러 봐야 "권한 없음"만 나온다.
+  const canSeeGuide = await hasAnyOnboardingAccess(viewerId, isAdmin);
 
   const {
     tab: tabParam,
@@ -627,7 +657,7 @@ export default async function OnboardingPage({
   } = await searchParams;
 
   const visibleTabs = TABS.filter(
-    (t) => t.role === "all" || (t.role === "admin" && isAdmin) || (t.role === "staff" && (isAdmin || amInstructor))
+    (t) => (t.role === "all" && canSeeGuide) || (t.role === "admin" && isAdmin)
   );
 
   const programs = await prisma.onboardingProgram.findMany({
@@ -660,8 +690,8 @@ export default async function OnboardingPage({
       <div>
         <h1 className="text-2xl font-semibold">SG 온보딩 프로그램</h1>
         <p className="mt-1 text-slate-600">
-          관리자가 기수와 교육 일정의 틀을 짜고, 배정된 강사가 세부 시간을 조정해 보내면 관리자가 확정합니다.
-          확정된 일정만 [최종 스케줄]에 나타납니다.
+          기수마다 교육 일정과 숙박·교통·공지를 한곳에 모은 안내서입니다. 일정은 미리 합의된 것만 올라가므로
+          여기 보이는 것은 모두 확정본입니다.
         </p>
       </div>
 
@@ -703,6 +733,7 @@ export default async function OnboardingPage({
         <FinalScheduleSection
           programId={programId}
           viewerId={viewerId}
+          isAdmin={isAdmin}
           onlyMine={onlyParam === "mine"}
           view={viewParam === "list" ? "list" : "calendar"}
           month={monthParam}
@@ -710,9 +741,6 @@ export default async function OnboardingPage({
         />
       )}
       {tab === "manage" && <ManageSection programId={programId} />}
-      {tab === "program" && (
-        <ProgramManagementSection programId={programId} viewerId={viewerId} isAdmin={isAdmin} />
-      )}
     </div>
   );
 }
