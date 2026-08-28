@@ -854,7 +854,7 @@ export default async function Evaluation2Page({
    */
   function cycleBar() {
     return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-1.5 shadow-sm">
         <span className="text-xs font-medium text-slate-500">연도 · 목표</span>
         {cycles.length > 0 ? (
           <YearPhaseSelect
@@ -928,12 +928,12 @@ export default async function Evaluation2Page({
   /** 층 선택 탭. 고른 인사평가 안에서 어느 층을 볼지 정한다. */
   function tabBar() {
     return (
-      <nav className="flex flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs shadow-sm">
+      <nav className="flex flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs shadow-sm">
         {TABS.map((t) => (
           <Link
             key={t.key}
             href={buildHref({ tab: t.key })}
-            className={`rounded-full px-3 py-2 transition-colors sm:py-1 ${
+            className={`rounded-full px-3 py-1.5 transition-colors sm:py-0.5 ${
               tab === t.key
                 ? "bg-brand-green text-white"
                 : "border border-slate-300 text-slate-600 hover:bg-slate-50"
