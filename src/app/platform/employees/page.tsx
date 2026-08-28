@@ -53,6 +53,7 @@ export default async function EmployeeDirectoryPage({
         gender: true,
         employmentType: true,
         jobFamily: true,
+        educationRecords: { select: { school: true, major: true } },
         school: true,
         major: true,
         teamId: true,

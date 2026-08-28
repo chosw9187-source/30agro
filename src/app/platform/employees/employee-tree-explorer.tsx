@@ -21,6 +21,7 @@ export type EmployeeLite = {
   jobFamily: string | null;
   school: string | null;
   major: string | null;
+  educationRecords: { school: string | null; major: string | null }[];
   teamId: string | null;
   team: { id: string; name: string; businessUnit: string | null; division: string | null } | null;
   // 팀에 속하지 않고 사업부/구분에 직접 배치되는 임원급(EXECUTIVE_POSITIONS)용 필드
@@ -165,6 +166,8 @@ export function EmployeeTreeExplorerProvider({
         e.jobFamily ?? "",
         e.school ?? "",
         e.major ?? "",
+        ...e.educationRecords.map((r) => r.school ?? ""),
+        ...e.educationRecords.map((r) => r.major ?? ""),
       ]
         .join(" ")
         .toLowerCase();
