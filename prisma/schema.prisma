@@ -725,10 +725,15 @@ model OnboardingSession {
   programId   String
   program     OnboardingProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
   title       String
-  description String?
   startAt     DateTime
   endAt       DateTime
   location    String?
+
+  // 두 갈래의 전달사항. description은 강사에게만 넘기는 준비·진행 메모라
+  // 안내서에 싣지 않고, traineeNote는 강사가 수강생에게 전하고 싶은 말이라
+  // 안내서의 그 교육 자리에 그대로 보인다.
+  description String? @db.Text
+  traineeNote String? @db.Text
 
   createdById String?
   createdBy   User?    @relation("OnboardingSessionCreator", fields: [createdById], references: [id])

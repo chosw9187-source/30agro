@@ -45,6 +45,7 @@ export function finalHref(opts: {
 type FinalSession = {
   id: string;
   title: string;
+  traineeNote: string | null;
   location: string | null;
   startAt: Date;
   endAt: Date;
@@ -153,6 +154,7 @@ export async function FinalScheduleSection({
       select: {
         id: true,
         title: true,
+        traineeNote: true,
         location: true,
         startAt: true,
         endAt: true,
@@ -563,6 +565,11 @@ function DayList({
                       {" · "}
                       {s.attendees.length === 0 ? "기수 전원" : `지정 ${s.attendees.length}명`}
                     </p>
+                    {s.traineeNote && (
+                      <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs font-medium text-brand-green-dark">
+                        {s.traineeNote}
+                      </p>
+                    )}
                   </div>
                 </Link>
               </li>
@@ -648,6 +655,14 @@ function SessionDetail({
           </dd>
         </div>
       </dl>
+
+      {session.traineeNote && (
+        <div className="mt-4 rounded border border-brand-green/40 bg-brand-green-light/50 p-3">
+          <p className="text-xs font-semibold text-brand-green-dark">강사 전달사항</p>
+          {/* 여러 줄로 적는 자리라 줄바꿈을 그대로 살린다. */}
+          <p className="mt-1 whitespace-pre-line text-sm text-slate-800">{session.traineeNote}</p>
+        </div>
+      )}
 
       <div className="mt-4 border-t border-slate-100 pt-4">
         <p className="text-xs font-medium text-slate-500">
