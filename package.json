@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "start": "prisma db push --accept-data-loss && next start",
+    "start": "prisma db push --accept-data-loss && tsx scripts/demo-accounts.ts --boot && next start",
     "db:seed": "prisma db seed",
     "demo:accounts": "tsx scripts/demo-accounts.ts",
     "demo:accounts:remove": "tsx scripts/demo-accounts.ts --remove",

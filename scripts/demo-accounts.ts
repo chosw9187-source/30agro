@@ -5,6 +5,17 @@
  *   npm run demo:accounts -- --unhide  — 위에 더해, 숨김 처리된 모듈을 전부 다시 켠다
  *   npm run demo:accounts:remove       — 시연이 끝난 뒤 계정과 팀을 지운다
  *
+ * 서버에 셸을 붙이기 어려운 경우를 위해 기동 시에도 한 번 돌 수 있게 해 뒀다
+ * (`--boot`, package.json의 start에 물려 있다). 환경변수 DEMO_ACCOUNTS로만
+ * 움직이고, 값이 없으면 아무것도 하지 않는다 —
+ *
+ *   DEMO_ACCOUNTS=1        계정을 만든다(이미 있으면 갱신)
+ *   DEMO_ACCOUNTS=unhide   만들면서 숨김 처리된 모듈까지 다시 켠다
+ *   DEMO_ACCOUNTS=remove   계정과 팀을 지운다
+ *
+ * 기동 경로에서는 무슨 일이 있어도 예외를 밖으로 내보내지 않는다. 시연용
+ * 계정을 못 만든 것 때문에 서비스가 안 뜨는 쪽이 훨씬 나쁘다.
+ *
  * 시연 때 관리자가 아닌 눈으로 화면을 보여 주기 위한 것이라, 세 계정 모두
  * 역할은 EMPLOYEE로 두고 직책만 팀장/담당으로 가른다. 모듈 접근 권한은
  * 사용자별 override(UserPermissionOverride)에 FULL로 박아 둔다 — 권한
@@ -161,18 +172,38 @@ async function down() {
   console.log(`[삭제] ${TEAM_NAME}`);
 }
 
+/** 기동 시 호출되는 자리. 환경변수가 시키는 것만 하고, 실패해도 넘어간다. */
+async function boot() {
+  const mode = (process.env.DEMO_ACCOUNTS ?? "").trim().toLowerCase();
+  if (!mode || mode === "0" || mode === "false" || mode === "off") return;
+
+  try {
+    if (mode === "remove") await down();
+    else await up(mode === "unhide");
+  } catch (error) {
+    console.error("[demo:accounts] 시연 계정 처리를 건너뜁니다:", error);
+  }
+}
+
 async function main() {
+  const args = process.argv.slice(2);
+  const isBoot = args.includes("--boot");
+
   if (!process.env.DATABASE_URL) {
+    if (isBoot) return;
     throw new Error("DATABASE_URL이 설정되어 있지 않습니다.");
   }
-  const args = process.argv.slice(2);
-  if (args.includes("--remove")) await down();
+
+  if (isBoot) await boot();
+  else if (args.includes("--remove")) await down();
   else await up(args.includes("--unhide") || args.includes("--unhide-modules"));
 }
 
 main()
   .catch((error) => {
     console.error(error);
-    process.exitCode = 1;
+    // --boot은 서비스 기동 앞에 물려 있다. 여기서 0이 아닌 값을 내면 앱이
+    // 아예 안 뜨므로, 기동 경로에서는 실패해도 조용히 넘긴다.
+    if (!process.argv.includes("--boot")) process.exitCode = 1;
   })
   .finally(() => prisma.$disconnect());
