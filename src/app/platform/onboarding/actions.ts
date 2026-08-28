@@ -276,6 +276,7 @@ export async function createSession(formData: FormData) {
         programId,
         title,
         description: optional(formData, "description"),
+        traineeNote: optional(formData, "traineeNote"),
         location: optional(formData, "location"),
         startAt,
         endAt,
@@ -319,6 +320,7 @@ export async function updateSession(sessionId: string, formData: FormData) {
       data: {
         title,
         description: optional(formData, "description"),
+        traineeNote: optional(formData, "traineeNote"),
         location: optional(formData, "location"),
         startAt,
         endAt,
