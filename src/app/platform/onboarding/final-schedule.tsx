@@ -42,6 +42,8 @@ type FinalSession = {
   id: string;
   title: string;
   location: string | null;
+  lodging: string | null;
+  transport: string | null;
   startAt: Date;
   endAt: Date;
   instructor: { name: string; team: { name: string } | null } | null;
@@ -137,8 +139,6 @@ export async function FinalScheduleSection({
         description: true,
         startDate: true,
         endDate: true,
-        lodging: true,
-        transport: true,
         notice: true,
         trainees: {
           orderBy: { user: { name: "asc" } },
@@ -153,6 +153,8 @@ export async function FinalScheduleSection({
         id: true,
         title: true,
         location: true,
+        lodging: true,
+        transport: true,
         startAt: true,
         endAt: true,
         instructor: { select: { name: true, team: { select: { name: true } } } },
@@ -262,12 +264,7 @@ export async function FinalScheduleSection({
         </p>
       )}
 
-      <ProgramGuide
-        lodging={program.lodging}
-        transport={program.transport}
-        notice={program.notice}
-        isAdmin={isAdmin}
-      />
+      <ProgramNotice notice={program.notice} isAdmin={isAdmin} />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1 text-sm">
@@ -429,55 +426,28 @@ export async function FinalScheduleSection({
 }
 
 /**
- * 숙박 · 교통 · 공지. 일정만큼 자주 묻는 것들이라 시간표와 같은 화면에 둔다.
- * 하나도 안 적혀 있으면 빈 상자를 띄우지 않고 통째로 감추되, 관리자에게는
- * "여기에 적을 수 있다"는 것을 알려 준다 — 안 그러면 이 칸의 존재를 모른다.
+ * 기수 전체에 걸리는 공지. 숙박·교통은 교육마다 다를 수 있어 여기가 아니라
+ * 각 교육의 상세에 붙는다.
+ *
+ * 비어 있으면 빈 상자를 띄우지 않고 통째로 감추되, 관리자에게는 "여기에 적을
+ * 수 있다"는 것을 알려 준다 — 안 그러면 이 칸의 존재를 모른다.
  */
-function ProgramGuide({
-  lodging,
-  transport,
-  notice,
-  isAdmin,
-}: {
-  lodging: string | null;
-  transport: string | null;
-  notice: string | null;
-  isAdmin: boolean;
-}) {
-  if (!lodging && !transport && !notice) {
+function ProgramNotice({ notice, isAdmin }: { notice: string | null; isAdmin: boolean }) {
+  if (!notice) {
     if (!isAdmin) return null;
     return (
       <p className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3 text-xs text-slate-500">
-        숙박 장소 · 교통편 · 공지사항은 [일정 관리]의 기수 정보에서 적을 수 있습니다. 적어 두면 이 자리에 참여자
-        모두에게 보입니다.
+        기수 전체 공지는 [일정 관리]의 기수 정보에서 적을 수 있습니다. 숙박·교통은 교육마다 다를 수 있어
+        [교육 일정 편성]에서 교육별로 적습니다.
       </p>
     );
   }
 
   return (
     <div className="rounded-lg border border-brand-green bg-brand-green-light/40 p-5">
-      <h3 className="text-sm font-bold text-brand-green-dark">온보딩 안내</h3>
-      <dl className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {lodging && (
-          <div>
-            <dt className="text-xs font-semibold text-brand-green-dark">숙박 장소</dt>
-            <dd className="mt-1 whitespace-pre-line text-sm text-slate-800">{lodging}</dd>
-          </div>
-        )}
-        {transport && (
-          <div>
-            <dt className="text-xs font-semibold text-brand-green-dark">교통편</dt>
-            <dd className="mt-1 whitespace-pre-line text-sm text-slate-800">{transport}</dd>
-          </div>
-        )}
-      </dl>
-      {notice && (
-        <div className={lodging || transport ? "mt-4 border-t border-brand-green/30 pt-4" : "mt-3"}>
-          <p className="text-xs font-semibold text-brand-green-dark">공지사항</p>
-          {/* 여러 줄로 적는 자리라 줄바꿈을 그대로 살린다. */}
-          <p className="mt-1 whitespace-pre-line text-sm text-slate-800">{notice}</p>
-        </div>
-      )}
+      <h3 className="text-sm font-bold text-brand-green-dark">온보딩 공지사항</h3>
+      {/* 여러 줄로 적는 자리라 줄바꿈을 그대로 살린다. */}
+      <p className="mt-2 whitespace-pre-line text-sm text-slate-800">{notice}</p>
     </div>
   );
 }
@@ -539,6 +509,13 @@ function DayList({
                       {" · "}
                       {s.attendees.length === 0 ? "기수 전원" : `지정 ${s.attendees.length}명`}
                     </p>
+                    {(s.lodging || s.transport) && (
+                      <p className="mt-1 text-xs font-medium text-brand-green-dark">
+                        {s.lodging && <>숙박 {s.lodging}</>}
+                        {s.lodging && s.transport && " · "}
+                        {s.transport && <>교통 {s.transport}</>}
+                      </p>
+                    )}
                   </div>
                 </Link>
               </li>
@@ -621,6 +598,23 @@ function SessionDetail({
           </dd>
         </div>
       </dl>
+
+      {(session.lodging || session.transport) && (
+        <dl className="mt-4 grid grid-cols-1 gap-3 rounded border border-brand-green/40 bg-brand-green-light/40 p-3 sm:grid-cols-2">
+          {session.lodging && (
+            <div>
+              <dt className="text-xs font-semibold text-brand-green-dark">숙박 장소</dt>
+              <dd className="mt-0.5 whitespace-pre-line text-sm text-slate-800">{session.lodging}</dd>
+            </div>
+          )}
+          {session.transport && (
+            <div>
+              <dt className="text-xs font-semibold text-brand-green-dark">교통편</dt>
+              <dd className="mt-0.5 whitespace-pre-line text-sm text-slate-800">{session.transport}</dd>
+            </div>
+          )}
+        </dl>
+      )}
 
       <div className="mt-4 border-t border-slate-100 pt-4">
         <p className="text-xs font-medium text-slate-500">

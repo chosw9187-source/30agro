@@ -667,11 +667,9 @@ model OnboardingProgram {
   startDate   DateTime?
   endDate     DateTime?
 
-  // 온보딩 안내서에 싣는 것들. 일정만큼이나 "어디서 자고 어떻게 가는지"를
-  // 묻는 일이 많아, 기수마다 한 번 적어 두고 참여자가 꺼내 보게 한다.
-  lodging   String?
-  transport String?
-  notice    String? @db.Text
+  // 기수 전체에 걸리는 공지. 숙박·교통은 교육마다 달라질 수 있어 여기 두지
+  // 않고 OnboardingSession에 붙인다.
+  notice String? @db.Text
 
   active      Boolean   @default(true)
   createdById String
@@ -695,6 +693,12 @@ model OnboardingSession {
   startAt     DateTime
   endAt       DateTime
   location    String?
+
+  // 이 교육에 딸린 숙박·교통. 연수원에서 1박 하는 교육이 있는가 하면 본사
+  // 회의실에서 두 시간 하고 끝나는 교육도 있어, 기수 단위로 한 번 적어 두면
+  // 맞지 않는다.
+  lodging   String?
+  transport String?
 
   // 이 칸을 맡은 강사.
   instructorId String?

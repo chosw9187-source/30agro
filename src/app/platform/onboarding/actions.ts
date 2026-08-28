@@ -100,15 +100,16 @@ async function notifyScheduled(
 }
 
 /**
- * 온보딩 안내에 싣는 숙박·교통·공지. 빈 칸은 null로 눕혀 둔다 — 빈 문자열이
- * 들어가면 화면에서는 "적혀 있는데 아무것도 없는" 칸이 된다.
+ * 빈 칸은 null로 눕혀 둔다 — 빈 문자열이 들어가면 화면에서는 "적혀 있는데
+ * 아무것도 없는" 칸이 된다.
  */
-function guideFields(formData: FormData) {
-  return {
-    lodging: text(formData, "lodging") || null,
-    transport: text(formData, "transport") || null,
-    notice: text(formData, "notice") || null,
-  };
+function optional(formData: FormData, key: string) {
+  return text(formData, key) || null;
+}
+
+/** 교육 한 건에 딸린 숙박·교통. 기수가 아니라 교육마다 다르다. */
+function stayFields(formData: FormData) {
+  return { lodging: optional(formData, "lodging"), transport: optional(formData, "transport") };
 }
 
 /** "10월 19일 (월) 10:00 ~ 12:00" — 알림 문구에 쓰는 일시. */
@@ -165,7 +166,7 @@ export async function createProgram(formData: FormData) {
         description: text(formData, "description") || null,
         startDate,
         endDate,
-        ...guideFields(formData),
+        notice: optional(formData, "notice"),
         createdById: session.user.id,
       },
     });
@@ -190,7 +191,7 @@ export async function updateProgram(programId: string, formData: FormData) {
         description: text(formData, "description") || null,
         startDate,
         endDate,
-        ...guideFields(formData),
+        notice: optional(formData, "notice"),
       },
     });
     revalidatePath(PATH);
@@ -268,8 +269,9 @@ export async function createSession(formData: FormData) {
       data: {
         programId,
         title,
-        description: text(formData, "description") || null,
-        location: text(formData, "location") || null,
+        description: optional(formData, "description"),
+        location: optional(formData, "location"),
+        ...stayFields(formData),
         startAt,
         endAt,
         instructorId,
@@ -305,8 +307,9 @@ export async function updateSession(sessionId: string, formData: FormData) {
       where: { id: sessionId },
       data: {
         title,
-        description: text(formData, "description") || null,
-        location: text(formData, "location") || null,
+        description: optional(formData, "description"),
+        location: optional(formData, "location"),
+        ...stayFields(formData),
         startAt,
         endAt,
         instructorId,
