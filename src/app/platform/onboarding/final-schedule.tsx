@@ -58,12 +58,28 @@ function instructorLabel(s: FinalSession): string {
 
 type Trainee = { id: string; userId: string; user: { name: string; team: { name: string } | null } };
 
-/** 달력 칩 색 — 지난 일정 / 내가 참석할 일정 / 그 밖의 일정. */
-function chipTone(s: FinalSession, mine: boolean, now: Date) {
-  if (s.endAt <= now) return "border-slate-300 bg-slate-100 text-slate-400";
+/**
+ * 달력 칩 색 — 지난 일정 / 내가 참석할 일정 / 그 밖의 일정.
+ * 달력은 훑어보는 화면이라 얇은 테두리에 흰 바탕이면 글자가 배경에 묻힌다.
+ * 세 가지를 색의 무게로 갈라 둔다: 내가 들어가야 하는 교육은 초록을 꽉 채워
+ * 멀리서도 먼저 눈에 걸리게, 그 밖의 교육도 회색 면을 깔아 흰 칸 위로
+ * 떠오르게, 이미 지난 교육만 흐리게 뒤로 물린다.
+ *
+ * marksMine이 꺼져 있으면 — 관리자·강사처럼 이 기수의 교육생이 아닌 사람이
+ * 볼 때 — "내 교육"이라는 구분 자체가 없다. 그때 회색만 깔면 화면 전체가
+ * 무채색이 되므로, 예정된 교육을 초록 계열로 올려 잘 보이게 한다.
+ */
+function chipTone(s: FinalSession, mine: boolean, now: Date, marksMine: boolean) {
+  if (s.endAt <= now) return "border-slate-200 bg-slate-50 text-slate-400";
+  if (!marksMine) return "border-brand-green-dark bg-brand-green-light text-brand-green-dark";
   return mine
-    ? "border-brand-green bg-brand-green-light text-brand-green-dark"
-    : "border-slate-300 bg-white text-slate-600";
+    ? "border-brand-green-dark bg-brand-green text-white shadow-sm"
+    : "border-slate-400 bg-slate-200 text-slate-800";
+}
+
+/** 요일 글자색 — 일요일 빨강, 토요일 파랑. 국내 달력의 관례. */
+function weekdayTone(weekday: number) {
+  return weekday === 0 ? "text-rose-500" : weekday === 6 ? "text-blue-500" : "text-slate-600";
 }
 
 /**
@@ -188,9 +204,12 @@ export async function FinalScheduleSection({
             {myTrainee.user.name}님은 이 기수 교육생입니다 — 참석 대상 교육 {myCount}건
           </p>
           {nextForMe ? (
-            <p className="mt-1 text-sm text-slate-700">
-              다음 교육: <span className="font-medium">{formatSessionDay(nextForMe.startAt)}</span>{" "}
-              {formatSessionTimeRange(nextForMe.startAt, nextForMe.endAt)} · {nextForMe.title}
+            <p className="mt-1.5 text-sm text-slate-700">
+              다음 교육:{" "}
+              <span className="font-bold text-brand-green-dark">
+                {formatSessionDay(nextForMe.startAt)} {formatSessionTimeRange(nextForMe.startAt, nextForMe.endAt)}
+              </span>{" "}
+              · <span className="font-semibold text-slate-800">{nextForMe.title}</span>
               {nextForMe.location && ` · ${nextForMe.location}`}
             </p>
           ) : (
@@ -256,30 +275,65 @@ export async function FinalScheduleSection({
         </div>
       </div>
 
+      {view === "calendar" && (
+        // 색으로 갈라 놓은 이상 무슨 색이 무슨 뜻인지도 같이 있어야 한다.
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500">
+          {myTrainee && (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="h-3 w-3 rounded-sm border border-brand-green-dark bg-brand-green" />
+              <span className="font-medium text-brand-green-dark">내가 참석하는 교육</span>
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              className={`h-3 w-3 rounded-sm border ${
+                myTrainee ? "border-slate-400 bg-slate-200" : "border-brand-green-dark bg-brand-green-light"
+              }`}
+            />
+            {myTrainee ? "그 밖의 교육" : "예정된 교육"}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-3 w-3 rounded-sm border border-slate-200 bg-slate-50" />
+            지난 교육
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-brand-green text-[8px] font-bold text-white">
+              1
+            </span>
+            오늘
+          </span>
+        </div>
+      )}
+
       {view === "calendar" ? (
         // 폰 화면에서 7칸을 욱여넣으면 칸이 40px까지 눌려 "10…"밖에 안 보인다.
         // 최소 폭을 주고 가로로 스크롤하게 해서 교육명이 읽히도록 한다.
         <div className="overflow-x-auto rounded-lg border border-slate-200">
           <div className="min-w-[640px]">
-          <div className="grid grid-cols-7 bg-slate-50 text-center text-xs font-medium text-slate-500">
-            {WEEKDAY_LABEL.map((w) => (
-              <div key={w} className="py-2">
+          <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-xs font-bold">
+            {WEEKDAY_LABEL.map((w, i) => (
+              <div key={w} className={`py-2 ${weekdayTone(i)}`}>
                 {w}
               </div>
             ))}
           </div>
           <div className="grid grid-cols-7 gap-px bg-slate-200">
             {monthCells(year, monthIdx).map((day, i) => {
-              if (day === null) return <div key={i} className="min-h-[92px] bg-slate-50" />;
+              if (day === null) return <div key={i} className="min-h-[104px] bg-slate-50" />;
               const key = `${currentMonthKey}-${String(day).padStart(2, "0")}`;
               const daySessions = byDay.get(key) ?? [];
               return (
-                <div key={i} className="flex min-h-[92px] flex-col gap-0.5 bg-white p-1.5">
+                <div
+                  key={i}
+                  className={`flex min-h-[104px] flex-col gap-1 p-1.5 ${
+                    daySessions.length > 0 ? "bg-emerald-50/60" : "bg-white"
+                  }`}
+                >
                   <span
-                    className={`mb-0.5 text-xs font-medium ${
+                    className={`mb-0.5 text-xs font-bold ${
                       key === todayKey
                         ? "flex h-5 w-5 items-center justify-center rounded-full bg-brand-green text-white"
-                        : "text-slate-500"
+                        : weekdayTone(i % 7)
                     }`}
                   >
                     {day}
@@ -289,13 +343,14 @@ export async function FinalScheduleSection({
                       key={s.id}
                       href={finalHref({ ...linkBase, sessionId: openSession?.id === s.id ? null : s.id })}
                       title={`${formatSessionTimeRange(s.startAt, s.endAt)} ${s.title}`}
-                      className={`truncate rounded border-l-2 px-1 py-0.5 text-[11px] hover:brightness-95 ${chipTone(
+                      className={`block truncate rounded border-l-4 px-1.5 py-1 text-xs font-semibold leading-tight hover:brightness-95 ${chipTone(
                         s,
                         isForMe(s),
-                        now
-                      )} ${openSession?.id === s.id ? "ring-1 ring-inset ring-brand-green" : ""}`}
+                        now,
+                        !!myTrainee
+                      )} ${openSession?.id === s.id ? "ring-2 ring-brand-green-dark ring-offset-1" : ""}`}
                     >
-                      {formatSessionStart(s.startAt)} {s.title}
+                      <span className="tabular-nums opacity-75">{formatSessionStart(s.startAt)}</span> {s.title}
                     </Link>
                   ))}
                 </div>
@@ -308,6 +363,7 @@ export async function FinalScheduleSection({
           <div className="md:hidden">
             <DayList
               byDay={byDay}
+              now={now}
               isForMe={isForMe}
               hrefOf={(id) => finalHref({ ...linkBase, sessionId: openSession?.id === id ? null : id })}
               emptyLabel={onlyMine ? "참석 대상으로 지정된 교육이 없습니다." : "이 기수에 등록된 교육 일정이 없습니다."}
@@ -317,6 +373,7 @@ export async function FinalScheduleSection({
       ) : (
         <DayList
           byDay={byDay}
+          now={now}
           isForMe={isForMe}
           hrefOf={(id) => finalHref({ ...linkBase, sessionId: openSession?.id === id ? null : id })}
           emptyLabel={onlyMine ? "참석 대상으로 지정된 교육이 없습니다." : "이 기수에 등록된 교육 일정이 없습니다."}
@@ -348,11 +405,13 @@ export async function FinalScheduleSection({
  */
 function DayList({
   byDay,
+  now,
   isForMe,
   hrefOf,
   emptyLabel,
 }: {
   byDay: Map<string, FinalSession[]>;
+  now: Date;
   isForMe: (s: FinalSession) => boolean;
   hrefOf: (sessionId: string) => string;
   emptyLabel: string;
@@ -363,24 +422,30 @@ function DayList({
     <div className="flex flex-col gap-4">
       {[...byDay.entries()].map(([key, daySessions]) => (
         <div key={key} className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-          <div className="border-b border-slate-100 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
+          <div className="border-b border-slate-200 bg-brand-green-light px-4 py-2.5 text-sm font-bold text-brand-green-dark">
             {formatSessionDay(daySessions[0].startAt)}
           </div>
           <ul className="divide-y divide-slate-100">
-            {daySessions.map((s) => (
+            {daySessions.map((s) => {
+              const mine = isForMe(s);
+              const past = s.endAt <= now;
+              return (
               <li key={s.id}>
                 <Link
                   href={hrefOf(s.id)}
-                  className="flex flex-wrap items-start gap-x-4 gap-y-1 px-4 py-3 hover:bg-slate-50"
+                  // 왼쪽 굵은 색띠 하나로 "내가 들어가는 줄"이 목록에서 바로 잡힌다.
+                  className={`flex flex-wrap items-start gap-x-4 gap-y-1 border-l-4 px-4 py-3 hover:bg-slate-50 ${
+                    mine ? "border-brand-green bg-brand-green-light/50" : "border-transparent"
+                  } ${past ? "opacity-55" : ""}`}
                 >
-                  <span className="w-32 shrink-0 text-sm font-medium text-slate-700">
+                  <span className="w-32 shrink-0 text-sm font-bold tabular-nums text-slate-800">
                     {formatSessionTimeRange(s.startAt, s.endAt)}
                   </span>
                   <div className="min-w-[12rem] flex-1">
-                    <p className="text-sm font-medium text-slate-800">
+                    <p className="text-sm font-semibold text-slate-900">
                       {s.title}
-                      {isForMe(s) && (
-                        <span className="ml-2 rounded-full bg-brand-green-light px-2 py-0.5 text-[10px] font-semibold text-brand-green-dark">
+                      {mine && (
+                        <span className="ml-2 rounded-full bg-brand-green px-2 py-0.5 text-[10px] font-bold text-white">
                           참석
                         </span>
                       )}
@@ -394,7 +459,8 @@ function DayList({
                   </div>
                 </Link>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </div>
       ))}
@@ -417,13 +483,13 @@ function SessionDetail({
   closeHref: string;
 }) {
   return (
-    <div className="rounded-lg border border-brand-green bg-white p-5">
+    <div className="rounded-lg border-2 border-brand-green bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h3 className="text-base font-semibold text-slate-800">
+          <h3 className="text-base font-bold text-slate-900">
             {session.title}
             {mine && (
-              <span className="ml-2 rounded-full bg-brand-green-light px-2 py-0.5 text-[10px] font-semibold text-brand-green-dark">
+              <span className="ml-2 rounded-full bg-brand-green px-2 py-0.5 text-[10px] font-bold text-white">
                 참석 대상
               </span>
             )}
@@ -438,15 +504,17 @@ function SessionDetail({
       <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div>
           <dt className="text-xs font-medium text-slate-500">교육 시간</dt>
-          <dd className="mt-0.5 text-sm text-slate-800">
+          <dd className="mt-0.5 text-sm font-semibold text-slate-900">
             {formatKSTDate(session.startAt, { year: "numeric", month: "long", day: "numeric", weekday: "short" })}
             <br />
-            {formatSessionTimeRange(session.startAt, session.endAt)}
+            <span className="tabular-nums text-brand-green-dark">
+              {formatSessionTimeRange(session.startAt, session.endAt)}
+            </span>
           </dd>
         </div>
         <div>
           <dt className="text-xs font-medium text-slate-500">교육 장소</dt>
-          <dd className="mt-0.5 text-sm text-slate-800">{session.location ?? "미정"}</dd>
+          <dd className="mt-0.5 text-sm font-semibold text-slate-900">{session.location ?? "미정"}</dd>
         </div>
         <div>
           <dt className="text-xs font-medium text-slate-500">강사</dt>
