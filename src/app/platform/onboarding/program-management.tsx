@@ -5,14 +5,11 @@ import { SearchableSelect } from "@/components/searchable-select";
 import {
   SESSION_STATUS_BADGE_CLASS,
   SESSION_STATUS_LABEL,
-  SLOTS,
-  SLOT_DEFAULT_TIME,
-  SLOT_LABEL,
   formatSessionDay,
   formatSessionTimeRange,
   kstDayKey,
+  toKSTInputValues,
   type SessionStatus,
-  type Slot,
 } from "@/lib/onboarding";
 import { confirmSession, designateTeamInstructor, replyAvailability, unconfirmSession } from "./actions";
 import { EmptyBox, INPUT_CLASS, LABEL_CLASS, PRIMARY_BUTTON_CLASS, programPeriod } from "./ui";
@@ -28,10 +25,11 @@ export function StatusBadge({ status }: { status: SessionStatus }) {
 /**
  * 강의 일정을 조율하는 화면.
  *
- * 관리자가 [일정 관리]에서 "이 날 오전"까지만 가이드라인을 잡아 두면, 배정된
- * 강사(또는 그 부서에서 정할 수 있는 사람)가 가능한지 답한다. 가능하면 되는 시간대를 고르고,
- * 불가하면 사유를 남긴다. 그 답을 보고 관리자가 실제 시각을 짜서 확정하며,
- * 확정된 것만 [최종 스케줄]에 나간다.
+ * 관리자가 [일정 관리]에서 날짜와 시각을 잡아 두면, 배정된 강사(또는 그 부서에서
+ * 정할 수 있는 사람)가 가능한지 답한다. 가능하면 되는 시각을 적고, 불가하면
+ * 사유를 남긴다. 그 답을 보고 관리자가 최종 시각을 정해 확정하며, 확정된 것만
+ * [최종 스케줄]에 나간다. 관리자가 편성하면서 바로 확정해 둔 강의는 여기서
+ * 조율할 것 없이 확정 상태로 보인다.
  *
  * 강사는 본인에게 배정된 강의만 본다 — 남의 강의까지 보이면 이 화면이 다시
  * 전체 시간표가 되어 버린다. 관리자는 조율 상황을 봐야 하므로 전부 본다.
@@ -88,8 +86,8 @@ export async function ProgramManagementSection({
         startAt: true,
         endAt: true,
         status: true,
-        slot: true,
-        instructorSlot: true,
+        instructorStartAt: true,
+        instructorEndAt: true,
         instructorNote: true,
         instructorId: true,
         instructor: { select: { name: true, team: { select: { name: true } } } },
@@ -130,8 +128,8 @@ export async function ProgramManagementSection({
         </div>
         <p className="mt-2 text-sm text-slate-600">
           {isAdmin
-            ? "강사가 보내온 답을 보고 실제 시각을 정해 확정합니다. 확정한 일정만 [최종 스케줄]에 나타납니다."
-            : "배정된 강의의 가능 여부를 알려 주세요. 부서에 배정된 강의는 담당 강사도 정해 주세요. 실제 시각은 관리자가 정합니다."}
+            ? "강사가 보내온 답을 보고 최종 시각을 정해 확정합니다. 확정한 일정만 [최종 스케줄]에 나타납니다."
+            : "배정된 강의의 가능 여부를 알려 주세요. 부서에 배정된 강의는 담당 강사도 정해 주세요. 최종 시각은 관리자가 정합니다."}
         </p>
         {isAdmin && waiting.length > 0 && (
           <p className="mt-3 rounded border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800">
@@ -153,8 +151,11 @@ export async function ProgramManagementSection({
         </EmptyBox>
       ) : (
         sessions.map((s, i) => {
-          const slot = s.slot as Slot;
-          const answered = s.instructorSlot as Slot | null;
+          // 강사가 답해 온 시각이 있으면 그것을, 없으면 관리자가 편성한 시각을
+          // 확정 폼의 기본값으로 쓴다 — 그대로 확정하는 경우가 대부분이다.
+          const answered = s.instructorStartAt && s.instructorEndAt
+            ? { startAt: s.instructorStartAt, endAt: s.instructorEndAt }
+            : null;
           const mine = s.instructorId === viewerId;
           const locked = s.status === "CONFIRMED";
           // 담당 강사 본인, 또는 부서 배정 강의를 다룰 수 있는 사람이면 답할 수
@@ -162,10 +163,17 @@ export async function ProgramManagementSection({
           const myTeamsSession =
             !!s.instructorTeamId && s.instructorTeamId === myTeamId && (!s.leaderOnly || iLeadMyTeam);
           const canReply = !locked && !!s.instructorId && (mine || myTeamsSession);
-          const canDesignate = !locked && !!s.instructorTeamId && (isAdmin || myTeamsSession);
+          // 관리자가 바로 확정해 두고 담당은 부서에만 맡긴 강의가 있다 — 시각은
+          // 끝났어도 누가 나갈지는 남은 절차이므로, 확정됐어도 강사가 비어 있으면
+          // 지정할 수 있게 연다. 사람까지 정해진 확정 강의만 잠근다.
+          const canDesignate =
+            !!s.instructorTeamId && (!locked || !s.instructorId) && (isAdmin || myTeamsSession);
           const teamMembers = s.instructorTeamId ? teamMembersById.get(s.instructorTeamId) ?? [] : [];
           const newDay = i === 0 || kstDayKey(s.startAt) !== kstDayKey(sessions[i - 1].startAt);
-          const defaults = SLOT_DEFAULT_TIME[answered ?? slot];
+          const defaults = {
+            start: toKSTInputValues(answered?.startAt ?? s.startAt).time,
+            end: toKSTInputValues(answered?.endAt ?? s.endAt).time,
+          };
 
           return (
             <div key={s.id}>
@@ -185,14 +193,10 @@ export async function ProgramManagementSection({
                     )}
                     <p className="mt-1 text-xs text-slate-500">
                       {formatSessionDay(s.startAt)}{" "}
-                      {locked ? (
-                        <span className="font-medium text-slate-700">{formatSessionTimeRange(s.startAt, s.endAt)}</span>
-                      ) : (
-                        <>
-                          <span className="font-medium text-slate-700">{SLOT_LABEL[slot]}</span>
-                          <span className="ml-1 text-slate-400">(관리자 가이드라인 · 시각 미확정)</span>
-                        </>
-                      )}
+                      <span className="font-medium text-slate-700">
+                        {formatSessionTimeRange(s.startAt, s.endAt)}
+                      </span>
+                      {!locked && <span className="ml-1 text-slate-400">(관리자 제안 · 확정 전)</span>}
                       {s.location && ` · ${s.location}`}
                     </p>
                     <p className="mt-0.5 text-xs text-slate-500">
@@ -230,7 +234,11 @@ export async function ProgramManagementSection({
                 {s.status === "SUBMITTED" && (
                   <p className="mt-3 rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm">
                     <span className="font-bold text-blue-700">강의 가능</span>
-                    <span className="ml-1 text-blue-800">— {SLOT_LABEL[answered ?? slot]} 가능</span>
+                    {answered && (
+                      <span className="ml-1 text-blue-800">
+                        — {formatSessionTimeRange(answered.startAt, answered.endAt)} 가능
+                      </span>
+                    )}
                     {s.instructorNote && <span className="ml-1 text-slate-700">· {s.instructorNote}</span>}
                   </p>
                 )}
@@ -249,6 +257,7 @@ export async function ProgramManagementSection({
                       <span className="ml-1 font-normal text-blue-700">
                         — {s.instructorTeam?.name}에 배정된 강의입니다
                         {s.leaderOnly ? " (팀장만 지정)" : ""}. 이번에 강의할 분을 정해 주세요.
+                        {locked && " 시각은 이미 확정되어 있습니다."}
                       </span>
                     </p>
                     <ActionForm
@@ -284,7 +293,14 @@ export async function ProgramManagementSection({
                 {canReply && (
                   <div className="mt-3 border-t border-slate-100 pt-3">
                     <p className="text-xs font-medium text-slate-600">
-                      가능 여부 {s.status !== "PLANNED" && <span className="text-slate-400">(다시 답하면 새로 반영됩니다)</span>}
+                      가능 여부
+                      <span className="ml-1 font-normal text-slate-400">
+                        — 관리자가 제안한 {formatSessionTimeRange(s.startAt, s.endAt)} 그대로 가능하면 그대로 두고,
+                        다른 시각이어야 하면 고쳐서 보내 주세요.
+                      </span>
+                      {s.status !== "PLANNED" && (
+                        <span className="ml-1 text-slate-400">(다시 답하면 새로 반영됩니다)</span>
+                      )}
                     </p>
 
                     <ActionForm
@@ -294,21 +310,31 @@ export async function ProgramManagementSection({
                     >
                       <input type="hidden" name="available" value="yes" />
                       <div>
-                        <label className={LABEL_CLASS}>가능한 시간대</label>
-                        <select name="instructorSlot" defaultValue={answered ?? slot} className={INPUT_CLASS}>
-                          {SLOTS.map((v) => (
-                            <option key={v} value={v}>
-                              {SLOT_LABEL[v]}
-                            </option>
-                          ))}
-                        </select>
+                        <label className={LABEL_CLASS}>가능한 시작 시간</label>
+                        <input
+                          type="time"
+                          name="startTime"
+                          required
+                          defaultValue={defaults.start}
+                          className={INPUT_CLASS}
+                        />
                       </div>
-                      <div className="sm:col-span-3">
+                      <div>
+                        <label className={LABEL_CLASS}>가능한 종료 시간</label>
+                        <input
+                          type="time"
+                          name="endTime"
+                          required
+                          defaultValue={defaults.end}
+                          className={INPUT_CLASS}
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
                         <label className={LABEL_CLASS}>설명 (선택)</label>
                         <input
                           name="note"
                           defaultValue={s.status === "SUBMITTED" ? s.instructorNote ?? "" : ""}
-                          placeholder="예: 오전은 가능하지만 10시~11시는 불가능합니다."
+                          placeholder="예: 10시 시작도 가능합니다. / 앞 일정이 있어 5분쯤 늦을 수 있습니다."
                           className={INPUT_CLASS}
                         />
                       </div>
@@ -356,7 +382,7 @@ export async function ProgramManagementSection({
                     <p className="text-xs font-medium text-slate-600">
                       시각 확정
                       <span className="ml-1 font-normal text-slate-400">
-                        — {formatSessionDay(s.startAt)} 안에서 실제 시각을 정합니다.
+                        — {formatSessionDay(s.startAt)} 안에서 최종 시각을 정합니다.
                       </span>
                     </p>
                     <ActionForm

@@ -11,23 +11,11 @@ export const SESSION_STATUS_LABEL: Record<SessionStatus, string> = {
   CONFIRMED: "확정",
 };
 
-export const SLOTS = ["MORNING", "AFTERNOON"] as const;
-export type Slot = (typeof SLOTS)[number];
-
-export const SLOT_LABEL: Record<Slot, string> = {
-  MORNING: "오전",
-  AFTERNOON: "오후",
-};
-
 /**
- * 슬롯의 기본 시간 범위. 관리자가 확정할 때 실제 시각을 직접 넣지만, 그
- * 전까지는 이 범위를 자리표시로 쓴다 — 달력과 목록이 시각 없이는 그려지지
- * 않기 때문.
+ * 편성 폼을 열었을 때 시각 칸에 미리 들어가는 값. 오전 한 타임이 가장 흔해
+ * 이걸 기본으로 두고, 다른 시간대는 그 자리에서 고쳐 넣는다.
  */
-export const SLOT_DEFAULT_TIME: Record<Slot, { start: string; end: string }> = {
-  MORNING: { start: "09:00", end: "12:00" },
-  AFTERNOON: { start: "13:00", end: "18:00" },
-};
+export const DEFAULT_SESSION_TIME = { start: "09:00", end: "12:00" } as const;
 
 /**
  * 한눈에 진행 단계가 읽히도록 색을 단계별로 맞춘다 — 빨강(아직 조율 안 됨)

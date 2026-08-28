@@ -7,10 +7,8 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { ActionForm } from "@/components/action-form";
 import { activePrismaWhere } from "@/lib/hr-analytics";
 import {
-  SLOTS,
-  SLOT_LABEL,
+  DEFAULT_SESSION_TIME,
   formatSessionDay,
-  type Slot,
   formatSessionTimeRange,
   canCoordinateSessions,
   toKSTInputValues,
@@ -30,6 +28,7 @@ import {
   updateSession,
 } from "./actions";
 import { ProgramPeriodFields } from "./program-period-fields";
+import { ConfirmModeField } from "./confirm-mode-field";
 import { AssignFields } from "./assign-fields";
 import { FinalScheduleSection, finalHref } from "./final-schedule";
 import { ProgramManagementSection, StatusBadge } from "./program-management";
@@ -110,7 +109,6 @@ async function ManageSection({ programId }: { programId: string | null }) {
             location: true,
             startAt: true,
             endAt: true,
-            slot: true,
             instructorId: true,
             instructor: { select: { name: true } },
             instructorTeamId: true,
@@ -378,8 +376,9 @@ async function ManageSection({ programId }: { programId: string | null }) {
           <div className="rounded-lg border border-slate-200 bg-white p-5">
             <h2 className="text-lg font-semibold text-slate-800">교육 일정 편성</h2>
             <p className="mt-1 text-sm text-slate-600">
-              전체 일정의 틀을 잡습니다. 강의는 담당 강사를 정해 두면 그 강사가 [교육 프로그램 관리]에서 최소 시간
-              안에서 가능 여부를 답하고, 관리자가 실제 시각을 정해 확정하면 [최종 스케줄]에 나타납니다.
+              날짜와 시각을 정해 시간표를 채웁니다. 강사에게 확인이 필요한 강의는 «강사에게 확인»으로 두면 담당
+              강사가 [교육 프로그램 관리]에서 가능 여부를 답하고, 그 답을 보고 관리자가 확정합니다. 이미 정해진
+              강의는 «바로 확정»으로 두면 그 자리에서 [최종 스케줄]에 올라갑니다.
             </p>
             <ActionForm
               action={createSession}
@@ -409,19 +408,30 @@ async function ManageSection({ programId }: { programId: string | null }) {
                 {periodLabel && <p className="mt-1 text-[11px] text-slate-400">기수 기간 {periodLabel}</p>}
               </div>
               <div>
-                <label className={LABEL_CLASS}>강의 시간</label>
-                <select name="slot" defaultValue="MORNING" className={INPUT_CLASS}>
-                  {SLOTS.map((v) => (
-                    <option key={v} value={v}>
-                      {SLOT_LABEL[v]}
-                    </option>
-                  ))}
-                </select>
+                <label className={LABEL_CLASS}>시작 시간</label>
+                <input
+                  type="time"
+                  name="startTime"
+                  required
+                  defaultValue={DEFAULT_SESSION_TIME.start}
+                  className={INPUT_CLASS}
+                />
+              </div>
+              <div>
+                <label className={LABEL_CLASS}>종료 시간</label>
+                <input
+                  type="time"
+                  name="endTime"
+                  required
+                  defaultValue={DEFAULT_SESSION_TIME.end}
+                  className={INPUT_CLASS}
+                />
               </div>
               <div>
                 <label className={LABEL_CLASS}>장소 (선택)</label>
                 <input name="location" placeholder="예: 본사 대회의실" className={INPUT_CLASS} />
               </div>
+              <ConfirmModeField inputClassName={INPUT_CLASS} labelClassName={LABEL_CLASS} />
               <div className="sm:col-span-3">
                 <label className={LABEL_CLASS}>설명 (선택)</label>
                 <input name="description" placeholder="교육 내용 요약" className={INPUT_CLASS} />
@@ -449,10 +459,10 @@ async function ManageSection({ programId }: { programId: string | null }) {
                           {s.title} <StatusBadge status={s.status as SessionStatus} />
                         </p>
                         <p className="text-xs text-slate-500">
-                          {formatSessionDay(s.startAt)}{" "}
-                          {s.status === "CONFIRMED"
-                            ? formatSessionTimeRange(s.startAt, s.endAt)
-                            : `${SLOT_LABEL[s.slot as Slot]} (시각 미확정)`}
+                          {formatSessionDay(s.startAt)} {formatSessionTimeRange(s.startAt, s.endAt)}
+                          {s.status !== "CONFIRMED" && (
+                            <span className="ml-1 text-slate-400">(확정 전)</span>
+                          )}
                           {s.location && ` · ${s.location}`}
                         </p>
                         <p className="mt-0.5 text-xs text-slate-500">
@@ -501,20 +511,30 @@ async function ManageSection({ programId }: { programId: string | null }) {
                           <input type="date" name="date" required defaultValue={start.date} className={INPUT_CLASS} />
                         </div>
                         <div>
-                          <label className={LABEL_CLASS}>강의 시간</label>
-                          <select name="slot" defaultValue={s.slot} className={INPUT_CLASS}>
-                            {SLOTS.map((v) => (
-                              <option key={v} value={v}>
-                                {SLOT_LABEL[v]}
-                              </option>
-                            ))}
-                          </select>
+                          <label className={LABEL_CLASS}>시작 시간</label>
+                          <input
+                            type="time"
+                            name="startTime"
+                            required
+                            defaultValue={start.time}
+                            className={INPUT_CLASS}
+                          />
+                        </div>
+                        <div>
+                          <label className={LABEL_CLASS}>종료 시간</label>
+                          <input
+                            type="time"
+                            name="endTime"
+                            required
+                            defaultValue={toKSTInputValues(s.endAt).time}
+                            className={INPUT_CLASS}
+                          />
                         </div>
                         <div>
                           <label className={LABEL_CLASS}>장소</label>
                           <input name="location" defaultValue={s.location ?? ""} className={INPUT_CLASS} />
                         </div>
-                        <div className="sm:col-span-2">
+                        <div className="sm:col-span-3">
                           <label className={LABEL_CLASS}>설명</label>
                           <input name="description" defaultValue={s.description ?? ""} className={INPUT_CLASS} />
                         </div>
