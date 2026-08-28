@@ -1333,11 +1333,22 @@ export async function updateGoal(formData: FormData) {
       weight: true,
       firstProgress: true,
       agreementStatus: true,
+      evalDoneAt: true,
       teamId: true,
       ownerId: true,
     },
   });
   if (!existing) return;
+
+  /*
+    평가완료를 누른 목표는 «여기서 끝»이라고 못을 박은 것이다. 그 뒤에도 점수가
+    고쳐지면 완료 표시가 아무것도 뜻하지 않는다. 화면에서도 칸을 잠그지만, 폼은
+    믿지 않고 여기서 한 번 더 막는다 — 열어 둔 창을 그대로 두고 저장을 누르는
+    경우가 실제로 있다.
+  */
+  if (existing.evalDoneAt) {
+    throw new Error("평가완료된 목표입니다. 수정하려면 「평가완료 취소」를 눌러 주세요.");
+  }
 
   /*
     고칠 수 있는 사람은 두 갈래다 — 목표를 관리하는 사람(본인·팀장·관리자)과,
@@ -1741,9 +1752,14 @@ export async function addGoalCheckIn(formData: FormData) {
 
   const current = await prisma.goal.findUnique({
     where: { id: goalId },
-    select: { status: true, cycleId: true },
+    select: { status: true, cycleId: true, evalDoneAt: true },
   });
   if (!current) return;
+  // 평가완료된 목표는 달성률도 그대로 둔다 — 점수의 근거가 되는 값이라 여기서
+  // 바뀌면 완료된 평가가 조용히 달라진다.
+  if (current.evalDoneAt) {
+    throw new Error("평가완료된 목표입니다. 수정하려면 「평가완료 취소」를 눌러 주세요.");
+  }
   if (!allowsProgressInput(await actingCycle(formData, current.cycleId))) {
     throw new Error("목표설정 단계에서는 달성률을 적지 않습니다. 중간평가·최종평가에서 올려 주세요.");
   }
