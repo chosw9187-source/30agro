@@ -187,6 +187,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
             id: true,
             title: true,
             description: true,
+            traineeNote: true,
             location: true,
             startAt: true,
             endAt: true,
@@ -529,15 +530,28 @@ async function ManageSection({ programId }: { programId: string | null }) {
                   className={INPUT_CLASS}
                 />
               </div>
-              <div className="sm:col-span-4">
+              <div className="sm:col-span-2">
                 <label className={LABEL_CLASS}>강사 전달사항 (선택)</label>
-                <input
+                <textarea
                   name="description"
-                  placeholder="예: 노트북 지참 안내 / 진행 방식 메모 — 강사에게만 보입니다"
+                  rows={2}
+                  placeholder="예: 진행 방식 메모 — 강사에게만 보입니다"
                   className={INPUT_CLASS}
                 />
-                <p className="mt-1 text-[11px] text-slate-400">
-                  강사 전달사항은 안내서에 싣지 않습니다. 숙박·교통은 아래 [숙박 · 교통 안내]에서 날짜별로 적습니다.
+              </div>
+              <div className="sm:col-span-2">
+                <label className={LABEL_CLASS}>수강생 전달사항 (선택)</label>
+                <textarea
+                  name="traineeNote"
+                  rows={2}
+                  placeholder="예: 노트북과 사원증을 지참해 주세요 — 수강생에게 보입니다"
+                  className={INPUT_CLASS}
+                />
+              </div>
+              <div className="sm:col-span-4">
+                <p className="text-[11px] text-slate-400">
+                  강사 전달사항은 안내서에 싣지 않고, 수강생 전달사항은 [최종 스케줄]의 그 교육 상세에 그대로
+                  보입니다. 숙박·교통은 아래 [숙박 · 교통 안내]에서 날짜별로 적습니다.
                 </p>
               </div>
               <div className="sm:col-span-4">
@@ -629,9 +643,23 @@ async function ManageSection({ programId }: { programId: string | null }) {
                             className={INPUT_CLASS}
                           />
                         </div>
-                        <div className="sm:col-span-4">
+                        <div className="sm:col-span-2">
                           <label className={LABEL_CLASS}>강사 전달사항</label>
-                          <input name="description" defaultValue={s.description ?? ""} className={INPUT_CLASS} />
+                          <textarea
+                            name="description"
+                            rows={2}
+                            defaultValue={s.description ?? ""}
+                            className={INPUT_CLASS}
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className={LABEL_CLASS}>수강생 전달사항</label>
+                          <textarea
+                            name="traineeNote"
+                            rows={2}
+                            defaultValue={s.traineeNote ?? ""}
+                            className={INPUT_CLASS}
+                          />
                         </div>
                         <div className="sm:col-span-4">
                           <button
