@@ -127,6 +127,15 @@ model User {
   onboardingSessionsTaught OnboardingSession[] @relation("OnboardingSessionInstructor")
   onboardingTrainee       OnboardingTrainee[]  @relation("OnboardingTrainee")
   onboardingTraineesAdded OnboardingTrainee[]  @relation("OnboardingTraineeAdder")
+  goalsOwned            Goal[]                 @relation("GoalOwner")
+  goalsCreated          Goal[]                 @relation("GoalCreator")
+  goalCheckIns          GoalCheckIn[]          @relation("GoalCheckInAuthor")
+  goalsAgreed           Goal[]                 @relation("GoalAgreedBy")
+  goalCycleTargets      GoalCycleTarget[]      @relation("GoalCycleTargetUser")
+  goalSheetInfos        GoalSheetInfo[]        @relation("GoalSheetInfoUser")
+  goalCycleTargetsSet   GoalCycleTarget[]      @relation("GoalCycleTargetSetter")
+  goalCyclesLocked      GoalCycle[]            @relation("GoalCycleLockedBy")
+  goalCheckpoints       GoalCheckpoint[]       @relation("GoalCheckpointCreator")
 }
 
 model AppointmentRecord {
@@ -247,6 +256,7 @@ model Team {
   templateItems TemplateItem[]
   jobDescription JobDescription?
   tasks         Task[]
+  goals         Goal[]
 }
 
 model JobDescription {
@@ -417,6 +427,7 @@ enum Module {
   LEGAL_LIBRARY
   HR_REPORT
   EVALUATION
+  EVALUATION_V2
   TALENT_ASSESSMENT
   ONBOARDING
 }
@@ -546,6 +557,13 @@ model ModuleUiConfig {
   order      Int     @default(0)
   comingSoon Boolean @default(false)
   hidden     Boolean @default(false)
+}
+
+/** 사이드바 "관리"(admin) 섹션 항목별 숨김 여부. key는 AdminMenuKey 문자열. */
+model AdminMenuConfig {
+  id     String  @id @default(cuid())
+  key    String  @unique
+  hidden Boolean @default(false)
 }
 
 enum ErpBatchStatus {
@@ -819,4 +837,383 @@ model RegulationArticle {
 
   @@index([regulationId, order])
   @@index([articleNo])
+}
+
+// ---------------------------------------------------------------------------
+// 평가2 (목표관리) — 전사목표 → 책임목표 → 팀목표 → 개인목표 4단 캐스케이드
+// ---------------------------------------------------------------------------
+
+/**
+ * 목표가 걸리는 조직 계층. 조직도(사업단위 > 책임 > 팀 > 개인)와 같은
+ * 층위를 쓰되, 목표는 "책임"부터 나눠 내려가므로 사업단위 층은 두지 않는다.
+ */
+enum GoalLevel {
+  COMPANY
+  DIVISION
+  TEAM
+  INDIVIDUAL
+}
+
+enum GoalStatus {
+  /** 작성 중 — 상위에서 확정되기 전 */
+  DRAFT
+  /** 진행 중 */
+  ACTIVE
+  /** 달성 완료 */
+  DONE
+  /** 중단·폐기 */
+  DROPPED
+}
+
+/**
+ * 개인목표 합의 단계. 팀원이 목표를 세워 합의를 요청하면 팀장이 승인하거나
+ * 되돌린다. 승인(AGREED)된 목표만 나중에 성과평가 대상이 된다 — 확정되지
+ * 않은 목표에 점수를 매기면 평가가 성립하지 않는다.
+ */
+enum GoalAgreementStatus {
+  /** 작성 중 — 아직 팀장에게 올리지 않음 */
+  DRAFT
+  /** 합의 요청 — 팀장 승인 대기 */
+  REQUESTED
+  /** 합의 완료 — 팀장 승인됨 */
+  AGREED
+  /** 되돌림 — 팀장이 사유를 달아 반려 */
+  RETURNED
+}
+
+enum GoalCycleStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+/** 목표 운영 기간(예: 2026년 상반기). 모든 목표는 한 사이클에 속한다. */
+model GoalCycle {
+  id        String          @id @default(cuid())
+  name      String
+  year      Int
+  startDate DateTime
+  endDate   DateTime
+  status    GoalCycleStatus @default(DRAFT)
+
+  /**
+   * 목록에 늘어놓는 순서. 관리자가 위·아래로 옮겨 정한다.
+   *
+   * 연도·기간순으로만 세우면 "2026년 목표설정 → 상반기 → 최종평가"처럼 일이
+   * 진행되는 순서로 못 늘어놓는다. 상반기(1~6월)가 목표설정(7~12월)보다 앞선
+   * 기간이라 날짜로는 뒤집히기 때문이다. 0이면 아직 정하지 않은 것이라
+   * 날짜순으로 떨어진다.
+   */
+  sortOrder Int             @default(0)
+
+  /**
+   * 입사일 기준일. 이 날짜 **이후** 입사자는 이번 평가 대상에서 자동으로
+   * 빠진다(예: 2026-06-01을 넣으면 6월 이후 입사자 제외). 사람마다 손으로
+   * 넣고 빼는 대신 규칙 한 줄로 두는 이유는, 조직도에 새 입사자가 들어올
+   * 때마다 누가 명단을 다시 손보지 않아도 알아서 맞기 때문이다.
+   * 개별 판단이 필요하면 GoalCycleTarget 행으로 덮어쓴다.
+   */
+  hireCutoff DateTime?
+
+  /**
+   * 목표 확정(마감) 시각. 찍히면 목표의 **내용**(제목·지표·가중치·담당·구조)은
+   * 아무도 못 고치고, 진척(달성률)만 계속 올린다. 목표를 다 세운 뒤 슬그머니
+   * 목표가 바뀌면 평가의 기준 자체가 흔들리기 때문이다.
+   * 사이클 status가 CLOSED가 되면 진척까지 잠긴다(완전 읽기 전용).
+   */
+  goalsLockedAt   DateTime?
+  goalsLockedById String?
+  goalsLockedBy   User?     @relation("GoalCycleLockedBy", fields: [goalsLockedById], references: [id])
+
+  /**
+   * 목표를 빌려오는 사이클. 같은 해 목표 한 벌을 여러 평가가 나눠 볼 때 쓴다 —
+   * "2026년 상반기"와 "2026년 최종평가"는 "2026년 목표설정"의 목표를 그대로
+   * 보고, 목표를 각자 한 벌씩 들고 있지 않는다.
+   *
+   * 복사가 아니라 참조다. 복사하면 어느 쪽이 진짜인지가 생기고, 한쪽에서 목표를
+   * 고치면 다른 쪽과 어긋난다. 여기서는 화면만 여러 개고 목표는 한 벌이다.
+   * 연도가 바뀔 때는 참조가 아니라 복사가 맞다(copyGoalsFromCycle).
+   *
+   * 한 단계만 허용한다 — 빌려온 사이클을 또 빌려주면 어디가 원본인지 따라가기
+   * 어려워진다.
+   */
+  sourceCycleId String?
+  sourceCycle   GoalCycle?  @relation("GoalCycleShare", fields: [sourceCycleId], references: [id])
+  sharedBy      GoalCycle[] @relation("GoalCycleShare")
+
+  createdAt DateTime        @default(now())
+
+  goals       Goal[]
+  targets     GoalCycleTarget[]
+  sheetInfos  GoalSheetInfo[]
+  checkpoints GoalCheckpoint[]
+
+  @@index([year])
+}
+
+/**
+ * 평가 시점 스냅샷. "2026년 상반기 평가"처럼 한 사이클 안에서 성적을 끊어
+ * 읽어야 할 때, 그 순간의 달성률을 얼려 둔다.
+ *
+ * 상반기 평가를 하겠다고 목표를 통째로 복사해 새 사이클을 만들면 같은 목표가
+ * 두 벌이 되고, 어느 쪽이 진짜인지가 생긴다. 목표는 한 벌로 두고 시점만
+ * 남기면 하반기에 달성률이 더 올라가도 상반기 성적은 흔들리지 않는다.
+ */
+model GoalCheckpoint {
+  id      String    @id @default(cuid())
+  cycleId String
+  cycle   GoalCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  /** 예: "2026년 상반기 평가". */
+  name    String
+  takenAt DateTime  @default(now())
+  note    String?
+
+  createdById String
+  createdBy   User   @relation("GoalCheckpointCreator", fields: [createdById], references: [id])
+
+  entries GoalCheckpointEntry[]
+
+  @@index([cycleId, takenAt])
+}
+
+/** 스냅샷에 찍힌 목표 한 건의 그 시점 성적. */
+model GoalCheckpointEntry {
+  id           String         @id @default(cuid())
+  checkpointId String
+  checkpoint   GoalCheckpoint @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
+  goalId       String
+  goal         Goal           @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  level GoalLevel
+  /** 그 시점의 달성률 — 하위가 있으면 굴려 올린 값이다. */
+  progress Int
+  status   GoalStatus
+  /** 그 시점에 집계에서 빠져 있었는지(개별 제외 또는 평가대상 제외). */
+  excluded Boolean @default(false)
+
+  @@unique([checkpointId, goalId])
+  @@index([goalId])
+}
+
+/**
+ * 목표 한 건. parentId로 상위 목표에 연결해서 전사 → 책임 → 팀 → 개인으로
+ * 내려가는 정렬(cascade)을 만든다. 진척률은 하위 목표가 있으면 가중치
+ * 기준으로 굴려 올리고(rollup), 없으면 progress 입력값을 그대로 쓴다.
+ */
+model Goal {
+  id      String    @id @default(cuid())
+  cycleId String
+  cycle   GoalCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  level   GoalLevel
+
+  parentId String?
+  parent   Goal?   @relation("GoalCascade", fields: [parentId], references: [id])
+  children Goal[]  @relation("GoalCascade")
+
+  title       String
+  description String?
+
+  /** 책임목표가 속한 부문(책임) 이름. User.division / Team.division과 같은 값. */
+  division String?
+  /** 팀목표가 걸린 팀. */
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id])
+  /** 개인목표 담당자. 팀·책임 목표에서는 책임자(팀장·책임)를 가리킨다. */
+  ownerId String?
+  owner   User?   @relation("GoalOwner", fields: [ownerId], references: [id])
+
+  /** 같은 부모 아래 형제 목표들 사이의 가중치(%). 진척 롤업에 쓴다. */
+  weight Float @default(0)
+
+  /**
+   * "기타" 묶음인지. 위 층의 어느 목표에도 딱 붙지 않는 일을 담아 두는 자리다.
+   *
+   * 이런 목표를 상위 없이 두면 아무리 달성해도 전사 달성률이 안 움직인다 —
+   * 그래서 층마다 기타 한 칸을 두고 거기에 매단다. 등록할 때 상위 목표로
+   * 「기타」를 고르면 필요한 만큼 자동으로 만들어진다(전사 기타 → 책임 기타 →
+   * 팀 기타). 이름만 "기타"인 보통 목표와 구분하려고 플래그로 표시한다.
+   */
+  isOther Boolean @default(false)
+
+  /** 측정지표와 목표수준 — 서술형으로 받는다(예: "신규 거래처 20개"). */
+  metric      String?
+  targetValue String?
+  currentValue String?
+
+  /**
+   * 평가척도. 사내 "팀 목표 설정" 양식의 S(110)~D(70) 다섯 칸을 그대로 받는다.
+   *
+   * 점수가 아니라 **그 등급이 되려면 어디까지 해야 하는지를 서술로** 적는 칸이다
+   * (예: S = "3천만원 이상 절감", C = "천만원 미만~백만원 이상 절감"). 목표를
+   * 세울 때 등급 기준을 같이 못박아 둬야, 연말에 "이 정도면 A인가 B인가"를
+   * 사람마다 다르게 읽는 일이 없다.
+   */
+  scaleS String?
+  scaleA String?
+  scaleB String?
+  scaleC String?
+  scaleD String?
+
+  /** 산출식/방안 — 이 지표를 무엇으로 재는지(예: "= 절감액", "= 만족도Survey"). */
+  formula String?
+
+  /**
+   * 목표 유형. 사내 "개인목표 설정" 양식에서 목표 앞에 붙는 괄호 —
+   * (업무목표) / (개선목표) / (자기계발목표).
+   *
+   * 세 가지를 섞어 세우게 하려고 두는 칸이다. 유형을 안 적게 하면 개인목표가
+   * 전부 (업무목표)로만 채워져서, 개선과 자기계발이 목표 설정 단계에서 아예
+   * 빠진다.
+   */
+  /// 상반기 / 하반기. 팀·개인 목표를 반기로 갈라 세우고 목록도 그렇게 묶는다.
+  half String?
+
+  goalType String?
+
+  /**
+   * Key Results(핵심결과). 줄바꿈 한 줄이 ① ② ③ 한 항목이다.
+   *
+   * 항목마다 별도 행으로 두지 않는 이유는, 양식에서도 이것들이 달성률을 따로
+   * 매기는 대상이 아니라 "목표를 무엇으로 봤다고 할지"를 적어 두는 목록이기
+   * 때문이다. 나중에 항목별 진척을 재게 되면 그때 행으로 쪼갠다.
+   */
+  keyResults String?
+
+  progress Int        @default(0)
+  status   GoalStatus @default(ACTIVE)
+
+  /**
+   * 그 단계의 평가 — 사내 「개인목표 평가(상반기)」 표를 그대로 옮긴 칸들이다.
+   * 본인이 자기 점수와 사유를 적고, 1차 평가자(팀장)가 그 아래 칸을 적는다.
+   *
+   * 목표 행에 같이 두는 이유는, 마감할 때 단계마다 목표를 한 벌씩 복사해 갖기
+   * 때문이다(`handOffToNextPhase`). 중간평가의 목표 행에 적힌 점수는 상반기
+   * 평가이고, 최종평가 행에 적힌 것은 하반기 평가다 — 한 행이 두 학기를
+   * 겸하지 않으므로 칸을 반기마다 따로 둘 필요가 없다.
+   */
+  selfScore    Int?
+  selfComment  String?
+
+  /**
+   * 1차 평가자가 매긴 값. **적혀 있으면 이것이 그 목표의 달성률·점수다.**
+   * 피평가자가 적은 값(progress·selfScore)은 «본인은 이렇게 봤다»는 기록으로
+   * 남고, 위로 굴러 올라가는 숫자는 평가자 것이 된다(`effectiveProgress`).
+   */
+  firstProgress Int?
+  firstScore   Int?
+  firstComment String?
+
+  /**
+   * 1차 평가자가 «평가완료»를 누른 시각. 찍히면 그 단계의 평가가 끝났다는
+   * 뜻이고, 목록에서 붉게 «완료»로 읽힌다. 되돌릴 수 있게 시각만 남긴다 —
+   * 상태 값을 따로 두면 «완료인데 시각이 없는» 줄이 생긴다.
+   */
+  evalDoneAt   DateTime?
+  evalDoneById String?
+
+  /**
+   * 집계 제외. 담당자가 퇴사하거나 다른 부서로 옮겨서 이 목표를 더는 그 조직의
+   * 성과로 보기 어려울 때 켠다. 켜진 목표는 상위 목표 달성률 계산에서 빠지고,
+   * 완료·지연 건수에도 잡히지 않는다. 목표 자체는 남겨둬야 나중에 왜 빠졌는지
+   * 추적할 수 있어서 삭제 대신 이 플래그를 쓴다.
+   */
+  excluded      Boolean @default(false)
+  excludeReason String?
+
+  /**
+   * 합의 단계. 개인목표에만 의미가 있다 — 전사·책임·팀 목표는 관리자·팀장이
+   * 직접 세우는 값이라 합의 대상이 아니다.
+   */
+  agreementStatus GoalAgreementStatus @default(DRAFT)
+  /** 팀장이 되돌리며 남긴 사유, 또는 승인하며 남긴 메모. */
+  agreementNote   String?
+  agreedAt        DateTime?
+  agreedById      String?
+  agreedBy        User?               @relation("GoalAgreedBy", fields: [agreedById], references: [id])
+  dueDate  DateTime?
+  sortOrder Int       @default(0)
+
+  createdById String
+  createdBy   User     @relation("GoalCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  checkIns         GoalCheckIn[]
+  checkpointEntries GoalCheckpointEntry[]
+
+  @@index([cycleId, level])
+  @@index([parentId])
+  @@index([teamId])
+  @@index([ownerId])
+}
+
+/** 진척 업데이트 이력. 언제 몇 %로 올렸고 무슨 근거였는지 남긴다. */
+model GoalCheckIn {
+  id       String @id @default(cuid())
+  goalId   String
+  goal     Goal   @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  progress Int
+  note     String?
+  authorId String
+  author   User     @relation("GoalCheckInAuthor", fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([goalId, createdAt])
+}
+
+/**
+ * 평가대상자. 사이클마다 "이 사람을 이번 목표관리에 넣는지"를 남긴다.
+ *
+ * 행이 없으면 대상이다 — 재직 중인 사람은 기본적으로 전원 대상이고, 빼야 할
+ * 사람만 included=false 로 행을 만든다. 그래야 입사자가 들어올 때마다 누가
+ * 명단에 넣어주지 않아도 자동으로 대상에 잡힌다.
+ *
+ * 제외로 바꾸면 그 사람이 이 사이클에서 가진 목표의 Goal.excluded 도 같이
+ * 켜서 상위 달성률 집계에서 빠지게 한다 — 명단과 집계가 따로 놀면 "명단에서
+ * 뺐는데 달성률은 그대로"가 된다.
+ */
+/**
+ * 개인목표 설정 양식의 «1. 기본사항» 중 **사람이 직접 적는 칸**.
+ *
+ * 인사카드(User)와 잇지 않는다 — 담당업무는 «인사 기획/보상평가»처럼 그 해
+ * 자기가 무엇을 맡았는지 본인이 적는 문장이라, 인사 정보로 관리하면 매번
+ * 인사팀을 거쳐야 한다. 평가대상 여부를 담는 GoalCycleTarget에 얹지 않은
+ * 이유도 분명하다 — 그 표에 줄이 생기면 «손으로 정한 대상»으로 읽혀서
+ * 입사일 기준(hireCutoff)을 덮어써 버린다.
+ *
+ * 사이클마다 한 줄. 중간평가·최종평가는 목표를 빌려 쓰므로 원본
+ * 사이클(sourceCycleId ?? id)에 저장해서 세 단계가 같은 값을 본다.
+ */
+model GoalSheetInfo {
+  id      String    @id @default(cuid())
+  cycleId String
+  cycle   GoalCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User      @relation("GoalSheetInfoUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  /// 담당업무 — 서술로 적는다(예: "인사 기획/보상평가").
+  duty String?
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([cycleId, userId])
+}
+
+model GoalCycleTarget {model GoalCycleTarget {
+  id      String    @id @default(cuid())
+  cycleId String
+  cycle   GoalCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User      @relation("GoalCycleTargetUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  included Boolean @default(true)
+  /** 제외 사유(퇴사, 부서이동, 휴직 등). 화면과 집계 제외 사유에 같이 쓴다. */
+  reason   String?
+
+  setById String?
+  setBy   User?    @relation("GoalCycleTargetSetter", fields: [setById], references: [id])
+  updatedAt DateTime @updatedAt
+
+  @@unique([cycleId, userId])
+  @@index([cycleId, included])
 }

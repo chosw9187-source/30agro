@@ -36,7 +36,7 @@ export function HrCardBulkUploadForm() {
         </p>
         <a
           href="/api/admin/hr-card-bulk/template"
-          className="self-start text-sm text-brand-green hover:underline"
+          className="inline-block self-start py-1.5 text-sm text-brand-green hover:underline sm:py-0"
         >
           업로드 양식 다운로드 (.xlsx)
         </a>

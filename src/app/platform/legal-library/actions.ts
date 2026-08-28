@@ -7,8 +7,13 @@ import { requireRole } from "@/lib/auth-helpers";
 import { checkModuleAccess } from "@/lib/permissions";
 import { extractRegulationText, detectFileType } from "@/lib/regulation-extract";
 import { parseRegulation, type ParsedArticle } from "@/lib/regulation-parse";
+import {
+  findArticleRows,
+  findMatchIndex,
+  stripSpaces,
+} from "@/lib/regulation-search";
+import { buildSearchTerms } from "@/lib/regulation-query";
 
-const SEARCH_RESULT_LIMIT = 50;
 const SNIPPET_LENGTH = 160;
 
 export type RegulationUploadResult = {
@@ -115,29 +120,52 @@ export async function uploadRegulations(
   }
 
   revalidatePath("/platform/legal-library");
+  revalidatePath("/platform/data-upload");
   return results;
 }
 
 /**
- * 저장해둔 원문으로 조문만 다시 쪼갠다. 파서를 고쳤을 때 파일을 다시
- * 올리지 않고 반영하기 위한 것 — 실제 문서를 보고 파서를 손볼 일이
- * 반복되므로 재파싱 경로가 없으면 매번 재업로드해야 한다.
+ * 올렸던 파일에서 원문을 다시 뽑아 조문을 다시 쪼갠다. 파서나 추출기를
+ * 고쳤을 때 파일을 다시 올리지 않고 반영하기 위한 것 — 실제 문서를 보고
+ * 손볼 일이 반복되므로 재파싱 경로가 없으면 매번 재업로드해야 한다.
+ *
+ * 저장된 sourceText만 다시 쪼개면 옛 추출 결과에 갇힌다. 표 인식처럼
+ * 추출 단계를 고친 경우가 그래서, 원본 파일이 남아 있으면 추출부터 다시
+ * 한다. 원본이 없거나 추출이 실패하면 저장된 원문으로 물러선다.
  */
 export async function reparseRegulation(id: string): Promise<{ articleCount: number }> {
   await requireRole("ADMIN");
 
   const regulation = await prisma.regulation.findUnique({
     where: { id },
-    select: { sourceText: true },
+    select: { sourceText: true, fileName: true, fileData: true },
   });
-  if (!regulation?.sourceText) {
+  if (!regulation) throw new Error("규정을 찾을 수 없습니다.");
+
+  let sourceText = regulation.sourceText;
+
+  if (regulation.fileData && regulation.fileName) {
+    try {
+      const extracted = await extractRegulationText(
+        regulation.fileName,
+        Buffer.from(regulation.fileData),
+      );
+      sourceText = extracted;
+      await prisma.regulation.update({ where: { id }, data: { sourceText } });
+    } catch {
+      // 재추출 실패는 재파싱 자체를 막지 않는다 — 아래 저장된 원문으로 간다.
+    }
+  }
+
+  if (!sourceText) {
     throw new Error("원문이 저장돼 있지 않습니다. 파일을 다시 올려주세요.");
   }
 
-  const articles = parseRegulation(regulation.sourceText);
+  const articles = parseRegulation(sourceText);
   await writeArticles(id, articles);
 
   revalidatePath("/platform/legal-library");
+  revalidatePath("/platform/data-upload");
   return { articleCount: articles.length };
 }
 
@@ -145,12 +173,14 @@ export async function deleteRegulation(id: string): Promise<void> {
   await requireRole("ADMIN");
   await prisma.regulation.delete({ where: { id } });
   revalidatePath("/platform/legal-library");
+  revalidatePath("/platform/data-upload");
 }
 
 export async function setRegulationActive(id: string, isActive: boolean): Promise<void> {
   await requireRole("ADMIN");
   await prisma.regulation.update({ where: { id }, data: { isActive } });
   revalidatePath("/platform/legal-library");
+  revalidatePath("/platform/data-upload");
 }
 
 export type ArticleSearchHit = {
@@ -162,54 +192,52 @@ export type ArticleSearchHit = {
   snippet: string;
 };
 
+export type RegulationAnswer = {
+  /** 질문에서 실제로 검색에 쓴 낱말. 화면에 보여줘서 왜 이 결과가 나왔는지 알린다. */
+  keywords: string[];
+  hits: ArticleSearchHit[];
+};
+
 /**
- * 조문 검색. 한국어는 Postgres 기본 전문검색 사전이 없어 형태소 분석이
- * 안 되므로, 조문 제목·본문·조 번호에 대한 부분일치로 간다. 규정 전체가
- * 수천 조 규모라 인덱스 없이도 응답이 충분히 빠르다.
+ * 질문 문장을 받아 관련 조문을 찾는다.
+ *
+ * 검색은 낱말 부분일치라서 문장을 통째로 넣으면 아무것도 못 찾는다.
+ * 질문에서 낱말을 뽑고 유의어로 넓히는 일은 lib/regulation-query가,
+ * 실제 조회는 lib/regulation-search가 한다 — "use server" 파일은 async
+ * 함수만 내보낼 수 있어 여기 두면 테스트에서 부를 수가 없다.
  */
-export async function searchArticles(query: string): Promise<ArticleSearchHit[]> {
-  if (!(await checkModuleAccess("LEGAL_LIBRARY"))) return [];
+export async function searchArticles(question: string): Promise<RegulationAnswer> {
+  if (!(await checkModuleAccess("LEGAL_LIBRARY"))) return { keywords: [], hits: [] };
 
-  const q = query.trim();
-  if (q.length < 2) return [];
+  const terms = buildSearchTerms(question);
+  if (terms.length === 0) return { keywords: [], hits: [] };
 
-  const hits = await prisma.regulationArticle.findMany({
-    where: {
-      regulation: { isActive: true },
-      OR: [
-        { title: { contains: q, mode: "insensitive" } },
-        { body: { contains: q, mode: "insensitive" } },
-        { label: { contains: q } },
-        { chapter: { contains: q, mode: "insensitive" } },
-      ],
-    },
-    select: {
-      id: true,
-      label: true,
-      title: true,
-      chapter: true,
-      body: true,
-      regulation: { select: { title: true } },
-    },
-    orderBy: [{ regulationId: "asc" }, { order: "asc" }],
-    take: SEARCH_RESULT_LIMIT,
-  });
+  const rows = await findArticleRows(terms);
+  const needles = terms.map((t) => stripSpaces(t.term));
 
-  return hits.map((hit) => {
-    // 본문 첫머리 대신 검색어 주변을 보여줘야 왜 걸렸는지 알 수 있다.
-    const at = hit.body.toLowerCase().indexOf(q.toLowerCase());
-    const from = at < 0 ? 0 : Math.max(0, at - 40);
-    const snippet = hit.body.slice(from, from + SNIPPET_LENGTH);
+  const hits = rows.map((row) => {
+    // 본문 첫머리 대신 걸린 낱말 주변을 보여줘야 왜 걸렸는지 알 수 있다.
+    const at = needles
+      .map((needle) => findMatchIndex(row.body, needle))
+      .find((index) => index >= 0);
+    const from = at === undefined ? 0 : Math.max(0, at - 40);
+    // 표 행의 칸 구분 문자는 미리보기에서 노이즈라 공백으로 편다.
+    const snippet = row.body
+      .slice(from, from + SNIPPET_LENGTH)
+      .replace(/\s*\|\s*/g, " ");
 
     return {
-      id: hit.id,
-      regulationTitle: hit.regulation.title,
-      label: hit.label,
-      title: hit.title,
-      chapter: hit.chapter,
-      snippet: (from > 0 ? "…" : "") + snippet + (from + SNIPPET_LENGTH < hit.body.length ? "…" : ""),
+      id: row.id,
+      regulationTitle: row.regulationTitle,
+      label: row.label,
+      title: row.title,
+      chapter: row.chapter,
+      snippet: (from > 0 ? "…" : "") + snippet + (from + SNIPPET_LENGTH < row.body.length ? "…" : ""),
     };
   });
+
+  // 유의어까지 다 보여주면 질문과 무관해 보인다. 질문에 직접 나온 낱말만 알린다.
+  return { keywords: terms.filter((t) => t.weight === 2).map((t) => t.term), hits };
 }
 
 export async function getArticle(id: string) {

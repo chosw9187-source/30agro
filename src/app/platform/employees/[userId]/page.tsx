@@ -1,11 +1,10 @@
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
-import { checkModuleAccess, canViewEmployeeCard, EXECUTIVE_POSITIONS } from "@/lib/permissions";
+import { checkModuleAccess, EXECUTIVE_POSITIONS } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { BackLink } from "@/components/back-link";
 import { EmployeeCardContent } from "@/components/employee-card-content";
 import { HomeTabBar } from "@/components/home-tab-bar";
+import { loadEmployeeCard } from "@/lib/employee-card-loader";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +18,9 @@ export default async function EmployeeDetailPage({
   }
 
   const { userId } = await params;
+  const { allowed, employee, isAdmin, isOwnCard } = await loadEmployeeCard(userId);
 
-  if (!(await canViewEmployeeCard(userId))) {
+  if (!allowed) {
     return (
       <div className="flex flex-col gap-4">
         <BackLink fallbackHref="/platform/employees" label="목록으로" />
@@ -37,23 +37,7 @@ export default async function EmployeeDetailPage({
     );
   }
 
-  const employee = await prisma.user.findUnique({
-    where: { id: userId },
-    include: {
-      team: true,
-      appointmentRecords: { orderBy: { date: "desc" } },
-      performanceHistory: { orderBy: { year: "desc" } },
-      educationRecords: { orderBy: [{ admissionDate: "asc" }, { order: "asc" }] },
-      careerHistory: { orderBy: [{ startDate: "asc" }, { order: "asc" }] },
-      certifications: { orderBy: [{ acquiredDate: "asc" }, { order: "asc" }] },
-      commendationDiscipline: { orderBy: [{ startDate: "asc" }, { order: "asc" }] },
-    },
-  });
-
   if (!employee) notFound();
-  const session = await auth();
-  const isAdmin = session?.user.role === "ADMIN";
-  const isOwnCard = session?.user.id === employee.id;
   const showHomeTabs = isOwnCard && (isAdmin || EXECUTIVE_POSITIONS.includes(employee.position));
 
   return (

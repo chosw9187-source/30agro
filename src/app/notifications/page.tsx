@@ -70,7 +70,7 @@ export default async function NotificationsPage() {
         </div>
         <Link
           href="/platform"
-          className="text-sm text-slate-500 hover:text-brand-green hover:underline"
+          className="inline-block py-1.5 text-sm text-slate-500 hover:text-brand-green hover:underline sm:py-0"
         >
           ← 돌아가기
         </Link>

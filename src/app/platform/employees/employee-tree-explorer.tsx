@@ -1,0 +1,454 @@
+"use client";
+
+import { createContext, useContext, useMemo, useState } from "react";
+import Link from "next/link";
+import { POSITIONS, POSITION_LABEL, type Position } from "@/lib/permission-constants";
+import { ageInYears, tenureInYears } from "@/lib/hr-analytics";
+import { formatKSTDate } from "@/lib/format-kst";
+
+export type TeamLite = { id: string; name: string; businessUnit: string | null; division: string | null };
+export type EmployeeLite = {
+  id: string;
+  name: string;
+  employeeNumber: string;
+  email: string | null;
+  position: Position;
+  birthDate: Date | null;
+  hireDate: Date | null;
+  jobGrade: string | null;
+  gender: string | null;
+  employmentType: string | null;
+  jobFamily: string | null;
+  school: string | null;
+  major: string | null;
+  educationRecords: { school: string | null; major: string | null }[];
+  teamId: string | null;
+  team: { id: string; name: string; businessUnit: string | null; division: string | null } | null;
+  // 팀에 속하지 않고 사업부/구분에 직접 배치되는 임원급(EXECUTIVE_POSITIONS)용 필드
+  businessUnit: string | null;
+  division: string | null;
+};
+
+type UnitNode = { name: string; divisions: DivisionNode[]; directTeams: TeamLite[]; directEmployees: EmployeeLite[] };
+type DivisionNode = { name: string; teams: TeamLite[] };
+
+const UNIT_ORDER_PRIORITY = ["제품사업", "연구생산", "재무경영관리"];
+
+type Ctx = {
+  teams: TeamLite[];
+  units: UnitNode[];
+  rootTeams: TeamLite[];
+  employeesByTeam: Map<string, EmployeeLite[]>;
+  checkedIds: Set<string>;
+  toggleGroup: (ids: string[], checked: boolean) => void;
+  toggleOne: (id: string, checked: boolean) => void;
+  resetChecks: () => void;
+  query: string;
+  setQuery: (q: string) => void;
+  position: Position | "";
+  setPosition: (p: Position | "") => void;
+  filteredList: EmployeeLite[];
+  basePath: string;
+  focusedUserId: string;
+};
+
+const TreeExplorerContext = createContext<Ctx | null>(null);
+function useTreeExplorer() {
+  const ctx = useContext(TreeExplorerContext);
+  if (!ctx) throw new Error("useTreeExplorer must be used within EmployeeTreeExplorerProvider");
+  return ctx;
+}
+
+export function EmployeeTreeExplorerProvider({
+  teams,
+  employees,
+  basePath,
+  focusedUserId,
+  children,
+}: {
+  teams: TeamLite[];
+  employees: EmployeeLite[];
+  basePath: string;
+  focusedUserId: string;
+  children: React.ReactNode;
+}) {
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState("");
+  const [position, setPosition] = useState<Position | "">("");
+
+  const { units, rootTeams, employeesByTeam } = useMemo(() => {
+    const employeesByTeam = new Map<string, EmployeeLite[]>();
+    employees.forEach((e) => {
+      if (!e.teamId) return;
+      const arr = employeesByTeam.get(e.teamId) ?? [];
+      arr.push(e);
+      employeesByTeam.set(e.teamId, arr);
+    });
+
+    const unitOrder: string[] = [];
+    const unitMap = new Map<string, UnitNode>();
+    const rootTeams: TeamLite[] = [];
+    function ensureUnit(name: string) {
+      let u = unitMap.get(name);
+      if (!u) {
+        u = { name, divisions: [], directTeams: [], directEmployees: [] };
+        unitMap.set(name, u);
+        unitOrder.push(name);
+      }
+      return u;
+    }
+    function ensureDivision(u: UnitNode, name: string) {
+      let d = u.divisions.find((x) => x.name === name);
+      if (!d) {
+        d = { name, teams: [] };
+        u.divisions.push(d);
+      }
+      return d;
+    }
+    for (const t of teams) {
+      if (t.businessUnit && t.division) ensureDivision(ensureUnit(t.businessUnit), t.division).teams.push(t);
+      else if (t.businessUnit) ensureUnit(t.businessUnit).directTeams.push(t);
+      else rootTeams.push(t);
+    }
+    // 팀이 없는 임원급(예: 이사)은 구분과 무관하게 본인 사업부 바로 아래에 배치한다.
+    for (const e of employees) {
+      if (e.teamId) continue;
+      if (e.businessUnit) ensureUnit(e.businessUnit).directEmployees.push(e);
+    }
+    const priority = (name: string) => {
+      const idx = UNIT_ORDER_PRIORITY.indexOf(name);
+      return idx === -1 ? UNIT_ORDER_PRIORITY.length : idx;
+    };
+    const sortedUnitNames = [...unitOrder].sort((a, b) => priority(a) - priority(b));
+    return { units: sortedUnitNames.map((n) => unitMap.get(n)!), rootTeams, employeesByTeam };
+  }, [teams, employees]);
+
+  function toggleGroup(ids: string[], makeChecked: boolean) {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => (makeChecked ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  }
+  function toggleOne(id: string, checked: boolean) {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+  function resetChecks() {
+    setCheckedIds(new Set());
+    setQuery("");
+    setPosition("");
+  }
+
+  // 검색어가 있으면 체크 여부와 무관하게 전체 인원에서 찾고, 검색어가 없으면
+  // 체크된 인원만 보여준다 (검색은 독립적인 조회 수단, 체크는 좁혀보기 수단).
+  const filteredList = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return employees.filter((e) => {
+      if (!q && !checkedIds.has(e.id)) return false;
+      if (position && e.position !== position) return false;
+      if (!q) return true;
+      const hay = [
+        e.name,
+        e.employeeNumber,
+        e.email ?? "",
+        e.team?.name ?? "",
+        e.team?.businessUnit ?? "",
+        e.team?.division ?? "",
+        POSITION_LABEL[e.position] ?? "",
+        e.jobGrade ?? "",
+        e.gender ?? "",
+        e.employmentType ?? "",
+        e.jobFamily ?? "",
+        e.school ?? "",
+        e.major ?? "",
+        ...e.educationRecords.map((r) => r.school ?? ""),
+        ...e.educationRecords.map((r) => r.major ?? ""),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [employees, checkedIds, position, query]);
+
+  const value: Ctx = {
+    teams,
+    units,
+    rootTeams,
+    employeesByTeam,
+    checkedIds,
+    toggleGroup,
+    toggleOne,
+    resetChecks,
+    query,
+    setQuery,
+    position,
+    setPosition,
+    filteredList,
+    basePath,
+    focusedUserId,
+  };
+
+  return <TreeExplorerContext.Provider value={value}>{children}</TreeExplorerContext.Provider>;
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className={`shrink-0 transition-transform ${open ? "rotate-90" : ""}`}>
+      <path d="M5 3l6 5-6 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function AvatarPlaceholder() {
+  return (
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-400">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.4 0-8 2.2-8 5v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1c0-2.8-3.6-5-8-5Z" />
+      </svg>
+    </span>
+  );
+}
+
+function GroupCheckbox({ ids }: { ids: string[] }) {
+  const { checkedIds, toggleGroup } = useTreeExplorer();
+  const checkedCount = ids.filter((id) => checkedIds.has(id)).length;
+  const state = ids.length === 0 ? "unchecked" : checkedCount === 0 ? "unchecked" : checkedCount === ids.length ? "checked" : "indeterminate";
+  return (
+    <input
+      type="checkbox"
+      className="h-3.5 w-3.5 shrink-0 accent-brand-green disabled:cursor-not-allowed disabled:opacity-40"
+      checked={state === "checked"}
+      disabled={ids.length === 0}
+      ref={(el) => {
+        if (el) el.indeterminate = state === "indeterminate";
+      }}
+      onChange={(e) => toggleGroup(ids, e.target.checked)}
+    />
+  );
+}
+
+function PersonRow({ e, childClass }: { e: EmployeeLite; childClass: string }) {
+  const { checkedIds, toggleOne } = useTreeExplorer();
+  return (
+    <label className={`flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-slate-100 ${childClass}`}>
+      <input
+        type="checkbox"
+        className="h-3.5 w-3.5 shrink-0 accent-brand-green"
+        checked={checkedIds.has(e.id)}
+        onChange={(ev) => toggleOne(e.id, ev.target.checked)}
+      />
+      <AvatarPlaceholder />
+      <span className="min-w-0 flex-1 truncate text-sm text-slate-700">
+        {e.name} <span className="text-slate-400">{POSITION_LABEL[e.position]}</span>
+      </span>
+    </label>
+  );
+}
+
+function TeamNode({ t, rowClass, childClass }: { t: TeamLite; rowClass: string; childClass: string }) {
+  const { employeesByTeam } = useTreeExplorer();
+  const [open, setOpen] = useState(false);
+  const emps = employeesByTeam.get(t.id) ?? [];
+  const ids = emps.map((e) => e.id);
+  return (
+    <div>
+      <div className={`flex items-center gap-1.5 rounded px-2 py-1.5 hover:bg-slate-100 ${rowClass}`}>
+        {ids.length > 0 ? (
+          <button type="button" onClick={() => setOpen((o) => !o)} className="text-slate-400 hover:text-slate-600" aria-label={open ? "접기" : "펼치기"}>
+            <Chevron open={open} />
+          </button>
+        ) : (
+          <span className="w-3 shrink-0" />
+        )}
+        <GroupCheckbox ids={ids} />
+        <span className="min-w-0 flex-1 truncate text-sm text-slate-700">
+          {t.name}
+          <span className="text-slate-400">({ids.length})</span>
+        </span>
+      </div>
+      {ids.length > 0 && open && (
+        <div className="flex flex-col">
+          {emps.map((e) => (
+            <PersonRow key={e.id} e={e} childClass={childClass} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UnitNodeView({ u }: { u: UnitNode }) {
+  const { employeesByTeam } = useTreeExplorer();
+  const [open, setOpen] = useState(true);
+  function unitEmpIds() {
+    const ids: string[] = [];
+    ids.push(...u.directEmployees.map((e) => e.id));
+    u.divisions.forEach((d) => {
+      d.teams.forEach((t) => ids.push(...(employeesByTeam.get(t.id) ?? []).map((e) => e.id)));
+    });
+    u.directTeams.forEach((t) => ids.push(...(employeesByTeam.get(t.id) ?? []).map((e) => e.id)));
+    return ids;
+  }
+  const uIds = unitEmpIds();
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 rounded px-2 py-1.5 font-semibold hover:bg-slate-100">
+        <button type="button" onClick={() => setOpen((o) => !o)} className="text-slate-400 hover:text-slate-600" aria-label={open ? "접기" : "펼치기"}>
+          <Chevron open={open} />
+        </button>
+        <GroupCheckbox ids={uIds} />
+        <span className="min-w-0 flex-1 truncate text-[15px] text-slate-800">
+          {u.name}
+          <span className="font-normal text-slate-400">({uIds.length})</span>
+        </span>
+      </div>
+      {open && (
+        <div>
+          {u.directEmployees.map((e) => (
+            <PersonRow key={e.id} e={e} childClass="pl-4" />
+          ))}
+          {u.divisions.map((d) => (
+            <DivisionNodeView key={`${u.name}/${d.name}`} d={d} />
+          ))}
+          {u.directTeams.map((t) => (
+            <TeamNode key={t.id} t={t} rowClass="pl-4" childClass="pl-9" />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DivisionNodeView({ d }: { d: DivisionNode }) {
+  const { employeesByTeam } = useTreeExplorer();
+  const [open, setOpen] = useState(true);
+  const dIds = d.teams.flatMap((t) => (employeesByTeam.get(t.id) ?? []).map((e) => e.id));
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 rounded py-1.5 pl-4 pr-2 font-medium hover:bg-slate-100">
+        <button type="button" onClick={() => setOpen((o) => !o)} className="text-slate-400 hover:text-slate-600" aria-label={open ? "접기" : "펼치기"}>
+          <Chevron open={open} />
+        </button>
+        <GroupCheckbox ids={dIds} />
+        <span className="min-w-0 flex-1 truncate text-sm text-slate-700">
+          {d.name}
+          <span className="font-normal text-slate-400">({dIds.length})</span>
+        </span>
+      </div>
+      {open && (
+        <div>
+          {d.teams.map((t) => (
+            <TeamNode key={t.id} t={t} rowClass="pl-8" childClass="pl-[52px]" />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function EmployeeTreeFilterPanel() {
+  const { units, rootTeams, teams, query, setQuery, position, setPosition, resetChecks } = useTreeExplorer();
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 flex-col gap-2 border-b border-slate-200 p-3">
+        <p className="text-xs font-semibold text-slate-500">검색 조건</p>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="키워드 검색 (이름, 사번, 팀, 직책, 직급 등)"
+          className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm"
+        />
+        <select
+          value={position}
+          onChange={(e) => setPosition(e.target.value as Position | "")}
+          className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm"
+        >
+          <option value="">직책 전체</option>
+          {POSITIONS.map((p) => (
+            <option key={p} value={p}>
+              {POSITION_LABEL[p]}
+            </option>
+          ))}
+        </select>
+        <button type="button" onClick={resetChecks} className="self-start text-xs font-medium text-brand-green-dark hover:underline">
+          선택 초기화
+        </button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+        <p className="px-2 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">활성 조직 ({teams.length}개 팀)</p>
+        {units.map((u) => (
+          <UnitNodeView key={u.name} u={u} />
+        ))}
+        {rootTeams.length > 0 && (
+          <>
+            <div className="mt-2 border-t border-slate-100 pt-2">
+              <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">직속</p>
+            </div>
+            {rootTeams.map((t) => (
+              <TeamNode key={t.id} t={t} rowClass="" childClass="pl-4" />
+            ))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function EmployeeSummaryListPanel() {
+  const { filteredList, checkedIds, query, basePath, focusedUserId } = useTreeExplorer();
+  const hasQuery = query.trim().length > 0;
+  return (
+    <div className="flex h-full min-h-0 flex-col p-3">
+      <div className="mb-2 flex shrink-0 items-baseline justify-between px-1">
+        <span className="text-sm font-semibold text-slate-700">{hasQuery ? "검색 결과" : "체크된 인원"}</span>
+        <span className="text-xs text-slate-400">{filteredList.length}명</span>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {checkedIds.size === 0 && !hasQuery ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+            왼쪽에서 검색하거나 조직도를 체크하면
+            <br />
+            여기에 목록이 표시됩니다.
+          </div>
+        ) : filteredList.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">검색 결과가 없습니다.</div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {filteredList.map((e) => (
+              <Link
+                key={e.id}
+                href={`${basePath}?userId=${e.id}`}
+                className={`block rounded-lg border p-2.5 hover:border-brand-green ${
+                  focusedUserId === e.id ? "border-brand-green bg-brand-green-light" : "border-slate-200 bg-white"
+                }`}
+              >
+                <p className="text-sm font-medium text-brand-green-dark">{e.name}</p>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  {e.team?.name ?? ([e.businessUnit, e.division].filter(Boolean).join(" · ") || "팀 미지정")} · 사번 {e.employeeNumber}
+                </p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                  <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-[11px] font-medium text-brand-green-dark">{POSITION_LABEL[e.position]}</span>
+                  {e.birthDate && (
+                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+                      만 {ageInYears(e.birthDate)}세 ({formatKSTDate(e.birthDate)})
+                    </span>
+                  )}
+                  {e.hireDate && (
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">근속 {tenureInYears(e.hireDate).toFixed(1)}년</span>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

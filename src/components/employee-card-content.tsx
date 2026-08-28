@@ -181,6 +181,28 @@ export function EmployeeCardContent({ employee, isAdmin }: { employee: EmployeeC
               )}
             </p>
           </div>
+          {isAdmin && (
+            <div className="ml-auto flex shrink-0 gap-2 self-start">
+              <a
+                href={`/api/employees/${employee.id}/hr-card/pdf`}
+                className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-brand-green hover:text-brand-green"
+              >
+                PDF 다운로드
+              </a>
+              <a
+                href={`/api/employees/${employee.id}/hr-card/xlsx`}
+                className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-brand-green hover:text-brand-green"
+              >
+                엑셀 다운로드
+              </a>
+              <a
+                href={`/api/employees/${employee.id}/hr-card/docx`}
+                className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-brand-green hover:text-brand-green"
+              >
+                워드 다운로드
+              </a>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-8 p-6 sm:grid-cols-2">

@@ -1,9 +1,7 @@
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
-import { RegulationSearch } from "./regulation-search";
-import { RegulationManager } from "./regulation-manager";
+import { RegulationChat } from "./regulation-chat";
 
 export const dynamic = "force-dynamic";
 
@@ -12,36 +10,16 @@ export default async function LegalLibraryPage() {
     return <NoModuleAccess title="인사 규정 챗봇" />;
   }
 
-  const session = await auth();
-  const isAdmin = session?.user.role === "ADMIN";
-
-  const regulations = await prisma.regulation.findMany({
-    select: {
-      id: true,
-      title: true,
-      category: true,
-      articleCount: true,
-      isActive: true,
-      fileName: true,
-    },
-    orderBy: [{ category: "asc" }, { title: "asc" }],
-  });
-
-  const activeCount = regulations.filter((r) => r.isActive).length;
+  // 규정 파일 등록·삭제는 관리자 > 데이터 업로드 화면으로 옮겼다. 여기서는
+  // 챗봇에게 물어볼 규정이 하나라도 있는지만 알면 된다.
+  const activeCount = await prisma.regulation.count({ where: { isActive: true } });
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">인사 규정 챗봇</h1>
-        <p className="mt-1 text-slate-600">
-          사내규정을 조(條) 단위로 찾습니다. 검색어와 관련된 조문을 근거 조항 그대로 보여줍니다.
-          자연어로 묻고 답하는 기능은 준비 중입니다.
-        </p>
-      </div>
+    <div className="flex flex-col gap-8">
+      {/* 인사말은 삼공이 말풍선이 하므로 제목은 접근성·페이지 식별용으로만 둔다. */}
+      <h1 className="sr-only">인사 규정 챗봇</h1>
 
-      <RegulationSearch hasRegulations={activeCount > 0} />
-
-      {isAdmin && <RegulationManager regulations={regulations} />}
+      <RegulationChat hasRegulations={activeCount > 0} />
     </div>
   );
 }

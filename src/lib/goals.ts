@@ -1,0 +1,1008 @@
+/**
+ * 평가2(목표관리) 공용 로직 — 전사 → 책임 → 팀 → 개인 4단 캐스케이드의
+ * 라벨·트리 구성·진척 롤업을 한군데 모아둔다. 화면(page.tsx)과 서버
+ * 액션(actions.ts) 양쪽에서 같은 규칙을 써야 숫자가 어긋나지 않는다.
+ */
+
+export const GOAL_LEVELS = ["COMPANY", "DIVISION", "TEAM", "INDIVIDUAL"] as const;
+export type GoalLevel = (typeof GOAL_LEVELS)[number];
+
+export const GOAL_LEVEL_LABEL: Record<GoalLevel, string> = {
+  COMPANY: "전사목표",
+  DIVISION: "책임목표",
+  TEAM: "팀목표",
+  INDIVIDUAL: "개인목표",
+};
+
+/** 각 층이 매달리는 상위 층. 전사목표는 최상위라 부모가 없다. */
+export const GOAL_PARENT_LEVEL: Record<GoalLevel, GoalLevel | null> = {
+  COMPANY: null,
+  DIVISION: "COMPANY",
+  TEAM: "DIVISION",
+  INDIVIDUAL: "TEAM",
+};
+
+export const GOAL_STATUSES = ["DRAFT", "ACTIVE", "DONE", "DROPPED"] as const;
+export type GoalStatus = (typeof GOAL_STATUSES)[number];
+
+export const GOAL_STATUS_LABEL: Record<GoalStatus, string> = {
+  DRAFT: "작성중",
+  ACTIVE: "진행중",
+  DONE: "완료",
+  DROPPED: "중단",
+};
+
+export const GOAL_STATUS_BADGE_CLASS: Record<GoalStatus, string> = {
+  DRAFT: "bg-slate-100 text-slate-600",
+  ACTIVE: "bg-blue-50 text-blue-700",
+  DONE: "bg-brand-green-light text-brand-green-dark",
+  DROPPED: "bg-slate-100 text-slate-400 line-through",
+};
+
+/** 개인목표 합의 단계 — 팀원이 세우고 팀장이 승인한다. */
+export const GOAL_AGREEMENT_STATUSES = ["DRAFT", "REQUESTED", "AGREED", "RETURNED"] as const;
+export type GoalAgreementStatus = (typeof GOAL_AGREEMENT_STATUSES)[number];
+
+export const GOAL_AGREEMENT_LABEL: Record<GoalAgreementStatus, string> = {
+  DRAFT: "작성중",
+  REQUESTED: "합의요청",
+  AGREED: "합의완료",
+  RETURNED: "되돌림",
+};
+
+export const GOAL_AGREEMENT_BADGE_CLASS: Record<GoalAgreementStatus, string> = {
+  DRAFT: "bg-slate-100 text-slate-600",
+  REQUESTED: "bg-status-warning/20 text-amber-900",
+  AGREED: "bg-brand-green-light text-brand-green-dark",
+  RETURNED: "bg-status-critical/10 text-status-critical",
+};
+
+/**
+ * 합의 단계를 지금 쓰고 있는지.
+ *
+ * **꺼 두었다.** «개인이 한 해 목표를 다 적고 마감하면 팀장이 한 번에 합의한다»는
+ * 흐름으로 다시 만들기로 했고, 그때까지 목표 한 건마다 «작성중» 배지와 «팀장에게
+ * 합의 요청» 단추가 붙어 있으면 아직 없는 절차를 밟으라는 말이 된다.
+ *
+ * 저장된 값(`agreementStatus`)과 서버 액션은 그대로 둔다 — 다시 켤 때 이 값만
+ * 되돌리면 그동안 쌓인 합의 기록이 그대로 살아난다. 꺼져 있는 동안에는 «합의
+ * 완료된 목표는 못 고친다»는 잠금도 같이 풀린다. 화면에서 합의를 해제할 길이
+ * 없는데 잠금만 남으면 고칠 수도 지울 수도 없는 목표가 생긴다.
+ */
+export const AGREEMENT_ENABLED: boolean = false;
+
+/**
+ * 합의가 필요한 목표인지. 개인목표만 팀원이 세워 팀장에게 올리는 구조이고,
+ * 전사·책임·팀 목표는 관리자·팀장이 직접 세우는 값이라 합의 대상이 아니다.
+ */
+export function needsAgreement(level: string): boolean {
+  return AGREEMENT_ENABLED && level === "INDIVIDUAL";
+}
+
+export function asAgreementStatus(value: string): GoalAgreementStatus {
+  return (GOAL_AGREEMENT_STATUSES as readonly string[]).includes(value)
+    ? (value as GoalAgreementStatus)
+    : "DRAFT";
+}
+
+export const GOAL_CYCLE_STATUSES = ["DRAFT", "OPEN", "CLOSED"] as const;
+export type GoalCycleStatus = (typeof GOAL_CYCLE_STATUSES)[number];
+
+export const GOAL_CYCLE_STATUS_LABEL: Record<GoalCycleStatus, string> = {
+  DRAFT: "준비중",
+  OPEN: "진행중",
+  // "종료"가 아니라 "완료" — 이 화면에서 쓰는 말이 그쪽이다.
+  CLOSED: "완료",
+};
+
+/** 화면에서 다루는 목표 한 건의 최소 형태 — Prisma 조회 결과를 그대로 받는다. */
+export type GoalRow = {
+  id: string;
+  level: string;
+  parentId: string | null;
+  title: string;
+  description: string | null;
+  division: string | null;
+  teamId: string | null;
+  ownerId: string | null;
+  weight: number;
+  metric: string | null;
+  targetValue: string | null;
+  currentValue: string | null;
+  scaleS?: string | null;
+  scaleA?: string | null;
+  scaleB?: string | null;
+  scaleC?: string | null;
+  scaleD?: string | null;
+  formula?: string | null;
+  goalType?: string | null;
+  keyResults?: string | null;
+  /** 상반기 / 하반기. 팀·개인 목표에만 있다(`usesHalf`). */
+  half?: string | null;
+  progress: number;
+  status: string;
+  /** 그 단계의 평가 — 본인 점수·사유와 1차 평가자 점수·사유(`usesEvaluation`). */
+  evalDoneAt?: Date | null;
+  selfScore?: number | null;
+  firstProgress?: number | null;
+  selfComment?: string | null;
+  firstScore?: number | null;
+  firstComment?: string | null;
+  excluded: boolean;
+  excludeReason: string | null;
+  /** "기타" 묶음 목표인지 — 위 층에 딱 붙지 않는 일을 모아 두는 자리. */
+  isOther?: boolean;
+  /**
+   * 담당자가 이번 사이클 평가대상이 아니라서 빠지는 경우. 목표에 저장하는
+   * 값이 아니라 조회할 때 계산해서 붙인다(evalTargetState) — 그래야 조직도가
+   * 바뀌거나 기준일을 고치면 다시 반영을 눌러줄 필요 없이 바로 맞는다.
+   */
+  targetExcluded?: boolean;
+  targetExcludeReason?: string | null;
+  agreementStatus: string;
+  agreementNote: string | null;
+  agreedAt: Date | null;
+  agreedBy?: { id: string; name: string } | null;
+  dueDate: Date | null;
+  sortOrder: number;
+  team?: { id: string; name: string } | null;
+  owner?: {
+    id: string;
+    name: string;
+    teamId?: string | null;
+    terminationDate?: Date | null;
+  } | null;
+};
+
+export type GoalNode = GoalRow & {
+  children: GoalNode[];
+  /** 하위 목표까지 굴려 올린 달성률(%). 하위가 없으면 progress와 같다. */
+  rollupProgress: number;
+  /**
+   * 집계에 실제로 쓰는 가중치. 팀목표는 딸린 개인목표의 가중치 합이고,
+   * 나머지 층은 사람이 적어 넣은 `weight` 그대로다(`usesDerivedWeight`).
+   */
+  rollupWeight: number;
+  /**
+   * 화면에 보여 줄 상태. 자동 계산 층(전사·책임·팀)은 달성률이 아래에서
+   * 굴러 올라오므로 «완료»도 아래에서 따라온다(`deriveStatus`).
+   */
+  rollupStatus: GoalStatus;
+  /**
+   * 이 목표의 달성률을 실제로 떠받친 하위 목표의 수. 화면에서 «0%인 까닭»을
+   * 가리는 데 쓴다 — 하위가 없어서 0인 것과, 하위는 붙어 있는데 아직 아무도
+   * 진척을 안 올려서 0인 것은 완전히 다른 말이다.
+   */
+  rollupCounted: number;
+};
+
+/**
+ * 집계에 넣을 목표인지. 세 가지가 상위 달성률 계산에서 통째로 빠진다 —
+ * 중단(DROPPED)된 목표, 목표 하나를 콕 집어 "집계 제외"한 것(excluded),
+ * 그리고 담당자가 이번 사이클 평가대상이 아닌 것(targetExcluded). 화면에는
+ * 흐리게 남겨서 왜 빠졌는지 볼 수 있게 한다.
+ */
+export function countsTowardProgress(g: {
+  status: string;
+  excluded?: boolean;
+  targetExcluded?: boolean;
+}) {
+  return g.status !== "DROPPED" && !g.excluded && !g.targetExcluded;
+}
+
+/**
+ * 이 층의 달성률을 하위 목표에서 자동으로 굴려 올리는지. 전사·책임·팀 목표는
+ * 결국 팀원 각자의 개인목표가 얼마나 됐는지의 합이므로 직접 입력하지 않는다.
+ * 개인목표만 사람이 실제 달성률을 적는 층이다.
+ */
+export function isAutoCalculated(level: string): boolean {
+  return level !== "INDIVIDUAL";
+}
+
+/**
+ * 하위가 없는 목표의 달성률. "완료"로 표시된 목표는 입력된 달성률과 무관하게
+ * 100%로 본다 — 상태만 완료로 바꾸고 달성률 칸은 그대로 둔 경우가 흔한데,
+ * 그때 완료 건수는 올라가는데 달성률은 0%에 머물러 "달성했는데 반영이 안
+ * 된다"로 보인다. 완료면 100%가 사람이 기대하는 값이다.
+ */
+export function leafProgress(goal: {
+  status: string;
+  progress: number;
+  firstProgress?: number | null;
+}): number {
+  return goal.status === "DONE" ? 100 : effectiveProgress(goal);
+}
+
+/**
+ * 이 목표의 달성률 — **1차 평가자가 적었으면 그 값이다.**
+ *
+ * 본인이 50%, 팀장이 70%로 봤다면 위로 굴러 올라가는 숫자는 70%다. 평가는
+ * 「본인은 이렇게 봤다」를 적어 두고 평가자가 매기는 일이라, 둘이 다를 때
+ * 무엇이 성적인지는 한 가지여야 한다. 본인이 적은 값은 지우지 않고 남긴다 —
+ * 무엇을 보고 그렇게 매겼는지가 나중에 읽혀야 한다.
+ */
+export function effectiveProgress(goal: {
+  progress: number;
+  firstProgress?: number | null;
+}): number {
+  return goal.firstProgress ?? goal.progress;
+}
+
+/** 이 목표의 점수 — 같은 규칙이다. 아무도 안 적었으면 null. */
+export function effectiveScore(goal: {
+  selfScore?: number | null;
+  firstScore?: number | null;
+}): number | null {
+  return goal.firstScore ?? goal.selfScore ?? null;
+}
+
+/**
+ * 형제 목표들의 가중평균. 가중치를 아무도 넣지 않았으면(전부 0) 동일
+ * 가중으로 떨어지게 해서, 가중치 입력 전에도 숫자가 0으로 죽지 않게 한다.
+ * 상위 목표의 롤업과 전사 종합 달성률이 같은 규칙을 쓰도록 공유한다.
+ */
+/**
+ * 자동 계산 층의 «완료»는 사람이 고르는 값이 아니라 아래에서 따라온다.
+ *
+ * 전사·책임·팀 목표는 달성률을 하위에서 굴려 올리는데 상태만 사람이 고를 수
+ * 있으면 둘이 어긋난다 — 실제로 하위가 하나도 없는 전사목표를 «완료»로 두어
+ * 달성률은 0%인데 «완료 1건»으로 세지는 일이 있었다. 그래서 달성률이 100%가
+ * 되면 완료, 아니면 완료를 풀어 진행중으로 되돌린다.
+ *
+ * «중단»은 그대로 둔다 — 그 목표를 접었다는 사람의 판단이라 아래에서 뒤집을
+ * 수 있는 값이 아니다. 개인목표는 사람이 직접 적는 층이라 손대지 않는다.
+ */
+export function deriveStatus(
+  node: { level: string; status: string; rollupProgress: number },
+  countedChildren: number
+): GoalStatus {
+  const stored = node.status as GoalStatus;
+  if (stored === "DROPPED") return stored;
+  /*
+    개인목표는 사람이 상태를 직접 고르는 층이지만, 1차 평가자가 달성률을 매겨
+    100%가 되면 «진행중»으로 남겨 둘 수 없다 — 평가자가 다 됐다고 본 목표가
+    목록에서 진행중으로 읽힌다. 굴려 올린 값이 곧 그 목표의 달성률이므로
+    (`effectiveProgress`) 그 값으로 완료를 판단한다.
+  */
+  if (!isAutoCalculated(node.level)) {
+    if (node.rollupProgress >= 100) return "DONE";
+    return stored === "DONE" ? "ACTIVE" : stored;
+  }
+  if (countedChildren > 0 && node.rollupProgress >= 100) return "DONE";
+  return stored === "DONE" ? "ACTIVE" : stored;
+}
+
+export function weightedProgress(children: GoalNode[]): number {
+  const counted = children.filter(countsTowardProgress);
+  if (counted.length === 0) return 0;
+
+  // 팀목표처럼 가중치를 아래에서 굴려 올리는 층이 있어서 `weight`가 아니라
+  // `rollupWeight`을 본다(다른 층에서는 둘이 같은 값이다).
+  const w = (c: GoalNode) => (c.rollupWeight > 0 ? c.rollupWeight : 0);
+  const totalWeight = counted.reduce((sum, c) => sum + w(c), 0);
+  if (totalWeight <= 0) {
+    return Math.round(counted.reduce((sum, c) => sum + c.rollupProgress, 0) / counted.length);
+  }
+  const weighted = counted.reduce((sum, c) => sum + c.rollupProgress * w(c), 0);
+  return Math.round(weighted / totalWeight);
+}
+
+/**
+ * 평평한 목표 목록을 parentId 기준 트리로 만든다. 부모가 이번 사이클
+ * 목록에 없는(=아직 안 매달린) 목표는 그 층의 뿌리로 남겨 화면에서
+ * 누락되지 않게 한다.
+ */
+export function buildGoalTree(rows: GoalRow[]): GoalNode[] {
+  const shares = personShares(rows);
+  const byId = new Map<string, GoalNode>();
+  for (const row of rows) {
+    byId.set(row.id, {
+      ...row,
+      children: [],
+      rollupProgress: leafProgress(row),
+      rollupWeight: shares.get(row.id) ?? row.weight,
+      rollupStatus: row.status as GoalStatus,
+      rollupCounted: 0,
+    });
+  }
+
+  const roots: GoalNode[] = [];
+  for (const node of byId.values()) {
+    const parent = node.parentId ? byId.get(node.parentId) : undefined;
+    if (parent) parent.children.push(node);
+    else roots.push(node);
+  }
+
+  // 뿌리에는 전사목표와 "아직 상위에 안 매달린" 하위 목표가 섞여 들어오므로,
+  // 층 순서를 먼저 태워야 트리 맨 위가 전사목표로 시작한다.
+  const levelRank = (level: string) => {
+    const i = (GOAL_LEVELS as readonly string[]).indexOf(level);
+    return i < 0 ? GOAL_LEVELS.length : i;
+  };
+  const sortNodes = (nodes: GoalNode[]) => {
+    nodes.sort(
+      (a, b) =>
+        levelRank(a.level) - levelRank(b.level) ||
+        a.sortOrder - b.sortOrder ||
+        a.title.localeCompare(b.title)
+    );
+    nodes.forEach((n) => sortNodes(n.children));
+  };
+  sortNodes(roots);
+
+  const computeRollup = (node: GoalNode): number => {
+    node.children.forEach(computeRollup);
+    const counted = node.children.filter(countsTowardProgress);
+    /*
+      팀목표의 가중치는 딸린 개인목표 가중치의 합이다. 집계에서 빠진 개인목표
+      (중단·집계 제외·평가대상 아님)는 그 몫도 같이 빠진다 — 달성률에서 빼놓고
+      비중만 남겨 두면 그 팀 목표가 실제보다 무겁게 잡힌다.
+    */
+    node.rollupWeight = usesDerivedWeight(node.level)
+      ? counted.reduce((sum, c) => sum + (c.rollupWeight > 0 ? c.rollupWeight : 0), 0)
+      : (shares.get(node.id) ?? node.weight);
+    if (counted.length > 0) {
+      node.rollupProgress = weightedProgress(node.children);
+    } else if (isAutoCalculated(node.level)) {
+      // 자동 계산 층인데 집계할 하위가 하나도 없으면 근거가 없는 값이라 0이다.
+      // 여기서 입력값을 쓰면 아래는 비어 있는데 위만 100%인 표가 만들어진다.
+      node.rollupProgress = 0;
+    } else {
+      node.rollupProgress = leafProgress(node);
+    }
+    node.rollupCounted = counted.length;
+    node.rollupStatus = deriveStatus(node, counted.length);
+    return node.rollupProgress;
+  };
+  roots.forEach(computeRollup);
+
+  return roots;
+}
+
+export function flattenGoalTree(nodes: GoalNode[]): GoalNode[] {
+  return nodes.flatMap((n) => [n, ...flattenGoalTree(n.children)]);
+}
+
+/** 마감일이 지났는데 완료되지 않은 목표 = 지연. */
+export function isOverdue(goal: { dueDate: Date | null; status: string }, now: Date) {
+  if (!goal.dueDate) return false;
+  if (goal.status === "DONE" || goal.status === "DROPPED") return false;
+  return goal.dueDate.getTime() < now.getTime();
+}
+
+export function averageProgress(nodes: GoalNode[]): number {
+  const counted = nodes.filter(countsTowardProgress);
+  if (counted.length === 0) return 0;
+  return Math.round(counted.reduce((s, n) => s + n.rollupProgress, 0) / counted.length);
+}
+
+export function clampProgress(value: number): number {
+  if (Number.isNaN(value)) return 0;
+  return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+/**
+ * 계층 서열 램프. 전사 → 개인으로 갈수록 옅어지는 같은 초록 한 색이라
+ * 색만 봐도 위아래가 읽힌다. 층은 순서가 있는 값이므로 서로 다른 색상을
+ * 쓰는 카테고리 팔레트를 쓰지 않는다.
+ */
+export const GOAL_LEVEL_RAMP: Record<GoalLevel, string> = {
+  COMPANY: "bg-goal-1",
+  DIVISION: "bg-goal-2",
+  TEAM: "bg-goal-3",
+  INDIVIDUAL: "bg-goal-4",
+};
+
+export const GOAL_LEVEL_RAMP_BORDER: Record<GoalLevel, string> = {
+  COMPANY: "border-goal-1",
+  DIVISION: "border-goal-2",
+  TEAM: "border-goal-3",
+  INDIVIDUAL: "border-goal-4",
+};
+
+/**
+ * `<input type="date">`에 넣을 yyyy-mm-dd. 서버가 한국 밖 리전에서 돌아도
+ * 날짜가 하루 밀리지 않도록 Asia/Seoul 기준으로 뽑는다.
+ */
+export function toDateInputValue(d: Date | null | undefined): string {
+  if (!d) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/**
+ * 담당자가 지금도 이 목표를 들고 있다고 보기 어려운 상태인지. 퇴사자이거나
+ * 목표가 걸린 팀과 다른 팀으로 옮긴 경우를 잡아, 화면에서 "집계에서 빼시겠어요"
+ * 라고 물어볼 수 있게 한다. 자동으로 빼지는 않는다 — 옮겼어도 그대로 들고
+ * 가는 목표가 있어서, 빼는 판단은 사람이 한다.
+ */
+export function ownerFlag(
+  goal: GoalRow,
+  now = new Date()
+): { kind: "RESIGNED" | "MOVED"; label: string } | null {
+  const owner = goal.owner;
+  if (!owner) return null;
+
+  if (owner.terminationDate && owner.terminationDate <= now) {
+    return { kind: "RESIGNED", label: "퇴사" };
+  }
+  if (goal.teamId && owner.teamId && owner.teamId !== goal.teamId) {
+    return { kind: "MOVED", label: "부서이동" };
+  }
+  return null;
+}
+
+// ---- 보는 사람에 따른 범위 -----------------------------------------------
+
+/** 평가2를 여는 사람. 직책과 소속만 있으면 무엇을 볼지 정할 수 있다. */
+export type GoalViewer = {
+  id: string;
+  isAdmin: boolean;
+  position: string;
+  teamId: string | null;
+  /** 본인이 팀장으로 있는 팀들(소속 팀과 다를 수 있다). */
+  ledTeamIds: string[];
+  division: string | null;
+  businessUnit: string | null;
+};
+
+/**
+ * 이 사람에게 보여 줄 층. 팀원(담당)은 책임목표를 보지 않는다 — 본부 단위
+ * 목표는 팀원이 손댈 것도, 자기 성과와 이어지는 것도 아니라서 탭만 늘린다.
+ * 팀장·책임·운영책임·사장·관리자는 네 층을 다 본다.
+ */
+/**
+ * 책임(부문) 목록의 기준 순서. 보고서에 쓰는 순서 그대로다 — 가나다순으로
+ * 늘어놓으면 실제 조직을 아는 사람 눈에는 뒤죽박죽으로 보인다.
+ *
+ * 조직도에 팀이 하나도 없는 책임(예: 사업개발)에도 목표는 걸린다. 그래서 여기
+ * 적힌 것은 조직도에 없더라도 항상 고를 수 있게 둔다. 조직도나 기존 목표에만
+ * 있는 이름은 이 뒤에 가나다순으로 붙는다.
+ */
+export const DIVISION_ORDER = [
+  "제품기획마케팅",
+  "영업고객관리",
+  "기술연구",
+  "생산",
+  "재무경영관리",
+  "사업개발",
+  "기타부서",
+];
+
+/** 기준 순서를 앞에 세우고, 조직도·목표에만 있는 이름을 그 뒤에 붙인다. */
+export function divisionOptions(extra: (string | null | undefined)[]): string[] {
+  return Array.from(
+    new Set([...DIVISION_ORDER, ...extra.filter((d): d is string => !!d)])
+  ).sort((a, b) => {
+    const ai = DIVISION_ORDER.indexOf(a);
+    const bi = DIVISION_ORDER.indexOf(b);
+    if (ai === -1 && bi === -1) return a.localeCompare(b);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+}
+
+export function visibleGoalLevels(viewer: { isAdmin: boolean; position: string }): GoalLevel[] {
+  if (!viewer.isAdmin && viewer.position === "STAFF") return ["TEAM", "INDIVIDUAL"];
+  return ["COMPANY", "TEAM", "INDIVIDUAL"];
+}
+
+/**
+ * 목록에 이 목표를 보여 줄지. 대시보드의 층별 달성률은 조직 전체 숫자라
+ * 누구에게나 그대로 두고, 목표 한 건 한 건이 나오는 **목록**에만 이 규칙을
+ * 건다. 범위는 플랫폼이 이미 쓰는 인사카드 열람 상한과 같게 맞췄다:
+ *
+ *   관리자·사장  → 전부
+ *   운영책임      → 본인 본부
+ *   책임          → 본인 부문(책임)
+ *   팀장          → 본인 팀(이끄는 팀 포함)
+ *   담당(팀원)    → 본인 팀의 팀목표 + 본인 개인목표
+ *
+ * 소속 정보가 비어 있어 판단할 수 없는 목표는 감추지 않고 보여 준다. 데이터가
+ * 덜 채워졌다는 이유로 목표가 사라지면 왜 안 보이는지 알 길이 없다.
+ */
+export function canViewGoalRow(
+  goal: { level: string; division: string | null; teamId: string | null; ownerId: string | null },
+  viewer: GoalViewer,
+  org: {
+    /** 팀이 속한 부문(책임). */
+    teamDivision: (teamId: string) => string | null;
+    /** 팀이 속한 본부. */
+    teamUnit: (teamId: string) => string | null;
+    /** 부문(책임)이 속한 본부. */
+    divisionUnit: (division: string) => string | null;
+  }
+): boolean {
+  if (viewer.isAdmin || viewer.position === "CEO") return true;
+
+  const goalDivision = goal.division ?? (goal.teamId ? org.teamDivision(goal.teamId) : null);
+  const goalUnit = goal.teamId
+    ? org.teamUnit(goal.teamId)
+    : goalDivision
+      ? org.divisionUnit(goalDivision)
+      : null;
+  const myTeams = new Set([...(viewer.teamId ? [viewer.teamId] : []), ...viewer.ledTeamIds]);
+
+  switch (viewer.position) {
+    case "OPERATIONS_HEAD":
+      if (!goalUnit || !viewer.businessUnit) return true;
+      return goalUnit === viewer.businessUnit;
+    case "SENIOR_STAFF":
+      if (!goalDivision || !viewer.division) return true;
+      return goalDivision === viewer.division;
+    case "TEAM_LEADER":
+      if (goal.level === "DIVISION") {
+        if (!goalDivision || !viewer.division) return true;
+        return goalDivision === viewer.division;
+      }
+      if (!goal.teamId) return true;
+      return myTeams.has(goal.teamId);
+    default: {
+      // 담당(팀원) — 우리 팀의 팀목표와 내 개인목표까지.
+      if (goal.level === "INDIVIDUAL") return goal.ownerId === viewer.id;
+      if (!goal.teamId) return true;
+      return myTeams.has(goal.teamId);
+    }
+  }
+}
+
+/**
+ * 평가대상자 관리 화면이 건 집계 제외임을 표시하는 머리말. 담당자가 목표
+ * 화면에서 손수 건 제외와 구분해야, 명단을 되돌릴 때 손으로 건 제외까지
+ * 같이 풀려버리는 일이 없다.
+ */
+export const TARGET_EXCLUDE_TAG = "평가대상 제외";
+
+// ---- 평가대상자 판정 -----------------------------------------------------
+
+/** 이번 사이클에서 이 사람을 평가대상으로 볼지, 뺀다면 왜 빼는지. */
+export type EvalTargetState = {
+  included: boolean;
+  reason: string | null;
+  /** 규칙(입사일 기준일)으로 자동 판정된 것인지, 사람이 직접 정한 것인지. */
+  source: "manual" | "hireCutoff" | "default";
+};
+
+/**
+ * 평가대상 판정. 순서가 곧 규칙이다.
+ *
+ *   1. 사람이 직접 정한 게 있으면(GoalCycleTarget 행) 그게 이긴다 —
+ *      기준일에 걸렸어도 관리자가 "이 사람은 넣는다"고 하면 넣는다.
+ *   2. 없으면 입사일 기준일을 본다. 기준일 **이후** 입사면 뺀다.
+ *      (기준일 당일 입사는 대상이다 — "6월 이후 입사자 제외"라고 하면
+ *       6월 1일자로 들어온 사람은 보통 포함으로 읽힌다.)
+ *   3. 그것도 아니면 대상이다. 아무것도 저장돼 있지 않은 사람이 기본으로
+ *      대상이 되므로, 조직도에 새 입사자가 들어오면 그냥 잡힌다.
+ */
+export function evalTargetState(
+  person: { hireDate?: Date | null },
+  cycle: { hireCutoff?: Date | null } | null,
+  manual?: { included: boolean; reason: string | null } | null
+): EvalTargetState {
+  if (manual) {
+    return { included: manual.included, reason: manual.reason, source: "manual" };
+  }
+  const cutoff = cycle?.hireCutoff ?? null;
+  if (cutoff && person.hireDate && person.hireDate > cutoff) {
+    return {
+      included: false,
+      reason: `${formatCutoff(cutoff)} 이후 입사`,
+      source: "hireCutoff",
+    };
+  }
+  return { included: true, reason: null, source: "default" };
+}
+
+/** 기준일을 사유 문구에 넣을 yyyy-mm-dd 로. 서울 기준으로 뽑는다. */
+function formatCutoff(d: Date): string {
+  return toDateInputValue(d);
+}
+
+// ---- 마감(잠금) ----------------------------------------------------------
+
+/** 사이클에 걸린 잠금 상태. */
+export type CycleLock = {
+  /** 목표 내용(제목·지표·가중치·담당·구조)을 고칠 수 있는가. */
+  canEditGoals: boolean;
+  /** 진척·합의를 올릴 수 있는가. */
+  canEditProgress: boolean;
+  /** 화면에 띄울 안내 문구. 잠긴 게 없으면 null. */
+  message: string | null;
+};
+
+/**
+ * 두 단계로 잠근다.
+ *
+ *   목표 확정(goalsLockedAt) — 목표 **내용**은 못 고치고 진척만 올린다.
+ *     목표를 다 세워 합의까지 끝낸 뒤에 목표가 슬그머니 바뀌면 평가의 기준
+ *     자체가 흔들리기 때문이다. 진척은 계속 올려야 하므로 같이 막지 않는다.
+ *
+ *   사이클 완료(status=CLOSED) — 진척까지 잠겨 완전 읽기 전용이 된다.
+ *     평가가 끝난 뒤 숫자가 움직이면 이미 나간 결과와 화면이 어긋난다.
+ *
+ * 관리자도 예외가 아니다. 마감을 풀어야 고칠 수 있게 해야 "언제 무엇이
+ * 바뀌었나"가 남는다.
+ */
+export function cycleLock(
+  cycle: { status: string; goalsLockedAt?: Date | null } | null
+): CycleLock {
+  if (!cycle) return { canEditGoals: false, canEditProgress: false, message: null };
+  if (cycle.status === "CLOSED") {
+    return {
+      canEditGoals: false,
+      canEditProgress: false,
+      message: "완료된 인사평가입니다 — 목표와 진척 모두 읽기 전용입니다.",
+    };
+  }
+  if (cycle.goalsLockedAt) {
+    return {
+      canEditGoals: false,
+      canEditProgress: true,
+      message: "목표가 확정(마감)되었습니다 — 내용은 고칠 수 없고 진척만 올릴 수 있습니다.",
+    };
+  }
+  return { canEditGoals: true, canEditProgress: true, message: null };
+}
+
+// ---- "기타" 묶음 ---------------------------------------------------------
+
+/** 상위 목표 선택칸에서 "기타"를 고를 때 넘어오는 값. */
+export const OTHER_PARENT_VALUE = "__OTHER__";
+
+/** 자동으로 만들어지는 기타 목표의 이름. 층마다 하나씩 생긴다. */
+export const OTHER_GOAL_TITLE = "기타 목표";
+
+/**
+ * 새로 만드는 기타 목표에 줄 가중치. 형제들이 이미 가중치를 나눠 가지고 있으면
+ * 그 평균을 준다.
+ *
+ * 0으로 두면 안 된다 — 가중평균은 가중치가 0인 목표를 분모에서도 빼기 때문에,
+ * 기타에 담긴 일을 아무리 해내도 상위 달성률이 1%도 안 움직인다. "여기 담으면
+ * 반영이 안 된다"는 건 이 기능을 만든 이유와 정반대다. 형제가 전부 0이면
+ * 0으로 둬도 되는데, 그때는 가중평균이 동일가중으로 떨어져서 어차피 같이 센다.
+ * 정확한 비중은 어차피 사람이 정할 값이라, 여기서는 "일단 세어지는" 값을 준다.
+ */
+export function defaultOtherWeight(siblings: { weight: number }[]): number {
+  const positive = siblings.map((s) => s.weight).filter((w) => w > 0);
+  if (positive.length === 0) return 0;
+  return Math.round(positive.reduce((sum, w) => sum + w, 0) / positive.length);
+}
+
+/**
+ * 인사평가 목록의 정렬 규칙. 화면마다 다른 순서로 보이면 "위에서 몇 번째"라는
+ * 말이 통하지 않으므로 한 군데서 정해 모든 화면이 같이 쓴다.
+ *
+ * 관리자가 정한 순번이 먼저고, 아직 정하지 않은 것(0)은 연도·기간 역순으로
+ * 떨어진다. 순번을 매기는 순간 0인 것들보다 앞으로 나온다.
+ */
+export const GOAL_CYCLE_ORDER: {
+  sortOrder?: "asc" | "desc";
+  year?: "asc" | "desc";
+  startDate?: "asc" | "desc";
+}[] = [{ sortOrder: "asc" }, { year: "desc" }, { startDate: "desc" }];
+
+// ---- 평가척도 -------------------------------------------------------------
+
+/**
+ * 사내 "팀 목표 설정" 양식의 평가척도 다섯 등급. 괄호 안 숫자는 그 등급의
+ * 환산점수다 — S를 110으로 두는 건 목표를 넘겨 달성한 경우를 인정하기
+ * 위해서고, 그래서 100이 아니라 110에서 시작한다.
+ *
+ * `field`는 Goal에 저장되는 칸 이름이자 폼 input의 name이다. 등급을 늘리거나
+ * 점수를 바꿀 일이 생기면 여기만 고치면 화면과 저장이 같이 따라온다.
+ */
+export const GOAL_SCALES = [
+  { grade: "S", score: 110, field: "scaleS" },
+  { grade: "A", score: 100, field: "scaleA" },
+  { grade: "B", score: 90, field: "scaleB" },
+  { grade: "C", score: 80, field: "scaleC" },
+  { grade: "D", score: 70, field: "scaleD" },
+] as const;
+
+export type GoalScaleField = (typeof GOAL_SCALES)[number]["field"];
+
+/** 목표 한 건의 평가척도를 등급 순서대로 꺼낸다. */
+export function scaleValues(goal: Partial<Record<GoalScaleField, string | null>>) {
+  return GOAL_SCALES.map((s) => ({ ...s, value: goal[s.field] ?? null }));
+}
+
+/**
+ * 평가척도를 이 층에서 쓰는지. 팀목표가 사내 양식에서 등급 기준을 적는 층이다 —
+ * 전사·책임 목표는 아래에서 굴러 올라온 값이라 등급 기준을 따로 두지 않는다.
+ */
+export function usesScales(level: string): boolean {
+  return level === "TEAM";
+}
+
+// ---- 개인목표(OKR) --------------------------------------------------------
+
+/**
+ * 사내 "개인목표 설정" 양식의 목표 유형. 목표 앞 괄호에 들어가는 값이다.
+ *
+ * 세 가지를 나눠 둔 건 섞어 세우게 하려는 것이다 — 유형을 안 적게 하면 개인목표가
+ * 전부 업무목표로만 차서, 개선과 자기계발이 목표 설정 단계에서 통째로 빠진다.
+ */
+export const GOAL_TYPES = ["업무목표", "개선목표", "자기계발목표"] as const;
+export type GoalType = (typeof GOAL_TYPES)[number];
+
+/** 목표 유형별 배지 색. 글자 라벨과 늘 같이 쓴다(색만으로 구분하지 않는다). */
+export const GOAL_TYPE_BADGE_CLASS: Record<string, string> = {
+  업무목표: "bg-slate-100 text-slate-700",
+  개선목표: "bg-blue-50 text-blue-700",
+  자기계발목표: "bg-violet-50 text-violet-700",
+};
+
+/** Key Results 줄 목록. 빈 줄은 버리고 앞뒤 공백을 턴다. */
+export function keyResultLines(raw: string | null | undefined): string[] {
+  return (raw ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Objective / Key Results 형태로 목표를 세우는 층. 사내 양식에서 이 구성을
+ * 쓰는 건 개인목표뿐이다.
+ */
+export function usesKeyResults(level: string): boolean {
+  return level === "INDIVIDUAL";
+}
+
+/**
+ * 목록 머리글에 가중치 소계를 띄우는 층. 양식에 "소계 100%" 줄이 있는 곳,
+ * 즉 팀목표와 개인목표다 — 비중을 나눠 갖는 층에서만 합계가 뜻을 가진다.
+ */
+/**
+ * 가중치를 사람이 적지 않고 아래에서 굴려 올리는 층.
+ *
+ * 팀목표가 그렇다 — 그 팀 목표의 비중은 결국 딸린 사람들이 짊어진 몫의
+ * 합이다. 손으로 따로 적게 하면 개인목표를 더하고 뺄 때마다 팀목표 가중치를
+ * 같이 고쳐야 하는데, 아무도 그러지 않아서 둘이 어긋난 채로 남는다.
+ */
+export function usesDerivedWeight(level: string): boolean {
+  return level === "TEAM";
+}
+
+/** 한 사람이 팀 숫자에 가져가는 몫. 몇 건을 적었든 사람마다 이만큼이다. */
+export const PERSON_SHARE = 100;
+
+/**
+ * 사람마다 똑같이 100씩 가져간다.
+ *
+ * 개인목표 가중치를 그대로 쓰면 목표를 적게 잡은 사람이 팀 달성률에 덜
+ * 반영된다 — 가중치 합이 50인 사람은 100을 채운 사람의 반만 들어간다.
+ * 그런데 그 50이 «일이 적어서»인지 «칸을 덜 채워서»인지는 화면 어디에도
+ * 없다. 알 수 없는 것을 근거로 사람마다 다른 무게를 주느니, 다섯 명이면
+ * 다섯 몫으로 똑같이 나누는 편이 실제에 가깝다.
+ *
+ * 그래서 적어 넣은 가중치는 **그 사람 안에서 나누는 비율로만** 쓴다. 30·20을
+ * 적었으면 60·40으로 펴져서 합이 100이 된다. 이미 100을 맞춰 둔 사람에게는
+ * 아무 일도 일어나지 않는다.
+ *
+ * 집계에서 빠진 목표(중단·집계 제외·평가대상 아님)는 나눗셈에도 안 들어간다 —
+ * 두 건 중 하나가 빠지면 남은 하나가 그 사람 몫 100을 통째로 진다.
+ */
+function personShares(rows: GoalRow[]): Map<string, number> {
+  const total = new Map<string, number>();
+  const count = new Map<string, number>();
+  for (const row of rows) {
+    if (row.level !== "INDIVIDUAL" || !row.ownerId) continue;
+    if (!countsTowardProgress(row)) continue;
+    total.set(row.ownerId, (total.get(row.ownerId) ?? 0) + Math.max(row.weight, 0));
+    count.set(row.ownerId, (count.get(row.ownerId) ?? 0) + 1);
+  }
+
+  const share = new Map<string, number>();
+  for (const row of rows) {
+    if (row.level !== "INDIVIDUAL" || !row.ownerId) continue;
+    if (!countsTowardProgress(row)) continue;
+    const sum = total.get(row.ownerId) ?? 0;
+    const n = count.get(row.ownerId) ?? 0;
+    // 아무 칸에도 가중치를 안 적었으면 그 사람 목표끼리 똑같이 나눈다.
+    share.set(row.id, sum > 0 ? (PERSON_SHARE * Math.max(row.weight, 0)) / sum : PERSON_SHARE / n);
+  }
+  return share;
+}
+
+/**
+ * 반기 구분. 개인목표를 상반기·하반기로 갈라 세우고, 목록도 그렇게 묶어 본다.
+ *
+ * **개인목표에만 있다.** 전사·책임·팀 목표는 한 해 단위로 세우고 반기마다
+ * 나눠 갖지 않는다 — 반기로 갈리는 건 사람이 그 기간에 무엇을 할지이고,
+ * 위 세 층은 한 해 동안 굴러 올라온 합이다.
+ */
+export const GOAL_HALVES = ["상반기", "하반기"] as const;
+export type GoalHalf = (typeof GOAL_HALVES)[number];
+
+export function usesHalf(level: string): boolean {
+  return level === "INDIVIDUAL";
+}
+
+/** 아직 반기를 정하지 않은 목표를 담는 자리. 예전에 만든 줄이 여기로 온다. */
+export const HALF_UNSET = "미지정";
+
+export function goalHalf(goal: { half?: string | null }): string {
+  const v = (goal.half ?? "").trim();
+  return (GOAL_HALVES as readonly string[]).includes(v) ? v : HALF_UNSET;
+}
+
+/**
+ * 상반기 → 하반기 → 미지정 차례로 묶는다. 비어 있는 묶음은 내보내지 않는다 —
+ * 하반기 목표를 아직 안 세웠는데 «하반기 0건»이 자리를 먹을 이유가 없다.
+ */
+export function groupByHalf<T extends { half?: string | null }>(
+  rows: T[]
+): { half: string; items: T[] }[] {
+  const order = [...GOAL_HALVES, HALF_UNSET];
+  return order
+    .map((half) => ({ half, items: rows.filter((r) => goalHalf(r) === half) }))
+    .filter((g) => g.items.length > 0);
+}
+
+export function usesWeightSubtotal(level: string): boolean {
+  // 팀목표는 가중치를 아래에서 굴려 올리므로(`usesDerivedWeight`) 사람이 맞출
+  // 소계가 없다. 100%로 맞추라는 말이 붙어 있으면 고칠 수 없는 숫자를 붙들고
+  // 있으라는 뜻이 된다.
+  return level === "INDIVIDUAL";
+}
+
+// ---- 인사평가의 연도와 단계 ----------------------------------------------
+
+/**
+ * 이름 앞머리의 연도("2026년 중간평가" → 2026). 없으면 null.
+ *
+ * 이름을 연도의 근거로 삼는 이유: 기간은 실수로 다른 해를 넣기 쉽고(중간평가에
+ * 2028년 날짜가 들어가는 식), 그러면 화면에서는 "2026년 중간평가"인데 시스템은
+ * 2028년으로 알게 된다. 사람이 보는 이름과 묶이는 해가 어긋나면 목록이 통째로
+ * 이상해지므로, 이름에 해가 적혀 있으면 그걸 따른다.
+ */
+export function parseNameYear(name: string): number | null {
+  const m = name.trim().match(/^(\d{4})\s*년/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  return Number.isFinite(y) ? y : null;
+}
+
+/** 이 인사평가가 묶일 해. 이름에 적힌 해가 먼저고, 없으면 저장된 연도. */
+export function cycleYear(cycle: { name: string; year: number }): number {
+  return parseNameYear(cycle.name) ?? cycle.year;
+}
+
+/**
+ * 연도 묶음 안에서 보여 줄 이름. "2026년 중간평가" → "중간평가".
+ *
+ * 묶음 제목이 이미 "2026년"이라 안에서 해를 한 번 더 읽을 이유가 없다. 연도만
+ * 떼고 남는 게 없으면(이름이 "2026년"뿐이면) 원래 이름을 그대로 쓴다.
+ */
+export function cyclePhaseLabel(cycle: { name: string }): string {
+  const rest = cycle.name.trim().replace(/^\d{4}\s*년\s*/, "").trim();
+  return rest || cycle.name;
+}
+
+/**
+ * 연도 > 단계 두 층으로 묶는다. 해는 최근이 위, 해 안에서는 관리자가 정한
+ * 순서(목록에 들어온 순서)를 그대로 지킨다.
+ */
+/**
+ * 한 해 안에서 단계가 놓이는 자연스러운 순서 — 목표설정 → 중간 → 최종.
+ * 관리자가 ▲▼로 직접 순서를 잡았으면 그쪽이 이긴다(아래 정렬에서 sortOrder가
+ * 먼저다). 이 순위는 sortOrder가 서로 같아 순서를 가릴 수 없을 때만 쓴다.
+ * 새로 만든 사이클은 전부 같은 값으로 들어오기 때문에, 이게 없으면
+ * "2026년 최종평가"가 "2026년 중간평가"보다 위에 붙는 일이 생긴다.
+ */
+const CYCLE_PHASE_RANK: [RegExp, number][] = [
+  [/목표\s*설정|목표수립/, 1],
+  [/중간|상반기/, 2],
+  [/최종|하반기|연말/, 3],
+];
+export function cyclePhaseRank(cycle: { name: string }): number {
+  const label = cyclePhaseLabel(cycle);
+  for (const [re, r] of CYCLE_PHASE_RANK) if (re.test(label)) return r;
+  return 9;
+}
+/**
+ * 이 평가에서 달성률을 적을 수 있는가.
+ *
+ * 목표설정은 "무엇을 하겠다"를 정하는 자리라 달성률 칸이 없다 — 아직 아무것도
+ * 시작하지 않았는데 숫자를 적게 하면 그 숫자가 무슨 뜻인지 아무도 모른다.
+ * 진척은 중간평가·최종평가에서 적는다. 단계 이름을 못 알아본 사이클(예전에
+ * 만든 "2026년 하반기" 같은 것)은 막지 않는다 — 이름 하나로 남의 입력을
+ * 잠그는 쪽이 더 위험하다.
+ */
+export function allowsProgressInput(cycle: { name: string } | null | undefined): boolean {
+  return !!cycle && cyclePhaseRank(cycle) !== 1;
+}
+
+/**
+ * 그 평가에서 «평가»를 적는가 — 사내 「개인목표 평가(상반기)」 표에 해당한다.
+ *
+ * 개인목표에만 있다. 전사·책임·팀 목표는 아래에서 굴러 올라온 값이라 사람이
+ * 점수를 매기는 자리가 아니고, 목표설정 단계에는 아직 평가할 것이 없다.
+ */
+export function usesEvaluation(
+  level: string,
+  cycle: { name: string } | null | undefined
+): boolean {
+  return level === "INDIVIDUAL" && allowsProgressInput(cycle);
+}
+
+/**
+ * 그 평가가 어느 반기를 매기는지 — 화면의 「상반기 평가」·「하반기 평가」.
+ * 단계 이름을 못 알아보면 그냥 「평가」다.
+ */
+export function evalPeriodLabel(cycle: { name: string } | null | undefined): string {
+  const rank = cycle ? cyclePhaseRank(cycle) : 9;
+  if (rank === 2) return "상반기";
+  if (rank === 3) return "하반기";
+  return "";
+}
+
+/**
+ * 그 목표에 줄 수 있는 최고 점수 — **가중치의 110%**다.
+ *
+ * 가중치가 곧 그 목표가 한 해에서 차지하는 몫이고, 아주 잘했을 때(평가척도 S)
+ * 그 몫의 110%까지 인정한다. 가중치 30짜리 목표는 33점이 최고다. 이 상한이
+ * 없으면 가중치 10짜리 목표에 100점을 적어 놓고 «다 했다»가 되어, 비중을
+ * 나눠 놓은 뜻이 사라진다.
+ */
+export function maxScore(weight: number): number {
+  return Math.max(0, Math.round(weight * 1.1));
+}
+
+/** 점수 칸에 들어갈 수 있는 값. 상한을 주면 그 위로는 잘라 낸다. */
+export function clampScore(value: number, max?: number): number {
+  const ceiling = max === undefined || max <= 0 ? 200 : max;
+  return Math.max(0, Math.min(ceiling, Math.round(value)));
+}
+
+/**
+ * 목표설정 단계에서는 상태를 고르지 않는다 — 전부 «진행중»이다.
+ *
+ * 목표를 세우는 자리에서 «작성중/진행중/중단»을 고르게 하면, 같은 시점에 세운
+ * 목표가 사람마다 다른 상태로 남아 목록이 들쭉날쭉해진다. 무엇이 끝났고 무엇이
+ * 접혔는지는 중간평가·최종평가에서 갈린다. 단계 이름을 못 알아본 사이클은
+ * 여기서도 막지 않는다(`allowsProgressInput`과 같은 이유).
+ *
+ * 전사목표는 뺀다 — 관리자 화면에서 표를 채워 내려보내는 값이라 «작성중»으로
+ * 두고 다듬는 일이 있다.
+ */
+export function usesFixedActiveStatus(
+  level: string,
+  cycle: { name: string } | null | undefined
+): boolean {
+  if (level === "COMPANY") return false;
+  return !!cycle && !allowsProgressInput(cycle);
+}
+
+export function groupCyclesByYear<
+  T extends { name: string; year: number; sortOrder?: number },
+>(cycles: T[]): { year: number; items: T[] }[] {
+  const byYear = new Map<number, T[]>();
+  for (const c of cycles) {
+    const y = cycleYear(c);
+    const list = byYear.get(y);
+    if (list) list.push(c);
+    else byYear.set(y, [c]);
+  }
+  return Array.from(byYear.entries())
+    .sort((a, b) => b[0] - a[0])
+    .map(([year, items]) => ({
+      year,
+      items: items
+        .map((item, i) => ({ item, i }))
+        .sort(
+          (a, b) =>
+            (a.item.sortOrder ?? 0) - (b.item.sortOrder ?? 0) ||
+            cyclePhaseRank(a.item) - cyclePhaseRank(b.item) ||
+            a.i - b.i
+        )
+        .map((x) => x.item),
+    }));
+}

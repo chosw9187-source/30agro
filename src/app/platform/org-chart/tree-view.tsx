@@ -482,7 +482,10 @@ export function OrgChartRoot({
 
       {expandedUnit && (
         <div className="mt-8 w-full">
-          <UnitDrilldown unit={units.find((u) => u.name === expandedUnit)!} />
+          {/* key로 사업단위가 바뀔 때마다 새로 마운트 — 그렇지 않으면 이전 사업단위에서
+              펼쳐둔 구분(division)이 새 사업단위에 없는 이름일 때 내부 state가 그대로
+              남아 있다가 .find(...)! 가 undefined를 반환해 렌더링이 죽는다. */}
+          <UnitDrilldown key={expandedUnit} unit={units.find((u) => u.name === expandedUnit)!} />
         </div>
       )}
 

@@ -34,7 +34,7 @@ export function ImportUsersForm({ defaultYear }: { defaultYear: number }) {
       <div className="flex gap-4">
         <a
           href="/api/admin/users/template"
-          className="self-start text-sm text-brand-green hover:underline"
+          className="inline-block self-start py-1.5 text-sm text-brand-green hover:underline sm:py-0"
         >
           업로드 양식 다운로드 (.xlsx)
         </a>

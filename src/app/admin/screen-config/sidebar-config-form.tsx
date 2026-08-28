@@ -5,6 +5,7 @@ import { saveSidebarConfig } from "./actions";
 import {
   SIDEBAR_MODULES,
   MODULE_LABEL,
+  ADMIN_ONLY_MODULES,
   type ModuleUiConfigEntry,
   type Module,
 } from "@/lib/permission-constants";
@@ -37,7 +38,17 @@ export function SidebarConfigForm({
           <tbody>
             {orderedModules.map((m) => (
               <tr key={m} className="border-b border-slate-100 last:border-0">
-                <td className="px-4 py-3 font-medium">{MODULE_LABEL[m]}</td>
+                <td className="px-4 py-3 font-medium">
+                  {MODULE_LABEL[m]}
+                  {ADMIN_ONLY_MODULES.has(m) && (
+                    <span
+                      className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-normal text-slate-600"
+                      title="이 메뉴는 관리자에게만 열려 있습니다. 아래 설정과 관계없이 다른 역할에는 보이지 않고, URL로 직접 들어와도 막힙니다."
+                    >
+                      관리자 전용
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <input
                     type="number"

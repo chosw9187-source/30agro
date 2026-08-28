@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { showToast } from "@/components/toast";
 
 /**
@@ -15,6 +16,17 @@ import { showToast } from "@/components/toast";
  *
  * `confirmMessage`를 주면 제출 전에 한 번 되묻는다 — 되돌릴 수 없는 삭제에
  * 쓴다. 취소하면 서버 액션은 호출되지 않는다.
+ *
+ * 저장이 끝나면 폼은 스스로 물러나야 한다. 다 고치고 «저장»을 눌렀는데 그
+ * 긴 폼이 그대로 펼쳐져 있으면 저장이 된 것인지 아닌지도 헷갈리고, 목록을
+ * 다시 보려면 «수정 닫기»를 또 찾아 눌러야 한다.
+ *  - `successHref` — 성공하면 그 주소로 옮겨 간다. 펼침 여부가 주소에 담긴
+ *    폼(«수정»)을 닫는 데 쓴다.
+ *  - `collapseOnSuccess` — 성공하면 폼을 비우고, 폼을 감싼 «펼치기» 칸을
+ *    접는다. 주소를 쓰지 않는 등록 폼에 쓴다.
+ *
+ * 둘 다 알림을 띄운 **뒤에** 움직인다 — 서버에서 바로 옮겨 가 버리면
+ * «저장되었습니다»가 뜰 자리가 없다.
  */
 export function ActionForm({
   action,
@@ -23,6 +35,8 @@ export function ActionForm({
   id,
   successMessage = "정상 등록되었습니다.",
   confirmMessage,
+  successHref,
+  collapseOnSuccess,
 }: {
   action: (formData: FormData) => Promise<unknown>;
   children: React.ReactNode;
@@ -30,7 +44,11 @@ export function ActionForm({
   id?: string;
   successMessage?: string;
   confirmMessage?: string;
+  successHref?: string;
+  collapseOnSuccess?: boolean;
 }) {
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const [, formAction] = useActionState(async (_prev: null, formData: FormData) => {
     try {
       const result = await action(formData);
@@ -47,6 +65,12 @@ export function ActionForm({
       }
 
       showToast(successMessage, true);
+      if (collapseOnSuccess) {
+        formRef.current?.reset();
+        const box = formRef.current?.closest("details");
+        if (box) box.open = false;
+      }
+      if (successHref) router.replace(successHref);
     } catch (error) {
       // redirect()/notFound() 같은 Next 내부 제어 신호는 잡아채면 안 된다.
       if (
@@ -69,6 +93,7 @@ export function ActionForm({
 
   return (
     <form
+      ref={formRef}
       id={id}
       action={formAction}
       className={className}
