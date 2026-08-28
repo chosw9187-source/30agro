@@ -65,6 +65,21 @@ function TabLink({ tab, active, programId }: { tab: (typeof TABS)[number]; activ
 }
 
 /**
+ * "김OO, 이OO · 영업지원팀" — 담당 표기. 사람과 부서가 섞일 수 있고 아무도
+ * 안 정해졌을 수도 있다.
+ */
+function assignedLabel(
+  instructors: { user: { name: string } }[],
+  teams: { team: { name: string } }[]
+): string {
+  const parts = [
+    ...instructors.map((i) => i.user.name),
+    ...teams.map((t) => `${t.team.name} (강사 미정)`),
+  ];
+  return parts.length > 0 ? parts.join(", ") : "미배정";
+}
+
+/**
  * 숙박·교통 한 줄의 입력 칸. 추가 폼과 수정 폼이 같은 모양이라 한곳에 둔다.
  * 끝나는 날은 1박 2일처럼 걸쳐 있을 때만 적고, 비워 두면 하루짜리다.
  */
@@ -175,10 +190,8 @@ async function ManageSection({ programId }: { programId: string | null }) {
             location: true,
             startAt: true,
             endAt: true,
-            instructorId: true,
-            instructor: { select: { name: true } },
-            instructorTeamId: true,
-            instructorTeam: { select: { name: true } },
+            instructors: { select: { userId: true, user: { select: { name: true } } } },
+            teams: { select: { teamId: true, team: { select: { name: true } } } },
             attendees: { select: { traineeId: true } },
           },
         }),
@@ -475,6 +488,10 @@ async function ManageSection({ programId }: { programId: string | null }) {
                 <label className={LABEL_CLASS}>과정명</label>
                 <input name="title" required placeholder="예: 회사 소개 / 점심 시간" className={INPUT_CLASS} />
               </div>
+              <div className="sm:col-span-2">
+                <label className={LABEL_CLASS}>장소 (선택)</label>
+                <input name="location" placeholder="예: 본사 대회의실" className={INPUT_CLASS} />
+              </div>
               <AssignFields
                 instructorOptions={employeeOptions}
                 teamOptions={teamOptions}
@@ -511,10 +528,6 @@ async function ManageSection({ programId }: { programId: string | null }) {
                   defaultValue={DEFAULT_SESSION_TIME.end}
                   className={INPUT_CLASS}
                 />
-              </div>
-              <div>
-                <label className={LABEL_CLASS}>장소 (선택)</label>
-                <input name="location" placeholder="예: 본사 대회의실" className={INPUT_CLASS} />
               </div>
               <div className="sm:col-span-4">
                 <label className={LABEL_CLASS}>강사 전달사항 (선택)</label>
@@ -554,12 +567,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
                           {s.location && ` · ${s.location}`}
                         </p>
                         <p className="mt-0.5 text-xs text-slate-500">
-                          담당{" "}
-                          {s.instructor?.name ??
-                            (s.instructorTeam
-                              ? `${s.instructorTeam.name} (강사 미정)`
-                              : "미배정")}{" "}
-                          ·{" "}
+                          담당 {assignedLabel(s.instructors, s.teams)} ·{" "}
                           {s.attendees.length === 0 ? "교육생 전원" : `교육생 ${s.attendees.length}명 지정`}
                         </p>
                       </div>
@@ -585,11 +593,15 @@ async function ManageSection({ programId }: { programId: string | null }) {
                           <label className={LABEL_CLASS}>과정명</label>
                           <input name="title" required defaultValue={s.title} className={INPUT_CLASS} />
                         </div>
+                        <div className="sm:col-span-2">
+                          <label className={LABEL_CLASS}>장소</label>
+                          <input name="location" defaultValue={s.location ?? ""} className={INPUT_CLASS} />
+                        </div>
                         <AssignFields
                           instructorOptions={employeeOptions}
                           teamOptions={teamOptions}
-                          defaultInstructorId={s.instructorId ?? ""}
-                          defaultTeamId={s.instructorTeamId ?? ""}
+                          defaultInstructorIds={s.instructors.map((i) => i.userId)}
+                          defaultTeamIds={s.teams.map((t) => t.teamId)}
                           inputClassName={INPUT_CLASS}
                           labelClassName={LABEL_CLASS}
                         />
@@ -616,10 +628,6 @@ async function ManageSection({ programId }: { programId: string | null }) {
                             defaultValue={toKSTInputValues(s.endAt).time}
                             className={INPUT_CLASS}
                           />
-                        </div>
-                        <div>
-                          <label className={LABEL_CLASS}>장소</label>
-                          <input name="location" defaultValue={s.location ?? ""} className={INPUT_CLASS} />
                         </div>
                         <div className="sm:col-span-4">
                           <label className={LABEL_CLASS}>강사 전달사항</label>

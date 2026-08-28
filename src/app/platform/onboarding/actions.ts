@@ -83,7 +83,7 @@ function readTimeRange(formData: FormData, day?: string) {
 async function notifyScheduled(
   programId: string,
   title: string,
-  instructorId: string | null,
+  instructorIds: string[],
   when: string,
   changed = false
 ) {
@@ -92,7 +92,7 @@ async function notifyScheduled(
     select: { userId: true },
   });
   await notifyUsers(
-    [...new Set([...(instructorId ? [instructorId] : []), ...trainees.map((t) => t.userId)])],
+    [...new Set([...instructorIds, ...trainees.map((t) => t.userId)])],
     "ONBOARDING_SCHEDULE_CHANGED",
     `[온보딩] "${title}" 일정이 ${changed ? "변경되었습니다" : "등록되었습니다"} — ${when}`,
     LINK_FINAL
@@ -113,24 +113,22 @@ function whenLabel(startAt: Date, endAt: Date) {
 }
 
 /**
- * 폼에서 넘어온 담당 배정을 읽는다. 개인 배정(사람)과 부서 배정(팀)은 서로
- * 배타적이다 — 둘 다 들어오면 무엇이 우선인지 화면과 서버가 어긋난다.
+ * 폼에서 넘어온 담당 배정을 읽는다. 사람과 부서를 함께 고를 수 있다 —
+ * "영업지원팀에서 한 명 + 인사팀 김OO" 같은 편성이 실제로 있어서, 둘 중
+ * 하나만 고르게 하면 그런 교육을 적을 자리가 없다.
  *
- * 부서 배정은 "그 날 되는 사람이 나간다"는 뜻이라 이름을 적지 않는다.
+ * 같은 값이 두 번 넘어와도 한 번만 담는다(폼에서 중복으로 고를 수 있다).
  */
 async function readAssignment(formData: FormData) {
-  if (text(formData, "assignMode") === "TEAM") {
-    const instructorTeamId = text(formData, "instructorTeamId");
-    if (!instructorTeamId) fail("담당 부서를 선택해 주세요.");
+  const instructorIds = [...new Set(formData.getAll("instructorIds").map((v) => String(v).trim()).filter(Boolean))];
+  const teamIds = [...new Set(formData.getAll("teamIds").map((v) => String(v).trim()).filter(Boolean))];
 
-    const team = await prisma.team.findUnique({ where: { id: instructorTeamId }, select: { id: true } });
-    if (!team) fail("존재하지 않는 부서입니다");
-    return { instructorId: null, instructorTeamId };
+  for (const id of instructorIds) await assertEmployeeExists(id);
+  if (teamIds.length > 0) {
+    const found = await prisma.team.count({ where: { id: { in: teamIds } } });
+    if (found !== teamIds.length) fail("존재하지 않는 부서입니다");
   }
-
-  const instructorId = text(formData, "instructorId") || null;
-  if (instructorId) await assertEmployeeExists(instructorId);
-  return { instructorId, instructorTeamId: null };
+  return { instructorIds, teamIds };
 }
 
 /** 재직 중인 임직원인지. 폼에서 고르는 값이지만 얼마든지 바꿔 보낼 수 있다. */
@@ -222,23 +220,36 @@ export async function deleteProgram(programId: string) {
 
 /** 한 강사가 같은 시간에 두 강의를 맡지 않도록. */
 async function assertNoInstructorOverlap(
-  instructorId: string,
+  instructorIds: string[],
   startAt: Date,
   endAt: Date,
   exceptSessionId?: string
 ) {
+  if (instructorIds.length === 0) return;
+
   const clash = await prisma.onboardingSession.findFirst({
     where: {
-      instructorId,
+      instructors: { some: { userId: { in: instructorIds } } },
       ...(exceptSessionId ? { id: { not: exceptSessionId } } : {}),
       // 경계가 맞닿는 경우(12:00 종료 / 12:00 시작)는 겹침이 아니다.
       startAt: { lt: endAt },
       endAt: { gt: startAt },
     },
-    select: { title: true, startAt: true, endAt: true },
+    select: {
+      title: true,
+      startAt: true,
+      endAt: true,
+      instructors: {
+        where: { userId: { in: instructorIds } },
+        select: { user: { select: { name: true } } },
+      },
+    },
   });
   if (clash) {
-    fail(`같은 시간에 "${clash.title}" (${whenLabel(clash.startAt, clash.endAt)}) 강의가 이미 잡혀 있습니다.`);
+    const who = clash.instructors.map((i) => i.user.name).join(", ");
+    fail(
+      `${who}님은 같은 시간에 "${clash.title}" (${whenLabel(clash.startAt, clash.endAt)}) 강의가 이미 잡혀 있습니다.`
+    );
   }
 }
 
@@ -257,8 +268,8 @@ export async function createSession(formData: FormData) {
     if (!title) fail("과정명을 입력해 주세요.");
 
     const { startAt, endAt } = readTimeRange(formData);
-    const { instructorId, instructorTeamId } = await readAssignment(formData);
-    if (instructorId) await assertNoInstructorOverlap(instructorId, startAt, endAt);
+    const { instructorIds, teamIds } = await readAssignment(formData);
+    await assertNoInstructorOverlap(instructorIds, startAt, endAt);
 
     const created = await prisma.onboardingSession.create({
       data: {
@@ -268,13 +279,13 @@ export async function createSession(formData: FormData) {
         location: optional(formData, "location"),
         startAt,
         endAt,
-        instructorId,
-        instructorTeamId,
+        instructors: { create: instructorIds.map((userId) => ({ userId })) },
+        teams: { create: teamIds.map((teamId) => ({ teamId })) },
         createdById: session.user.id,
       },
     });
 
-    await notifyScheduled(programId, created.title, instructorId, whenLabel(startAt, endAt));
+    await notifyScheduled(programId, created.title, instructorIds, whenLabel(startAt, endAt));
     revalidatePath(PATH);
   });
 }
@@ -286,7 +297,13 @@ export async function updateSession(sessionId: string, formData: FormData) {
 
     const target = await prisma.onboardingSession.findUnique({
       where: { id: sessionId },
-      select: { programId: true, startAt: true, endAt: true, instructorId: true, instructorTeamId: true },
+      select: {
+        programId: true,
+        startAt: true,
+        endAt: true,
+        instructors: { select: { userId: true } },
+        teams: { select: { teamId: true } },
+      },
     });
     if (!target) fail("일정을 찾을 수 없습니다.");
 
@@ -294,8 +311,8 @@ export async function updateSession(sessionId: string, formData: FormData) {
     if (!title) fail("과정명을 입력해 주세요.");
 
     const { startAt, endAt } = readTimeRange(formData);
-    const { instructorId, instructorTeamId } = await readAssignment(formData);
-    if (instructorId) await assertNoInstructorOverlap(instructorId, startAt, endAt, sessionId);
+    const { instructorIds, teamIds } = await readAssignment(formData);
+    await assertNoInstructorOverlap(instructorIds, startAt, endAt, sessionId);
 
     await prisma.onboardingSession.update({
       where: { id: sessionId },
@@ -305,8 +322,10 @@ export async function updateSession(sessionId: string, formData: FormData) {
         location: optional(formData, "location"),
         startAt,
         endAt,
-        instructorId,
-        instructorTeamId,
+        // 통째로 갈아 끼운다 — 빠진 사람을 지우고 새로 든 사람을 넣는 일을
+        // 따로 계산하는 것보다 이쪽이 어긋날 여지가 없다.
+        instructors: { deleteMany: {}, create: instructorIds.map((userId) => ({ userId })) },
+        teams: { deleteMany: {}, create: teamIds.map((teamId) => ({ teamId })) },
       },
     });
 
@@ -315,10 +334,13 @@ export async function updateSession(sessionId: string, formData: FormData) {
     // 새로 맡은 사람은 알아야 한다.
     const timeChanged =
       target.startAt.getTime() !== startAt.getTime() || target.endAt.getTime() !== endAt.getTime();
+    const same = (before: string[], after: string[]) =>
+      before.length === after.length && [...before].sort().join() === [...after].sort().join();
     const assignmentChanged =
-      instructorId !== target.instructorId || instructorTeamId !== target.instructorTeamId;
+      !same(target.instructors.map((i) => i.userId), instructorIds) ||
+      !same(target.teams.map((t) => t.teamId), teamIds);
     if (timeChanged || assignmentChanged) {
-      await notifyScheduled(target.programId, title, instructorId, whenLabel(startAt, endAt), timeChanged);
+      await notifyScheduled(target.programId, title, instructorIds, whenLabel(startAt, endAt), timeChanged);
     }
     revalidatePath(PATH);
   });

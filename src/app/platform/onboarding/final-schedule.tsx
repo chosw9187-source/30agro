@@ -48,20 +48,19 @@ type FinalSession = {
   location: string | null;
   startAt: Date;
   endAt: Date;
-  instructor: { name: string; team: { name: string } | null } | null;
-  instructorTeam: { name: string } | null;
+  instructors: { user: { name: string; team: { name: string } | null } }[];
+  teams: { team: { name: string } }[];
   attendees: { traineeId: string }[];
 };
 
 /**
- * 화면에 싣는 담당 표기. 사람이 정해졌으면 이름, 부서가 맡은 강의면 부서
- * 이름으로 나간다 — 교육생 입장에서는 "어디서 나오는 강의인지"만 알면 되고,
- * 당일 누가 오는지는 그때 정해지기도 한다.
+ * 화면에 싣는 담당 표기. 여러 명이 나눠 맡기도 하고 사람과 부서가 섞이기도
+ * 한다 — 교육생 입장에서는 "어디서 나오는 강의인지"만 알면 되고, 부서로만
+ * 잡힌 강의는 당일 누가 오는지 그때 정해지기도 한다.
  */
 function instructorLabel(s: FinalSession): string {
-  if (s.instructor) return s.instructor.name;
-  if (s.instructorTeam) return `${s.instructorTeam.name} (강사 미정)`;
-  return "미정";
+  const parts = [...s.instructors.map((i) => i.user.name), ...s.teams.map((t) => `${t.team.name} (강사 미정)`)];
+  return parts.length > 0 ? parts.join(", ") : "미정";
 }
 
 type Trainee = { id: string; userId: string; user: { name: string; team: { name: string } | null } };
@@ -157,8 +156,8 @@ export async function FinalScheduleSection({
         location: true,
         startAt: true,
         endAt: true,
-        instructor: { select: { name: true, team: { select: { name: true } } } },
-        instructorTeam: { select: { name: true } },
+        instructors: { select: { user: { select: { name: true, team: { select: { name: true } } } } } },
+        teams: { select: { team: { select: { name: true } } } },
         attendees: { select: { traineeId: true } },
       },
     }),
@@ -628,20 +627,23 @@ function SessionDetail({
         <div>
           <dt className="text-xs font-medium text-slate-500">강사</dt>
           <dd className="mt-0.5 text-sm">
-            {session.instructor ? (
-              <span className="text-slate-800">
-                {session.instructor.name}
-                {session.instructor.team && (
-                  <span className="ml-1 text-xs text-slate-400">{session.instructor.team.name}</span>
-                )}
-              </span>
-            ) : session.instructorTeam ? (
-              <span className="text-slate-800">
-                {session.instructorTeam.name}
-                <span className="ml-1 text-xs text-slate-400">강사 미정</span>
-              </span>
-            ) : (
+            {session.instructors.length === 0 && session.teams.length === 0 ? (
               <span className="text-slate-400">-</span>
+            ) : (
+              <ul className="flex flex-col gap-0.5">
+                {session.instructors.map((i) => (
+                  <li key={i.user.name} className="text-slate-800">
+                    {i.user.name}
+                    {i.user.team && <span className="ml-1 text-xs text-slate-400">{i.user.team.name}</span>}
+                  </li>
+                ))}
+                {session.teams.map((t) => (
+                  <li key={t.team.name} className="text-slate-800">
+                    {t.team.name}
+                    <span className="ml-1 text-xs text-slate-400">강사 미정</span>
+                  </li>
+                ))}
+              </ul>
             )}
           </dd>
         </div>
