@@ -125,7 +125,7 @@ model User {
   uploadedRegulations   Regulation[]           @relation("RegulationUploader")
   onboardingSessionsAdded OnboardingSession[]  @relation("OnboardingSessionCreator")
   onboardingLogisticsAdded OnboardingLogistics[] @relation("OnboardingLogisticsCreator")
-  onboardingSessionsTaught OnboardingSession[] @relation("OnboardingSessionInstructor")
+  onboardingSessionsTaught OnboardingSessionInstructor[]
   onboardingTrainee       OnboardingTrainee[]  @relation("OnboardingTrainee")
   onboardingTraineesAdded OnboardingTrainee[]  @relation("OnboardingTraineeAdder")
   goalsOwned            Goal[]                 @relation("GoalOwner")
@@ -253,7 +253,7 @@ model Team {
   createdAt DateTime @default(now())
 
   members       User[]         @relation("TeamMember")
-  onboardingSessions OnboardingSession[] @relation("OnboardingSessionTeam")
+  onboardingSessions OnboardingSessionTeam[]
   templateItems TemplateItem[]
   jobDescription JobDescription?
   tasks         Task[]
@@ -730,25 +730,46 @@ model OnboardingSession {
   endAt       DateTime
   location    String?
 
-  // 이 칸을 맡은 강사.
-  instructorId String?
-  instructor   User?   @relation("OnboardingSessionInstructor", fields: [instructorId], references: [id])
-
-  // 사람 대신 부서가 맡는 경우 — 그 날 시간이 되는 사람이 나가는 식이라
-  // 이름을 미리 적을 수 없다. 안내서에는 부서 이름으로 나간다.
-  instructorTeamId String?
-  instructorTeam   Team?   @relation("OnboardingSessionTeam", fields: [instructorTeamId], references: [id])
-
   createdById String?
   createdBy   User?    @relation("OnboardingSessionCreator", fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  attendees OnboardingSessionAttendee[]
+  attendees   OnboardingSessionAttendee[]
+  instructors OnboardingSessionInstructor[]
+  teams       OnboardingSessionTeam[]
 
   @@index([programId, startAt])
-  @@index([instructorId])
-  @@index([instructorTeamId])
+}
+
+/**
+ * 이 교육을 맡은 강사. 한 과정을 둘이 나눠 진행하거나, 실습에 보조 강사가
+ * 붙는 일이 흔해 한 명으로 못 박지 않는다.
+ */
+model OnboardingSessionInstructor {
+  id        String            @id @default(cuid())
+  sessionId String
+  session   OnboardingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@index([userId])
+}
+
+/**
+ * 사람 대신 부서가 맡는 경우 — 그 날 시간이 되는 사람이 나가는 식이라 이름을
+ * 미리 적을 수 없다. 안내서에는 부서 이름으로 나가고, 부서도 여럿일 수 있다.
+ */
+model OnboardingSessionTeam {
+  id        String            @id @default(cuid())
+  sessionId String
+  session   OnboardingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  teamId    String
+  team      Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, teamId])
+  @@index([teamId])
 }
 
 /**

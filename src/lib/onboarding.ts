@@ -106,7 +106,9 @@ export async function canViewOnboardingProgram(
 
   const [asTrainee, asInstructor] = await Promise.all([
     prisma.onboardingTrainee.count({ where: { programId, userId } }),
-    prisma.onboardingSession.count({ where: { programId, instructorId: userId } }),
+    prisma.onboardingSession.count({
+      where: { programId, instructors: { some: { userId } } },
+    }),
   ]);
   if (asTrainee > 0 || asInstructor > 0) return true;
 
@@ -115,7 +117,7 @@ export async function canViewOnboardingProgram(
 
   // 부서가 맡은 강의라면 그 부서 사람 전부가 강사 후보다.
   const myTeamTeaches = await prisma.onboardingSession.count({
-    where: { programId, instructorTeamId: me.teamId },
+    where: { programId, teams: { some: { teamId: me.teamId } } },
   });
   if (myTeamTeaches > 0) return true;
 
