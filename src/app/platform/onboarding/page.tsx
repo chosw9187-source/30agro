@@ -8,21 +8,29 @@ import { ActionForm } from "@/components/action-form";
 import { activePrismaWhere } from "@/lib/hr-analytics";
 import {
   DEFAULT_SESSION_TIME,
+  LOGISTICS_BADGE_CLASS,
+  LOGISTICS_KINDS,
+  LOGISTICS_LABEL,
+  formatLogisticsPeriod,
   formatSessionDay,
   formatSessionTimeRange,
   hasAnyOnboardingAccess,
   toKSTInputValues,
+  type LogisticsKind,
 } from "@/lib/onboarding";
 import {
+  addLogistics,
   addTrainee,
   addTraineesBulk,
   createProgram,
   createSession,
+  deleteLogistics,
   deleteProgram,
   deleteSession,
   removeTrainee,
   setSessionAudience,
   toggleProgramActive,
+  updateLogistics,
   updateProgram,
   updateSession,
 } from "./actions";
@@ -53,6 +61,67 @@ function TabLink({ tab, active, programId }: { tab: (typeof TABS)[number]; activ
     >
       {tab.label}
     </Link>
+  );
+}
+
+/**
+ * 숙박·교통 한 줄의 입력 칸. 추가 폼과 수정 폼이 같은 모양이라 한곳에 둔다.
+ * 끝나는 날은 1박 2일처럼 걸쳐 있을 때만 적고, 비워 두면 하루짜리다.
+ */
+function LogisticsFields({
+  dateDefault,
+  endDefault = "",
+  kindDefault = "LODGING",
+  titleDefault = "",
+  detailDefault = "",
+}: {
+  dateDefault: string;
+  endDefault?: string;
+  kindDefault?: LogisticsKind;
+  titleDefault?: string;
+  detailDefault?: string;
+}) {
+  return (
+    <>
+      <div>
+        <label className={LABEL_CLASS}>구분</label>
+        <select name="kind" defaultValue={kindDefault} className={INPUT_CLASS}>
+          {LOGISTICS_KINDS.map((k) => (
+            <option key={k} value={k}>
+              {LOGISTICS_LABEL[k]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className={LABEL_CLASS}>날짜</label>
+        <input type="date" name="startDate" required defaultValue={dateDefault} className={INPUT_CLASS} />
+      </div>
+      <div>
+        <label className={LABEL_CLASS}>끝나는 날 (선택)</label>
+        <input type="date" name="endDate" defaultValue={endDefault} className={INPUT_CLASS} />
+        <p className="mt-1 text-[11px] text-slate-400">1박 2일처럼 걸칠 때만</p>
+      </div>
+      <div>
+        <label className={LABEL_CLASS}>내용</label>
+        <input
+          name="title"
+          required
+          defaultValue={titleDefault}
+          placeholder="예: 삼공연수원 생활관 3층"
+          className={INPUT_CLASS}
+        />
+      </div>
+      <div className="sm:col-span-4">
+        <label className={LABEL_CLASS}>상세 (선택)</label>
+        <input
+          name="detail"
+          defaultValue={detailDefault}
+          placeholder="예: 2인 1실 · 수건과 세면도구는 제공되지 않습니다"
+          className={INPUT_CLASS}
+        />
+      </div>
+    </>
   );
 }
 
@@ -94,7 +163,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
 
   const selected = programs.find((p) => p.id === programId) ?? null;
 
-  const [sessions, trainees] = selected
+  const [sessions, logistics, trainees] = selected
     ? await Promise.all([
         prisma.onboardingSession.findMany({
           where: { programId: selected.id },
@@ -104,8 +173,6 @@ async function ManageSection({ programId }: { programId: string | null }) {
             title: true,
             description: true,
             location: true,
-            lodging: true,
-            transport: true,
             startAt: true,
             endAt: true,
             instructorId: true,
@@ -114,6 +181,10 @@ async function ManageSection({ programId }: { programId: string | null }) {
             instructorTeam: { select: { name: true } },
             attendees: { select: { traineeId: true } },
           },
+        }),
+        prisma.onboardingLogistics.findMany({
+          where: { programId: selected.id },
+          orderBy: [{ startDate: "asc" }, { kind: "asc" }],
         }),
         prisma.onboardingTrainee.findMany({
           where: { programId: selected.id },
@@ -125,7 +196,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
           },
         }),
       ])
-    : [[], []];
+    : [[], [], []];
 
   const teamOptions = teams.map((t) => ({
     value: t.id,
@@ -174,7 +245,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
             <textarea name="notice" rows={3} placeholder={"예)\n· 편한 복장으로 오세요.\n· 노트북과 필기구를 지참해 주세요."} className={INPUT_CLASS} />
             <p className="mt-1 text-[11px] text-slate-400">
               기수 전체에 걸리는 공지입니다. [최종 스케줄]에 참여자 모두에게 보이고 줄바꿈도 그대로 나갑니다.
-              숙박·교통은 교육마다 다를 수 있어 아래 [교육 일정 편성]에서 교육별로 적습니다.
+              숙박·교통은 아래 [숙박 · 교통 안내]에서 날짜별로 적습니다.
             </p>
           </div>
         </div>
@@ -294,7 +365,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
                 <label className={LABEL_CLASS}>공지사항 (선택)</label>
                 <textarea name="notice" rows={3} className={INPUT_CLASS} defaultValue={selected.notice ?? ""} />
                 <p className="mt-1 text-[11px] text-slate-400">
-                  기수 전체에 걸리는 공지입니다. 숙박·교통은 교육마다 [교육 일정 편성]에서 적습니다.
+                  기수 전체에 걸리는 공지입니다. 숙박·교통은 [숙박 · 교통 안내]에서 날짜별로 적습니다.
                 </p>
               </div>
 
@@ -445,14 +516,6 @@ async function ManageSection({ programId }: { programId: string | null }) {
                 <label className={LABEL_CLASS}>장소 (선택)</label>
                 <input name="location" placeholder="예: 본사 대회의실" className={INPUT_CLASS} />
               </div>
-              <div className="sm:col-span-2">
-                <label className={LABEL_CLASS}>숙박 장소 (선택)</label>
-                <input name="lodging" placeholder="예: 삼공연수원 생활관 3층 (2인 1실)" className={INPUT_CLASS} />
-              </div>
-              <div className="sm:col-span-2">
-                <label className={LABEL_CLASS}>교통편 (선택)</label>
-                <input name="transport" placeholder="예: 08:00 본사 정문 전세버스 출발" className={INPUT_CLASS} />
-              </div>
               <div className="sm:col-span-4">
                 <label className={LABEL_CLASS}>강사 전달사항 (선택)</label>
                 <input
@@ -461,8 +524,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
                   className={INPUT_CLASS}
                 />
                 <p className="mt-1 text-[11px] text-slate-400">
-                  숙박·교통은 이 교육에만 붙습니다. 적으면 [최종 스케줄]의 교육 상세에 참여자에게 보이고,
-                  강사 전달사항은 안내서에 싣지 않습니다.
+                  강사 전달사항은 안내서에 싣지 않습니다. 숙박·교통은 아래 [숙박 · 교통 안내]에서 날짜별로 적습니다.
                 </p>
               </div>
               <div className="sm:col-span-4">
@@ -559,14 +621,6 @@ async function ManageSection({ programId }: { programId: string | null }) {
                           <label className={LABEL_CLASS}>장소</label>
                           <input name="location" defaultValue={s.location ?? ""} className={INPUT_CLASS} />
                         </div>
-                        <div className="sm:col-span-2">
-                          <label className={LABEL_CLASS}>숙박 장소</label>
-                          <input name="lodging" defaultValue={s.lodging ?? ""} className={INPUT_CLASS} />
-                        </div>
-                        <div className="sm:col-span-2">
-                          <label className={LABEL_CLASS}>교통편</label>
-                          <input name="transport" defaultValue={s.transport ?? ""} className={INPUT_CLASS} />
-                        </div>
                         <div className="sm:col-span-4">
                           <label className={LABEL_CLASS}>강사 전달사항</label>
                           <input name="description" defaultValue={s.description ?? ""} className={INPUT_CLASS} />
@@ -619,6 +673,92 @@ async function ManageSection({ programId }: { programId: string | null }) {
                   </div>
                 );
               })
+            )}
+          </div>
+
+          {/* ------------------------------------------- 숙박 · 교통 안내 */}
+          <div className="rounded-lg border border-slate-200 bg-white p-5">
+            <h2 className="text-lg font-semibold text-slate-800">숙박 · 교통 안내</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              날짜에 걸리는 안내입니다. 숙박은 밤에 걸리고 전세버스는 그 날 아침에 한 번 뜨는 것이라 교육 한 건에
+              묶지 않고 따로 적습니다. 적어 두면 [최종 스케줄]에 일정과 나란히 날짜순으로 보입니다.
+            </p>
+            <ActionForm
+              action={addLogistics}
+              className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4"
+              successMessage="안내를 추가했습니다."
+            >
+              <input type="hidden" name="programId" value={selected.id} />
+              <LogisticsFields dateDefault={sessionDateDefault} />
+              <div className="sm:col-span-4">
+                <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                  안내 추가
+                </button>
+              </div>
+            </ActionForm>
+
+            {logistics.length === 0 ? (
+              <p className="mt-4 rounded border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-500">
+                등록된 숙박·교통 안내가 없습니다.
+              </p>
+            ) : (
+              <ul className="mt-4 flex flex-col gap-2">
+                {logistics.map((g) => (
+                  <li key={g.id} className="rounded border border-slate-200 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">
+                          <span
+                            className={`mr-2 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                              LOGISTICS_BADGE_CLASS[g.kind as LogisticsKind]
+                            }`}
+                          >
+                            {LOGISTICS_LABEL[g.kind as LogisticsKind]}
+                          </span>
+                          {g.title}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-500">
+                          {formatLogisticsPeriod(g.startDate, g.endDate)}
+                          {g.detail && ` · ${g.detail}`}
+                        </p>
+                      </div>
+                      <ActionForm
+                        action={deleteLogistics.bind(null, g.id)}
+                        successMessage="안내를 삭제했습니다."
+                        confirmMessage="이 안내를 삭제할까요?"
+                      >
+                        <button type="submit" className="text-xs text-red-500 hover:underline">
+                          삭제
+                        </button>
+                      </ActionForm>
+                    </div>
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-xs text-brand-green-dark">수정</summary>
+                      <ActionForm
+                        action={updateLogistics.bind(null, g.id)}
+                        className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4"
+                        successMessage="안내를 저장했습니다."
+                      >
+                        <LogisticsFields
+                          dateDefault={toKSTInputValues(g.startDate).date}
+                          endDefault={g.endDate ? toKSTInputValues(g.endDate).date : ""}
+                          kindDefault={g.kind as LogisticsKind}
+                          titleDefault={g.title}
+                          detailDefault={g.detail ?? ""}
+                        />
+                        <div className="sm:col-span-4">
+                          <button
+                            type="submit"
+                            className="rounded bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+                          >
+                            저장
+                          </button>
+                        </div>
+                      </ActionForm>
+                    </details>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         </>

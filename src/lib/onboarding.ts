@@ -43,6 +43,26 @@ export function toKSTInputValues(d: Date): { date: string; time: string } {
   };
 }
 
+export const LOGISTICS_KINDS = ["LODGING", "TRANSPORT"] as const;
+export type LogisticsKind = (typeof LOGISTICS_KINDS)[number];
+
+export const LOGISTICS_LABEL: Record<LogisticsKind, string> = {
+  LODGING: "숙박",
+  TRANSPORT: "교통",
+};
+
+/** 숙박은 밤을 재우는 것이고 교통은 그 날 한 번 뜨는 것이라, 색으로 갈라 둔다. */
+export const LOGISTICS_BADGE_CLASS: Record<LogisticsKind, string> = {
+  LODGING: "bg-indigo-100 text-indigo-800",
+  TRANSPORT: "bg-amber-100 text-amber-800",
+};
+
+/** "8월 12일 (수)" 또는 "8월 12일 (수) ~ 8월 13일 (목)". */
+export function formatLogisticsPeriod(startDate: Date, endDate: Date | null): string {
+  const from = formatSessionDay(startDate);
+  return endDate ? `${from} ~ ${formatSessionDay(endDate)}` : from;
+}
+
 /** "9월 1일 (월)" 형태의 날짜 구분 헤더. */
 export function formatSessionDay(d: Date): string {
   return formatKSTDate(d, { month: "long", day: "numeric", weekday: "short" });
