@@ -132,7 +132,7 @@ function NavLink({
     <Link
       href={item.href}
       onClick={closeMobileNav}
-      className={`flex items-center justify-between rounded px-3 py-2 text-sm transition-colors ${
+      className={`flex items-center justify-between rounded px-3 py-1.5 text-sm transition-colors ${
         active
           ? "bg-white text-brand-green-dark font-medium"
           : "text-white hover:bg-black/10"
@@ -229,14 +229,14 @@ export function PlatformSidebar({
   }
 
   return (
-    <nav className="fixed inset-y-0 left-0 z-40 flex h-screen w-64 -translate-x-full flex-col overflow-hidden bg-brand-green px-3 py-5 transition-transform duration-200 peer-checked:translate-x-0 md:sticky md:top-0 md:left-auto md:z-auto md:h-full md:w-60 md:shrink-0 md:translate-x-0">
+    <nav className="fixed inset-y-0 left-0 z-40 flex h-screen w-64 -translate-x-full flex-col overflow-hidden bg-brand-green px-3 py-4 transition-transform duration-200 peer-checked:translate-x-0 md:static md:left-auto md:z-auto md:h-auto md:w-60 md:shrink-0 md:translate-x-0 md:overflow-visible">
       {/*
-        메뉴 목록만 구르고, 아래의 «로그아웃»은 늘 제자리에 둔다. 예전에는 nav
-        전체가 굴러서, 화면이 조금만 낮아도(노트북, 또는 위에 띠가 붙은 지금)
-        로그아웃이 아래로 밀려 사라졌다 — 찾으려면 메뉴를 끝까지 내려야 했다.
+        서랍으로 열리는 좁은 화면에서만 목록이 따로 구르고, 넓은 화면에서는
+        페이지와 함께 흐른다 — 메뉴가 자기 안에서 구르면 화면 왼쪽에 스크롤
+        막대가 하나 더 생긴다.
       */}
-      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
-        <div className="px-3 pb-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto md:overflow-visible">
+        <div className="px-3 pb-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-200">
             SG HR PLATFORM
           </p>
@@ -273,7 +273,7 @@ export function PlatformSidebar({
               <button
                 type="button"
                 onClick={() => toggleSection(section)}
-                className="flex items-center justify-between rounded px-3 py-2 text-sm text-white hover:bg-black/10"
+                className="flex items-center justify-between rounded px-3 py-1.5 text-sm text-white hover:bg-black/10"
               >
                 <span>{section.label}</span>
                 <span
@@ -298,8 +298,8 @@ export function PlatformSidebar({
         })}
       </div>
 
-      <div className="mt-3 flex shrink-0 flex-col gap-1 border-t border-white/20 pt-3">
-        <div className="flex items-center justify-between rounded px-3 py-2">
+      <div className="mt-2 flex shrink-0 flex-col gap-1 border-t border-white/20 pt-2">
+        <div className="flex items-center justify-between rounded px-3 py-1.5">
           <div className="flex items-center gap-2 overflow-hidden">
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-semibold text-white">
               {user.name?.[0] ?? "?"}

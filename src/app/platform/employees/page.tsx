@@ -80,12 +80,18 @@ export default async function EmployeeDirectoryPage({
         basePath={BASE_PATH}
         focusedUserId={selectedUserId}
       >
-        <div className="flex min-h-0 flex-1 gap-3">
-          <aside className="w-60 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white">
+        {/*
+          좁은 화면에서는 세 칸을 위아래로 쌓는다. 가로로 두면 390px 화면에서
+          가운데·오른쪽 칸이 화면 밖으로 밀려 잘린 채 남는다 — 예전에는 본문이
+          자기 안에서 옆으로 굴러 겨우 볼 수 있었지만, 그 가로 스크롤 자체가
+          화면에 막대를 하나 더 만들던 원인이었다.
+        */}
+        <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row">
+          <aside className="w-full shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white lg:w-60">
             <EmployeeTreeFilterPanel />
           </aside>
 
-          <div className="w-80 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white">
+          <div className="w-full shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white lg:w-80">
             <EmployeeSummaryListPanel />
           </div>
 
