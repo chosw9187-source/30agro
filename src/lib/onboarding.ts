@@ -112,10 +112,31 @@ export async function canCoordinateSessions(userId: string): Promise<boolean> {
   const me = await prisma.user.findUnique({ where: { id: userId }, select: { teamId: true } });
   if (!me?.teamId) return false;
 
+  // 팀장 전용으로 잠근 강의는 팀장에게만 보인다 — 부서원에게 보여 봐야
+  // 손댈 수 없고, 목록만 길어진다.
+  const iLead = (await prisma.team.count({ where: { id: me.teamId, leaderId: userId } })) > 0;
   const teamAssigned = await prisma.onboardingSession.count({
-    where: { instructorTeamId: me.teamId },
+    where: { instructorTeamId: me.teamId, ...(iLead ? {} : { leaderOnly: false }) },
   });
   return teamAssigned > 0;
+}
+
+/** 이 사람이 그 부서의 팀장인지 — "팀장만 지정" 강의의 권한 기준. */
+export async function isLeaderOfTeam(userId: string, teamId: string): Promise<boolean> {
+  const team = await prisma.team.findUnique({ where: { id: teamId }, select: { leaderId: true } });
+  return team?.leaderId === userId;
+}
+
+/**
+ * 부서 배정 강의를 다룰 수 있는지. 팀장만으로 잠근 강의면 그 팀의 팀장이어야
+ * 하고, 그렇지 않으면 그 부서 소속이면 된다.
+ */
+export async function canHandleTeamSession(
+  userId: string,
+  teamId: string,
+  leaderOnly: boolean
+): Promise<boolean> {
+  return leaderOnly ? isLeaderOfTeam(userId, teamId) : isMemberOfTeam(userId, teamId);
 }
 
 /**

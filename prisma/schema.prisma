@@ -710,6 +710,11 @@ model OnboardingSession {
   instructorTeamId String?
   instructorTeam   Team?   @relation("OnboardingSessionTeam", fields: [instructorTeamId], references: [id])
 
+  // 부서에 맡길 때, 강사를 정할 권한을 팀장 한 사람으로 좁힐지. 부서원 전원이
+  // 지정할 수 있으면 두 사람이 동시에 손대 서로의 지정을 덮어쓸 수 있어서,
+  // 그럴 여지를 없애야 하는 부서를 위해 둔다.
+  leaderOnly Boolean @default(false)
+
   // 강사(또는 부서 팀장)의 응답. 가능하면 되는 시간대를 고르고, 불가하면
   // 사유를 남긴다 — 어느 쪽이든 관리자가 다음 수를 두려면 이유가 필요하다.
   instructorSlot OnboardingSlot?

@@ -29,7 +29,7 @@ export function StatusBadge({ status }: { status: SessionStatus }) {
  * 강의 일정을 조율하는 화면.
  *
  * 관리자가 [일정 관리]에서 "이 날 오전"까지만 가이드라인을 잡아 두면, 배정된
- * 강사(또는 같은 부서 사람)가 가능한지 답한다. 가능하면 되는 시간대를 고르고,
+ * 강사(또는 그 부서에서 정할 수 있는 사람)가 가능한지 답한다. 가능하면 되는 시간대를 고르고,
  * 불가하면 사유를 남긴다. 그 답을 보고 관리자가 실제 시각을 짜서 확정하며,
  * 확정된 것만 [최종 스케줄]에 나간다.
  *
@@ -47,13 +47,14 @@ export async function ProgramManagementSection({
 }) {
   if (!programId) return <EmptyBox>등록된 온보딩 기수가 없습니다.</EmptyBox>;
 
-  // 부서에 배정된 강의는 그 부서가 알아서 강사를 정한다 — 직급은 보지 않으므로
-  // 본인 부서에 걸린 강의는 팀원 누구에게나 보이고, 누구나 지정할 수 있다.
+  // 부서에 배정된 강의는 그 부서가 강사를 정한다. 누가 정하느냐는 편성할 때
+  // 고른 담당 구분에 달렸다 — 부서원 누구나이거나, 팀장 한 사람이거나.
   const me = await prisma.user.findUnique({
     where: { id: viewerId },
-    select: { teamId: true },
+    select: { teamId: true, team: { select: { leaderId: true } } },
   });
   const myTeamId = me?.teamId ?? null;
+  const iLeadMyTeam = !!myTeamId && me?.team?.leaderId === viewerId;
 
   const [program, sessions] = await Promise.all([
     prisma.onboardingProgram.findUnique({
@@ -68,7 +69,11 @@ export async function ProgramManagementSection({
           : {
               OR: [
                 { instructorId: viewerId },
-                ...(myTeamId ? [{ instructorTeamId: myTeamId }] : []),
+                // 팀장 전용으로 잠근 강의는 팀장에게만 보인다 — 부서원에게
+                // 보여 봐야 손댈 수 없고 목록만 길어진다.
+                ...(myTeamId
+                  ? [{ instructorTeamId: myTeamId, ...(iLeadMyTeam ? {} : { leaderOnly: false }) }]
+                  : []),
               ],
             }),
       },
@@ -90,6 +95,7 @@ export async function ProgramManagementSection({
         instructor: { select: { name: true, team: { select: { name: true } } } },
         instructorTeamId: true,
         instructorTeam: { select: { name: true } },
+        leaderOnly: true,
       },
     }),
   ]);
@@ -151,8 +157,10 @@ export async function ProgramManagementSection({
           const answered = s.instructorSlot as Slot | null;
           const mine = s.instructorId === viewerId;
           const locked = s.status === "CONFIRMED";
-          // 담당 강사 본인, 또는 부서 배정 강의의 그 부서 소속이면 답할 수 있다.
-          const myTeamsSession = !!s.instructorTeamId && s.instructorTeamId === myTeamId;
+          // 담당 강사 본인, 또는 부서 배정 강의를 다룰 수 있는 사람이면 답할 수
+          // 있다. 팀장 전용으로 잠근 강의는 그 팀 팀장만이다.
+          const myTeamsSession =
+            !!s.instructorTeamId && s.instructorTeamId === myTeamId && (!s.leaderOnly || iLeadMyTeam);
           const canReply = !locked && !!s.instructorId && (mine || myTeamsSession);
           const canDesignate = !locked && !!s.instructorTeamId && (isAdmin || myTeamsSession);
           const teamMembers = s.instructorTeamId ? teamMembersById.get(s.instructorTeamId) ?? [] : [];
@@ -196,7 +204,9 @@ export async function ProgramManagementSection({
                       ) : s.instructorTeam ? (
                         <>
                           담당 {s.instructorTeam.name}
-                          <span className="ml-1 text-slate-400">— 강사 미지정</span>
+                          <span className="ml-1 text-slate-400">
+                            — {s.leaderOnly ? "팀장이 지정" : "부서 내 지정"} · 강사 미지정
+                          </span>
                         </>
                       ) : (
                         "담당 미배정"
@@ -237,7 +247,8 @@ export async function ProgramManagementSection({
                     <p className="text-xs font-medium text-blue-800">
                       {s.instructorId ? "담당 강사 변경" : "담당 강사 지정"}
                       <span className="ml-1 font-normal text-blue-700">
-                        — {s.instructorTeam?.name}에 배정된 강의입니다. 이번에 강의할 분을 정해 주세요.
+                        — {s.instructorTeam?.name}에 배정된 강의입니다
+                        {s.leaderOnly ? " (팀장만 지정)" : ""}. 이번에 강의할 분을 정해 주세요.
                       </span>
                     </p>
                     <ActionForm
