@@ -25,14 +25,14 @@
  * 만들어지는 것은 팀 1개 · 사용자 3개 · 권한 override 30줄이 전부다. 지우는
  * 쪽도 딱 그만큼만 지운다.
  */
-import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 import { MODULES, MODULE_LABEL } from "../src/lib/permission-constants";
 
-const adapter = new PrismaPg(process.env.DATABASE_URL ?? "");
-const prisma = new PrismaClient({ adapter });
+// main()에서 .env를 읽은 뒤에 만든다 — DATABASE_URL이 채워지기 전에
+// 어댑터를 쥐면 빈 문자열로 붙는다.
+let prisma!: PrismaClient;
 
 const TEAM_NAME = "삼공팀";
 const PASSWORD = "demo1234!";
@@ -94,8 +94,17 @@ async function up(unhideModules: boolean) {
     }
   }
 
+  // 회사 이름이 한국삼공이라 «삼공팀»이 실제로 있을 수 있다. 그 팀에 이미
+  // 팀장이 있으면 시연 때문에 갈아치우지 않는다 — 시연이 끝나고 되돌릴 때
+  // 원래 누구였는지 아무도 기억 못 하는 종류의 사고다.
   const leader = users.find((u) => u.name === "김팀장")!;
-  await prisma.team.update({ where: { id: team.id }, data: { leaderId: leader.id } });
+  const demoIds = new Set(users.map((u) => u.id));
+  const current = await prisma.team.findUnique({ where: { id: team.id }, select: { leaderId: true } });
+  if (!current?.leaderId || demoIds.has(current.leaderId)) {
+    await prisma.team.update({ where: { id: team.id }, data: { leaderId: leader.id } });
+  } else {
+    console.log(`(${TEAM_NAME}에 이미 팀장이 있어 그대로 두었습니다 — 김팀장은 팀원으로 들어갑니다.)`);
+  }
 
   console.log(`\n[완료] ${TEAM_NAME} · 계정 ${users.length}개 (비밀번호는 모두 ${PASSWORD})`);
   console.table(
@@ -175,7 +184,13 @@ async function down() {
 /** 기동 시 호출되는 자리. 환경변수가 시키는 것만 하고, 실패해도 넘어간다. */
 async function boot() {
   const mode = (process.env.DEMO_ACCOUNTS ?? "").trim().toLowerCase();
-  if (!mode || mode === "0" || mode === "false" || mode === "off") return;
+  // 켜져 있든 아니든 한 줄은 남긴다. "변수를 넣었는데 계정이 없다"를 볼 때
+  // 로그에 아무 흔적이 없으면 변수가 안 들어간 건지 실패한 건지 알 수 없다.
+  if (!mode || mode === "0" || mode === "false" || mode === "off") {
+    console.log("[demo:accounts] DEMO_ACCOUNTS가 없어 시연 계정은 건드리지 않습니다.");
+    return;
+  }
+  console.log(`[demo:accounts] DEMO_ACCOUNTS=${mode} — 시연 계정을 처리합니다.`);
 
   try {
     if (mode === "remove") await down();
@@ -189,10 +204,24 @@ async function main() {
   const args = process.argv.slice(2);
   const isBoot = args.includes("--boot");
 
+  // .env는 로컬에서만 필요하다. dotenv는 이 저장소가 직접 의존하는 패키지가
+  // 아니라 prisma를 타고 따라 들어온 것뿐이라 언젠가 없을 수 있는데, 그걸
+  // 못 읽었다고 서비스 기동이 통째로 멈추면 안 된다.
+  try {
+    await import("dotenv/config");
+  } catch {
+    console.warn("[demo:accounts] .env를 읽지 못했습니다 — 플랫폼 환경변수만 씁니다.");
+  }
+
   if (!process.env.DATABASE_URL) {
-    if (isBoot) return;
+    if (isBoot) {
+      console.log("[demo:accounts] DATABASE_URL이 없어 건너뜁니다.");
+      return;
+    }
     throw new Error("DATABASE_URL이 설정되어 있지 않습니다.");
   }
+
+  prisma = new PrismaClient({ adapter: new PrismaPg(process.env.DATABASE_URL) });
 
   if (isBoot) await boot();
   else if (args.includes("--remove")) await down();
@@ -206,4 +235,4 @@ main()
     // 아예 안 뜨므로, 기동 경로에서는 실패해도 조용히 넘긴다.
     if (!process.argv.includes("--boot")) process.exitCode = 1;
   })
-  .finally(() => prisma.$disconnect());
+  .finally(() => prisma?.$disconnect());
