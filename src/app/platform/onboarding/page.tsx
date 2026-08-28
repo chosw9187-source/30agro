@@ -143,6 +143,13 @@ async function ManageSection({ programId }: { programId: string | null }) {
   }));
   const enrolled = new Set(trainees.map((t) => t.user.id));
 
+  // 편성은 대개 기수 기간 안에서 이뤄지는데, 날짜 칸을 비워 두면 달력이 이번
+  // 달에서 열린다. 기수가 몇 달 뒤면 매번 그 달까지 넘겨 들어가야 하므로,
+  // 기간이 정해진 기수라면 시작일을 미리 채워 달력이 거기서 열리게 한다.
+  const periodAnchor = selected?.startDate ?? selected?.endDate ?? null;
+  const sessionDateDefault = periodAnchor ? toKSTInputValues(periodAnchor).date : "";
+  const periodLabel = selected ? programPeriod(selected) : "";
+
   return (
     <div className="flex flex-col gap-6">
       {/* ---------------------------------------------------- 프로그램 등록 */}
@@ -392,7 +399,14 @@ async function ManageSection({ programId }: { programId: string | null }) {
               />
               <div>
                 <label className={LABEL_CLASS}>날짜</label>
-                <input type="date" name="date" required className={INPUT_CLASS} />
+                <input
+                  type="date"
+                  name="date"
+                  required
+                  defaultValue={sessionDateDefault}
+                  className={INPUT_CLASS}
+                />
+                {periodLabel && <p className="mt-1 text-[11px] text-slate-400">기수 기간 {periodLabel}</p>}
               </div>
               <div>
                 <label className={LABEL_CLASS}>강의 시간</label>
