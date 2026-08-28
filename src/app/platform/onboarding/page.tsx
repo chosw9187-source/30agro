@@ -115,6 +115,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
             instructor: { select: { name: true } },
             instructorTeamId: true,
             instructorTeam: { select: { name: true } },
+            leaderOnly: true,
             attendees: { select: { traineeId: true } },
           },
         }),
@@ -441,7 +442,11 @@ async function ManageSection({ programId }: { programId: string | null }) {
                           {s.location && ` · ${s.location}`}
                         </p>
                         <p className="mt-0.5 text-xs text-slate-500">
-                          담당 {s.instructor?.name ?? (s.instructorTeam ? `${s.instructorTeam.name} (강사 미지정)` : "미배정")}{" "}
+                          담당{" "}
+                          {s.instructor?.name ??
+                            (s.instructorTeam
+                              ? `${s.instructorTeam.name} (${s.leaderOnly ? "팀장이 지정" : "부서 내 지정"} · 강사 미지정)`
+                              : "미배정")}{" "}
                           ·{" "}
                           {s.attendees.length === 0 ? "교육생 전원" : `교육생 ${s.attendees.length}명 지정`}
                         </p>
@@ -473,6 +478,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
                           teamOptions={teamOptions}
                           defaultInstructorId={s.instructorId ?? ""}
                           defaultTeamId={s.instructorTeamId ?? ""}
+                          defaultLeaderOnly={s.leaderOnly}
                           inputClassName={INPUT_CLASS}
                           labelClassName={LABEL_CLASS}
                         />
