@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatKSTDate } from "@/lib/format-kst";
-import { formatSessionDay, formatSessionStart, formatSessionTimeRange, kstDayKey } from "@/lib/onboarding";
+import {
+  canViewOnboardingProgram,
+  formatSessionDay,
+  formatSessionStart,
+  formatSessionTimeRange,
+  kstDayKey,
+} from "@/lib/onboarding";
 import {
   EmptyBox,
   WEEKDAY_LABEL,
@@ -15,7 +21,7 @@ import {
 
 export type FinalView = "calendar" | "list";
 
-/** 최종 스케줄 탭 링크. 보던 달·필터·펼친 일정을 유지한 채 이동하기 위한 것. */
+/** 온보딩 안내 탭 링크. 보던 달·필터·펼친 일정을 유지한 채 이동하기 위한 것. */
 export function finalHref(opts: {
   programId: string | null;
   view?: FinalView;
@@ -44,16 +50,15 @@ type FinalSession = {
 };
 
 /**
- * 화면에 싣는 담당 표기. 사람이 정해졌으면 이름, 부서에 맡긴 채 사람이 아직
- * 안 정해졌으면 부서 이름으로 나간다 — 교육생 입장에서는 "어디서 나오는
- * 강의인지"만 알면 되고, 당일 누가 오는지는 그때 정해지기도 한다.
+ * 화면에 싣는 담당 표기. 사람이 정해졌으면 이름, 부서가 맡은 강의면 부서
+ * 이름으로 나간다 — 교육생 입장에서는 "어디서 나오는 강의인지"만 알면 되고,
+ * 당일 누가 오는지는 그때 정해지기도 한다.
  */
 function instructorLabel(s: FinalSession): string {
   if (s.instructor) return s.instructor.name;
-  if (s.instructorTeam) return `${s.instructorTeam.name} (강사 미지정)`;
+  if (s.instructorTeam) return `${s.instructorTeam.name} (강사 미정)`;
   return "미정";
 }
-
 
 type Trainee = { id: string; userId: string; user: { name: string; team: { name: string } | null } };
 
@@ -82,14 +87,19 @@ function weekdayTone(weekday: number) {
 }
 
 /**
- * 일정과 강사 배정이 모두 반영된 확정 시간표. 교육생이 "우리 기수가 언제 뭘
- * 듣는지"와 "그중 내가 들어가야 하는 건 어느 것인지"를 한 화면에서 보는 것이
- * 목적이라, 강사가 아직 확정되지 않은 교육도 감추지 않고 "강사 미정"으로
- * 남겨 둔다 — 시간은 이미 잡혀 있으므로 교육생은 그 시간을 비워 둬야 한다.
+ * 온보딩 안내 — 이 기수가 어떻게 흘러가는지 한 화면에서 읽는 곳.
+ *
+ * 시간표만 있는 화면이 아니다. 교육생이 실제로 묻는 것은 "언제 어디로 가서
+ * 무엇을 듣는지"만이 아니라 "어디서 자고 어떻게 가는지, 뭘 챙겨야 하는지"라
+ * 숙박·교통·공지를 일정과 같은 자리에 둔다.
+ *
+ * 일정은 [일정 관리]에서 이미 합의된 것만 적히므로, 여기 보이는 것은 전부
+ * 확정본이다.
  */
 export async function FinalScheduleSection({
   programId,
   viewerId,
+  isAdmin,
   onlyMine,
   view,
   month,
@@ -97,12 +107,26 @@ export async function FinalScheduleSection({
 }: {
   programId: string | null;
   viewerId: string;
+  isAdmin: boolean;
   onlyMine: boolean;
   view: FinalView;
   month?: string;
   sessionId?: string;
 }) {
   if (!programId) return <EmptyBox>등록된 온보딩 기수가 없습니다.</EmptyBox>;
+
+  // 탭을 감추는 것만으로는 URL을 직접 치고 들어오는 걸 막지 못한다.
+  if (!(await canViewOnboardingProgram(programId, viewerId, isAdmin))) {
+    return (
+      <EmptyBox>
+        이 기수의 온보딩 안내는 참여하는 분들만 볼 수 있습니다.
+        <br />
+        <span className="text-xs text-slate-400">
+          교육생 · 강의를 맡은 강사 · 교육생이 속한 팀의 팀장에게 열립니다. 열람이 필요하면 관리자에게 문의해 주세요.
+        </span>
+      </EmptyBox>
+    );
+  }
 
   const [program, sessions] = await Promise.all([
     prisma.onboardingProgram.findUnique({
@@ -113,16 +137,17 @@ export async function FinalScheduleSection({
         description: true,
         startDate: true,
         endDate: true,
+        lodging: true,
+        transport: true,
+        notice: true,
         trainees: {
           orderBy: { user: { name: "asc" } },
           select: { id: true, userId: true, user: { select: { name: true, team: { select: { name: true } } } } },
         },
       },
     }),
-    // 확정된 칸만 싣는다 — 조율 중인 시간을 보여 주면 교육생이 그 시간에
-    // 맞춰 움직였다가 바뀌는 일이 생긴다. 조율은 [교육 프로그램 관리]에서.
     prisma.onboardingSession.findMany({
-      where: { programId, status: "CONFIRMED" },
+      where: { programId },
       orderBy: { startAt: "asc" },
       select: {
         id: true,
@@ -146,8 +171,7 @@ export async function FinalScheduleSection({
   // 있는 것을 "전원 대상"으로 읽는다.
   const audienceOf = (s: FinalSession): Trainee[] =>
     s.attendees.length === 0 ? trainees : trainees.filter((t) => s.attendees.some((a) => a.traineeId === t.id));
-  const isForMe = (s: FinalSession) =>
-    !!myTrainee && audienceOf(s).some((t) => t.id === myTrainee.id);
+  const isForMe = (s: FinalSession) => !!myTrainee && audienceOf(s).some((t) => t.id === myTrainee.id);
 
   const myCount = myTrainee ? sessions.filter(isForMe).length : 0;
   // 가장 자주 필요한 정보는 "다음에 내가 어디로 가면 되는지" 한 줄이다.
@@ -192,7 +216,7 @@ export async function FinalScheduleSection({
         </div>
         {program.description && <p className="mt-1 text-sm text-slate-600">{program.description}</p>}
         <p className="mt-3 text-xs text-slate-500">
-          확정된 교육 {lectureCount}건 · 교육생 {trainees.length}명
+          교육 {lectureCount}건 · 교육생 {trainees.length}명
         </p>
       </div>
 
@@ -234,9 +258,16 @@ export async function FinalScheduleSection({
         </div>
       ) : (
         <p className="text-xs text-slate-500">
-          이 기수의 교육생 명단에 포함되어 있지 않아 전체 일정만 표시됩니다. 명단 등록은 관리자에게 문의하세요.
+          이 기수의 교육생 명단에 포함되어 있지 않아 전체 일정만 표시됩니다.
         </p>
       )}
+
+      <ProgramGuide
+        lodging={program.lodging}
+        transport={program.transport}
+        notice={program.notice}
+        isAdmin={isAdmin}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1 text-sm">
@@ -398,6 +429,60 @@ export async function FinalScheduleSection({
 }
 
 /**
+ * 숙박 · 교통 · 공지. 일정만큼 자주 묻는 것들이라 시간표와 같은 화면에 둔다.
+ * 하나도 안 적혀 있으면 빈 상자를 띄우지 않고 통째로 감추되, 관리자에게는
+ * "여기에 적을 수 있다"는 것을 알려 준다 — 안 그러면 이 칸의 존재를 모른다.
+ */
+function ProgramGuide({
+  lodging,
+  transport,
+  notice,
+  isAdmin,
+}: {
+  lodging: string | null;
+  transport: string | null;
+  notice: string | null;
+  isAdmin: boolean;
+}) {
+  if (!lodging && !transport && !notice) {
+    if (!isAdmin) return null;
+    return (
+      <p className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3 text-xs text-slate-500">
+        숙박 장소 · 교통편 · 공지사항은 [일정 관리]의 기수 정보에서 적을 수 있습니다. 적어 두면 이 자리에 참여자
+        모두에게 보입니다.
+      </p>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-brand-green bg-brand-green-light/40 p-5">
+      <h3 className="text-sm font-bold text-brand-green-dark">온보딩 안내</h3>
+      <dl className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {lodging && (
+          <div>
+            <dt className="text-xs font-semibold text-brand-green-dark">숙박 장소</dt>
+            <dd className="mt-1 whitespace-pre-line text-sm text-slate-800">{lodging}</dd>
+          </div>
+        )}
+        {transport && (
+          <div>
+            <dt className="text-xs font-semibold text-brand-green-dark">교통편</dt>
+            <dd className="mt-1 whitespace-pre-line text-sm text-slate-800">{transport}</dd>
+          </div>
+        )}
+      </dl>
+      {notice && (
+        <div className={lodging || transport ? "mt-4 border-t border-brand-green/30 pt-4" : "mt-3"}>
+          <p className="text-xs font-semibold text-brand-green-dark">공지사항</p>
+          {/* 여러 줄로 적는 자리라 줄바꿈을 그대로 살린다. */}
+          <p className="mt-1 whitespace-pre-line text-sm text-slate-800">{notice}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * 날짜별로 묶은 교육 목록. 달력이 좁은 화면에서 읽히지 않으므로 폰에서는
  * 달력과 함께, [목록] 보기에서는 단독으로 쓴다.
  */
@@ -493,8 +578,7 @@ function SessionDetail({
             )}
           </h3>
           {/* 편성할 때 적은 설명은 여기 싣지 않는다 — 그 칸은 강사에게 넘기는
-              전달사항(준비물, 진행 방식, 관리자 메모)을 적는 자리라 교육생이
-              볼 글이 아니다. 강사는 [교육 프로그램 관리]에서 그대로 본다. */}
+              전달사항(준비물, 진행 방식, 관리자 메모)을 적는 자리다. */}
         </div>
         <Link href={closeHref} className="text-xs text-slate-400 hover:underline">
           닫기
@@ -529,7 +613,7 @@ function SessionDetail({
             ) : session.instructorTeam ? (
               <span className="text-slate-800">
                 {session.instructorTeam.name}
-                <span className="ml-1 text-xs text-slate-400">강사 미지정</span>
+                <span className="ml-1 text-xs text-slate-400">강사 미정</span>
               </span>
             ) : (
               <span className="text-slate-400">-</span>
