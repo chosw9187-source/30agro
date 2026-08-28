@@ -35,7 +35,6 @@ export function finalHref(opts: {
 type FinalSession = {
   id: string;
   title: string;
-  description: string | null;
   location: string | null;
   startAt: Date;
   endAt: Date;
@@ -128,7 +127,6 @@ export async function FinalScheduleSection({
       select: {
         id: true,
         title: true,
-        description: true,
         location: true,
         startAt: true,
         endAt: true,
@@ -494,7 +492,9 @@ function SessionDetail({
               </span>
             )}
           </h3>
-          {session.description && <p className="mt-1 text-sm text-slate-600">{session.description}</p>}
+          {/* 편성할 때 적은 설명은 여기 싣지 않는다 — 그 칸은 강사에게 넘기는
+              전달사항(준비물, 진행 방식, 관리자 메모)을 적는 자리라 교육생이
+              볼 글이 아니다. 강사는 [교육 프로그램 관리]에서 그대로 본다. */}
         </div>
         <Link href={closeHref} className="text-xs text-slate-400 hover:underline">
           닫기
