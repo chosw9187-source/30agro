@@ -6,16 +6,12 @@ import { requireRole } from "@/lib/auth-helpers";
 import { activePrismaWhere } from "@/lib/hr-analytics";
 import { notifyUser, notifyUsers } from "@/lib/notifications";
 import {
-  SLOTS,
-  SLOT_DEFAULT_TIME,
-  SLOT_LABEL,
   canCoordinateSessions,
   formatSessionDay,
   formatSessionTimeRange,
   canHandleTeamSession,
   parseKSTDateTime,
   toKSTInputValues,
-  type Slot,
 } from "@/lib/onboarding";
 
 const ALL_ROLES = ["ADMIN", "EVALUATOR", "EMPLOYEE"] as const;
@@ -69,23 +65,49 @@ function parseDateOnly(value: FormDataEntryValue | null): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** 폼에서 넘어온 오전/오후. 값이 이상하면 오전으로 둔다. */
-function readSlot(formData: FormData, key: string): Slot {
-  const raw = text(formData, key);
-  return (SLOTS as readonly string[]).includes(raw) ? (raw as Slot) : "MORNING";
+/**
+ * 폼의 날짜 + 시작/종료 시각을 읽는다. 시각을 분 단위로 받으므로 뒤집힌
+ * 범위(종료 ≤ 시작)는 여기서 걸러 낸다 — 저장되고 나면 달력이 음수 길이의
+ * 칸을 그리게 된다.
+ */
+function readTimeRange(formData: FormData, day?: string) {
+  // 강사 응답·확정처럼 날짜가 이미 정해진 자리에서는 폼이 아니라 저장된
+  // 날짜를 쓴다 — 시각만 받는 화면에서 날짜까지 바꿔 보낼 수 있으면 곤란하다.
+  const date = day ?? formData.get("date");
+  const startAt = parseKSTDateTime(date, formData.get("startTime"));
+  const endAt = parseKSTDateTime(date, formData.get("endTime"));
+  if (!startAt || !endAt) fail("날짜와 시작·종료 시간을 올바르게 입력해 주세요.");
+  if (endAt <= startAt) fail("종료 시간이 시작 시간보다 빠르거나 같습니다.");
+  return { startAt, endAt };
 }
 
 /**
- * 가이드라인 단계에서는 실제 시각이 없다. 달력과 목록이 시각 없이는 그려지지
- * 않으므로 슬롯의 기본 범위를 자리표시로 넣어 둔다 — 관리자가 확정할 때 실제
- * 시각으로 덮어쓴다.
+ * 편성할 때 고르는 확정 방식. 강사에게 가능 여부를 물어야 하는 강의가 있는가
+ * 하면, 관리자가 이미 다 정해 두고 공지만 하면 되는 강의도 있다. 값이 이상하면
+ * 물어보는 쪽으로 둔다 — 묻지 않고 확정해 버리는 쪽이 되돌리기 번거롭다.
  */
-function slotPlaceholderTimes(date: unknown, slot: Slot) {
-  const { start, end } = SLOT_DEFAULT_TIME[slot];
-  const startAt = parseKSTDateTime(date, start);
-  const endAt = parseKSTDateTime(date, end);
-  if (!startAt || !endAt) fail("날짜를 올바르게 입력해 주세요.");
-  return { startAt, endAt };
+function readConfirmMode(formData: FormData): "ASK" | "NOW" {
+  return text(formData, "confirmMode") === "NOW" ? "NOW" : "ASK";
+}
+
+/** 확정된(또는 확정된 채로 시각이 바뀐) 일정을 강사와 교육생에게 알린다. */
+async function notifyConfirmed(
+  programId: string,
+  title: string,
+  instructorId: string | null,
+  when: string,
+  changed = false
+) {
+  const trainees = await prisma.onboardingTrainee.findMany({
+    where: { programId },
+    select: { userId: true },
+  });
+  await notifyUsers(
+    [...new Set([...(instructorId ? [instructorId] : []), ...trainees.map((t) => t.userId)])],
+    "ONBOARDING_SCHEDULE_CHANGED",
+    `[온보딩] "${title}" 일정이 ${changed ? "변경" : "확정"}되었습니다 — ${when}`,
+    LINK_FINAL
+  );
 }
 
 /** "10월 19일 (월) 10:00 ~ 12:00" — 알림 문구에 쓰는 일시. */
@@ -236,12 +258,12 @@ async function assertNoInstructorOverlap(
   instructorId: string,
   startAt: Date,
   endAt: Date,
-  exceptSessionId: string
+  exceptSessionId?: string
 ) {
   const clash = await prisma.onboardingSession.findFirst({
     where: {
       instructorId,
-      id: { not: exceptSessionId },
+      ...(exceptSessionId ? { id: { not: exceptSessionId } } : {}),
       status: "CONFIRMED",
       // 경계가 맞닿는 경우(12:00 종료 / 12:00 시작)는 겹침이 아니다.
       startAt: { lt: endAt },
@@ -255,9 +277,10 @@ async function assertNoInstructorOverlap(
 }
 
 /**
- * 관리자가 시간표 한 칸의 가이드라인을 만든다. 분 단위까지 정하지 않고 "그 날
- * 오전" 정도만 잡아 두면, 배정된 강사가 되는지 답하고 관리자가 마지막에 실제
- * 시각을 짠다.
+ * 관리자가 시간표 한 칸을 편성한다. 날짜와 시각을 분 단위로 적어 두고, 두 갈래
+ * 중 하나를 고른다 — 강사에게 가능 여부를 물어보고 답을 받아 확정하거나,
+ * 물어볼 것 없이 그 자리에서 바로 확정하거나. 바로 확정한 칸은 곧장
+ * [최종 스케줄]에 나가고 교육생에게 알림이 간다.
  */
 export async function createSession(formData: FormData) {
   return run(async () => {
@@ -265,13 +288,17 @@ export async function createSession(formData: FormData) {
 
     const programId = text(formData, "programId");
     const title = text(formData, "title");
-    const slot = readSlot(formData, "slot");
 
     if (!programId) fail("기수를 먼저 선택해 주세요.");
     if (!title) fail("과정명을 입력해 주세요.");
 
-    const { startAt, endAt } = slotPlaceholderTimes(formData.get("date"), slot);
+    const { startAt, endAt } = readTimeRange(formData);
     const { instructorId, instructorTeamId, leaderOnly } = await readAssignment(formData);
+    const confirmNow = readConfirmMode(formData) === "NOW";
+
+    // 확정하는 순간부터 그 강사의 시간이 잡힌다 — 물어보는 단계에서는 아직
+    // 시각이 바뀔 수 있으므로 겹침은 확정할 때만 본다.
+    if (confirmNow && instructorId) await assertNoInstructorOverlap(instructorId, startAt, endAt);
 
     const created = await prisma.onboardingSession.create({
       data: {
@@ -279,18 +306,31 @@ export async function createSession(formData: FormData) {
         title,
         description: text(formData, "description") || null,
         location: text(formData, "location") || null,
-        slot,
         startAt,
         endAt,
         instructorId,
         instructorTeamId,
         leaderOnly,
+        status: confirmNow ? "CONFIRMED" : "PLANNED",
+        confirmedAt: confirmNow ? new Date() : null,
         createdById: session.user.id,
       },
     });
 
-    const when = `${formatSessionDay(startAt)} ${SLOT_LABEL[slot]}`;
-    if (instructorId) {
+    const when = whenLabel(startAt, endAt);
+    if (confirmNow) {
+      await notifyConfirmed(programId, created.title, instructorId, when);
+      // 사람을 못 박지 않고 부서에 맡긴 채 확정한 경우 — 시각은 정해졌지만
+      // 누가 나갈지는 그 부서가 정해야 하므로 따로 알린다.
+      if (instructorTeamId) {
+        await notifyUsers(
+          await teamNotifyIds(instructorTeamId, leaderOnly),
+          "ONBOARDING_BOOKING_REQUESTED",
+          `[온보딩] "${created.title}" 강의가 부서에 배정되었습니다 (${when} · 확정). 담당 강사를 지정해 주세요.`,
+          LINK_PROGRAM
+        );
+      }
+    } else if (instructorId) {
       await notifyUser(
         instructorId,
         "ONBOARDING_BOOKING_REQUESTED",
@@ -310,27 +350,35 @@ export async function createSession(formData: FormData) {
   });
 }
 
-/** 관리자가 가이드라인을 고친다. */
+/** 관리자가 편성한 내용을 고친다. */
 export async function updateSession(sessionId: string, formData: FormData) {
   return run(async () => {
     await requireRole("ADMIN");
 
     const target = await prisma.onboardingSession.findUnique({
       where: { id: sessionId },
-      select: { status: true, instructorId: true, instructorTeamId: true, leaderOnly: true },
+      select: {
+        status: true,
+        programId: true,
+        startAt: true,
+        endAt: true,
+        instructorId: true,
+        instructorTeamId: true,
+        leaderOnly: true,
+      },
     });
     if (!target) fail("일정을 찾을 수 없습니다.");
 
     const title = text(formData, "title");
     if (!title) fail("과정명을 입력해 주세요.");
 
-    const slot = readSlot(formData, "slot");
-    const { startAt, endAt } = slotPlaceholderTimes(formData.get("date"), slot);
+    const { startAt, endAt } = readTimeRange(formData);
     const { instructorId, instructorTeamId, leaderOnly } = await readAssignment(formData);
 
-    // 아직 확정 전이라면 시각은 가이드라인 자리표시로 되돌린다. 확정된 뒤에는
-    // 관리자가 짜 둔 실제 시각을 덮어쓰지 않는다.
-    const keepConfirmedTimes = target.status === "CONFIRMED";
+    const confirmed = target.status === "CONFIRMED";
+    if (confirmed && instructorId) {
+      await assertNoInstructorOverlap(instructorId, startAt, endAt, sessionId);
+    }
 
     await prisma.onboardingSession.update({
       where: { id: sessionId },
@@ -338,20 +386,28 @@ export async function updateSession(sessionId: string, formData: FormData) {
         title,
         description: text(formData, "description") || null,
         location: text(formData, "location") || null,
-        slot,
-        ...(keepConfirmedTimes ? {} : { startAt, endAt }),
+        startAt,
+        endAt,
         instructorId,
         instructorTeamId,
         leaderOnly,
       },
     });
 
+    // 이미 확정돼 교육생이 그 시간을 비워 둔 강의라면, 시각이 바뀐 사실을
+    // 알려야 한다 — 최종 스케줄만 조용히 바뀌면 헛걸음하는 사람이 생긴다.
+    const timeChanged =
+      target.startAt.getTime() !== startAt.getTime() || target.endAt.getTime() !== endAt.getTime();
+    if (confirmed && timeChanged) {
+      await notifyConfirmed(target.programId, title, instructorId, whenLabel(startAt, endAt), true);
+    }
+
     const assignmentChanged =
       instructorId !== target.instructorId ||
       instructorTeamId !== target.instructorTeamId ||
       leaderOnly !== target.leaderOnly;
     if (assignmentChanged) {
-      const when = `${formatSessionDay(startAt)} ${SLOT_LABEL[slot]}`;
+      const when = whenLabel(startAt, endAt);
       if (instructorId) {
         await notifyUser(
           instructorId,
@@ -395,7 +451,6 @@ async function requireResponder(sessionId: string, userId: string, isAdmin: bool
       id: true,
       title: true,
       status: true,
-      slot: true,
       startAt: true,
       endAt: true,
       instructorId: true,
@@ -424,12 +479,12 @@ async function requireResponder(sessionId: string, userId: string, isAdmin: bool
 }
 
 /**
- * 강사(또는 같은 부서 사람)가 가능 여부를 답한다. 가능하면 되는 시간대를 고르고
- * 필요하면 단서를 적고, 불가하면 사유를 남긴다 — 관리자가 다음 수를 두려면
+ * 강사(또는 같은 부서 사람)가 가능 여부를 답한다. 가능하면 되는 시각을 적고
+ * 필요하면 단서를 붙이고, 불가하면 사유를 남긴다 — 관리자가 다음 수를 두려면
  * "왜 안 되는지"가 있어야 다른 날로 옮기든 다른 사람을 찾든 할 수 있다.
  *
- * 여기서 정하는 것은 "되는 시간대"까지다. 실제 몇 시부터 몇 시까지 할지는
- * 관리자가 확정하면서 짠다.
+ * 날짜는 관리자가 잡은 날 그대로다. 강사가 정하는 것은 그 날 안에서의 시각,
+ * 마지막으로 확정하는 것은 관리자다.
  */
 export async function replyAvailability(sessionId: string, formData: FormData) {
   return run(async () => {
@@ -448,13 +503,14 @@ export async function replyAvailability(sessionId: string, formData: FormData) {
     const note = text(formData, "note");
     if (!available && !note) fail("불가 사유를 적어 주세요.");
 
-    const instructorSlot = available ? readSlot(formData, "instructorSlot") : null;
+    const answered = available ? readTimeRange(formData, toKSTInputValues(target.startAt).date) : null;
 
     await prisma.onboardingSession.update({
       where: { id: sessionId },
       data: {
         status: available ? "SUBMITTED" : "DECLINED",
-        instructorSlot,
+        instructorStartAt: answered?.startAt ?? null,
+        instructorEndAt: answered?.endAt ?? null,
         instructorNote: note || null,
         respondedAt: new Date(),
       },
@@ -464,10 +520,11 @@ export async function replyAvailability(sessionId: string, formData: FormData) {
     await notifyUsers(
       await adminIds(),
       "ONBOARDING_BOOKING_REQUESTED",
-      available
-        ? `[온보딩] ${who}님이 "${target.title}" 강의 가능으로 답했습니다 — ${formatSessionDay(target.startAt)} ${
-            SLOT_LABEL[instructorSlot ?? target.slot]
-          }${note ? ` (${note})` : ""}. 시간을 확정해 주세요.`
+      available && answered
+        ? `[온보딩] ${who}님이 "${target.title}" 강의 가능으로 답했습니다 — ${whenLabel(
+            answered.startAt,
+            answered.endAt
+          )}${note ? ` (${note})` : ""}. 시간을 확정해 주세요.`
         : `[온보딩] ${who}님이 "${target.title}" 강의 불가로 답했습니다 — ${note}`,
       LINK_PROGRAM
     );
@@ -478,9 +535,8 @@ export async function replyAvailability(sessionId: string, formData: FormData) {
 /* --------------------------------------------------------- 관리자 확정 */
 
 /**
- * 관리자가 실제 시각을 짜서 확정한다 — 이때부터 [최종 스케줄]에 나타난다.
- * 강사는 "오전 가능" 정도까지만 답하므로, 몇 시부터 몇 시까지인지는 여기서
- * 정해진다.
+ * 관리자가 최종 시각을 정해 확정한다 — 이때부터 [최종 스케줄]에 나타난다.
+ * 강사가 답해 온 시각을 그대로 쓸 수도, 조정해서 확정할 수도 있다.
  */
 export async function confirmSession(sessionId: string, formData: FormData) {
   return run(async () => {
@@ -498,12 +554,8 @@ export async function confirmSession(sessionId: string, formData: FormData) {
     if (!target) fail("일정을 찾을 수 없습니다.");
     if (target.status === "CONFIRMED") fail("이미 확정된 일정입니다.");
 
-    // 날짜는 가이드라인의 날짜를 그대로 쓰고, 시각만 새로 받는다.
-    const day = toKSTInputValues(target.startAt).date;
-    const startAt = parseKSTDateTime(day, formData.get("startTime"));
-    const endAt = parseKSTDateTime(day, formData.get("endTime"));
-    if (!startAt || !endAt) fail("시작 시간과 종료 시간을 입력해 주세요.");
-    if (endAt <= startAt) fail("종료 시간이 시작 시간보다 빠르거나 같습니다.");
+    // 날짜는 편성된 날을 그대로 쓰고, 시각만 새로 받는다.
+    const { startAt, endAt } = readTimeRange(formData, toKSTInputValues(target.startAt).date);
 
     if (target.instructorId) {
       await assertNoInstructorOverlap(target.instructorId, startAt, endAt, sessionId);
@@ -514,16 +566,7 @@ export async function confirmSession(sessionId: string, formData: FormData) {
       data: { startAt, endAt, status: "CONFIRMED", confirmedAt: new Date() },
     });
 
-    const trainees = await prisma.onboardingTrainee.findMany({
-      where: { programId: target.programId },
-      select: { userId: true },
-    });
-    await notifyUsers(
-      [...new Set([...(target.instructorId ? [target.instructorId] : []), ...trainees.map((t) => t.userId)])],
-      "ONBOARDING_SCHEDULE_CHANGED",
-      `[온보딩] "${target.title}" 일정이 확정되었습니다 — ${whenLabel(startAt, endAt)}`,
-      LINK_FINAL
-    );
+    await notifyConfirmed(target.programId, target.title, target.instructorId, whenLabel(startAt, endAt));
     revalidatePath(PATH);
   });
 }
@@ -540,7 +583,13 @@ export async function unconfirmSession(sessionId: string) {
 
     await prisma.onboardingSession.update({
       where: { id: sessionId },
-      data: { status: "PLANNED", confirmedAt: null, respondedAt: null, instructorSlot: null },
+      data: {
+        status: "PLANNED",
+        confirmedAt: null,
+        respondedAt: null,
+        instructorStartAt: null,
+        instructorEndAt: null,
+      },
     });
 
     if (target.instructorId) {
@@ -574,8 +623,9 @@ export async function designateTeamInstructor(sessionId: string, formData: FormD
       select: {
         title: true,
         status: true,
-        slot: true,
         startAt: true,
+        endAt: true,
+        instructorId: true,
         instructorTeamId: true,
         leaderOnly: true,
         instructorTeam: { select: { name: true } },
@@ -583,7 +633,12 @@ export async function designateTeamInstructor(sessionId: string, formData: FormD
     });
     if (!target) fail("일정을 찾을 수 없습니다.");
     if (!target.instructorTeamId) fail("부서에 배정된 강의가 아닙니다.");
-    if (target.status === "CONFIRMED") fail("이미 확정된 강의입니다. 관리자에게 요청해 주세요.");
+    // 관리자가 시각까지 정해 확정해 둔 채 "이 강의는 OO팀"으로만 남겨 둔 경우가
+    // 있다. 그때 부서가 강사를 정하는 것은 남은 절차이므로 열어 두고, 이미
+    // 사람까지 정해진 확정 강의를 부서에서 바꾸는 것만 막는다.
+    if (target.status === "CONFIRMED" && target.instructorId) {
+      fail("이미 확정된 강의입니다. 담당 강사 변경이 필요하면 관리자에게 요청해 주세요.");
+    }
 
     const isAdmin = session.user.role === "ADMIN";
     if (!isAdmin && !(await canHandleTeamSession(session.user.id, target.instructorTeamId, target.leaderOnly))) {
@@ -605,18 +660,27 @@ export async function designateTeamInstructor(sessionId: string, formData: FormD
     });
     if (!picked) fail("해당 부서에 속한 재직자만 강사로 지정할 수 있습니다.");
 
+    // 확정된 강의라면 그 시각이 곧 그 강사의 시간이 된다 — 이미 다른 확정
+    // 강의를 맡고 있지 않은지 여기서 본다.
+    if (target.status === "CONFIRMED") {
+      await assertNoInstructorOverlap(picked.id, target.startAt, target.endAt, sessionId);
+    }
+
     await prisma.onboardingSession.update({
       where: { id: sessionId },
       data: { instructorId: picked.id },
     });
 
-    const when = `${formatSessionDay(target.startAt)} ${SLOT_LABEL[target.slot as Slot]}`;
+    const when = whenLabel(target.startAt, target.endAt);
+    const confirmed = target.status === "CONFIRMED";
     await notifyUser(
       picked.id,
       "ONBOARDING_BOOKING_REQUESTED",
-      `[온보딩] "${target.title}" 강의 담당 강사로 지정되었습니다 (${when}). 가능 여부를 알려 주세요.`,
+      confirmed
+        ? `[온보딩] "${target.title}" 강의 담당 강사로 지정되었습니다 (${when} · 확정된 일정입니다).`
+        : `[온보딩] "${target.title}" 강의 담당 강사로 지정되었습니다 (${when}). 가능 여부를 알려 주세요.`,
       undefined,
-      LINK_PROGRAM
+      confirmed ? LINK_FINAL : LINK_PROGRAM
     );
     await notifyUsers(
       await adminIds(),
