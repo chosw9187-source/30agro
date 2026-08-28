@@ -145,16 +145,24 @@ const LEVEL_COLOR: Record<GoalLevel, string> = {
  */
 function HelpMark({ text }: { text: string }) {
   return (
-    <span className="group relative ml-0.5 inline-block align-middle">
+    <span className="relative ml-0.5 inline-block align-middle">
+      {/*
+        설명은 **물음표 위에 있을 때만** 뜬다. 붙어야 할 대상은 물음표 하나뿐이라
+        `peer`로 그 표시에 직접 건다 — `group`으로 감싸 두었더니 목표 카드가
+        `group`이라, 카드 아무 데나 스쳐도 그 카드 안 설명이 전부 펼쳐졌다.
+
+        키보드로 온 경우(`focus-visible`)에만 함께 띄운다. 그냥 `focus`로 걸면
+        마우스로 한 번 누른 뒤 설명이 계속 남아 화면을 가린다.
+      */}
       <span
         role="img"
         aria-label={text}
         tabIndex={0}
-        className="inline-flex h-[1.15em] w-[1.15em] cursor-help items-center justify-center rounded-full bg-status-critical/10 text-[0.72em] font-bold leading-none text-status-critical ring-1 ring-status-critical/40 transition-colors hover:bg-status-critical hover:text-white group-focus-within:bg-status-critical group-focus-within:text-white"
+        className="peer inline-flex h-[1.15em] w-[1.15em] cursor-help items-center justify-center rounded-full bg-status-critical/10 text-[0.72em] font-bold leading-none text-status-critical ring-1 ring-status-critical/40 transition-colors hover:bg-status-critical hover:text-white focus-visible:bg-status-critical focus-visible:text-white focus-visible:outline-none"
       >
         ?
       </span>
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden w-72 -translate-x-1/2 rounded-lg bg-slate-800 px-3 py-2 text-[11px] leading-relaxed font-normal text-white shadow-lg ring-1 ring-slate-900/10 group-focus-within:block group-hover:block">
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden w-72 -translate-x-1/2 rounded-lg bg-slate-800 px-3 py-2 text-[11px] leading-relaxed font-normal text-white shadow-lg ring-1 ring-slate-900/10 peer-hover:block peer-focus-visible:block">
         {text}
       </span>
     </span>
@@ -1726,11 +1734,19 @@ export default async function Evaluation2Page({
     const evalResult = evaluatorByPerson.get(evalSubjectId) ?? null;
     const evalFirst = evalResult?.first ?? null;
     const evalNote = evalResult?.note ?? null;
-    const canWriteSelf = isAdmin || evalSubjectId === session!.user.id;
+    /*
+      평가완료를 누른 목표는 «여기서 끝»이라고 못을 박은 것이다. 그 뒤에도 점수가
+      고쳐지면 완료 표시가 아무것도 뜻하지 않게 된다. 그래서 완료 상태에서는 이
+      폼의 모든 칸을 잠그고, 고치려면 먼저 「평가완료 취소」를 누르게 한다.
+      서버(updateGoal)도 같은 기준으로 한 번 더 막는다.
+    */
+    const evalLocked = showEval && !!goal?.evalDoneAt;
+    const canWriteSelf =
+      !evalLocked && (isAdmin || evalSubjectId === session!.user.id);
     const canWriteFirst =
-      isAdmin || (!!evalFirst && evalFirst.id === session!.user.id);
+      !evalLocked && (isAdmin || (!!evalFirst && evalFirst.id === session!.user.id));
     // 내용(제목·가중치·상위)을 고칠 수 있는 사람. 평가만 하는 사람은 못 고친다.
-    const canEditContent = !goal || canManage(goal);
+    const canEditContent = !evalLocked && (!goal || canManage(goal));
     /*
       점수 상한은 가중치의 110%다 — 가중치 30짜리 목표는 33점이 최고다. 상한이
       없으면 가중치 10짜리에 100점을 적어 두고 «다 했다»가 되어 비중을 나눠 놓은
@@ -1750,6 +1766,15 @@ export default async function Evaluation2Page({
         <p className="text-xs font-semibold text-slate-700">
           개인목표 평가{period && ` (${period})`}
         </p>
+        {/*
+          왜 칸이 잠겼는지를 잠긴 칸 바로 위에 적는다. 이 말이 없으면 «왜 안
+          고쳐지지»가 화면만 보고는 풀리지 않는다.
+        */}
+        {evalLocked && (
+          <p className="rounded-md border border-status-critical/40 bg-status-critical/5 px-3 py-2 text-xs font-medium text-status-critical">
+            평가완료된 목표입니다. 수정하려면 「평가완료 취소」를 눌러 주세요.
+          </p>
+        )}
 
         <div className="rounded-lg border border-brand-green/40 bg-brand-green-light/50 p-3">
           <p className="mb-2 block text-xs font-semibold text-brand-green-dark">
@@ -2546,9 +2571,21 @@ export default async function Evaluation2Page({
                 parentOptions={parentOptions}
               />
               <div className="flex flex-wrap items-center gap-2 md:col-span-2">
-                <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-                  저장
-                </button>
+                {/*
+                  평가완료 상태에서는 저장 단추를 아예 내린다. 눌러도 서버가
+                  막을 것이라 «저장했는데 안 됐다»만 남는다 — 눌리지 않는 단추를
+                  두는 대신, 무엇을 먼저 해야 하는지를 옆에 적어 준다.
+                */}
+                {usesEvaluation(level, cycle) && evalDone ? (
+                  <span className="text-xs font-medium text-status-critical">
+                    평가완료된 목표입니다. 수정하려면 「평가완료 취소」를 눌러
+                    주세요.
+                  </span>
+                ) : (
+                  <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                    저장
+                  </button>
+                )}
                 {/* 저장과 나란히, 같은 모양으로 — 고친 손이 그 자리에 있다. */}
                 <Link
                   href={buildHref({ edit: null })}
