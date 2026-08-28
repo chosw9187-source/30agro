@@ -107,11 +107,6 @@ function optional(formData: FormData, key: string) {
   return text(formData, key) || null;
 }
 
-/** 교육 한 건에 딸린 숙박·교통. 기수가 아니라 교육마다 다르다. */
-function stayFields(formData: FormData) {
-  return { lodging: optional(formData, "lodging"), transport: optional(formData, "transport") };
-}
-
 /** "10월 19일 (월) 10:00 ~ 12:00" — 알림 문구에 쓰는 일시. */
 function whenLabel(startAt: Date, endAt: Date) {
   return `${formatSessionDay(startAt)} ${formatSessionTimeRange(startAt, endAt)}`;
@@ -271,7 +266,6 @@ export async function createSession(formData: FormData) {
         title,
         description: optional(formData, "description"),
         location: optional(formData, "location"),
-        ...stayFields(formData),
         startAt,
         endAt,
         instructorId,
@@ -309,7 +303,6 @@ export async function updateSession(sessionId: string, formData: FormData) {
         title,
         description: optional(formData, "description"),
         location: optional(formData, "location"),
-        ...stayFields(formData),
         startAt,
         endAt,
         instructorId,
@@ -335,6 +328,66 @@ export async function deleteSession(sessionId: string) {
   return run(async () => {
     await requireRole("ADMIN");
     await prisma.onboardingSession.delete({ where: { id: sessionId } });
+    revalidatePath(PATH);
+  });
+}
+
+/* ------------------------------------------------------- 숙박 · 교통 안내 */
+
+/** 폼에서 넘어온 구분. 값이 이상하면 숙박으로 둔다. */
+function readLogisticsKind(formData: FormData): "LODGING" | "TRANSPORT" {
+  return text(formData, "kind") === "TRANSPORT" ? "TRANSPORT" : "LODGING";
+}
+
+/** 날짜와 내용을 읽는다. 끝나는 날이 시작보다 빠른 기간은 막는다. */
+function readLogistics(formData: FormData) {
+  const startDate = parseDateOnly(formData.get("startDate"));
+  if (!startDate) fail("날짜를 입력해 주세요.");
+  const endDate = parseDateOnly(formData.get("endDate"));
+  if (endDate && endDate < startDate) fail("끝나는 날이 시작하는 날보다 빠릅니다.");
+
+  const title = text(formData, "title");
+  if (!title) fail("내용을 입력해 주세요.");
+
+  return {
+    kind: readLogisticsKind(formData),
+    startDate,
+    // 하루짜리면 굳이 같은 날짜를 두 번 담지 않는다 — 화면에서 "8월 12일 ~
+    // 8월 12일"로 나가는 것을 막는다.
+    endDate: endDate && endDate.getTime() !== startDate.getTime() ? endDate : null,
+    title,
+    detail: optional(formData, "detail"),
+  };
+}
+
+export async function addLogistics(formData: FormData) {
+  return run(async () => {
+    const session = await requireRole("ADMIN");
+    const programId = text(formData, "programId");
+    if (!programId) fail("기수를 먼저 선택해 주세요.");
+
+    await prisma.onboardingLogistics.create({
+      data: { programId, ...readLogistics(formData), createdById: session.user.id },
+    });
+    revalidatePath(PATH);
+  });
+}
+
+export async function updateLogistics(logisticsId: string, formData: FormData) {
+  return run(async () => {
+    await requireRole("ADMIN");
+    await prisma.onboardingLogistics.update({
+      where: { id: logisticsId },
+      data: readLogistics(formData),
+    });
+    revalidatePath(PATH);
+  });
+}
+
+export async function deleteLogistics(logisticsId: string) {
+  return run(async () => {
+    await requireRole("ADMIN");
+    await prisma.onboardingLogistics.delete({ where: { id: logisticsId } });
     revalidatePath(PATH);
   });
 }

@@ -124,6 +124,7 @@ model User {
   onboardingPrograms    OnboardingProgram[]    @relation("OnboardingProgramCreator")
   uploadedRegulations   Regulation[]           @relation("RegulationUploader")
   onboardingSessionsAdded OnboardingSession[]  @relation("OnboardingSessionCreator")
+  onboardingLogisticsAdded OnboardingLogistics[] @relation("OnboardingLogisticsCreator")
   onboardingSessionsTaught OnboardingSession[] @relation("OnboardingSessionInstructor")
   onboardingTrainee       OnboardingTrainee[]  @relation("OnboardingTrainee")
   onboardingTraineesAdded OnboardingTrainee[]  @relation("OnboardingTraineeAdder")
@@ -676,8 +677,43 @@ model OnboardingProgram {
   createdBy   User      @relation("OnboardingProgramCreator", fields: [createdById], references: [id])
   createdAt   DateTime  @default(now())
 
-  sessions OnboardingSession[]
-  trainees OnboardingTrainee[]
+  sessions  OnboardingSession[]
+  trainees  OnboardingTrainee[]
+  logistics OnboardingLogistics[]
+}
+
+/** 숙박이냐 이동이냐. 안내서에서 아이콘과 묶는 순서를 가르는 데 쓴다. */
+enum OnboardingLogisticsKind {
+  LODGING
+  TRANSPORT
+}
+
+/**
+ * 날짜에 걸리는 숙박·교통 안내.
+ *
+ * 강의 한 건에 딸린 정보가 아니다 — 숙박은 밤에 걸리고, 전세버스는 그 날
+ * 아침에 한 번 뜬다. 강의에 붙여 두면 "8/12 오전 강의"와 "8/12 오후 강의"에
+ * 같은 숙소를 두 번 적게 되고, 강의가 없는 이동일에는 적을 자리가 없다.
+ * 그래서 일정과 나란히 놓이는 별도 항목으로 둔다.
+ */
+model OnboardingLogistics {
+  id        String                  @id @default(cuid())
+  programId String
+  program   OnboardingProgram       @relation(fields: [programId], references: [id], onDelete: Cascade)
+  kind      OnboardingLogisticsKind
+
+  // 하루짜리면 startDate만, 1박 2일처럼 걸쳐 있으면 endDate까지.
+  startDate DateTime
+  endDate   DateTime?
+
+  title  String
+  detail String? @db.Text
+
+  createdById String?
+  createdBy   User?    @relation("OnboardingLogisticsCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([programId, startDate])
 }
 
 /**
@@ -693,12 +729,6 @@ model OnboardingSession {
   startAt     DateTime
   endAt       DateTime
   location    String?
-
-  // 이 교육에 딸린 숙박·교통. 연수원에서 1박 하는 교육이 있는가 하면 본사
-  // 회의실에서 두 시간 하고 끝나는 교육도 있어, 기수 단위로 한 번 적어 두면
-  // 맞지 않는다.
-  lodging   String?
-  transport String?
 
   // 이 칸을 맡은 강사.
   instructorId String?

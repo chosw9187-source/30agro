@@ -2,11 +2,15 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatKSTDate } from "@/lib/format-kst";
 import {
+  LOGISTICS_BADGE_CLASS,
+  LOGISTICS_LABEL,
   canViewOnboardingProgram,
+  formatLogisticsPeriod,
   formatSessionDay,
   formatSessionStart,
   formatSessionTimeRange,
   kstDayKey,
+  type LogisticsKind,
 } from "@/lib/onboarding";
 import {
   EmptyBox,
@@ -42,8 +46,6 @@ type FinalSession = {
   id: string;
   title: string;
   location: string | null;
-  lodging: string | null;
-  transport: string | null;
   startAt: Date;
   endAt: Date;
   instructor: { name: string; team: { name: string } | null } | null;
@@ -130,7 +132,7 @@ export async function FinalScheduleSection({
     );
   }
 
-  const [program, sessions] = await Promise.all([
+  const [program, sessions, logistics] = await Promise.all([
     prisma.onboardingProgram.findUnique({
       where: { id: programId },
       select: {
@@ -153,14 +155,17 @@ export async function FinalScheduleSection({
         id: true,
         title: true,
         location: true,
-        lodging: true,
-        transport: true,
         startAt: true,
         endAt: true,
         instructor: { select: { name: true, team: { select: { name: true } } } },
         instructorTeam: { select: { name: true } },
         attendees: { select: { traineeId: true } },
       },
+    }),
+    prisma.onboardingLogistics.findMany({
+      where: { programId },
+      orderBy: [{ startDate: "asc" }, { kind: "asc" }],
+      select: { id: true, kind: true, startDate: true, endDate: true, title: true, detail: true },
     }),
   ]);
 
@@ -263,6 +268,8 @@ export async function FinalScheduleSection({
           이 기수의 교육생 명단에 포함되어 있지 않아 전체 일정만 표시됩니다.
         </p>
       )}
+
+      <StayGuide logistics={logistics} />
 
       <ProgramNotice notice={program.notice} isAdmin={isAdmin} />
 
@@ -425,9 +432,57 @@ export async function FinalScheduleSection({
   );
 }
 
+type Logistics = {
+  id: string;
+  kind: string;
+  startDate: Date;
+  endDate: Date | null;
+  title: string;
+  detail: string | null;
+};
+
 /**
- * 기수 전체에 걸리는 공지. 숙박·교통은 교육마다 다를 수 있어 여기가 아니라
- * 각 교육의 상세에 붙는다.
+ * 날짜에 걸리는 숙박·교통. 일정과 나란히 두되 섞지는 않는다 — 시간표에서
+ * 찾는 것("몇 시에 어디로")과 여기서 찾는 것("오늘 밤 어디서 자나")이 달라,
+ * 한 덩어리로 묶어 두면 둘 다 잘 안 보인다.
+ */
+function StayGuide({ logistics }: { logistics: Logistics[] }) {
+  if (logistics.length === 0) return null;
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 bg-slate-50 px-5 py-3">
+        <h3 className="text-sm font-bold text-slate-800">숙박 · 교통</h3>
+      </div>
+      <ul className="divide-y divide-slate-100">
+        {logistics.map((g) => (
+          <li key={g.id} className="flex flex-wrap items-start gap-x-4 gap-y-1 px-5 py-3">
+            <span className="w-44 shrink-0 text-sm font-bold text-slate-800">
+              {formatLogisticsPeriod(g.startDate, g.endDate)}
+            </span>
+            <div className="min-w-[12rem] flex-1">
+              <p className="text-sm font-semibold text-slate-900">
+                <span
+                  className={`mr-2 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                    LOGISTICS_BADGE_CLASS[g.kind as LogisticsKind]
+                  }`}
+                >
+                  {LOGISTICS_LABEL[g.kind as LogisticsKind]}
+                </span>
+                {g.title}
+              </p>
+              {g.detail && <p className="mt-0.5 whitespace-pre-line text-xs text-slate-500">{g.detail}</p>}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * 기수 전체에 걸리는 공지. 숙박·교통은 날짜에 걸리는 것이라 여기가 아니라
+ * 위쪽 [숙박 · 교통] 카드에 따로 선다.
  *
  * 비어 있으면 빈 상자를 띄우지 않고 통째로 감추되, 관리자에게는 "여기에 적을
  * 수 있다"는 것을 알려 준다 — 안 그러면 이 칸의 존재를 모른다.
@@ -437,8 +492,8 @@ function ProgramNotice({ notice, isAdmin }: { notice: string | null; isAdmin: bo
     if (!isAdmin) return null;
     return (
       <p className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-3 text-xs text-slate-500">
-        기수 전체 공지는 [일정 관리]의 기수 정보에서 적을 수 있습니다. 숙박·교통은 교육마다 다를 수 있어
-        [교육 일정 편성]에서 교육별로 적습니다.
+        기수 전체 공지는 [일정 관리]의 기수 정보에서 적을 수 있습니다. 숙박·교통은 그 아래
+        [숙박 · 교통 안내]에서 날짜별로 적습니다.
       </p>
     );
   }
@@ -509,13 +564,6 @@ function DayList({
                       {" · "}
                       {s.attendees.length === 0 ? "기수 전원" : `지정 ${s.attendees.length}명`}
                     </p>
-                    {(s.lodging || s.transport) && (
-                      <p className="mt-1 text-xs font-medium text-brand-green-dark">
-                        {s.lodging && <>숙박 {s.lodging}</>}
-                        {s.lodging && s.transport && " · "}
-                        {s.transport && <>교통 {s.transport}</>}
-                      </p>
-                    )}
                   </div>
                 </Link>
               </li>
@@ -598,23 +646,6 @@ function SessionDetail({
           </dd>
         </div>
       </dl>
-
-      {(session.lodging || session.transport) && (
-        <dl className="mt-4 grid grid-cols-1 gap-3 rounded border border-brand-green/40 bg-brand-green-light/40 p-3 sm:grid-cols-2">
-          {session.lodging && (
-            <div>
-              <dt className="text-xs font-semibold text-brand-green-dark">숙박 장소</dt>
-              <dd className="mt-0.5 whitespace-pre-line text-sm text-slate-800">{session.lodging}</dd>
-            </div>
-          )}
-          {session.transport && (
-            <div>
-              <dt className="text-xs font-semibold text-brand-green-dark">교통편</dt>
-              <dd className="mt-0.5 whitespace-pre-line text-sm text-slate-800">{session.transport}</dd>
-            </div>
-          )}
-        </dl>
-      )}
 
       <div className="mt-4 border-t border-slate-100 pt-4">
         <p className="text-xs font-medium text-slate-500">
