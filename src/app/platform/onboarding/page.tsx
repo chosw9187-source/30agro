@@ -75,8 +75,6 @@ async function ManageSection({ programId }: { programId: string | null }) {
         description: true,
         startDate: true,
         endDate: true,
-        lodging: true,
-        transport: true,
         notice: true,
         active: true,
         _count: { select: { sessions: true, trainees: true } },
@@ -106,6 +104,8 @@ async function ManageSection({ programId }: { programId: string | null }) {
             title: true,
             description: true,
             location: true,
+            lodging: true,
+            transport: true,
             startAt: true,
             endAt: true,
             instructorId: true,
@@ -156,7 +156,7 @@ async function ManageSection({ programId }: { programId: string | null }) {
       >
         <h2 className="text-lg font-semibold text-slate-800">온보딩 프로그램 등록</h2>
         <p className="mt-1 text-sm text-slate-600">
-          기수를 만든 뒤 아래에서 교육 대상자 명단과 교육 일정을 채웁니다. 숙박·교통·공지도 여기서 적어 두면
+          기수를 만든 뒤 아래에서 교육 대상자 명단과 교육 일정을 채웁니다. 기수 전체 공지도 여기서 적어 두면
           참여자가 [최종 스케줄]에서 함께 봅니다. 관리자만 등록할 수 있습니다.
         </p>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
@@ -169,19 +169,12 @@ async function ManageSection({ programId }: { programId: string | null }) {
             <label className={LABEL_CLASS}>설명 (선택)</label>
             <input name="description" placeholder="대상·목적 등" className={INPUT_CLASS} />
           </div>
-          <div className="sm:col-span-2">
-            <label className={LABEL_CLASS}>숙박 장소 (선택)</label>
-            <input name="lodging" placeholder="예: 삼공연수원 생활관 3층" className={INPUT_CLASS} />
-          </div>
-          <div className="sm:col-span-2">
-            <label className={LABEL_CLASS}>교통편 (선택)</label>
-            <input name="transport" placeholder="예: 8/3 08:00 본사 정문 전세버스 출발" className={INPUT_CLASS} />
-          </div>
           <div className="sm:col-span-4">
             <label className={LABEL_CLASS}>공지사항 (선택)</label>
             <textarea name="notice" rows={3} placeholder={"예)\n· 편한 복장으로 오세요.\n· 노트북과 필기구를 지참해 주세요."} className={INPUT_CLASS} />
             <p className="mt-1 text-[11px] text-slate-400">
-              숙박·교통·공지는 [최종 스케줄]의 «온보딩 안내»에 참여자 모두에게 보입니다. 줄바꿈은 그대로 나옵니다.
+              기수 전체에 걸리는 공지입니다. [최종 스케줄]에 참여자 모두에게 보이고 줄바꿈도 그대로 나갑니다.
+              숙박·교통은 교육마다 다를 수 있어 아래 [교육 일정 편성]에서 교육별로 적습니다.
             </p>
           </div>
         </div>
@@ -297,19 +290,11 @@ async function ManageSection({ programId }: { programId: string | null }) {
                 <label className={LABEL_CLASS}>설명</label>
                 <input name="description" defaultValue={selected.description ?? ""} className={INPUT_CLASS} />
               </div>
-              <div className="sm:col-span-2">
-                <label className={LABEL_CLASS}>숙박 장소 (선택)</label>
-                <input name="lodging" className={INPUT_CLASS} defaultValue={selected.lodging ?? ""} />
-              </div>
-              <div className="sm:col-span-2">
-                <label className={LABEL_CLASS}>교통편 (선택)</label>
-                <input name="transport" className={INPUT_CLASS} defaultValue={selected.transport ?? ""} />
-              </div>
               <div className="sm:col-span-4">
                 <label className={LABEL_CLASS}>공지사항 (선택)</label>
                 <textarea name="notice" rows={3} className={INPUT_CLASS} defaultValue={selected.notice ?? ""} />
                 <p className="mt-1 text-[11px] text-slate-400">
-                  숙박·교통·공지는 [최종 스케줄]의 «온보딩 안내»에 참여자 모두에게 보입니다. 줄바꿈은 그대로 나옵니다.
+                  기수 전체에 걸리는 공지입니다. 숙박·교통은 교육마다 [교육 일정 편성]에서 적습니다.
                 </p>
               </div>
 
@@ -460,6 +445,14 @@ async function ManageSection({ programId }: { programId: string | null }) {
                 <label className={LABEL_CLASS}>장소 (선택)</label>
                 <input name="location" placeholder="예: 본사 대회의실" className={INPUT_CLASS} />
               </div>
+              <div className="sm:col-span-2">
+                <label className={LABEL_CLASS}>숙박 장소 (선택)</label>
+                <input name="lodging" placeholder="예: 삼공연수원 생활관 3층 (2인 1실)" className={INPUT_CLASS} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className={LABEL_CLASS}>교통편 (선택)</label>
+                <input name="transport" placeholder="예: 08:00 본사 정문 전세버스 출발" className={INPUT_CLASS} />
+              </div>
               <div className="sm:col-span-4">
                 <label className={LABEL_CLASS}>강사 전달사항 (선택)</label>
                 <input
@@ -467,6 +460,10 @@ async function ManageSection({ programId }: { programId: string | null }) {
                   placeholder="예: 노트북 지참 안내 / 진행 방식 메모 — 강사에게만 보입니다"
                   className={INPUT_CLASS}
                 />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  숙박·교통은 이 교육에만 붙습니다. 적으면 [최종 스케줄]의 교육 상세에 참여자에게 보이고,
+                  강사 전달사항은 안내서에 싣지 않습니다.
+                </p>
               </div>
               <div className="sm:col-span-4">
                 <button type="submit" className={PRIMARY_BUTTON_CLASS}>
@@ -562,8 +559,16 @@ async function ManageSection({ programId }: { programId: string | null }) {
                           <label className={LABEL_CLASS}>장소</label>
                           <input name="location" defaultValue={s.location ?? ""} className={INPUT_CLASS} />
                         </div>
-                        <div className="sm:col-span-3">
-                          <label className={LABEL_CLASS}>설명</label>
+                        <div className="sm:col-span-2">
+                          <label className={LABEL_CLASS}>숙박 장소</label>
+                          <input name="lodging" defaultValue={s.lodging ?? ""} className={INPUT_CLASS} />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className={LABEL_CLASS}>교통편</label>
+                          <input name="transport" defaultValue={s.transport ?? ""} className={INPUT_CLASS} />
+                        </div>
+                        <div className="sm:col-span-4">
+                          <label className={LABEL_CLASS}>강사 전달사항</label>
                           <input name="description" defaultValue={s.description ?? ""} className={INPUT_CLASS} />
                         </div>
                         <div className="sm:col-span-4">
@@ -690,8 +695,8 @@ export default async function OnboardingPage({
       <div>
         <h1 className="text-2xl font-semibold">SG 온보딩 프로그램</h1>
         <p className="mt-1 text-slate-600">
-          기수마다 교육 일정과 숙박·교통·공지를 한곳에 모은 안내서입니다. 일정은 미리 합의된 것만 올라가므로
-          여기 보이는 것은 모두 확정본입니다.
+          교육 일정과 교육별 숙박·교통, 기수 공지를 한곳에 모은 안내서입니다. 일정은 미리 합의된 것만
+          올라가므로 여기 보이는 것은 모두 확정본입니다.
         </p>
       </div>
 
