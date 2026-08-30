@@ -129,7 +129,7 @@ export const DEFAULT_COMING_SOON_MODULES = new Set<Module>([
  */
 export const ADMIN_ONLY_MODULES = new Set<Module>([]);
 
-export type ModuleUiConfigEntry = { order: number; comingSoon: boolean; hidden: boolean };
+export type ModuleUiConfigEntry = { order: number; comingSoon: boolean; hidden: boolean; label: string | null };
 
 /** 사이드바 "관리" 섹션 항목 — ADMIN 역할에게만 보이는 관리자 전용 메뉴. */
 export type AdminMenuKey =

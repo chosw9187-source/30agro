@@ -332,6 +332,7 @@ export async function getModuleUiConfig(): Promise<Record<Module, ModuleUiConfig
       order: row?.order ?? i,
       comingSoon: row ? row.comingSoon : DEFAULT_COMING_SOON_MODULES.has(m),
       hidden: row?.hidden ?? false,
+      label: row?.label ?? null,
     };
   });
   return result;

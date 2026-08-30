@@ -44,11 +44,13 @@ export async function saveSidebarConfig(
     const order = Number(formData.get(`order:${mod}`) ?? 0);
     const comingSoon = formData.get(`comingSoon:${mod}`) === "on";
     const hidden = formData.get(`hidden:${mod}`) === "on";
+    const labelRaw = String(formData.get(`label:${mod}`) ?? "").trim();
+    const label = labelRaw || null;
 
     await prisma.moduleUiConfig.upsert({
       where: { module: mod },
-      update: { order, comingSoon, hidden },
-      create: { module: mod, order, comingSoon, hidden },
+      update: { order, comingSoon, hidden, label },
+      create: { module: mod, order, comingSoon, hidden, label },
     });
   }
 
