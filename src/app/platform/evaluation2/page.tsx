@@ -2505,9 +2505,15 @@ export default async function Evaluation2Page({
                 0이고, 사람이 적는 층(개인목표)에서 0이면 아직 안 적은 것이다 —
                 그 둘은 다른 이야기라 다르게 적는다.
               */}
+              {/*
+                전사목표는 여기서 «안 적었다»고 다그치지 않는다. 이 탭은 굴러
+                올라온 달성률을 읽기만 하는 자리라 고칠 칸 자체가 없고(가중치는
+                「조직 목표 관리」에서 정한다), 고칠 수 없는 화면에 빨간 경고만
+                띄우면 눌러 볼 데 없는 빨간 줄이 목록마다 남는다.
+              */}
               {shownWeight > 0 ? (
                 <span>가중치 {shownWeight}%</span>
-              ) : usesDerivedWeight(level) ? (
+              ) : usesDerivedWeight(level) || level === "COMPANY" ? (
                 <span>가중치 0%</span>
               ) : (
                 <span className="text-status-critical">가중치 미입력</span>
