@@ -14,8 +14,14 @@ import {
 const PATH = "/platform/onboarding";
 const LINK_FINAL = `${PATH}?tab=final`;
 
+/**
+ * 폼 값 한 칸. 줄바꿈은 \n으로 눕혀서 받는다 — 브라우저는 textarea를 보낼 때
+ * 줄바꿈을 CRLF로 바꿔 싣기 때문에, 글자 한 자 안 고치고 저장만 눌러도
+ * 저장된 값과 달라 보인다. 공지 변경 알림처럼 "달라졌을 때만" 움직이는
+ * 판단이 그 차이에 걸리면 매번 헛알림이 나간다.
+ */
 function text(formData: FormData, key: string): string {
-  return String(formData.get(key) ?? "").trim();
+  return String(formData.get(key) ?? "").replace(/\r\n/g, "\n").trim();
 }
 
 /**
@@ -100,6 +106,43 @@ async function notifyScheduled(
 }
 
 /**
+ * 기수 공지가 새로 걸리거나 내용이 바뀌면 알린다.
+ *
+ * 공지는 안내서를 열어 봐야 보이는데, 온보딩 기간에 안내서를 매일 여는
+ * 사람은 없다. 집합 장소가 바뀌었다는 글은 올려 둔 것만으로는 전해지지
+ * 않으므로 알림으로 밀어 준다.
+ *
+ * 받는 사람은 교육생 전원 + 이 기수의 강의를 맡은 사람이다. 부서로만
+ * 배정된 강의는 아직 나갈 사람이 안 정해진 것이라 그 부서 팀장에게 보낸다 —
+ * 부서원 전부에게 보내면 강의와 무관한 사람까지 온보딩 공지를 받는다.
+ */
+async function notifyNotice(programId: string, programName: string, changed: boolean) {
+  const [trainees, sessions] = await Promise.all([
+    prisma.onboardingTrainee.findMany({ where: { programId }, select: { userId: true } }),
+    prisma.onboardingSession.findMany({
+      where: { programId },
+      select: {
+        instructors: { select: { userId: true } },
+        teams: { select: { team: { select: { leaderId: true } } } },
+      },
+    }),
+  ]);
+
+  const recipients = new Set(trainees.map((t) => t.userId));
+  for (const s of sessions) {
+    for (const i of s.instructors) recipients.add(i.userId);
+    for (const t of s.teams) if (t.team.leaderId) recipients.add(t.team.leaderId);
+  }
+
+  await notifyUsers(
+    [...recipients],
+    "ONBOARDING_NOTICE_POSTED",
+    `[온보딩] "${programName}" 공지사항이 ${changed ? "변경되었습니다" : "등록되었습니다"}`,
+    `${PATH}?tab=final&programId=${programId}`
+  );
+}
+
+/**
  * 빈 칸은 null로 눕혀 둔다 — 빈 문자열이 들어가면 화면에서는 "적혀 있는데
  * 아무것도 없는" 칸이 된다.
  */
@@ -153,16 +196,20 @@ export async function createProgram(formData: FormData) {
     const endDate = parseDateOnly(formData.get("endDate"));
     if (startDate && endDate && endDate < startDate) fail("종료일이 시작일보다 빠릅니다.");
 
-    await prisma.onboardingProgram.create({
+    const notice = optional(formData, "notice");
+    const program = await prisma.onboardingProgram.create({
       data: {
         name,
         description: text(formData, "description") || null,
         startDate,
         endDate,
-        notice: optional(formData, "notice"),
+        notice,
         createdById: session.user.id,
       },
     });
+    // 갓 만든 기수에는 교육생도 강사도 아직 없어 대개 받을 사람이 없지만,
+    // 기수를 지웠다 다시 세우는 경우가 있어 그대로 태워 둔다.
+    if (notice) await notifyNotice(program.id, name, false);
     revalidatePath(PATH);
   });
 }
@@ -177,6 +224,14 @@ export async function updateProgram(programId: string, formData: FormData) {
     const endDate = parseDateOnly(formData.get("endDate"));
     if (startDate && endDate && endDate < startDate) fail("종료일이 시작일보다 빠릅니다.");
 
+    const notice = optional(formData, "notice");
+    // 프로그램명만 고쳐도 이 액션을 탄다. 공지 글이 실제로 달라졌을 때만
+    // 알린다 — 저장할 때마다 알림이 가면 곧 아무도 안 읽는다.
+    const before = await prisma.onboardingProgram.findUnique({
+      where: { id: programId },
+      select: { notice: true },
+    });
+
     await prisma.onboardingProgram.update({
       where: { id: programId },
       data: {
@@ -184,9 +239,13 @@ export async function updateProgram(programId: string, formData: FormData) {
         description: text(formData, "description") || null,
         startDate,
         endDate,
-        notice: optional(formData, "notice"),
+        notice,
       },
     });
+    // 공지를 지운 것은 알릴 일이 아니다.
+    if (notice && notice !== before?.notice) {
+      await notifyNotice(programId, name, Boolean(before?.notice));
+    }
     revalidatePath(PATH);
   });
 }
