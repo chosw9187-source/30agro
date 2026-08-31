@@ -228,6 +228,11 @@ export async function FinalScheduleSection({
         <p className="mt-3 text-xs text-slate-500">
           교육 {lectureCount}건 · 교육생 {trainees.length}명
         </p>
+        {/* 누구와 함께 듣는지는 안내서에서 자주 찾는 정보다 — 숫자만 두면
+            결국 관리자에게 명단을 물어보게 된다. */}
+        {trainees.length > 0 && (
+          <TraineeChips trainees={trainees} myTraineeId={myTrainee?.id ?? null} className="mt-2" />
+        )}
       </div>
 
       {myTrainee ? (
@@ -456,6 +461,39 @@ type Logistics = {
  * 찾는 것("몇 시에 어디로")과 여기서 찾는 것("오늘 밤 어디서 자나")이 달라,
  * 한 덩어리로 묶어 두면 둘 다 잘 안 보인다.
  */
+/**
+ * 교육생 이름표. 기수 개요와 교육 상세가 같은 목록을 다른 범위로 보여 주는
+ * 자리라 한 벌만 둔다 — 개요는 기수 전원, 상세는 그 교육의 대상자다.
+ * 본인은 초록으로 짚어 준다.
+ */
+function TraineeChips({
+  trainees,
+  myTraineeId,
+  className = "",
+}: {
+  trainees: Trainee[];
+  myTraineeId: string | null;
+  className?: string;
+}) {
+  return (
+    <ul className={`flex flex-wrap gap-1.5 ${className}`}>
+      {trainees.map((t) => (
+        <li
+          key={t.id}
+          className={`rounded-full border px-2.5 py-1 text-xs ${
+            t.id === myTraineeId
+              ? "border-brand-green bg-brand-green-light font-medium text-brand-green-dark"
+              : "border-slate-200 bg-slate-50 text-slate-600"
+          }`}
+        >
+          {t.user.name}
+          {t.user.team && <span className="ml-1 text-slate-400">{t.user.team.name}</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function StayGuide({ logistics }: { logistics: Logistics[] }) {
   if (logistics.length === 0) return null;
 
@@ -683,21 +721,7 @@ function SessionDetail({
         {audience.length === 0 ? (
           <p className="mt-2 text-sm text-slate-500">등록된 교육생이 없습니다.</p>
         ) : (
-          <ul className="mt-2 flex flex-wrap gap-1.5">
-            {audience.map((t) => (
-              <li
-                key={t.id}
-                className={`rounded-full border px-2.5 py-1 text-xs ${
-                  t.id === myTraineeId
-                    ? "border-brand-green bg-brand-green-light font-medium text-brand-green-dark"
-                    : "border-slate-200 bg-slate-50 text-slate-600"
-                }`}
-              >
-                {t.user.name}
-                {t.user.team && <span className="ml-1 text-slate-400">{t.user.team.name}</span>}
-              </li>
-            ))}
-          </ul>
+          <TraineeChips trainees={audience} myTraineeId={myTraineeId} className="mt-2" />
         )}
       </div>
     </div>
