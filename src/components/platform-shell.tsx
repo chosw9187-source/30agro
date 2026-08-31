@@ -67,17 +67,12 @@ export async function PlatformShell({
     .join(" · ");
 
   return (
-    // 셸을 화면 높이에 묶어서 <main>만 굴린다 — 로고 줄과 본인 띠는 그 바깥에
-    // 있으니 스크롤과 무관하게 제자리에 남고, main 안의 sticky(평가2의 연도 ·
-    // 목표 · 탭 줄)는 화면 위가 아니라 «본문 위»에 붙는다. 그래서 붙는 자리를
-    // 픽셀로 맞출 일이 없다.
-    //
-    // 예전에는 좁은 화면만 문서 전체를 굴렸는데, 그러면 main의 overflow가
-    // sticky를 자기 박스 안에 가둬 버려서 본문 안의 고정 줄이 그냥 같이 밀려
-    // 올라갔다. 높이는 100dvh다 — iOS에서 100vh는 주소창 높이를 빼지 않아
-    // 화면 아래가 잘린다.
-    <div className="flex h-[100dvh] min-w-0 flex-none flex-col overflow-hidden">
-      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+    // 스크롤은 **문서 하나**로만 흐른다. 안쪽에 따로 굴러가는 상자를 두면 화면
+    // 오른쪽과 왼쪽에 스크롤 막대가 두세 개씩 생기고, 위쪽이 고정된 만큼 한 번에
+    // 보이는 본문이 줄어든다. 로고 줄도 함께 흘러 올라가는 편이 «아래로 내리면
+    // 아래 내용이 나온다»는 당연한 기대에 맞는다.
+    <div className="flex min-h-screen min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1">
         <input type="checkbox" id="mobile-nav-toggle" className="peer hidden" />
         <label
           htmlFor="mobile-nav-toggle"
@@ -99,7 +94,7 @@ export async function PlatformShell({
           moduleUiConfig={moduleUiConfig}
           hiddenAdminMenuKeys={[...hiddenAdminMenuKeys]}
         />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 text-sm md:px-8">
             <div className="flex min-w-0 items-center gap-3">
               <label
@@ -124,7 +119,7 @@ export async function PlatformShell({
             </Link>
           </header>
 
-          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-8 md:py-8">
+          <main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:pt-8 md:pb-4">
             {/*
               본인 띠는 본문 **안**, 맨 앞이다 — 로고 줄만 제자리에 남고 띠부터
               아래는 본문과 함께 굴러 내려간다. 띠를 로고 줄 옆에 붙여 두었더니
@@ -139,7 +134,7 @@ export async function PlatformShell({
             <RouteOnly prefix="/platform/evaluation2">
               <EvaluateeBanner
                 userId={user.id}
-                className="-mx-4 -mt-6 mb-6 md:-mx-8 md:-mt-8 md:mb-8"
+                className="-mx-4 -mt-6 mb-4 md:-mx-8 md:-mt-8 md:mb-4"
               />
             </RouteOnly>
             {children}

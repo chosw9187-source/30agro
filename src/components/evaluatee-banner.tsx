@@ -86,22 +86,22 @@ export async function EvaluateeBanner({
         위아래 여백은 py-2에서 키웠다 — 세 줄이 위아래로 눌려 답답해 보였다.
         그래도 PC 96px로, 위에서 말한 140px 한계 안에 둔다.
       */}
-      <div className="flex items-center gap-2.5 bg-[linear-gradient(100deg,#0f3d22_0%,#17643a_45%,#2a9455_100%)] px-3 py-3.5 text-white sm:gap-3.5 sm:px-6 sm:py-4">
+      <div className="flex items-center gap-3 bg-[linear-gradient(100deg,#0f3d22_0%,#17643a_45%,#2a9455_100%)] px-3 py-3.5 text-white sm:gap-4 sm:px-6 sm:py-3.5">
         <Avatar
           userId={me.id}
           name={me.name}
           hasPhoto={photoCount > 0}
-          className="h-[40px] w-[40px] border-2 border-white/85 sm:h-[52px] sm:w-[52px]"
+          className="h-[46px] w-[46px] border-2 border-white/85 sm:h-[58px] sm:w-[58px]"
         />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] leading-tight font-bold tracking-tight sm:text-[18px]">
+          <p className="truncate text-[16.5px] leading-tight font-bold tracking-tight sm:text-[20px]">
             {me.name}
-            <span className="ml-2 text-[11px] font-semibold text-white/85 sm:text-[12.5px]">
+            <span className="ml-2 text-[12px] font-semibold text-white/85 sm:text-[13.5px]">
               {POSITION_LABEL[me.position]}
             </span>
           </p>
           {scope && (
-            <p className="mt-[5px] truncate text-[11px] leading-tight text-white/90 sm:text-[12.5px]">
+            <p className="mt-[4px] truncate text-[12px] leading-tight text-white/90 sm:text-[13.5px]">
               {scope}
             </p>
           )}
@@ -109,7 +109,7 @@ export async function EvaluateeBanner({
             평가자 줄만 좁은 화면에서 두 줄로 접힌다. 한 줄로 우겨넣으면 «2차
             평가자»가 말줄임에 먹혀서, 정작 알아야 할 이름이 사라진다.
           */}
-          <p className="mt-[5px] text-[10.5px] leading-snug break-keep text-white/75 sm:truncate sm:text-[11.5px]">
+          <p className="mt-[4px] text-[11.5px] leading-snug break-keep text-white/75 sm:truncate sm:text-[12.5px]">
             1차 평가자{" "}
             <b className="font-bold text-white">
               {chain?.first ? evaluatorLabel(chain.first) : "미지정"}

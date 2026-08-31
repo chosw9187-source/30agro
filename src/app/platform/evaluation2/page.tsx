@@ -854,7 +854,7 @@ export default async function Evaluation2Page({
    */
   function cycleBar() {
     return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-1 shadow-sm">
         <span className="text-xs font-medium text-slate-500">연도 · 목표</span>
         {cycles.length > 0 ? (
           <YearPhaseSelect
@@ -928,12 +928,12 @@ export default async function Evaluation2Page({
   /** 층 선택 탭. 고른 인사평가 안에서 어느 층을 볼지 정한다. */
   function tabBar() {
     return (
-      <nav className="flex flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs shadow-sm">
+      <nav className="flex flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs shadow-sm">
         {TABS.map((t) => (
           <Link
             key={t.key}
             href={buildHref({ tab: t.key })}
-            className={`rounded-full px-3 py-2 transition-colors sm:py-1 ${
+            className={`rounded-full px-3 py-1.5 transition-colors sm:py-0.5 ${
               tab === t.key
                 ? "bg-brand-green text-white"
                 : "border border-slate-300 text-slate-600 hover:bg-slate-50"
@@ -1073,7 +1073,7 @@ export default async function Evaluation2Page({
                           i % 2 === 1 ? "bg-slate-50/70" : ""
                         }`}
                       >
-                        <td className="px-4 py-2">
+                        <td className="px-4 py-1.5">
                           {/*
                           전사목표 줄은 누르는 자리가 아니다. 한때 눌러서 «이
                           갈래만 보기»로 걸러 줬는데, 한 번 누르면 아직 아무것도
@@ -1110,7 +1110,7 @@ export default async function Evaluation2Page({
                             )}
                         </td>
                         {showsProgress && (
-                          <td className="px-3 py-2 sm:px-4">
+                          <td className="px-3 py-1.5 sm:px-4">
                             <div className="flex items-center gap-2">
                               <span className="hidden flex-1 sm:block">
                                 <Meter value={g.rollupProgress} size="md" />
@@ -1211,68 +1211,74 @@ export default async function Evaluation2Page({
         : buildHref({ tab: level.toLowerCase() });
     const linkable = level !== "COMPANY" || isAdmin;
 
+    /*
+      도넛을 왼쪽에, 이름과 숫자를 오른쪽에 나란히 둔다. 세로로 쌓아 두었더니
+      카드 두 장이 PC 100% 화면의 절반을 먹어서, 정작 아래의 전사 목표 표가 한
+      화면에 같이 들어오지 않았다. 가로로 누이면 카드 높이가 도넛 하나 높이로
+      끝난다 — 읽는 순서(무엇의 달성률인가 → 몇 %인가 → 몇 건인가)는 그대로다.
+    */
     const body = (
-      <>
-        <div className="flex items-center gap-2">
-          <LevelDot level={level} />
-          <h2 className="text-base font-semibold text-slate-800">
-            {GOAL_LEVEL_LABEL[level]}
-          </h2>
-        </div>
-
+      <div className="flex items-center gap-4">
         {showsProgress && (
-          <div className="relative mt-5 flex items-center justify-center">
-            {/* 휴대폰에서는 조금 줄인다 — 카드 한 장이 화면을 다 먹으면 두 장을
-                견줘 볼 수가 없다. viewBox가 있어 폭만 줄이면 그대로 작아진다. */}
+          <div className="relative shrink-0">
             <ProgressDonut
               value={percent}
               color={LEVEL_COLOR[level]}
               size={188}
               stroke={18}
-              className="h-auto w-36 sm:w-[188px]"
+              className="h-auto w-24 sm:w-[116px]"
             />
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-5xl leading-none font-semibold tabular-nums text-slate-900">
+              <span className="text-2xl leading-none font-semibold tabular-nums text-slate-900">
                 {percent}
-                <span className="ml-0.5 text-xl font-normal text-slate-400">
+                <span className="ml-0.5 text-sm font-normal text-slate-400">
                   %
                 </span>
               </span>
-              <span className="mt-1.5 text-xs text-slate-500">
+              <span className="mt-0.5 text-[10px] text-slate-500">
                 {level === "COMPANY" ? "가중평균" : "평균 달성률"}
               </span>
             </div>
           </div>
         )}
 
-        <dl className="mt-5 grid grid-cols-3 gap-1 border-t border-slate-100 pt-4 text-center">
-          <div>
-            <dt className="text-xs text-slate-500">전체</dt>
-            <dd className="text-2xl font-semibold tabular-nums text-slate-800">
-              {counted.length}
-            </dd>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <LevelDot level={level} />
+            <h2 className="text-base font-semibold text-slate-800">
+              {GOAL_LEVEL_LABEL[level]}
+            </h2>
           </div>
-          <div>
-            <dt className="text-xs text-slate-500">완료</dt>
-            <dd className="text-2xl font-semibold tabular-nums text-brand-green-dark">
-              {done}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-slate-500">지연</dt>
-            <dd
-              className={`text-2xl font-semibold tabular-nums ${
-                overdue > 0 ? "text-status-critical" : "text-slate-400"
-              }`}
-            >
-              {overdue}
-            </dd>
-          </div>
-        </dl>
-      </>
+
+          <dl className="mt-3 grid grid-cols-3 gap-1 border-t border-slate-100 pt-3 text-center">
+            <div>
+              <dt className="text-xs text-slate-500">전체</dt>
+              <dd className="text-xl font-semibold tabular-nums text-slate-800">
+                {counted.length}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">완료</dt>
+              <dd className="text-xl font-semibold tabular-nums text-brand-green-dark">
+                {done}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-slate-500">지연</dt>
+              <dd
+                className={`text-xl font-semibold tabular-nums ${
+                  overdue > 0 ? "text-status-critical" : "text-slate-400"
+                }`}
+              >
+                {overdue}
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </div>
     );
 
-    const className = `${CARD_CLASS} flex flex-col p-6`;
+    const className = `${CARD_CLASS} flex flex-col p-4`;
 
     return linkable ? (
       <Link
@@ -2916,7 +2922,7 @@ export default async function Evaluation2Page({
     // 볼 수 있는 자리가 줄고, 그 자리를 벗어난 것은 어디로 갔는지 알 수 없게
     // 된다. 지금은 평범한 스크롤 한 벌만 있고, 화면 밖으로 나간 것은 위로
     // 올리면 그대로 돌아온다.
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       {/* 다른 사람이 목표를 고쳐도 이 화면이 알아서 최신 값을 받아온다. */}
       <AutoRefresh />
 

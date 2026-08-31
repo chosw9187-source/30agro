@@ -558,6 +558,8 @@ model ModuleUiConfig {
   order      Int     @default(0)
   comingSoon Boolean @default(false)
   hidden     Boolean @default(false)
+  /** 사이드바에 표시할 커스텀 이름. null이면 기본 이름을 그대로 쓴다. */
+  label      String?
 }
 
 /** 사이드바 "관리"(admin) 섹션 항목별 숨김 여부. key는 AdminMenuKey 문자열. */
