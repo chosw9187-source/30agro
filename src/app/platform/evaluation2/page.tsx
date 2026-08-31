@@ -2498,12 +2498,19 @@ export default async function Evaluation2Page({
               {!parent && parentLevel && (
                 <span className="text-status-critical">상위 목표 미연결</span>
               )}
-              {shownWeight > 0 && <span>가중치 {shownWeight}%</span>}
-              {level === "INDIVIDUAL" && subject && (
-                <span>피평가자: {evaluatorLabel(subject)}</span>
-              )}
-              {level === "TEAM" && evaluator && (
-                <span>1차 평가자: {evaluatorLabel(evaluator)}</span>
+              {/*
+                가중치는 **0이어도 적는다**. 숨겨 두었더니 어떤 줄에는 있고 어떤
+                줄에는 없어서 «왜 이 목표만 가중치가 없지»가 됐다. 팀목표의
+                가중치는 아래 개인목표에서 굴러 올라온 값이라 하위가 없으면
+                0이고, 사람이 적는 층(개인목표)에서 0이면 아직 안 적은 것이다 —
+                그 둘은 다른 이야기라 다르게 적는다.
+              */}
+              {shownWeight > 0 ? (
+                <span>가중치 {shownWeight}%</span>
+              ) : usesDerivedWeight(level) ? (
+                <span>가중치 0%</span>
+              ) : (
+                <span className="text-status-critical">가중치 미입력</span>
               )}
               {/*
               사슬이 사장까지 올라갔다면 조직도 어딘가가 비어 있다는 뜻이다.
@@ -2539,6 +2546,32 @@ export default async function Evaluation2Page({
                 <span className="text-sm font-semibold tabular-nums text-slate-700">
                   {goal.rollupProgress}%
                 </span>
+              )}
+              {/*
+                지우는 자리는 **접힌 줄에서도** 보인다. 카드 안에만 두었더니
+                한 건 지우려고 카드를 펴고, 긴 폼을 지나 맨 아래까지 내려가야
+                했다. 되돌릴 수 없는 일이라 한 번 되묻는다.
+              */}
+              {editable && (
+                <ActionForm
+                  action={deleteGoal.bind(null, goal.id)}
+                  successMessage="삭제되었습니다."
+                  confirmMessage={`「${goalTitle(goal)}」 목표를 삭제할까요? 되돌릴 수 없습니다.`}
+                  className="flex items-center"
+                >
+                  <input
+                    type="hidden"
+                    name="viewCycleId"
+                    value={cycle?.id ?? ""}
+                  />
+                  <button
+                    type="submit"
+                    aria-label="이 목표 삭제"
+                    className="rounded-md border border-red-200 px-2 py-1 text-[11px] leading-none text-status-critical hover:bg-red-50"
+                  >
+                    삭제
+                  </button>
+                </ActionForm>
               )}
             </span>
           </div>
@@ -2763,6 +2796,7 @@ export default async function Evaluation2Page({
                 <ActionForm
                   action={deleteGoal.bind(null, goal.id)}
                   successMessage="삭제되었습니다."
+                  confirmMessage={`「${goalTitle(goal)}」 목표를 삭제할까요? 되돌릴 수 없습니다.`}
                 >
                   {/* 어느 단계를 통해 지우는 중인지 — 잠금 판단이 여기서 갈린다. */}
                   <input
