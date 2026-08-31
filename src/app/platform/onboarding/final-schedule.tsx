@@ -49,7 +49,7 @@ type FinalSession = {
   location: string | null;
   startAt: Date;
   endAt: Date;
-  instructors: { user: { name: string; team: { name: string } | null } }[];
+  instructors: { user: { id: string; name: string; team: { name: string } | null } }[];
   teams: { team: { name: string } }[];
   attendees: { traineeId: string }[];
 };
@@ -158,7 +158,7 @@ export async function FinalScheduleSection({
         location: true,
         startAt: true,
         endAt: true,
-        instructors: { select: { user: { select: { name: true, team: { select: { name: true } } } } } },
+        instructors: { select: { user: { select: { id: true, name: true, team: { select: { name: true } } } } } },
         teams: { select: { team: { select: { name: true } } } },
         attendees: { select: { traineeId: true } },
       },
@@ -174,6 +174,8 @@ export async function FinalScheduleSection({
 
   const trainees: Trainee[] = program.trainees;
   const myTrainee = trainees.find((t) => t.userId === viewerId) ?? null;
+  // 교육생이 아닌 사람 중에서도 강사는 사정이 다르다 — 안내 문구를 가른다.
+  const iTeach = sessions.some((s) => s.instructors.some((i) => i.user.id === viewerId));
 
   // 대상이 따로 지정되지 않은 교육은 기수 전원이 듣는다 — 지정 명단이 비어
   // 있는 것을 "전원 대상"으로 읽는다.
@@ -265,8 +267,15 @@ export async function FinalScheduleSection({
           </div>
         </div>
       ) : (
+        // 교육생이 아닌 사람에게 뜨는 줄. "명단에 없다"고만 하면 명단을
+        // 잘못 등록한 줄 알기 쉬우므로, 보는 사람이 어떤 자격으로 이
+        // 화면을 열었는지를 말해 준다.
         <p className="text-xs text-slate-500">
-          이 기수의 교육생 명단에 포함되어 있지 않아 전체 일정만 표시됩니다.
+          {isAdmin
+            ? "관리자로 보고 있어 기수 전체 일정이 표시됩니다."
+            : iTeach
+              ? "강사로 배정되어 있어 기수 전체 일정이 표시됩니다."
+              : "본인이 교육생은 아니므로 기수 전체 일정이 표시됩니다."}
         </p>
       )}
 
