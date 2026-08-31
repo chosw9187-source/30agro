@@ -460,6 +460,28 @@ export default async function Evaluation2Page({
     .filter((c) => cycleYear(c) === selectedYear)
     .sort((a, b) => cyclePhaseRank(a) - cyclePhaseRank(b));
 
+  /*
+    진행 띠에 쓸 **내** 개인목표 현황. 단계마다 «회사가 그 단계를 열었나»와
+    «내가 그 단계에서 할 일을 끝냈나»는 다른 이야기라, 사이클 상태만 보고
+    그리면 남의 진도를 내 진도처럼 읽게 된다. 그래서 그 해의 단계들에서 내가
+    가진 개인목표와 평가완료 수를 함께 센다.
+  */
+  const myYearGoals = await prisma.goal.findMany({
+    where: {
+      cycleId: { in: yearCycles.map((c) => c.id) },
+      level: "INDIVIDUAL",
+      ownerId: session!.user.id,
+    },
+    select: { cycleId: true, evalDoneAt: true },
+  });
+  const myStageStat = new Map<string, { total: number; done: number }>();
+  for (const g of myYearGoals) {
+    const cur = myStageStat.get(g.cycleId) ?? { total: 0, done: 0 };
+    cur.total += 1;
+    if (g.evalDoneAt) cur.done += 1;
+    myStageStat.set(g.cycleId, cur);
+  }
+
   const PROGRESS_PHASE = "progress";
   const phaseKey = (c: { name: string; year: number }) =>
     String(cyclePhaseRank(c));
@@ -949,7 +971,7 @@ export default async function Evaluation2Page({
   function companyGoalBoard() {
     return (
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-1.5">
           <h1 className="text-sm font-bold whitespace-nowrap text-slate-900">
             {/* 해는 이름을 먼저 믿는다 — 「2026년 중간평가」인데 기간이 2028년으로
                 들어가 있으면 표 머리에 «2028년»이 뜬다(`cycleYear`). */}
@@ -1003,7 +1025,7 @@ export default async function Evaluation2Page({
 
         {/* 표는 펼친 채로 연다. 자리가 아깝다 싶으면 머리글을 눌러 접는다. */}
         <details open>
-          <summary className="flex cursor-pointer items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-1.5 text-xs text-slate-600 hover:bg-slate-100">
+          <summary className="flex cursor-pointer items-center gap-2 border-t border-slate-200 bg-slate-50 px-4 py-1 text-xs text-slate-600 hover:bg-slate-100">
             <span className="font-medium">
               전사 목표 {companyGoals.length}건
             </span>
@@ -1054,11 +1076,11 @@ export default async function Evaluation2Page({
               <table className="w-full text-sm sm:min-w-[860px]">
                 <thead className="bg-slate-100 text-slate-600">
                   <tr>
-                    <th className="px-3 py-1.5 text-left text-xs font-semibold sm:px-4">
+                    <th className="px-3 py-1 text-left text-xs font-semibold sm:px-4">
                       목표
                     </th>
                     {showsProgress && (
-                      <th className="w-16 px-3 py-1.5 text-left text-xs font-semibold sm:w-56 sm:px-4">
+                      <th className="w-16 px-3 py-1 text-left text-xs font-semibold sm:w-56 sm:px-4">
                         달성률
                       </th>
                     )}
@@ -1073,7 +1095,7 @@ export default async function Evaluation2Page({
                           i % 2 === 1 ? "bg-slate-50/70" : ""
                         }`}
                       >
-                        <td className="px-4 py-1.5">
+                        <td className="px-4 py-1">
                           {/*
                           전사목표 줄은 누르는 자리가 아니다. 한때 눌러서 «이
                           갈래만 보기»로 걸러 줬는데, 한 번 누르면 아직 아무것도
@@ -1110,7 +1132,7 @@ export default async function Evaluation2Page({
                             )}
                         </td>
                         {showsProgress && (
-                          <td className="px-3 py-1.5 sm:px-4">
+                          <td className="px-3 py-1 sm:px-4">
                             <div className="flex items-center gap-2">
                               <span className="hidden flex-1 sm:block">
                                 <Meter value={g.rollupProgress} size="md" />
@@ -1181,6 +1203,211 @@ export default async function Evaluation2Page({
 
   // ---- 한 줄 보드: 책임 · 팀 · 개인 ---------------------------------------
 
+  /*
+    한 해 평가가 지나가는 길을 가로 한 줄로 편 띠. 목표설정부터 종료까지 열 마디를
+    늘어놓고, 지금 내가 어디쯤인지를 표시한다.
+
+    마디는 세 갈래다.
+      - 사이클 마디(목표설정·중간평가·최종평가): 관리자가 「목표 사이클」에서 잡은
+        기간·상태와 **내 개인목표의 평가완료 수**를 함께 읽는다. 회사가 단계를
+        열었는지와 내가 그 단계를 끝냈는지는 다른 이야기라 둘 다 본다.
+      - 아직 만들지 않은 마디(합의·피드백·역량평가·성과평가): 자리만 잡아 둔다.
+        길 전체를 먼저 보여 주지 않으면 «지금 어디쯤인지»를 가늠할 수 없다.
+      - 종료: 그 해 사이클이 전부 완료되면 켜진다.
+
+    기간과 남은 날짜는 사이클에 적힌 시작·마감일을 그대로 쓴다 — 여기서 따로
+    적는 값이 없다. 관리자가 사이클 날짜를 고치면 이 띠도 그날로 같이 바뀐다.
+  */
+  function stageTimeline() {
+    type Stage = {
+      label: string;
+      rank?: 1 | 2 | 3;
+      end?: boolean;
+    };
+    const PLAN: Stage[] = [
+      { label: "목표설정", rank: 1 },
+      { label: "합의" },
+      { label: "중간평가", rank: 2 },
+      { label: "피드백" },
+      { label: "합의" },
+      { label: "최종평가", rank: 3 },
+      { label: "역량평가" },
+      { label: "성과평가" },
+      { label: "합의" },
+      { label: "종료", end: true },
+    ];
+
+    const cycleOf = (rank?: number) =>
+      rank ? (yearCycles.find((c) => cyclePhaseRank(c) === rank) ?? null) : null;
+
+    const midnight = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    ).getTime();
+    const dayOf = (d: Date) =>
+      new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const DAY = 86_400_000;
+    const fmt = (d: Date) =>
+      `${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
+    const fmtFull = (d: Date) =>
+      `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(
+        d.getDate(),
+      ).padStart(2, "0")}`;
+
+    const allClosed =
+      yearCycles.length > 0 && yearCycles.every((c) => c.status === "CLOSED");
+
+    const nodes = PLAN.map((st) => {
+      if (st.end) {
+        return {
+          ...st,
+          state: allClosed ? ("done" as const) : ("todo" as const),
+          period: null as string | null,
+          cycle: null as (typeof yearCycles)[number] | null,
+        };
+      }
+      const c = cycleOf(st.rank);
+      if (!c) {
+        // 아직 만들지 않은 단계(합의·피드백…)와, 그 해에 아직 열지 않은 사이클.
+        return {
+          ...st,
+          state: "todo" as const,
+          period: null,
+          cycle: null,
+        };
+      }
+      const mine = myStageStat.get(c.id) ?? { total: 0, done: 0 };
+      /*
+        목표설정은 «목표를 확정(마감)했나»가 끝난 표시다 — 평가완료라는 개념이
+        없다. 중간·최종평가는 내 개인목표가 모두 평가완료여야 끝난 것이다.
+      */
+      const mineDone =
+        st.rank === 1
+          ? !!c.goalsLockedAt
+          : mine.total > 0 && mine.done === mine.total;
+      const state: "done" | "current" | "todo" =
+        c.status === "CLOSED" || mineDone
+          ? "done"
+          : c.status === "OPEN"
+            ? "current"
+            : "todo";
+      return {
+        ...st,
+        state,
+        period: `${fmt(c.startDate)}~${fmt(c.endDate)}`,
+        cycle: c,
+      };
+    });
+
+    /*
+      «지금»은 하나만 켠다. 세 사이클이 모두 열려 있는 일이 흔한데(관리자가 한
+      해치를 미리 만들어 둔다), 그대로 그리면 목표설정·중간·최종이 전부 «진행중»으로
+      빛나서 어디를 봐야 하는지가 사라진다. 앞선 단계부터 훑어 처음 만나는 하나만
+      남기고 뒤는 예정으로 내린다.
+    */
+    const currentIndex = nodes.findIndex((n) => n.state === "current");
+    for (let i = currentIndex + 1; i < nodes.length && currentIndex >= 0; i += 1) {
+      if (nodes[i].state === "current") nodes[i].state = "todo";
+    }
+    const active = currentIndex >= 0 ? nodes[currentIndex] : null;
+    const activeCycle = active?.cycle ?? null;
+    const remainDays = activeCycle
+      ? Math.ceil((dayOf(activeCycle.endDate) - midnight) / DAY)
+      : null;
+
+    return (
+      <section className={`${CARD_CLASS} px-4 py-1.5`}>
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <h2 className="text-sm font-semibold text-slate-800">
+            {activeCycle
+              ? `「${cyclePhaseLabel(activeCycle)}」 기간`
+              : `${selectedYear}년 평가 진행 현황`}
+          </h2>
+          {remainDays !== null && (
+            <span
+              className={`text-xs font-medium ${
+                remainDays < 0
+                  ? "text-status-critical"
+                  : remainDays <= 7
+                    ? "text-status-critical"
+                    : "text-brand-green-dark"
+              }`}
+            >
+              {remainDays < 0
+                ? `(마감 ${-remainDays}일 지남)`
+                : `(남은 기간 ${remainDays}일)`}
+            </span>
+          )}
+          <HelpMark text="기간과 남은 날짜는 관리자가 「조직 목표 관리」의 목표 사이클에 적어 둔 시작일·마감일을 그대로 읽습니다. 사이클 날짜를 고치면 이 줄도 같이 바뀝니다. 합의·피드백·역량평가·성과평가는 아직 준비 중이라 자리만 잡아 두었습니다." />
+          {activeCycle && (
+            <span className="ml-auto text-xs text-slate-500 tabular-nums">
+              {fmtFull(activeCycle.startDate)} ~ {fmtFull(activeCycle.endDate)}
+            </span>
+          )}
+        </div>
+
+        {/* 열 마디가 좁은 화면에 다 들어가지 않으면 옆으로 밀어 본다. */}
+        <div className="mt-2 overflow-x-auto">
+          <ol className="flex min-w-[640px] items-start">
+            {nodes.map((n, i) => {
+              const passed = currentIndex < 0 ? n.state === "done" : i <= currentIndex;
+              const lineBefore =
+                i > 0 && (nodes[i - 1].state === "done" || passed);
+              const lineAfter = i < nodes.length - 1 && n.state === "done";
+              return (
+                <li
+                  key={`${n.label}-${i}`}
+                  className="relative flex min-w-0 flex-1 flex-col items-center px-0.5"
+                >
+                  {i > 0 && (
+                    <span
+                      className={`absolute top-[10px] left-0 h-[2px] w-1/2 ${
+                        lineBefore ? "bg-brand-green" : "bg-slate-200"
+                      }`}
+                    />
+                  )}
+                  {i < nodes.length - 1 && (
+                    <span
+                      className={`absolute top-[10px] right-0 h-[2px] w-1/2 ${
+                        lineAfter ? "bg-brand-green" : "bg-slate-200"
+                      }`}
+                    />
+                  )}
+                  <span
+                    className={`relative z-10 flex h-[21px] w-[21px] items-center justify-center rounded-full text-[10px] font-bold ${
+                      n.state === "done"
+                        ? "bg-brand-green text-white"
+                        : n.state === "current"
+                          ? "bg-white text-brand-green ring-2 ring-brand-green"
+                          : "border border-dashed border-slate-300 bg-white text-slate-400"
+                    }`}
+                  >
+                    {n.state === "done" ? "✓" : i + 1}
+                  </span>
+                  <span
+                    className={`mt-1 text-center text-[11px] leading-tight break-keep ${
+                      n.state === "current"
+                        ? "font-bold text-brand-green-dark"
+                        : n.state === "done"
+                          ? "font-medium text-slate-700"
+                          : "text-slate-400"
+                    }`}
+                  >
+                    {n.label}
+                  </span>
+                  <span className="text-center text-[10px] leading-tight text-slate-400 tabular-nums">
+                    {n.period ?? (n.rank || n.end ? "" : "준비 중")}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      </section>
+    );
+  }
+
   function LevelSummaryCard({ level }: { level: GoalLevel }) {
     /*
       요약 카드도 **그 사람이 볼 수 있는 범위**만 센다. 목록에서는 남의 개인목표를
@@ -1226,10 +1453,10 @@ export default async function Evaluation2Page({
               color={LEVEL_COLOR[level]}
               size={188}
               stroke={18}
-              className="h-auto w-24 sm:w-[116px]"
+              className="h-auto w-20 sm:w-[88px]"
             />
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl leading-none font-semibold tabular-nums text-slate-900">
+              <span className="text-xl leading-none font-semibold tabular-nums text-slate-900">
                 {percent}
                 <span className="ml-0.5 text-sm font-normal text-slate-400">
                   %
@@ -1250,7 +1477,7 @@ export default async function Evaluation2Page({
             </h2>
           </div>
 
-          <dl className="mt-3 grid grid-cols-3 gap-1 border-t border-slate-100 pt-3 text-center">
+          <dl className="mt-2 grid grid-cols-3 gap-1 border-t border-slate-100 pt-2 text-center">
             <div>
               <dt className="text-xs text-slate-500">전체</dt>
               <dd className="text-xl font-semibold tabular-nums text-slate-800">
@@ -1278,7 +1505,7 @@ export default async function Evaluation2Page({
       </div>
     );
 
-    const className = `${CARD_CLASS} flex flex-col p-4`;
+    const className = `${CARD_CLASS} flex flex-col p-3`;
 
     return linkable ? (
       <Link
@@ -2922,7 +3149,7 @@ export default async function Evaluation2Page({
     // 볼 수 있는 자리가 줄고, 그 자리를 벗어난 것은 어디로 갔는지 알 수 없게
     // 된다. 지금은 평범한 스크롤 한 벌만 있고, 화면 밖으로 나간 것은 위로
     // 올리면 그대로 돌아온다.
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1.5">
       {/* 다른 사람이 목표를 고쳐도 이 화면이 알아서 최신 값을 받아온다. */}
       <AutoRefresh />
 
@@ -3086,6 +3313,8 @@ export default async function Evaluation2Page({
               중간평가·최종평가에서만 띄운다.
             */
             <>
+              {/* 층별 카드보다 먼저 «지금 어느 단계인가»를 읽는다. */}
+              {stageTimeline()}
               {showsProgress && (
                 <div className="grid gap-4 sm:grid-cols-2">
                   {DASHBOARD_LEVELS.map((level) => (
