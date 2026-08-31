@@ -944,6 +944,16 @@ async function ensureOtherGoal(
   scope: { division: string | null; teamId: string | null },
   createdById: string
 ): Promise<string | null> {
+  /*
+    팀 기타는 팀마다 하나다. 팀을 모른 채로 만들면 어느 팀 것도 아닌 묶음이
+    하나 더 생기고, 화면에는 이름이 같은 「기타 목표」가 두 줄로 뜬다. 여기까지
+    오는 길(개인목표 등록·수정)은 모두 팀을 필수로 받으므로, 비어 있으면 조용히
+    만들지 말고 멈춘다.
+  */
+  if (level === "TEAM" && !scope.teamId) {
+    throw new Error("팀을 먼저 정해야 「기타」에 매달 수 있습니다.");
+  }
+
   const where = {
     cycleId,
     level,
@@ -951,7 +961,13 @@ async function ensureOtherGoal(
     ...(level === "DIVISION" ? { division: scope.division } : {}),
     ...(level === "TEAM" ? { teamId: scope.teamId } : {}),
   };
-  const existing = await prisma.goal.findFirst({ where, select: { id: true } });
+  // 같은 자리에 기타가 둘 이상 남아 있더라도 늘 **먼저 만들어진** 것에 매단다.
+  // 아무거나 집으면 새로 고칠 때마다 매달리는 곳이 바뀌어 목록이 흔들린다.
+  const existing = await prisma.goal.findFirst({
+    where,
+    orderBy: { createdAt: "asc" },
+    select: { id: true },
+  });
   if (existing) return existing.id;
 
   // 위 층 기타를 먼저 확보한다. 전사는 위가 없으므로 여기서 멈춘다.
@@ -1490,11 +1506,19 @@ export async function updateGoal(formData: FormData) {
         된다 — 게다가 필수라서, 지금 매달린 상위가 목록에 없으면 저장 자체가
         조용히 막힌다.
       */
+      /*
+        기타 사슬을 만들 소속은 **저장될 값**(`scope`)에서 가져온다. 폼에서 바로
+        읽으면 안 된다 — 개인목표 폼에는 팀 칸이 아예 없고(사람을 고르면 팀이
+        따라온다), 팀을 하나만 이끄는 팀장에게는 팀 칸도 안 띄운다. 그래서
+        폼에서 읽으면 팀이 늘 비어 오고, `ensureOtherGoal`이 «팀 없는 기타»를
+        못 찾아 하나 더 만든다 — 목표를 고칠 때마다 「기타 목표」가 한 줄씩
+        늘어나던 원인이 이것이었다.
+      */
       parentId: await resolveParentId(
         level,
         str(formData.get("parentId")),
         existing.cycleId,
-        await resolveOtherScope(scopeFieldsFor(level, formData)),
+        await resolveOtherScope(scope),
         session.user.id
       ),
       ...evalData,

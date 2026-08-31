@@ -39,6 +39,7 @@ import {
 } from "./actions";
 import { CycleSelect } from "@/app/platform/evaluation2/cycle-select";
 import { ActionForm } from "@/components/action-form";
+import { CycleFields } from "./cycle-fields";
 
 export const dynamic = "force-dynamic";
 
@@ -764,6 +765,15 @@ export default async function OrgGoalsAdminPage({
               위·아래 화살표로 순서를 바꾸면 평가2 화면 왼쪽 위 「인사평가」 목록도 같은 순서가 됩니다.
             </p>
             {/*
+              «고쳤는데 안 바뀐다»는 대개 저장을 안 눌러서다. 칸을 건드리면 그 줄의
+              저장 단추가 초록으로 서지만, 그 규칙을 여기서 한 번 더 적어 둔다.
+            */}
+            <p className="mt-1 text-sm text-slate-500">
+              이름·기간은 <b className="font-semibold text-slate-700">그 줄의 「저장」</b>을
+              눌러야 반영됩니다. 여기서 정한 기간이 평가2 대시보드의 진행 띠에 그대로
+              나옵니다.
+            </p>
+            {/*
               연도 > 단계 두 층으로 묶는다. "2026년 목표설정 / 2026년 중간평가 /
               2026년 최종평가"가 평평하게 늘어서면 몇 해치가 섞이는 순간 읽기
               어려워지는데, 해 아래 단계가 들어가면 "2026년에는 이 세 가지가
@@ -815,34 +825,33 @@ export default async function OrgGoalsAdminPage({
                   <ActionForm
                     action={renameGoalCycle}
                     successMessage="저장되었습니다."
-                    className="flex flex-wrap items-center gap-1.5"
+                    className="contents"
                   >
-                    <input type="hidden" name="cycleId" value={c.id} />
-                    <input
-                      name="name"
-                      defaultValue={c.name}
-                      required
-                      aria-label="인사평가 이름"
-                      className="w-44 rounded-md border border-slate-300 px-2 py-1 text-sm font-medium"
-                    />
-                    <input
-                      type="date"
-                      name="startDate"
-                      defaultValue={toDateInputValue(c.startDate)}
-                      aria-label="시작일"
-                      className="rounded-md border border-slate-300 px-2 py-1 text-xs"
-                    />
-                    <span className="text-xs text-slate-400">~</span>
-                    <input
-                      type="date"
-                      name="endDate"
-                      defaultValue={toDateInputValue(c.endDate)}
-                      aria-label="종료일"
-                      className="rounded-md border border-slate-300 px-2 py-1 text-xs"
-                    />
-                    <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">
-                      이름·기간 저장
-                    </button>
+                    <CycleFields>
+                      <input type="hidden" name="cycleId" value={c.id} />
+                      <input
+                        name="name"
+                        defaultValue={c.name}
+                        required
+                        aria-label="인사평가 이름"
+                        className="w-44 rounded-md border border-slate-300 px-2 py-1 text-sm font-medium"
+                      />
+                      <input
+                        type="date"
+                        name="startDate"
+                        defaultValue={toDateInputValue(c.startDate)}
+                        aria-label="시작일"
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                      />
+                      <span className="text-xs text-slate-400">~</span>
+                      <input
+                        type="date"
+                        name="endDate"
+                        defaultValue={toDateInputValue(c.endDate)}
+                        aria-label="종료일"
+                        className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                      />
+                    </CycleFields>
                   </ActionForm>
                   <Link
                     href={cycleHref(c.id)}
