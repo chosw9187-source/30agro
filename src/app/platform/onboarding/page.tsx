@@ -817,16 +817,24 @@ export default async function OnboardingPage({
     sessionId?: string;
   }>;
 }) {
-  if (!(await checkModuleAccess("ONBOARDING"))) {
+  const session = await auth();
+  if (!session?.user) {
     return <NoModuleAccess title="온보딩 프로그램" />;
   }
-
-  const session = await auth();
-  const viewerId = session!.user.id;
-  const isAdmin = session!.user.role === "ADMIN";
+  const viewerId = session.user.id;
+  const isAdmin = session.user.role === "ADMIN";
   // 온보딩 안내는 이 기수에 얽힌 사람만 본다. 하나도 볼 게 없는 사람에게는
   // 탭 자체를 감춘다 — 눌러 봐야 "권한 없음"만 나온다.
   const canSeeGuide = await hasAnyOnboardingAccess(viewerId, isAdmin);
+
+  // 권한 매트릭스에서 온보딩이 닫혀 있어도 배정된 강사·부서와 교육생은
+  // 들어온다. 매트릭스는 직책별 기본값이라 "이번 기수에 강의를 맡았다"는
+  // 사정을 알 수 없고, 그것 때문에 정작 강의할 사람이 자기 시간표를 못 보면
+  // 안내서 노릇을 못 한다. 볼 수 있는 범위는 canViewOnboardingProgram이
+  // 따로 좁힌다.
+  if (!canSeeGuide && !(await checkModuleAccess("ONBOARDING"))) {
+    return <NoModuleAccess title="온보딩 프로그램" />;
+  }
 
   const {
     tab: tabParam,

@@ -130,12 +130,29 @@ export async function canViewOnboardingProgram(
   return myMemberIsTrainee > 0;
 }
 
-/** 온보딩 안내를 볼 수 있는 기수가 하나라도 있는지 — 탭 노출 판단용. */
+/**
+ * 온보딩 안내를 볼 수 있는 기수가 하나라도 있는지 — 메뉴·탭 노출 판단용.
+ *
+ * 위 규칙을 기수 구분 없이 한 번에 묻는다. 사이드바가 모든 화면에서 이걸
+ * 부르므로 기수 수에 비례해 질의가 늘면 안 된다.
+ */
 export async function hasAnyOnboardingAccess(userId: string, isAdmin: boolean): Promise<boolean> {
   if (isAdmin) return true;
-  const programs = await prisma.onboardingProgram.findMany({ select: { id: true } });
-  for (const p of programs) {
-    if (await canViewOnboardingProgram(p.id, userId, isAdmin)) return true;
-  }
-  return false;
+
+  const [asTrainee, asInstructor, me] = await Promise.all([
+    prisma.onboardingTrainee.count({ where: { userId } }),
+    prisma.onboardingSession.count({ where: { instructors: { some: { userId } } } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { teamId: true } }),
+  ]);
+  if (asTrainee > 0 || asInstructor > 0) return true;
+  if (!me?.teamId) return false;
+
+  const myTeamTeaches = await prisma.onboardingSession.count({
+    where: { teams: { some: { teamId: me.teamId } } },
+  });
+  if (myTeamTeaches > 0) return true;
+
+  const iLead = await prisma.team.count({ where: { id: me.teamId, leaderId: userId } });
+  if (iLead === 0) return false;
+  return (await prisma.onboardingTrainee.count({ where: { user: { teamId: me.teamId } } })) > 0;
 }
