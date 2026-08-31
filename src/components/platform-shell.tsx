@@ -119,7 +119,7 @@ export async function PlatformShell({
             </Link>
           </header>
 
-          <main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:pt-8 md:pb-4">
+          <main className="min-w-0 flex-1 px-4 py-6 md:px-8 md:pt-6 md:pb-2">
             {/*
               본인 띠는 본문 **안**, 맨 앞이다 — 로고 줄만 제자리에 남고 띠부터
               아래는 본문과 함께 굴러 내려간다. 띠를 로고 줄 옆에 붙여 두었더니
@@ -134,7 +134,7 @@ export async function PlatformShell({
             <RouteOnly prefix="/platform/evaluation2">
               <EvaluateeBanner
                 userId={user.id}
-                className="-mx-4 -mt-6 mb-4 md:-mx-8 md:-mt-8 md:mb-4"
+                className="-mx-4 -mt-6 mb-3 md:-mx-8 md:-mt-8 md:mb-3"
               />
             </RouteOnly>
             {children}
