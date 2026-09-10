@@ -66,7 +66,7 @@ export default async function EmployeeDirectoryPage({
   ]);
 
   return (
-    <div className="flex h-[calc(100dvh-152px)] min-h-[520px] flex-col gap-3">
+    <div className="flex flex-col gap-3 lg:h-[calc(100dvh-152px)] lg:min-h-[520px]">
       <div className="shrink-0">
         <h1 className="text-2xl font-semibold">직원정보 조회</h1>
         <p className="mt-1 text-sm text-slate-600">
@@ -85,29 +85,45 @@ export default async function EmployeeDirectoryPage({
           가운데·오른쪽 칸이 화면 밖으로 밀려 잘린 채 남는다 — 예전에는 본문이
           자기 안에서 옆으로 굴러 겨우 볼 수 있었지만, 그 가로 스크롤 자체가
           화면에 막대를 하나 더 만들던 원인이었다.
+
+          높이를 화면에 묶는 것은 lg 이상에서만 한다. 좁은 화면에서도 묶어
+          두면 조직도·목록 칸이 shrink-0이라 자리를 다 가져가고, 인사카드는
+          남은 몇십 픽셀에 갇혀 제 안에서만 굴러서 읽을 수가 없다. 좁은
+          화면에서는 문서가 통째로 스크롤되고 인사카드는 내용만큼 늘어난다.
+          대신 위 두 칸은 45vh로 묶어 둔다 — 안 묶으면 30개 팀 트리가 통째로
+          펼쳐져 카드가 화면 몇 개 아래로 밀려난다.
         */}
-        <div className="flex min-h-0 flex-1 flex-col gap-3 lg:flex-row">
-          <aside className="w-full shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white lg:w-60">
+        <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:flex-row">
+          <aside className="flex max-h-[45vh] w-full shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white lg:max-h-none lg:w-60">
             <EmployeeTreeFilterPanel />
           </aside>
 
-          <div className="w-full shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white lg:w-80">
+          <div className="flex max-h-[45vh] w-full shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white lg:max-h-none lg:w-80">
             <EmployeeSummaryListPanel />
           </div>
 
-          <div className="min-w-0 flex-1 overflow-y-auto rounded-lg border border-slate-200 bg-white p-4">
+          {/*
+            id는 목록의 이름 링크가 `?userId=...#card`로 걸어 두는 앵커다.
+            같은 페이지 안에서의 이동이라 Next는 스크롤 위치를 그대로 두는데,
+            좁은 화면에서는 카드가 목록 한참 아래라 눌러도 아무 일도 안 일어난
+            것처럼 보인다. 해시가 있으면 앵커로 내려간다.
+          */}
+          <div
+            id="card"
+            className="min-w-0 scroll-mt-4 rounded-lg border border-slate-200 bg-white p-4 lg:flex-1 lg:overflow-y-auto"
+          >
             {!selectedUserId ? (
-              <div className="flex h-full flex-col items-center justify-center gap-1 text-center text-sm text-slate-400">
+              <div className="flex min-h-[200px] flex-col items-center justify-center gap-1 text-center text-sm text-slate-400 lg:h-full">
                 <p>가운데 목록에서 이름을 클릭하면</p>
                 <p>여기에 인사카드가 표시됩니다</p>
               </div>
             ) : !selectedCard?.allowed ? (
-              <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+              <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500 lg:h-full">
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">접근 권한 없음</span>
                 <p>이 직원의 상세 정보는 본인, 임원급, 인사팀, 또는 같은 팀의 팀장만 볼 수 있습니다.</p>
               </div>
             ) : !selectedCard.employee ? (
-              <div className="flex h-full items-center justify-center text-sm text-slate-500">직원을 찾을 수 없습니다.</div>
+              <div className="flex min-h-[200px] items-center justify-center text-sm text-slate-500 lg:h-full">직원을 찾을 수 없습니다.</div>
             ) : (
               <EmployeeCardContent employee={selectedCard.employee} isAdmin={selectedCard.isAdmin} />
             )}

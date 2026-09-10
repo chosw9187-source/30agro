@@ -424,7 +424,7 @@ export function EmployeeSummaryListPanel() {
             {filteredList.map((e) => (
               <Link
                 key={e.id}
-                href={`${basePath}?userId=${e.id}`}
+                href={`${basePath}?userId=${e.id}#card`}
                 className={`block rounded-lg border p-2.5 hover:border-brand-green ${
                   focusedUserId === e.id ? "border-brand-green bg-brand-green-light" : "border-slate-200 bg-white"
                 }`}

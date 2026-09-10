@@ -160,18 +160,30 @@ export function EmployeeCardContent({ employee, isAdmin }: { employee: EmployeeC
 
   return (
     <>
-      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-        <div className="flex items-center gap-5 border-b border-slate-100 bg-brand-green-light p-6">
+      {/*
+        @container: 이 카드는 넓은 화면에서도 좁은 칸(직원정보 조회의 오른쪽
+        세 번째 칸) 안에 들어간다. 그래서 sm: 같은 화면폭 기준 클래스는 전혀
+        도움이 되지 않는다 — 1440px 화면이어도 카드 칸은 300px대라 sm:이
+        켜진 채로 눌린다. 아래는 전부 카드 자기 폭 기준(@sm/@md/@2xl)이다.
+      */}
+      <div className="@container overflow-hidden rounded-lg border border-slate-200 bg-white">
+        {/*
+          좁은 화면에서는 줄을 바꾼다. 한 줄로 두면 390px에서 아바타(80px)와
+          다운로드 버튼 세 개가 자리를 다 가져가고 이름 칸에 30px쯤만 남아,
+          "직" "원" "1" 처럼 한 글자씩 세로로 쪼개진 채 버튼은 오른쪽으로
+          잘려 나갔다. 이름 칸에 min-w-0/flex-1을 줘야 실제로 줄어든다.
+        */}
+        <div className="flex flex-wrap items-center gap-4 border-b border-slate-100 bg-brand-green-light p-4 @sm:gap-5 @sm:p-6">
           <Avatar
             userId={employee.id}
             name={employee.name}
             hasPhoto={hasPhoto}
-            className="h-20 w-20 border-2 border-white"
+            className="h-16 w-16 shrink-0 border-2 border-white @sm:h-20 @sm:w-20"
           />
-          <div>
+          <div className="min-w-[9rem] flex-1">
             {!hasPhoto && <p className="text-xs text-slate-500">사진 미등록</p>}
-            <h1 className="text-2xl font-semibold text-brand-black">{employee.name}</h1>
-            <p className="mt-1 text-slate-600">
+            <h1 className="text-xl font-semibold text-brand-black @sm:text-2xl">{employee.name}</h1>
+            <p className="mt-1 text-sm text-slate-600 @sm:text-base">
               {isCeo ? (
                 employee.jobGrade || "CEO"
               ) : (
@@ -182,7 +194,7 @@ export function EmployeeCardContent({ employee, isAdmin }: { employee: EmployeeC
             </p>
           </div>
           {isAdmin && (
-            <div className="ml-auto flex shrink-0 gap-2 self-start">
+            <div className="flex w-full flex-wrap gap-2 @xl:ml-auto @xl:w-auto @xl:shrink-0 @xl:self-start">
               <a
                 href={`/api/employees/${employee.id}/hr-card/pdf`}
                 className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-brand-green hover:text-brand-green"
@@ -205,10 +217,10 @@ export function EmployeeCardContent({ employee, isAdmin }: { employee: EmployeeC
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-8 p-6 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-8 p-4 @xl:grid-cols-2 @sm:p-6">
           <section>
             <h2 className="mb-3 text-sm font-semibold text-slate-700">기본 정보</h2>
-            <dl className="grid grid-cols-2 gap-4">
+            <dl className="grid grid-cols-1 gap-4 @md:grid-cols-2">
               <Field label="사번" value={employee.employeeNumber} />
               <Field label="이메일" value={employee.email} />
               <div className="flex flex-col gap-0.5">
@@ -221,7 +233,7 @@ export function EmployeeCardContent({ employee, isAdmin }: { employee: EmployeeC
                 <dt className="text-xs text-slate-400">생년월일</dt>
                 <dd className="text-sm text-slate-800">
                   {isAdmin ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <DateFieldEditor userId={employee.id} value={employee.birthDate} action={updateUserBirthDate} />
                       {employee.birthDate && (
                         <span className="text-xs text-slate-400">만 {ageInYears(employee.birthDate)}세</span>
@@ -236,7 +248,7 @@ export function EmployeeCardContent({ employee, isAdmin }: { employee: EmployeeC
                 <dt className="text-xs text-slate-400">입사일</dt>
                 <dd className="text-sm text-slate-800">
                   {isAdmin ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <DateFieldEditor userId={employee.id} value={employee.hireDate} action={updateUserHireDate} />
                       {employee.hireDate && (
                         <span className="text-xs text-slate-400">근속 {tenureInYears(employee.hireDate).toFixed(1)}년</span>
@@ -263,7 +275,7 @@ export function EmployeeCardContent({ employee, isAdmin }: { employee: EmployeeC
           {!isCeo && (
             <section>
               <h2 className="mb-3 text-sm font-semibold text-slate-700">조직 정보</h2>
-              <dl className="grid grid-cols-2 gap-4">
+              <dl className="grid grid-cols-1 gap-4 @md:grid-cols-2">
                 <div className="flex flex-col gap-0.5">
                   <dt className="text-xs text-slate-400">사업단위</dt>
                   <dd className="text-sm text-slate-800">
