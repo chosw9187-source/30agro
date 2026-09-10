@@ -90,11 +90,11 @@ export default async function EmployeeDirectoryPage({
           두면 조직도·목록 칸이 shrink-0이라 자리를 다 가져가고, 인사카드는
           남은 몇십 픽셀에 갇혀 제 안에서만 굴러서 읽을 수가 없다. 좁은
           화면에서는 문서가 통째로 스크롤되고 인사카드는 내용만큼 늘어난다.
-          대신 위 두 칸은 45vh로 묶어 둔다 — 안 묶으면 30개 팀 트리가 통째로
+          대신 위 두 칸은 55vh/45vh로 묶어 둔다 — 안 묶으면 30개 팀 트리가 통째로
           펼쳐져 카드가 화면 몇 개 아래로 밀려난다.
         */}
         <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:flex-row">
-          <aside className="flex max-h-[45vh] w-full shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white lg:max-h-none lg:w-60">
+          <aside className="flex max-h-[55vh] w-full shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white lg:max-h-none lg:w-60">
             <EmployeeTreeFilterPanel />
           </aside>
 

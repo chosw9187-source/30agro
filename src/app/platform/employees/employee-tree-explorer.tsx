@@ -353,8 +353,14 @@ function DivisionNodeView({ d }: { d: DivisionNode }) {
 
 export function EmployeeTreeFilterPanel() {
   const { units, rootTeams, teams, query, setQuery, position, setPosition, resetChecks } = useTreeExplorer();
+  // 루트에 h-full 을 쓰면 안 된다. 이 패널을 감싼 칸은 높이가 정해져 있지
+  // 않고 max-height 로만 묶여 있어서 height:100% 가 auto 로 풀린다. 그러면
+  // 패널이 내용만큼(1800px씩) 자라고 안쪽 overflow-y-auto 는 넘칠 게 없어
+  // 스크롤이 생기지 않는다 — 칸은 overflow-hidden 이라 잘린 부분을 볼 방법이
+  // 아예 없어진다. 감싼 칸이 flex 컨테이너이므로 높이를 지정하지 않고
+  // stretch 로 받으면 max-height 로 잘린 실제 높이에 맞춰진다.
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex min-h-0 w-full flex-col">
       <div className="flex shrink-0 flex-col gap-2 border-b border-slate-200 p-3">
         <p className="text-xs font-semibold text-slate-500">검색 조건</p>
         <input
@@ -405,7 +411,7 @@ export function EmployeeSummaryListPanel() {
   const { filteredList, checkedIds, query, basePath, focusedUserId } = useTreeExplorer();
   const hasQuery = query.trim().length > 0;
   return (
-    <div className="flex h-full min-h-0 flex-col p-3">
+    <div className="flex min-h-0 w-full flex-col p-3">
       <div className="mb-2 flex shrink-0 items-baseline justify-between px-1">
         <span className="text-sm font-semibold text-slate-700">{hasQuery ? "검색 결과" : "체크된 인원"}</span>
         <span className="text-xs text-slate-400">{filteredList.length}명</span>
