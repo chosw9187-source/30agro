@@ -69,13 +69,27 @@ export async function getEffectiveModuleScope(
   if (role === "ADMIN") return "FULL";
   if (ADMIN_ONLY_MODULES.has(module)) return "NONE";
 
-  const override = await prisma.userPermissionOverride.findUnique({
+  const override = await getUserModuleOverride(userId, module);
+  if (override) return override;
+
+  return getPositionModuleScope(position, module);
+}
+
+/**
+ * 권한 매트릭스 > 사용자별에서 이 사람에게 콕 집어 지정한 값. 지정하지
+ * 않았으면(폼에서 "직책 기본값"을 고르면 행이 지워진다) null이다. 값이
+ * 있다는 것 자체가 관리자의 명시적 예외 지정이라는 뜻이라, 인사카드 열람
+ * 상한을 넘어설 수 있는 유일한 통로로도 쓰인다 — getCardScopeFilter 참고.
+ */
+async function getUserModuleOverride(
+  userId: string,
+  module: Module
+): Promise<PermissionScope | null> {
+  const row = await prisma.userPermissionOverride.findUnique({
     where: { userId_module: { userId, module } },
     select: { scope: true },
   });
-  if (override) return override.scope as PermissionScope;
-
-  return getPositionModuleScope(position, module);
+  return (row?.scope as PermissionScope) ?? null;
 }
 
 export async function getVisibleModules(
@@ -183,13 +197,23 @@ export async function getCardScopeFilter(): Promise<Record<string, unknown> | nu
   if (!viewer) return BLOCK_ALL;
 
   const position = (viewer.position ?? "STAFF") as Position;
-  const configured = await getEffectiveModuleScope(
-    viewerId,
-    session.user.role,
-    position,
-    "EMPLOYEES"
-  );
-  const scope = narrowerCardScope(configured, POSITION_CARD_SCOPE_CEILING[position] ?? "SELF");
+
+  // 사용자별 개별 설정은 관리자가 한 사람을 콕 집어 지정한 명시적 예외라
+  // 직책 상한을 넘어설 수 있다. 임원에게 역할을 ADMIN으로 올리지 않고도 전
+  // 직원 열람을 열어주기 위한 통로다 — ADMIN으로 올리면 개발 중인 화면과
+  // 관리 메뉴까지 함께 열려버린다.
+  //
+  // 직책별 매트릭스는 반대로 상한을 좁히는 데만 쓴다. 매트릭스는 '전체'를
+  // 고르면 행을 지우는 방식이라 "전체로 지정함"과 "아직 설정 안 함"이 DB에서
+  // 구분되지 않는데, 설정이 없을 때의 기본값도 '전체'다. 이걸 예외로
+  // 인정하면 아무 설정도 안 한 상태가 곧바로 전 직원 공개가 된다.
+  const override = await getUserModuleOverride(viewerId, "EMPLOYEES");
+  const scope = override
+    ? override
+    : narrowerCardScope(
+        await getPositionModuleScope(position, "EMPLOYEES"),
+        POSITION_CARD_SCOPE_CEILING[position] ?? "SELF"
+      );
 
   const onlySelf = { id: viewerId };
   /** 본인 + (조건에 맞으면서 사장이 아닌 사람). */
