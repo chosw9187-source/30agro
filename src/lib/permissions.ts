@@ -212,10 +212,26 @@ export async function getCardScopeFilter(): Promise<Record<string, unknown> | nu
     return selfOr({ OR: sameTeamOrLed });
   }
 
-  // 팀이 없는 임원 등은 User 자신의 businessUnit/division을 쓰고, 팀이 있으면
-  // 팀에 붙은 값을 쓴다 — loadViewerContext와 같은 우선순위.
+  /**
+   * 대상자가 그 사업단위/부문 소속인지 판정한다. 우선순위는 보는 사람
+   * 쪽(loadViewerContext)과 반드시 같아야 한다 — 팀에 값이 있으면 팀 값을,
+   * 팀이 없거나 팀에 값이 비어 있으면 User 자신의 값을 쓴다.
+   *
+   * 예전에는 두 번째 갈래가 "팀이 아예 없을 때"(teamId: null)만 걸려서,
+   * 팀은 있는데 그 팀 레코드에 사업단위가 안 채워진 사람들(지점이 특히
+   * 그렇다)이 소속 판정에서 통째로 빠졌다. 그래서 같은 사업단위 임원인데도
+   * 지점 인원 인사카드가 전부 "접근 권한 없음"으로 막혔다.
+   */
   const belongsTo = (field: "division" | "businessUnit", value: string) => ({
-    OR: [{ team: { [field]: value } }, { AND: [{ teamId: null }, { [field]: value }] }],
+    OR: [
+      { team: { [field]: value } },
+      {
+        AND: [
+          { OR: [{ teamId: null }, { team: { [field]: null } }] },
+          { [field]: value },
+        ],
+      },
+    ],
   });
 
   // 부문명은 사업단위가 다르면 겹칠 수 있으므로, 보는 사람에게 사업단위가
