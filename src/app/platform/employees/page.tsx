@@ -86,6 +86,12 @@ export default async function EmployeeDirectoryPage({
           자기 안에서 옆으로 굴러 겨우 볼 수 있었지만, 그 가로 스크롤 자체가
           화면에 막대를 하나 더 만들던 원인이었다.
 
+          왼쪽 두 칸의 폭은 rem 이 아니라 px 로 고정한다. globals.css 가
+          1024px 이상에서 루트 폰트를 21.3px 로 키우는데, 폭을 rem 으로 잡으면
+          (w-60=15rem, w-80=20rem) 320px·426px 로 함께 부풀어 두 칸이 화면
+          크기와 무관하게 746px 를 먹는다. 그만큼은 전부 인사카드에서 빠지는
+          자리라 1366px 노트북에서 카드에 184px 밖에 남지 않았다.
+
           높이를 화면에 묶는 것은 lg 이상에서만 한다. 좁은 화면에서도 묶어
           두면 조직도·목록 칸이 shrink-0이라 자리를 다 가져가고, 인사카드는
           남은 몇십 픽셀에 갇혀 제 안에서만 굴러서 읽을 수가 없다. 좁은
@@ -94,11 +100,11 @@ export default async function EmployeeDirectoryPage({
           펼쳐져 카드가 화면 몇 개 아래로 밀려난다.
         */}
         <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1 lg:flex-row">
-          <aside className="flex max-h-[55vh] w-full shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white lg:max-h-none lg:w-60">
+          <aside className="flex max-h-[55vh] w-full shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white lg:max-h-none lg:w-[240px]">
             <EmployeeTreeFilterPanel />
           </aside>
 
-          <div className="flex max-h-[45vh] w-full shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white lg:max-h-none lg:w-80">
+          <div className="flex max-h-[45vh] w-full shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-white lg:max-h-none lg:w-[300px]">
             <EmployeeSummaryListPanel />
           </div>
 
