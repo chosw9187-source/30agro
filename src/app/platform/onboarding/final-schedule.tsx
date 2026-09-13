@@ -49,7 +49,7 @@ type FinalSession = {
   location: string | null;
   startAt: Date;
   endAt: Date;
-  instructors: { user: { name: string; team: { name: string } | null } }[];
+  instructors: { user: { id: string; name: string; team: { name: string } | null } }[];
   teams: { team: { name: string } }[];
   attendees: { traineeId: string }[];
 };
@@ -158,7 +158,7 @@ export async function FinalScheduleSection({
         location: true,
         startAt: true,
         endAt: true,
-        instructors: { select: { user: { select: { name: true, team: { select: { name: true } } } } } },
+        instructors: { select: { user: { select: { id: true, name: true, team: { select: { name: true } } } } } },
         teams: { select: { team: { select: { name: true } } } },
         attendees: { select: { traineeId: true } },
       },
@@ -174,6 +174,8 @@ export async function FinalScheduleSection({
 
   const trainees: Trainee[] = program.trainees;
   const myTrainee = trainees.find((t) => t.userId === viewerId) ?? null;
+  // 교육생이 아닌 사람 중에서도 강사는 사정이 다르다 — 안내 문구를 가른다.
+  const iTeach = sessions.some((s) => s.instructors.some((i) => i.user.id === viewerId));
 
   // 대상이 따로 지정되지 않은 교육은 기수 전원이 듣는다 — 지정 명단이 비어
   // 있는 것을 "전원 대상"으로 읽는다.
@@ -226,6 +228,11 @@ export async function FinalScheduleSection({
         <p className="mt-3 text-xs text-slate-500">
           교육 {lectureCount}건 · 교육생 {trainees.length}명
         </p>
+        {/* 누구와 함께 듣는지는 안내서에서 자주 찾는 정보다 — 숫자만 두면
+            결국 관리자에게 명단을 물어보게 된다. */}
+        {trainees.length > 0 && (
+          <TraineeChips trainees={trainees} myTraineeId={myTrainee?.id ?? null} className="mt-2" />
+        )}
       </div>
 
       {myTrainee ? (
@@ -265,8 +272,15 @@ export async function FinalScheduleSection({
           </div>
         </div>
       ) : (
+        // 교육생이 아닌 사람에게 뜨는 줄. "명단에 없다"고만 하면 명단을
+        // 잘못 등록한 줄 알기 쉬우므로, 보는 사람이 어떤 자격으로 이
+        // 화면을 열었는지를 말해 준다.
         <p className="text-xs text-slate-500">
-          이 기수의 교육생 명단에 포함되어 있지 않아 전체 일정만 표시됩니다.
+          {isAdmin
+            ? "관리자로 보고 있어 기수 전체 일정이 표시됩니다."
+            : iTeach
+              ? "강사로 배정되어 있어 기수 전체 일정이 표시됩니다."
+              : "본인이 교육생은 아니므로 기수 전체 일정이 표시됩니다."}
         </p>
       )}
 
@@ -447,6 +461,39 @@ type Logistics = {
  * 찾는 것("몇 시에 어디로")과 여기서 찾는 것("오늘 밤 어디서 자나")이 달라,
  * 한 덩어리로 묶어 두면 둘 다 잘 안 보인다.
  */
+/**
+ * 교육생 이름표. 기수 개요와 교육 상세가 같은 목록을 다른 범위로 보여 주는
+ * 자리라 한 벌만 둔다 — 개요는 기수 전원, 상세는 그 교육의 대상자다.
+ * 본인은 초록으로 짚어 준다.
+ */
+function TraineeChips({
+  trainees,
+  myTraineeId,
+  className = "",
+}: {
+  trainees: Trainee[];
+  myTraineeId: string | null;
+  className?: string;
+}) {
+  return (
+    <ul className={`flex flex-wrap gap-1.5 ${className}`}>
+      {trainees.map((t) => (
+        <li
+          key={t.id}
+          className={`rounded-full border px-2.5 py-1 text-xs ${
+            t.id === myTraineeId
+              ? "border-brand-green bg-brand-green-light font-medium text-brand-green-dark"
+              : "border-slate-200 bg-slate-50 text-slate-600"
+          }`}
+        >
+          {t.user.name}
+          {t.user.team && <span className="ml-1 text-slate-400">{t.user.team.name}</span>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function StayGuide({ logistics }: { logistics: Logistics[] }) {
   if (logistics.length === 0) return null;
 
@@ -674,21 +721,7 @@ function SessionDetail({
         {audience.length === 0 ? (
           <p className="mt-2 text-sm text-slate-500">등록된 교육생이 없습니다.</p>
         ) : (
-          <ul className="mt-2 flex flex-wrap gap-1.5">
-            {audience.map((t) => (
-              <li
-                key={t.id}
-                className={`rounded-full border px-2.5 py-1 text-xs ${
-                  t.id === myTraineeId
-                    ? "border-brand-green bg-brand-green-light font-medium text-brand-green-dark"
-                    : "border-slate-200 bg-slate-50 text-slate-600"
-                }`}
-              >
-                {t.user.name}
-                {t.user.team && <span className="ml-1 text-slate-400">{t.user.team.name}</span>}
-              </li>
-            ))}
-          </ul>
+          <TraineeChips trainees={audience} myTraineeId={myTraineeId} className="mt-2" />
         )}
       </div>
     </div>
