@@ -162,7 +162,18 @@ function HelpMark({ text }: { text: string }) {
       >
         ?
       </span>
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1.5 hidden w-72 -translate-x-1/2 rounded-lg bg-slate-800 px-3 py-2 text-[11px] leading-relaxed font-normal text-white shadow-lg ring-1 ring-slate-900/10 peer-hover:block peer-focus-visible:block">
+      {/*
+        설명은 물음표의 **오른쪽으로** 펼친다. 물음표를 가운데 두고 좌우로
+        벌리면(left-1/2 + -translate-x-1/2) 왼쪽 칸에 붙은 물음표에서는 설명의
+        절반이 본문 바깥으로 나가고, 화면은 가로로 넘치는 것을 잘라내므로
+        (globals.css의 html overflow-x) 첫 글자들이 통째로 잘려 나간다.
+        오른쪽으로만 펼치면 물음표가 왼쪽 끝에 있어도 글이 온전히 남는다.
+
+        물음표는 모두 칸 이름 옆, 카드 왼쪽·가운데에 있어서 오른쪽은 늘
+        자리가 남는다. 손에 쥔 화면에서만 남는 자리가 좁아 폭을 줄인다 —
+        줄이지 않으면 이번에는 오른쪽이 잘린다.
+      */}
+      <span className="pointer-events-none absolute bottom-full left-0 z-20 mb-1.5 hidden w-52 max-w-[calc(100vw-2.5rem)] rounded-lg sm:w-72 bg-slate-800 px-3 py-2 text-[11px] leading-relaxed font-normal text-white shadow-lg ring-1 ring-slate-900/10 peer-hover:block peer-focus-visible:block">
         {text}
       </span>
     </span>
