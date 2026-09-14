@@ -1865,10 +1865,19 @@ export async function saveCompetencyScores(formData: FormData) {
   const keys = competencyItemKeys(target.team?.name ?? null);
   if (keys.size === 0) throw new Error("이 사람에게 뜨는 역량평가 문항이 없습니다.");
 
+  /*
+    「전체 코멘트」는 팀장평가자 몫이다(양식에 «팀장평가자만 작성»이라 적혀 있다).
+    자기평가만 쓸 수 있는 사람이 저장할 때는 이 칸이 폼에 실려 오지 않으므로,
+    손대지 않고 그대로 둔다 — 빈 값으로 읽으면 팀장이 적어 둔 말이 지워진다.
+  */
+  const commentData = canWriteLead
+    ? { leadComment: str(formData.get("leadComment")) || null }
+    : {};
+
   const review = await prisma.competencyReview.upsert({
     where: { year_userId: { year, userId } },
-    create: { year, userId },
-    update: {},
+    create: { year, userId, ...commentData },
+    update: commentData,
     select: { id: true },
   });
 
