@@ -8,6 +8,8 @@ import {
   COMPETENCY_SCALE,
   isCompetencyTarget,
   coreKindFor,
+  needsJobSet,
+  competencyExcluded,
 } from "@/lib/competency";
 import {
   loadCompetencyForm,
@@ -26,8 +28,10 @@ import {
   saveCompetencySetItems,
   setTeamJobSet,
   setUserJobSet,
+  setTeamCompetencyExcluded,
+  setUserCompetencyExcluded,
 } from "./actions";
-import { JobSetSelect } from "./job-set-select";
+import { InstantSelect } from "./job-set-select";
 
 export const dynamic = "force-dynamic";
 
@@ -105,9 +109,24 @@ export default async function CompetencyFormAdminPage({
     역량평가를 받는 사람(담당·팀장)만 센다. 책임·운영책임·사장은 대상이 아니라
     직무를 배정할 필요가 없다.
   */
-  const targets = people.filter((p) => isCompetencyTarget(p.position));
+  const targetRows = form?.targets ?? [];
+  const excludedTeams = new Set(
+    targetRows.filter((r) => r.teamId && !r.included).map((r) => r.teamId!),
+  );
+  /*
+    직책으로 한 번 걸러 낸 뒤, 빠진 사람을 또 걸러 낸다. 빠진 사람은 직무를
+    배정할 필요가 없으므로 미배정 경고에도 넣지 않는다 — 영영 안 없어지는 빨간
+    줄이 되면 아무도 안 읽는다.
+  */
+  const roster = people.filter((p) => isCompetencyTarget(p.position));
+  const targets = roster.filter(
+    (p) => !competencyExcluded(p, targetRows).excluded,
+  );
   const unassigned = targets.filter(
-    (p) => !userAssign.has(p.id) && !(p.teamId && teamAssign.has(p.teamId)),
+    (p) =>
+      needsJobSet(p.position) &&
+      !userAssign.has(p.id) &&
+      !(p.teamId && teamAssign.has(p.teamId)),
   );
   const emptySets = jobSets.filter((s) =>
     s.items.some((i) => !i.area || !i.question),
@@ -130,9 +149,11 @@ export default async function CompetencyFormAdminPage({
       <div>
         <h1 className="text-2xl font-semibold">역량평가 문항</h1>
         <p className="mt-1 text-sm break-keep text-slate-600">
-          해마다 바뀌는 질문지를 여기서 갈아 끼웁니다. 핵심가치는
-          직책(담당·팀장)이 정하고, 직무역량은 팀마다 기본 직무를 고른 뒤 다른
-          직무인 사람만 따로 지정합니다. <b>평가를 시작하면 문항이 잠깁니다.</b>
+          해마다 바뀌는 질문지를 여기서 갈아 끼웁니다. 담당은{" "}
+          <b>핵심가치(팀원용) + 직무역량</b>, 팀장은{" "}
+          <b>핵심가치(팀장용) + 리더십역량</b>을 받습니다. 직무역량만 배정이
+          필요합니다 — 팀마다 기본 직무를 고른 뒤 다른 직무인 사람만 따로
+          지정하면 됩니다. <b>문항은 평가 중에도 바로 고칠 수 있습니다.</b>
         </p>
       </div>
 
@@ -194,40 +215,45 @@ export default async function CompetencyFormAdminPage({
             </span>
 
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              {editable && jobSets.length === 0 && (
+              {editable && (
                 <>
                   <ActionForm
                     action={seedCompetencyForm.bind(null, form.id)}
-                    successMessage="사내 양식 내용을 넣었습니다."
+                    successMessage="빠진 문항을 채웠습니다."
                   >
-                    <button type="submit" className={BTN}>
+                    <button
+                      type="submit"
+                      className={jobSets.length === 0 ? BTN : BTN_GHOST}
+                    >
                       사내 양식으로 채우기
+                      {jobSets.length > 0 && " (빠진 것만)"}
                     </button>
                   </ActionForm>
-                  {forms.filter((f) => f.year !== year).length > 0 && (
-                    <ActionForm
-                      action={copyCompetencyForm}
-                      successMessage="지난 양식을 베껴 왔습니다."
-                      className="flex items-center gap-1"
-                    >
-                      <input type="hidden" name="formId" value={form.id} />
-                      <select
-                        name="sourceYear"
-                        className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                  {jobSets.length === 0 &&
+                    forms.filter((f) => f.year !== year).length > 0 && (
+                      <ActionForm
+                        action={copyCompetencyForm}
+                        successMessage="지난 양식을 베껴 왔습니다."
+                        className="flex items-center gap-1"
                       >
-                        {forms
-                          .filter((f) => f.year !== year)
-                          .map((f) => (
-                            <option key={f.id} value={f.year}>
-                              {f.year}년
-                            </option>
-                          ))}
-                      </select>
-                      <button type="submit" className={BTN_GHOST}>
-                        베껴 오기
-                      </button>
-                    </ActionForm>
-                  )}
+                        <input type="hidden" name="formId" value={form.id} />
+                        <select
+                          name="sourceYear"
+                          className="rounded-md border border-slate-300 px-2 py-1 text-xs"
+                        >
+                          {forms
+                            .filter((f) => f.year !== year)
+                            .map((f) => (
+                              <option key={f.id} value={f.year}>
+                                {f.year}년
+                              </option>
+                            ))}
+                        </select>
+                        <button type="submit" className={BTN_GHOST}>
+                          베껴 오기
+                        </button>
+                      </ActionForm>
+                    )}
                 </>
               )}
               {editable ? (
@@ -299,9 +325,15 @@ export default async function CompetencyFormAdminPage({
               <span className="text-xs text-slate-500">
                 묶음마다 {COMPETENCY_ITEMS_PER_SET}문항 고정
               </span>
-              {!editable && (
+              {form.status === "CLOSED" && (
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
-                  평가 중이라 잠겨 있습니다
+                  종료된 양식이라 잠겨 있습니다
+                </span>
+              )}
+              {form.status === "OPEN" && (
+                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] break-keep text-amber-700">
+                  평가 중입니다 — 문항을 고치면 이미 매긴 점수가 그 문항에
+                  그대로 남습니다
                 </span>
               )}
               {editable && (
@@ -347,6 +379,9 @@ export default async function CompetencyFormAdminPage({
                         {set.kind === "JOB"
                           ? set.name
                           : COMPETENCY_SET_KIND_LABEL[set.kind]}
+                        <span className="ml-2 text-xs font-normal text-brand-green">
+                          {isOpen ? "접기" : "문항 고치기"}
+                        </span>
                       </Link>
                       <span
                         className={`text-xs ${
@@ -509,6 +544,9 @@ export default async function CompetencyFormAdminPage({
                     <th className="w-64 px-3 py-1 text-left text-xs font-semibold">
                       기본 직무
                     </th>
+                    <th className="w-32 px-3 py-1 text-left text-xs font-semibold">
+                      평가 대상
+                    </th>
                     <th className="w-20 px-3 py-1 text-left text-xs font-semibold">
                       인원
                     </th>
@@ -519,6 +557,7 @@ export default async function CompetencyFormAdminPage({
                     const headcount = targets.filter(
                       (p) => p.teamId === t.id,
                     ).length;
+                    const out = excludedTeams.has(t.id);
                     return (
                       <tr
                         key={t.id}
@@ -535,18 +574,38 @@ export default async function CompetencyFormAdminPage({
                             .join(" · ")}
                         </td>
                         <td className="px-3 py-1.5">
-                          <JobSetSelect
-                            action={setTeamJobSet}
-                            formId={form.id}
-                            scopeName="teamId"
-                            scopeId={t.id}
-                            value={teamAssign.get(t.id) ?? ""}
-                            options={jobOptions}
-                            emptyLabel="미배정"
+                          {out ? (
+                            <span className="text-xs text-slate-400">—</span>
+                          ) : (
+                            <InstantSelect
+                              action={setTeamJobSet}
+                              hidden={{ formId: form.id, teamId: t.id }}
+                              name="setId"
+                              value={teamAssign.get(t.id) ?? ""}
+                              options={[
+                                { value: "", label: "미배정" },
+                                ...jobOptions,
+                              ]}
+                              ariaLabel={`${t.name} 기본 직무`}
+                            />
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <InstantSelect
+                            action={setTeamCompetencyExcluded}
+                            hidden={{ formId: form.id, teamId: t.id }}
+                            name="excluded"
+                            value={out ? "1" : ""}
+                            options={[
+                              { value: "", label: "대상" },
+                              { value: "1", label: "평가 제외" },
+                            ]}
+                            ariaLabel={`${t.name} 평가 대상 여부`}
+                            tone={out ? "warn" : "plain"}
                           />
                         </td>
                         <td className="px-3 py-1.5 text-xs tabular-nums text-slate-500">
-                          {headcount}명
+                          {out ? "제외" : `${headcount}명`}
                         </td>
                       </tr>
                     );
@@ -564,7 +623,8 @@ export default async function CompetencyFormAdminPage({
               </h2>
               <span className="text-xs break-keep text-slate-500">
                 한 팀에 직무가 여럿인 곳 — 관리팀의 환경안전·출고, 생산팀의
-                관리, 경영지원팀의 법무·IT처럼 — 만 여기서 바꿉니다.
+                관리, 경영지원팀의 법무·IT처럼 — 만 여기서 바꿉니다. 평가에서 뺄
+                사람도 여기서 정합니다.
               </span>
             </div>
             <div className="overflow-x-auto border-t border-slate-100">
@@ -583,15 +643,22 @@ export default async function CompetencyFormAdminPage({
                     <th className="w-64 px-3 py-1 text-left text-xs font-semibold">
                       직무역량
                     </th>
+                    <th className="w-36 px-3 py-1 text-left text-xs font-semibold">
+                      평가 대상
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {targets.map((p, i) => {
+                  {roster.map((p, i) => {
                     const teamDefault = p.teamId
                       ? teamAssign.get(p.teamId)
                       : undefined;
                     const mine = userAssign.get(p.id);
                     const effective = mine ?? teamDefault;
+                    const own = targetRows.find((r) => r.userId === p.id);
+                    const state = own ? (own.included ? "in" : "out") : "";
+                    const out = competencyExcluded(p, targetRows).excluded;
+                    const teamOut = !!p.teamId && excludedTeams.has(p.teamId);
                     return (
                       <tr
                         key={p.id}
@@ -614,26 +681,59 @@ export default async function CompetencyFormAdminPage({
                             : "팀원용"}
                         </td>
                         <td className="px-3 py-1.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <JobSetSelect
-                              action={setUserJobSet}
-                              formId={form.id}
-                              scopeName="userId"
-                              scopeId={p.id}
-                              value={mine ?? ""}
-                              options={jobOptions}
-                              emptyLabel={
-                                teamDefault
-                                  ? `팀 기본값 (${setById.get(teamDefault)?.name ?? "?"})`
-                                  : "미배정"
-                              }
-                            />
-                            {!effective && (
-                              <span className="text-xs font-medium text-status-critical">
-                                직무역량이 뜨지 않습니다
-                              </span>
-                            )}
-                          </div>
+                          {/* 팀장은 직무역량이 아니라 리더십역량을 받는다 —
+                              고를 것이 없으므로 고르개를 띄우지 않는다. */}
+                          {!needsJobSet(p.position) ? (
+                            <span className="text-xs text-slate-500">
+                              리더십역량 (전사 공통)
+                            </span>
+                          ) : out ? (
+                            <span className="text-xs text-slate-400">—</span>
+                          ) : (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <InstantSelect
+                                action={setUserJobSet}
+                                hidden={{ formId: form.id, userId: p.id }}
+                                name="setId"
+                                value={mine ?? ""}
+                                options={[
+                                  {
+                                    value: "",
+                                    label: teamDefault
+                                      ? `팀 기본값 (${setById.get(teamDefault)?.name ?? "?"})`
+                                      : "미배정",
+                                  },
+                                  ...jobOptions,
+                                ]}
+                                ariaLabel={`${p.name} 직무역량`}
+                              />
+                              {!effective && (
+                                <span className="text-xs font-medium text-status-critical">
+                                  직무역량이 뜨지 않습니다
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <InstantSelect
+                            action={setUserCompetencyExcluded}
+                            hidden={{ formId: form.id, userId: p.id }}
+                            name="state"
+                            value={state}
+                            options={[
+                              {
+                                value: "",
+                                label: teamOut
+                                  ? "팀 따름 (제외)"
+                                  : "팀 따름 (대상)",
+                              },
+                              { value: "out", label: "평가 제외" },
+                              { value: "in", label: "평가 대상" },
+                            ]}
+                            ariaLabel={`${p.name} 평가 대상 여부`}
+                            tone={out ? "warn" : "plain"}
+                          />
                         </td>
                       </tr>
                     );

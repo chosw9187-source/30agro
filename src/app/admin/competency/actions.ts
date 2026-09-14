@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth-helpers";
-import { CORE_SEED_ITEMS, JOB_SEED_SETS } from "@/lib/competency-seed";
+import {
+  CORE_SEED_ITEMS,
+  CORE_LEADER_SEED_ITEMS,
+  LEADERSHIP_SEED_ITEMS,
+  JOB_SEED_SETS,
+} from "@/lib/competency-seed";
 import { COMPETENCY_ITEMS_PER_SET } from "@/lib/competency";
 import { competencyFormEditable } from "@/lib/competency-form";
 
@@ -19,7 +24,7 @@ function done() {
   revalidatePath(VIEW_PATH);
 }
 
-/** 문항을 고치는 모든 자리에서 먼저 묻는다 — 평가가 시작된 양식은 잠긴다. */
+/** 문항을 고치는 모든 자리에서 먼저 묻는다 — 종료된 양식은 잠긴다. */
 async function requireDraft(formId: string) {
   await requireRole("ADMIN");
   const form = await prisma.competencyForm.findUnique({
@@ -29,7 +34,7 @@ async function requireDraft(formId: string) {
   if (!form) throw new Error("양식을 찾을 수 없습니다.");
   if (!competencyFormEditable(form.status)) {
     throw new Error(
-      "평가가 시작된 양식은 문항을 고칠 수 없습니다. 「작성 중으로 되돌리기」를 먼저 눌러 주세요.",
+      "종료된 양식은 고칠 수 없습니다 — 그 해 성적의 근거입니다.",
     );
   }
   return form;
@@ -52,6 +57,8 @@ export async function createCompetencyForm(formData: FormData) {
         create: [
           { kind: "CORE_STAFF", name: "팀원용", sortOrder: 0 },
           { kind: "CORE_LEADER", name: "팀장용", sortOrder: 1 },
+          // 리더십역량은 전사 한 벌이라 배정 없이 늘 한 줄 있어야 한다.
+          { kind: "LEADERSHIP", name: "리더십역량", sortOrder: 2 },
         ],
       },
     },
@@ -60,42 +67,64 @@ export async function createCompetencyForm(formData: FormData) {
 }
 
 /**
- * 인사팀이 준 엑셀 내용을 한 번에 심는다.
+ * 인사팀이 준 엑셀 내용을 심는다 — **빠진 것만** 채운다.
  *
- * 이미 문항이 들어 있으면 아무것도 하지 않는다 — 두 번 눌러 문항이 열 줄이 되는
- * 사고를 막는다. 직무 이름이 팀 이름과 같으면 그 팀의 기본 직무로 함께 걸어 주고,
- * 이름이 「지점」으로 끝나는 팀에는 「지점」 묶음을 걸어 준다. 여기서 못 걸린 팀은
+ * 두 번 눌러도 문항이 열 줄이 되지 않는다(이미 있는 묶음과 열쇠는 건너뛴다).
+ * 그래서 나중에 양식이 한 벌 늘었을 때도 이 단추 하나로 보탤 수 있다 —
+ * 리더십역량을 뒤늦게 넣은 것이 그런 경우였다.
+ *
+ * 직무 이름이 팀 이름과 같으면 그 팀의 기본 직무로 함께 걸어 주고, 이름이
+ * 「지점」으로 끝나는 팀에는 「지점」 묶음을 걸어 준다. 여기서 못 걸린 팀은
  * 화면이 「미배정」으로 알려 준다.
  */
 export async function seedCompetencyForm(formId: string) {
   await requireDraft(formId);
 
-  const jobCount = await prisma.competencyItemSet.count({
-    where: { formId, kind: "JOB" },
-  });
-  const coreItems = await prisma.competencyFormItem.count({
-    where: { set: { formId, kind: { in: ["CORE_STAFF", "CORE_LEADER"] } } },
-  });
-  if (jobCount > 0 || coreItems > 0) {
-    throw new Error(
-      "이미 문항이 들어 있습니다. 비우고 다시 넣으려면 묶음을 먼저 지워 주세요.",
-    );
-  }
-
-  // 핵심가치 · 팀원용만 채운다. 팀장용은 아직 받지 못해 화면에서 채운다.
-  const staffSet = await prisma.competencyItemSet.findFirst({
-    where: { formId, kind: "CORE_STAFF" },
-    select: { id: true },
-  });
-  if (staffSet) {
+  /*
+    배정이 없는 세 묶음 — 핵심가치 팀원용·팀장용, 리더십역량 — 을 먼저 채운다.
+    담당은 「팀원용 + 직무역량」, 팀장은 「팀장용 + 리더십역량」을 받는다.
+  */
+  const fixed: [string, typeof CORE_SEED_ITEMS][] = [
+    ["CORE_STAFF", CORE_SEED_ITEMS],
+    ["CORE_LEADER", CORE_LEADER_SEED_ITEMS],
+    ["LEADERSHIP", LEADERSHIP_SEED_ITEMS],
+  ];
+  for (const [kind, items] of fixed) {
+    const set = await prisma.competencyItemSet.upsert({
+      where: {
+        formId_kind_name: {
+          formId,
+          kind: kind as "CORE_STAFF" | "CORE_LEADER" | "LEADERSHIP",
+          name:
+            kind === "CORE_STAFF"
+              ? "팀원용"
+              : kind === "CORE_LEADER"
+                ? "팀장용"
+                : "리더십역량",
+        },
+      },
+      create: {
+        formId,
+        kind: kind as "CORE_STAFF" | "CORE_LEADER" | "LEADERSHIP",
+        name:
+          kind === "CORE_STAFF"
+            ? "팀원용"
+            : kind === "CORE_LEADER"
+              ? "팀장용"
+              : "리더십역량",
+      },
+      update: {},
+      select: { id: true },
+    });
     await prisma.competencyFormItem.createMany({
-      data: CORE_SEED_ITEMS.map((it, i) => ({
-        setId: staffSet.id,
+      data: items.map((it, i) => ({
+        setId: set.id,
         key: it.key,
         area: it.area,
         question: it.question,
         sortOrder: i,
       })),
+      skipDuplicates: true,
     });
   }
 
@@ -105,22 +134,25 @@ export async function seedCompetencyForm(formId: string) {
   });
 
   for (const [i, seed] of JOB_SEED_SETS.entries()) {
-    const set = await prisma.competencyItemSet.create({
-      data: {
-        formId,
-        kind: "JOB",
-        name: seed.name,
-        sortOrder: i,
-        items: {
-          create: seed.items.map((it, n) => ({
-            key: it.key,
-            area: it.area,
-            question: it.question,
-            sortOrder: n,
-          })),
-        },
+    // 이미 있는 직무는 이름으로 알아보고 문항을 건드리지 않는다 — 손으로 고쳐
+    // 놓은 문장을 밀어내지 않는다.
+    const set = await prisma.competencyItemSet.upsert({
+      where: {
+        formId_kind_name: { formId, kind: "JOB", name: seed.name },
       },
+      create: { formId, kind: "JOB", name: seed.name, sortOrder: i },
+      update: {},
       select: { id: true },
+    });
+    await prisma.competencyFormItem.createMany({
+      data: seed.items.map((it, n) => ({
+        setId: set.id,
+        key: it.key,
+        area: it.area,
+        question: it.question,
+        sortOrder: n,
+      })),
+      skipDuplicates: true,
     });
 
     const targets = teams.filter(
@@ -383,6 +415,61 @@ export async function setUserJobSet(formData: FormData) {
       create: { formId, setId, userId },
       update: { setId },
     });
+  }
+  done();
+}
+
+/**
+ * 역량평가에서 팀을 통째로 빼거나 되돌린다.
+ *
+ * 비서실처럼 시스템 밖에서 따로 처리하는 조직을 한 줄로 정리하는 자리다. 빼도
+ * 이미 매긴 점수는 지우지 않는다 — 되돌리면 그대로 다시 보인다.
+ */
+export async function setTeamCompetencyExcluded(formData: FormData) {
+  await requireRole("ADMIN");
+  const formId = str(formData.get("formId"));
+  const teamId = str(formData.get("teamId"));
+  const excluded = str(formData.get("excluded")) === "1";
+  const reason = str(formData.get("reason")) || null;
+  if (!formId || !teamId) return;
+
+  if (!excluded) {
+    await prisma.competencyTarget.deleteMany({ where: { formId, teamId } });
+  } else {
+    await prisma.competencyTarget.upsert({
+      where: { formId_teamId: { formId, teamId } },
+      create: { formId, teamId, included: false, reason },
+      update: { included: false, reason },
+    });
+  }
+  done();
+}
+
+/** 한 사람을 빼거나 되돌린다. 사람 줄이 팀 줄을 이긴다. */
+export async function setUserCompetencyExcluded(formData: FormData) {
+  await requireRole("ADMIN");
+  const formId = str(formData.get("formId"));
+  const userId = str(formData.get("userId"));
+  const state = str(formData.get("state")); // "" | "out" | "in"
+  const reason = str(formData.get("reason")) || null;
+  if (!formId || !userId) return;
+
+  if (state === "out") {
+    await prisma.competencyTarget.upsert({
+      where: { formId_userId: { formId, userId } },
+      create: { formId, userId, included: false, reason },
+      update: { included: false, reason },
+    });
+  } else if (state === "in") {
+    // 팀이 통째로 빠져 있어도 이 사람만 대상으로 되돌린다.
+    await prisma.competencyTarget.upsert({
+      where: { formId_userId: { formId, userId } },
+      create: { formId, userId, included: true, reason },
+      update: { included: true, reason },
+    });
+  } else {
+    // 사람 줄을 지우면 팀 기본값을 따른다.
+    await prisma.competencyTarget.deleteMany({ where: { formId, userId } });
   }
   done();
 }

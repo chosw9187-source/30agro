@@ -133,17 +133,28 @@ export type LoadedAssignment = {
 /**
  * 이 사람에게 뜰 문항 두 묶음.
  *
- * 핵심가치는 **직책**이 정한다 — 고를 것이 없어 배정 표에 오지 않는다.
- * 직무역량은 **사람 예외가 팀 기본값을 이긴다**. 관리팀 하나에 환경안전·일반·출고
- * 세 직무가 있어서, 팀만 보고 정하면 세 사람 중 둘이 남의 문항으로 평가받는다.
+ * 두 묶음 모두 **직책**이 갈래를 정한다.
+ *   - 담당: 핵심가치 팀원용 + **직무역량**(직무마다 다름)
+ *   - 팀장: 핵심가치 팀장용 + **리더십역량**(전사 한 벌)
+ *
+ * 팀장 양식에는 직무역량이 없다. 직무를 얼마나 아느냐가 아니라 «이끄는 일»을
+ * 보기 때문이고, 그래서 직무처럼 갈리지도 않는다 — 배정할 것이 없다.
+ *
+ * 담당의 직무역량은 **사람 예외가 팀 기본값을 이긴다**. 관리팀 하나에
+ * 환경안전·일반·출고 세 직무가 있어서, 팀만 보고 정하면 세 사람 중 둘이 남의
+ * 문항으로 평가받는다.
  */
 export function pickCompetencySets(
   person: { position: string; teamId: string | null; id: string },
   sets: LoadedSet[],
   assignments: LoadedAssignment[],
 ): { core: LoadedSet | null; job: LoadedSet | null } {
-  const wantCore = coreKindFor(person.position);
-  const core = sets.find((s) => s.kind === wantCore) ?? null;
+  const core =
+    sets.find((s) => s.kind === coreKindFor(person.position)) ?? null;
+
+  if (person.position === "TEAM_LEADER") {
+    return { core, job: sets.find((s) => s.kind === "LEADERSHIP") ?? null };
+  }
 
   const mine = assignments.find((a) => a.userId === person.id);
   const byTeam = person.teamId
@@ -153,6 +164,35 @@ export function pickCompetencySets(
   const job = setId ? (sets.find((s) => s.id === setId) ?? null) : null;
 
   return { core, job };
+}
+
+/** 직무역량을 배정해야 하는 사람인가 — 팀장은 리더십역량을 받으므로 아니다. */
+export function needsJobSet(position: string): boolean {
+  return isCompetencyTarget(position) && position !== "TEAM_LEADER";
+}
+
+/**
+ * 역량평가에서 빠진 사람인가.
+ *
+ * 사람 줄이 팀 줄을 이긴다 — 팀을 통째로 뺐더라도 그중 한 명은 평가해야 하는
+ * 경우가 있고, 그때 팀에서 꺼내지 않고 그 사람만 되돌릴 수 있어야 한다.
+ */
+export function competencyExcluded(
+  person: { id: string; teamId: string | null },
+  rows: {
+    teamId: string | null;
+    userId: string | null;
+    included: boolean;
+    reason: string | null;
+  }[],
+): { excluded: boolean; reason: string | null } {
+  const mine = rows.find((r) => r.userId === person.id);
+  if (mine) return { excluded: !mine.included, reason: mine.reason };
+  const byTeam = person.teamId
+    ? rows.find((r) => r.teamId === person.teamId)
+    : undefined;
+  if (byTeam) return { excluded: !byTeam.included, reason: byTeam.reason };
+  return { excluded: false, reason: null };
 }
 
 /** 그 사람에게 실제로 뜨는 문항 열쇠 전부 — 저장할 때 «이 열쇠가 이 사람 것인가»를 따진다. */

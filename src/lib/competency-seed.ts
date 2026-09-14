@@ -32,7 +32,7 @@ export type CompetencySeedSet = {
   note?: string;
 };
 
-/** 핵심가치 — 팀원용. 팀장용은 아직 받지 못해 비어 있다(화면에서 채운다). */
+/** 핵심가치 — 팀원용. */
 export const CORE_SEED_ITEMS: CompetencySeedItem[] = [
   {
     key: "core.problem-solving",
@@ -63,6 +63,82 @@ export const CORE_SEED_ITEMS: CompetencySeedItem[] = [
     area: "능동적인 자세",
     question:
       "자신이 맡은 업무의 맥락과 요구사항을 체크하고, 부여된 업무에 책임감을 가지고 임하며, 중도에 포기하지 않는가?",
+  },
+];
+
+/**
+ * 핵심가치 — **팀장용**. 팀원용과 문항이 다르다(상생·혁신 주도·실행·역량·윤리의식).
+ */
+export const CORE_LEADER_SEED_ITEMS: CompetencySeedItem[] = [
+  {
+    key: "core.leader.symbiosis",
+    area: "상생",
+    question:
+      "협업 과정에서 이해관계가 달라 갈등이 발생했을 때, 신뢰를 회복하거나 유지한 경험이 있는가?",
+  },
+  {
+    key: "core.leader.innovation",
+    area: "혁신 주도",
+    question: "최근 업무와 관련해 새롭게 배운 지식이나 기술을 적용해 보았는가?",
+  },
+  {
+    key: "core.leader.execution",
+    area: "실행",
+    question:
+      "여러 업무가 동시에 주어졌을 때, 본인 스스로 우선순위를 결정하고 실행할 수 있는가?",
+  },
+  {
+    key: "core.leader.growth",
+    area: "역량",
+    question:
+      "6개월~1년 동안 업무 관련 지식이나 기술을 향상 시키기 위해 어떤 학습이나 자기계발 활동을 했는가?",
+  },
+  {
+    key: "core.leader.ethics",
+    area: "윤리의식",
+    question:
+      "사내 내규와 업무 단위별 가치를 알고 있으며, 타 구성원에게 예의와 매너를 지키고, 팀 내 분위기를 흐리는 등 업무 환경에 차질이 없도록 행동하는가?",
+  },
+];
+
+/**
+ * 리더십역량 — 팀장이 직무역량 자리에 받는 다섯 문항.
+ *
+ * 팀장 양식에는 직무역량이 없고 대신 이 묶음이 온다. 「팀장의 리더십 역량(목표
+ * 설정 및 관리, 팀워크, 리더십 및 혁신)을 통해 팀 리더의 실제 역량이 회사 내에
+ * 부합하는지를 평가한다»는 양식의 말대로, 직무가 아니라 이끄는 일을 본다.
+ * 직무처럼 갈리지 않아 전사 한 벌이다.
+ */
+export const LEADERSHIP_SEED_ITEMS: CompetencySeedItem[] = [
+  {
+    key: "lead.decision-impact",
+    area: "결정의 영향",
+    question:
+      "자신이 내린 결정이 팀과 회사에 미친 영향을 정확하게 평가하고 개선하는 능력을 보유하고 있는가?",
+  },
+  {
+    key: "lead.change",
+    area: "변화 관리",
+    question:
+      "어려운 결정이나 변화 관리에서 팀의 신뢰를 얻는 능력을 보유하고 있는가?",
+  },
+  {
+    key: "lead.innovation",
+    area: "혁신 실행",
+    question:
+      "팀 내에서 혁신을 주도하고 변화를 이끌어내는 능력을 보유하고 있는가?",
+  },
+  {
+    key: "lead.style",
+    area: "리더십 스타일",
+    question:
+      "업무 단위 내 규정, 방침, 상사의 지시를 잘 따르며 자신의 리더십 스타일이 사내 문화에 잘 부합하는 능력을 보유하고 있는가?",
+  },
+  {
+    key: "lead.goal",
+    area: "목표 제시 및 관리",
+    question:
+      "팀과 업무 단위의 목표를 명확히 설정·전달하고, 팀원의 목표 달성을 이끄는 능력을 보유하고 있는가?",
   },
 ];
 

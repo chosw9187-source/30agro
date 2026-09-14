@@ -47,6 +47,7 @@ import {
   isCompetencyTarget,
   parseCompetencyScore,
   pickCompetencySets,
+  competencyExcluded,
 } from "@/lib/competency";
 import { loadCompetencyForm, competencyFormOpen } from "@/lib/competency-form";
 
@@ -2057,6 +2058,11 @@ export async function saveCompetencyScores(formData: FormData) {
     throw new Error(
       "지금은 점수를 적을 수 없습니다 — 관리자가 「평가 시작」을 눌러야 합니다.",
     );
+  }
+  /* 인사팀이 빼 둔 사람에게는 점수를 남기지 않는다 — 화면에서도 목록에 오지
+     않지만, 주소나 폼을 고쳐 넣으면 통과할 수 있다. */
+  if (competencyExcluded(target, form.targets).excluded) {
+    throw new Error("역량평가에서 제외된 사람입니다.");
   }
   const picked = pickCompetencySets(
     { position: target.position, teamId: target.teamId, id: target.id },
