@@ -141,6 +141,7 @@ model User {
   competencyReviews        CompetencyReview[]             @relation("CompetencyReviewee")
   competencyLeadRatings    CompetencyScore[]              @relation("CompetencyLeadRater")
   competencyJobOverride    CompetencyJobAssignment[]      @relation("CompetencyJobUser")
+  competencyTargetRows     CompetencyTarget[]             @relation("CompetencyTargetUser")
 }
 
 model AppointmentRecord {
@@ -262,13 +263,14 @@ model Team {
 
   createdAt DateTime @default(now())
 
-  members            User[]                    @relation("TeamMember")
-  onboardingSessions OnboardingSessionTeam[]
-  templateItems      TemplateItem[]
-  jobDescription     JobDescription?
-  tasks              Task[]
-  goals              Goal[]
-  competencyJobSets  CompetencyJobAssignment[] @relation("CompetencyJobTeam")
+  members              User[]                    @relation("TeamMember")
+  onboardingSessions   OnboardingSessionTeam[]
+  templateItems        TemplateItem[]
+  jobDescription       JobDescription?
+  tasks                Task[]
+  goals                Goal[]
+  competencyJobSets    CompetencyJobAssignment[] @relation("CompetencyJobTeam")
+  competencyTargetRows CompetencyTarget[]        @relation("CompetencyTargetTeam")
 }
 
 model JobDescription {
@@ -1416,9 +1418,13 @@ enum CompetencySetKind {
    */
   CORE_LEADER
   /**
-   * 직무역량 — 직무마다 한 벌.
+   * 직무역량 — 직무마다 한 벌. 담당이 받는다.
    */
   JOB
+  /**
+   * 리더십역량 — 전사 한 벌. 팀장이 직무역량 자리에 받는다.
+   */
+  LEADERSHIP
 }
 
 /**
@@ -1436,6 +1442,7 @@ model CompetencyForm {
 
   sets        CompetencyItemSet[]
   assignments CompetencyJobAssignment[]
+  targets     CompetencyTarget[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1514,4 +1521,36 @@ model CompetencyJobAssignment {
   @@unique([formId, teamId])
   @@unique([formId, userId])
   @@index([formId])
+}
+
+/**
+ * 역량평가에서 **빼는** 사람·팀.
+ * 행이 없으면 대상이다 — 담당·팀장이면 기본적으로 전원 평가받고, 빼야 할 쪽만
+ * 행을 만든다(`included = false`). 그래야 사람이 들어올 때마다 누가 명단에
+ * 넣어주지 않아도 자동으로 대상에 잡힌다. 목표관리의 평가대상자 관리
+ * (`GoalCycleTarget`)와 같은 방식이다.
+ * 팀 줄 하나로 그 팀을 통째로 뺄 수 있다 — 비서실처럼 시스템 밖에서 따로
+ * 처리하는 조직을 한 줄로 정리한다.
+ */
+model CompetencyTarget {
+  id     String         @id @default(cuid())
+  formId String
+  form   CompetencyForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+
+  teamId String?
+  team   Team?   @relation("CompetencyTargetTeam", fields: [teamId], references: [id], onDelete: Cascade)
+  userId String?
+  user   User?   @relation("CompetencyTargetUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  included Boolean @default(true)
+  /**
+   * 왜 뺐는지. 화면에 그대로 적어 준다 — 이유 없이 빠진 사람이 남지 않게.
+   */
+  reason   String?
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([formId, teamId])
+  @@unique([formId, userId])
+  @@index([formId, included])
 }

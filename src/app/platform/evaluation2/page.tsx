@@ -91,6 +91,7 @@ import {
   competencyScoreLabel,
   isCompetencyTarget,
   pickCompetencySets,
+  competencyExcluded,
   type CompetencyItem,
 } from "@/lib/competency";
 import {
@@ -856,10 +857,24 @@ export default async function Evaluation2Page({
    * 규칙을 대면 팀장의 목록에 사장까지 들어오고, 평가할 일도 없는 사람의 점수를
    * 열어 보게 된다.
    */
+  const competencyFormEarly = competencyView
+    ? await loadCompetencyForm(selectedYear)
+    : null;
   const competencyPeople = competencyView
     ? people.filter((p) => {
         // 담당·팀장만 평가받는다. 책임·운영책임·사장은 대상이 아니다.
         if (!isCompetencyTarget(p.position)) return false;
+        /*
+          인사팀이 「평가 제외」로 빼 둔 사람·팀은 목록에 아예 오지 않는다
+          (비서실처럼 시스템 밖에서 따로 처리하는 조직). 빼 둔 사람이 목록에
+          남아 있으면 평가자가 «왜 점수가 안 들어가지»를 겪는다.
+        */
+        if (
+          competencyFormEarly &&
+          competencyExcluded(p, competencyFormEarly.targets).excluded
+        ) {
+          return false;
+        }
         if (isAdmin) return true;
         if (p.id === session!.user.id) return true;
         return evaluatorByPerson.get(p.id)?.first?.id === session!.user.id;
@@ -871,9 +886,7 @@ export default async function Evaluation2Page({
       competencyPeople[0] ??
       null)
     : null;
-  const competencyForm = competencyView
-    ? await loadCompetencyForm(selectedYear)
-    : null;
+  const competencyForm = competencyFormEarly;
   const competencyReview =
     competencyView && competencyTarget
       ? await prisma.competencyReview.findUnique({
@@ -1406,10 +1419,22 @@ export default async function Evaluation2Page({
             form.core,
             `${target.position === "TEAM_LEADER" ? "팀장용" : "팀원용"} 핵심가치 문항이 아직 등록되지 않았습니다.`,
           )}
+          {/*
+            둘째 묶음은 직책에 따라 다른 것이 온다 — 담당은 직무역량(직무마다
+            다름), 팀장은 리더십역량(전사 한 벌). 표제에 그 이름을 그대로 쓴다.
+          */}
           {itemTable(
-            picked.job ? `2. 직무역량 · ${picked.job.name}` : "2. 직무역량",
+            picked.job
+              ? picked.job.kind === "LEADERSHIP"
+                ? "2. 리더십역량"
+                : `2. 직무역량 · ${picked.job.name}`
+              : target.position === "TEAM_LEADER"
+                ? "2. 리더십역량"
+                : "2. 직무역량",
             form.job,
-            `${target.name} 님의 직무가 아직 배정되지 않았습니다 — 관리 → 「역량평가 문항」에서 팀 기본 직무나 사람별 직무를 정해 주세요.`,
+            target.position === "TEAM_LEADER"
+              ? "리더십역량 문항이 아직 등록되지 않았습니다 — 관리 → 「역량평가 문항」에서 채워 주세요."
+              : `${target.name} 님의 직무가 아직 배정되지 않았습니다 — 관리 → 「역량평가 문항」에서 팀 기본 직무나 사람별 직무를 정해 주세요.`,
           )}
 
           {/*
