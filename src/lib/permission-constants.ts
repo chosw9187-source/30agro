@@ -143,7 +143,8 @@ export type AdminMenuKey =
   | "SCREEN_CONFIG"
   | "TRAFFIC"
   | "ORG_GOALS"
-  | "EVAL_TARGETS";
+  | "EVAL_TARGETS"
+  | "COMPETENCY_FORM";
 
 export const ADMIN_MENU_ITEMS: { key: AdminMenuKey; href: string; label: string }[] = [
   { key: "USERS", href: "/admin/users", label: "사용자 관리" },
@@ -157,6 +158,7 @@ export const ADMIN_MENU_ITEMS: { key: AdminMenuKey; href: string; label: string 
   { key: "TRAFFIC", href: "/admin/traffic", label: "일일 트래픽" },
   { key: "ORG_GOALS", href: "/admin/org-goals", label: "조직 목표 관리" },
   { key: "EVAL_TARGETS", href: "/admin/eval-targets", label: "평가대상자 관리" },
+  { key: "COMPETENCY_FORM", href: "/admin/competency", label: "역량평가 문항" },
 ];
 
 export type HomeBlock = "TEAM_SUMMARY" | "OVERALL_SUMMARY" | "QUICK_LINKS";

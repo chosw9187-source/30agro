@@ -1,18 +1,26 @@
 /**
- * 역량평가 양식 — 사내 「20XX년 한국삼공 역량평가 양식」을 그대로 옮긴 것.
+ * 역량평가 — 양식이 아니라 **규칙**을 담는다.
  *
- * 문항을 DB가 아니라 코드에 둔다. 이 양식은 인사팀이 정해서 내려주는 것이고,
- * 사람이 화면에서 문항을 만들거나 지우는 자리가 아니다. DB에 넣으면 관리 화면과
- * 권한을 한 벌 더 만들어야 하는데, 정작 고칠 일은 «해마다 인사팀이 파일을 새로
- * 준다» 한 가지뿐이다. 그때는 이 파일을 고친다.
+ * 문항 자체는 DB에 있다(`CompetencyForm` → `CompetencyItemSet` → `CompetencyFormItem`).
+ * 해마다 인사팀이 문항을 갈아야 하고, 그때마다 개발자를 찾아오게 둘 수 없다.
+ * 첫 연도판의 밑그림만 `competency-seed.ts`에 있고, 한 번 심은 뒤로는 DB가 원본이다.
  *
- * 대신 점수는 문항 **키**로 저장한다(`CompetencyScore.itemKey`). 질문 문장을
- * 열쇠로 쓰면 쉼표 하나 다듬는 순간 지난해 점수가 떨어져 나간다.
+ * 여기 남는 것은 해마다 바뀌지 않는 것들이다 — 평가스케일, 안내 문구, 누가 누구를
+ * 평가하는지, 평균을 어떻게 내는지, 그리고 «이 사람에게 어느 묶음이 뜨는가».
  */
 
 /** 1~5 정수. 소수점은 받지 않는다 — 양식의 규칙이다. */
 export const COMPETENCY_MIN = 1;
 export const COMPETENCY_MAX = 5;
+
+/**
+ * 묶음 하나의 문항 수 — 다섯 줄로 고정한다.
+ *
+ * 평균을 내므로 문항 수가 달라도 계산은 되지만, 다섯 줄로 못 박아 두면 사람마다
+ * 받는 문항 수가 같아서 «저 팀은 세 줄만 받았다»는 말이 나오지 않는다. 묶음을
+ * 만들 때 빈 다섯 줄을 미리 깔아 주는 근거도 이 값이다.
+ */
+export const COMPETENCY_ITEMS_PER_SET = 5;
 
 export type CompetencyScaleRow = {
   score: number;
@@ -100,100 +108,63 @@ export type CompetencyItem = {
   question: string;
 };
 
-/** 1. 핵심가치 — 직무와 무관하게 전 구성원이 같은 다섯 줄을 받는다. */
-export const CORE_VALUE_ITEMS: CompetencyItem[] = [
-  {
-    key: "core.problem-solving",
-    area: "문제해결",
-    question:
-      "문제에 직면했을 때 원인과 대책을 도출할 수 있으며, 주어진 도구와 자원을 활용하여, 부여된 과업의 누락, 동일문제 재발을 방지하는가?",
-  },
-  {
-    key: "core.communication",
-    area: "커뮤니케이션",
-    question:
-      "업무 수행에 필수적인 정보를 사전 공유하며, 중간 보고 등 업무관련자와 적시에 피드백을 주고받아, 차질없이 업무를 진행하는가?",
-  },
-  {
-    key: "core.ethics",
-    area: "윤리의식",
-    question:
-      "사내 내규와 조직 가치를 알고 있으며, 타 구성원에게 예의와 매너를 지키고, 조직분위기를 흐리는 등 업무 환경에 차질이 없도록 행동하는가?",
-  },
-  {
-    key: "core.engagement",
-    area: "조직몰입",
-    question:
-      "자신의 업무를 부서/팀의 방향성 및 맥락하에서 이해하고, 이러한 이해를 바탕으로 업무를 수행하는가?",
-  },
-  {
-    key: "core.initiative",
-    area: "능동적인 자세",
-    question:
-      "자신이 맡은 업무의 맥락과 요구사항을 체크하고, 부여된 업무에 책임감을 가지고 임하며, 중도에 포기하지 않는가?",
-  },
-];
+/** 핵심가치 묶음의 갈래 — 팀원과 팀장이 서로 다른 다섯 줄을 받는다. */
+export type CoreSetKind = "CORE_STAFF" | "CORE_LEADER";
 
-/**
- * 2. 직무역량 — 직무마다 다섯 줄이 다르다. 열쇠는 **팀 이름**이다.
- *
- * 팀 id로 두면 환경(개발·운영)마다 값이 달라 코드에 박을 수 없다. 이름은 조직도에서
- * 사람이 읽는 값이라, 인사팀이 준 파일 이름(「…_인사팀.xlsx」)과 그대로 맞물린다.
- * 팀 이름이 바뀌면 여기도 같이 고쳐야 한다 — 문항이 없으면 화면이 그 사실을
- * 알려 준다(조용히 비워 두지 않는다).
- */
-export const JOB_COMPETENCY_ITEMS: Record<string, CompetencyItem[]> = {
-  인사팀: [
-    {
-      key: "job.hr.privacy",
-      area: "인사정보 보안 및 개인정보보호",
-      question:
-        "인사 정보의 보안 및 개인정보 보호 정책과 절차를 엄격하게 준수하고 유지하는가?",
-    },
-    {
-      key: "job.hr.diversity",
-      area: "다양성 및 포용성",
-      question:
-        "조직 내 다양성을 존중하고 포용하여 다양한 배경을 가진 직원들을 지원하는가?",
-    },
-    {
-      key: "job.hr.compliance",
-      area: "업무 윤리 및 규정 준수",
-      question:
-        "직무 수행 시 윤리와 관련 규정을 엄격하게 준수하고 조직 내에서 준수를 촉진하는가?",
-    },
-    {
-      key: "job.hr.change",
-      area: "변화 관리",
-      question:
-        "조직 내 변화를 관리하고 관련 프로세스를 지원하여 조직의 변화를 원활하게 진행하는가?",
-    },
-    {
-      key: "job.hr.strategy",
-      area: "인사 전략 개발",
-      question:
-        "인사 전략을 수립하고 조직의 비즈니스 목표와 일치시켜 인사 프로그램을 개발하는가?",
-    },
-  ],
-};
-
-/** 이 사람이 받을 양식 두 묶음. 직무역량은 아직 안 받은 팀이 있어 빈 배열일 수 있다. */
-export function competencyFormFor(teamName: string | null | undefined): {
-  core: CompetencyItem[];
-  job: CompetencyItem[];
-} {
-  return {
-    core: CORE_VALUE_ITEMS,
-    job: (teamName && JOB_COMPETENCY_ITEMS[teamName]) || [],
-  };
+export function coreKindFor(position: string): CoreSetKind {
+  return position === "TEAM_LEADER" ? "CORE_LEADER" : "CORE_STAFF";
 }
 
-/** 그 사람에게 실제로 뜨는 문항 전부 — 저장할 때 «이 키가 이 사람 것인가»를 따진다. */
-export function competencyItemKeys(
-  teamName: string | null | undefined
-): Set<string> {
-  const form = competencyFormFor(teamName);
-  return new Set([...form.core, ...form.job].map((i) => i.key));
+/** DB에서 읽어 온 묶음 한 벌 — 화면과 저장이 같은 모양으로 받는다. */
+export type LoadedSet = {
+  id: string;
+  kind: string;
+  name: string;
+  items: CompetencyItem[];
+};
+
+/** 직무역량 배정 한 줄. 팀 기본값이면 teamId, 사람 예외면 userId가 찬다. */
+export type LoadedAssignment = {
+  setId: string;
+  teamId: string | null;
+  userId: string | null;
+};
+
+/**
+ * 이 사람에게 뜰 문항 두 묶음.
+ *
+ * 핵심가치는 **직책**이 정한다 — 고를 것이 없어 배정 표에 오지 않는다.
+ * 직무역량은 **사람 예외가 팀 기본값을 이긴다**. 관리팀 하나에 환경안전·일반·출고
+ * 세 직무가 있어서, 팀만 보고 정하면 세 사람 중 둘이 남의 문항으로 평가받는다.
+ */
+export function pickCompetencySets(
+  person: { position: string; teamId: string | null; id: string },
+  sets: LoadedSet[],
+  assignments: LoadedAssignment[],
+): { core: LoadedSet | null; job: LoadedSet | null } {
+  const wantCore = coreKindFor(person.position);
+  const core = sets.find((s) => s.kind === wantCore) ?? null;
+
+  const mine = assignments.find((a) => a.userId === person.id);
+  const byTeam = person.teamId
+    ? assignments.find((a) => a.teamId === person.teamId)
+    : undefined;
+  const setId = (mine ?? byTeam)?.setId ?? null;
+  const job = setId ? (sets.find((s) => s.id === setId) ?? null) : null;
+
+  return { core, job };
+}
+
+/** 그 사람에게 실제로 뜨는 문항 열쇠 전부 — 저장할 때 «이 열쇠가 이 사람 것인가»를 따진다. */
+export function competencyItemKeys(picked: {
+  core: LoadedSet | null;
+  job: LoadedSet | null;
+}): Set<string> {
+  return new Set(
+    [...(picked.core?.items ?? []), ...(picked.job?.items ?? [])].map(
+      (i) => i.key,
+    ),
+  );
 }
 
 export type CompetencyScoreRow = {
@@ -227,7 +198,9 @@ export function competencyAverage(rows: CompetencyScoreRow[]): {
     .map((r) => r.leadScore)
     .filter((v): v is number => v != null);
   const mean = (vals: number[]) =>
-    vals.length > 0 ? round1(vals.reduce((a, b) => a + b, 0) / vals.length) : null;
+    vals.length > 0
+      ? round1(vals.reduce((a, b) => a + b, 0) / vals.length)
+      : null;
   const both = [...selfVals, ...leadVals];
   return {
     self: mean(selfVals),

@@ -88,11 +88,16 @@ import {
   COMPETENCY_NOTES,
   COMPETENCY_SCALE,
   competencyAverage,
-  competencyFormFor,
   competencyScoreLabel,
   isCompetencyTarget,
+  pickCompetencySets,
   type CompetencyItem,
 } from "@/lib/competency";
+import {
+  loadCompetencyForm,
+  competencyFormOpen,
+  COMPETENCY_FORM_STATUS_LABEL,
+} from "@/lib/competency-form";
 import { YearPhaseSelect, ParamSelect } from "./cycle-select";
 import { ActionForm } from "@/components/action-form";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -866,6 +871,9 @@ export default async function Evaluation2Page({
       competencyPeople[0] ??
       null)
     : null;
+  const competencyForm = competencyView
+    ? await loadCompetencyForm(selectedYear)
+    : null;
   const competencyReview =
     competencyView && competencyTarget
       ? await prisma.competencyReview.findUnique({
@@ -1110,7 +1118,23 @@ export default async function Evaluation2Page({
     }
 
     const target = competencyTarget;
-    const form = competencyFormFor(target.team?.name ?? null);
+    if (!competencyForm) {
+      return comingUp("역량평가", null, [
+        `${selectedYear}년 역량평가 양식이 아직 없습니다.`,
+        isAdmin
+          ? "관리 → 「역량평가 문항」에서 양식을 만들고 「사내 양식으로 채우기」를 누르면 시작됩니다."
+          : "인사팀이 양식을 올리면 여기에 문항이 뜹니다.",
+      ]);
+    }
+    const picked = pickCompetencySets(
+      { position: target.position, teamId: target.teamId, id: target.id },
+      competencyForm.sets,
+      competencyForm.assignments,
+    );
+    const form = {
+      core: picked.core?.items ?? [],
+      job: picked.job?.items ?? [],
+    };
     const saved = new Map(competencyScores.map((s) => [s.itemKey, s]));
     const rows = [...form.core, ...form.job].map((i) => ({
       itemKey: i.key,
@@ -1122,14 +1146,18 @@ export default async function Evaluation2Page({
 
     const chain = evaluatorByPerson.get(target.id) ?? null;
     const isSelf = target.id === session!.user.id;
-    const isFirstEvaluator = !!chain?.first && chain.first.id === session!.user.id;
+    const isFirstEvaluator =
+      !!chain?.first && chain.first.id === session!.user.id;
     /*
       자기평가는 본인만, 팀장평가는 조직도가 정한 1차 평가자만 적는다(관리자는
       둘 다). 남의 칸은 잠가 둔다 — 잠긴 칸은 브라우저가 값을 보내지 않고,
       서버도 같은 기준으로 한 번 더 가른다.
     */
-    const canWriteSelf = isAdmin || isSelf;
-    const canWriteLead = isAdmin || isFirstEvaluator;
+    /* 양식이 「평가 중」일 때만 점수를 받는다 — 작성 중인 문항에 점수를 남기면
+       문항이 바뀌는 순간 그 점수가 무엇에 대한 것인지 사라진다. */
+    const formOpen = competencyFormOpen(competencyForm.status);
+    const canWriteSelf = (isAdmin || isSelf) && formOpen;
+    const canWriteLead = (isAdmin || isFirstEvaluator) && formOpen;
     const canWrite = (canWriteSelf || canWriteLead) && itemCount > 0;
 
     const scoreSelectClass =
@@ -1217,8 +1245,18 @@ export default async function Evaluation2Page({
                       <td className="px-3 py-1.5 text-xs leading-relaxed break-keep text-slate-600">
                         {item.question}
                       </td>
-                      {scoreCell(item, "self", row?.selfScore ?? null, canWriteSelf)}
-                      {scoreCell(item, "lead", row?.leadScore ?? null, canWriteLead)}
+                      {scoreCell(
+                        item,
+                        "self",
+                        row?.selfScore ?? null,
+                        canWriteSelf,
+                      )}
+                      {scoreCell(
+                        item,
+                        "lead",
+                        row?.leadScore ?? null,
+                        canWriteLead,
+                      )}
                     </tr>
                   );
                 })}
@@ -1233,7 +1271,9 @@ export default async function Evaluation2Page({
       <div className="flex flex-col gap-2">
         {/* 누구 것을 보는 중인가. 남의 것을 채우다 엉뚱한 사람에게 적는 일이
             없도록, 이름과 소속을 고르개 옆에 그대로 적어 둔다. */}
-        <section className={`${CARD_CLASS} flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2`}>
+        <section
+          className={`${CARD_CLASS} flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2`}
+        >
           <span className="text-xs font-medium text-slate-500">피평가자</span>
           {competencyPeople.length > 1 ? (
             <ParamSelect
@@ -1253,7 +1293,12 @@ export default async function Evaluation2Page({
             </span>
           )}
           <span className="text-xs text-slate-500">
-            {selectedYear}년 · 1차 평가자{" "}
+            {selectedYear}년 양식{" "}
+            <b className="font-medium text-slate-700">
+              {COMPETENCY_FORM_STATUS_LABEL[competencyForm.status] ??
+                competencyForm.status}
+            </b>{" "}
+            · 1차 평가자{" "}
             <b className="font-medium text-slate-700">
               {chain?.first ? evaluatorLabel(chain.first) : "미지정"}
             </b>
@@ -1354,11 +1399,17 @@ export default async function Evaluation2Page({
           <input type="hidden" name="year" value={selectedYear} />
           <input type="hidden" name="userId" value={target.id} />
 
-          {itemTable("1. 핵심가치", form.core)}
           {itemTable(
-            "2. 직무역량",
+            picked.core
+              ? `1. 핵심가치 · ${picked.core.kind === "CORE_LEADER" ? "팀장용" : "팀원용"}`
+              : "1. 핵심가치",
+            form.core,
+            `${target.position === "TEAM_LEADER" ? "팀장용" : "팀원용"} 핵심가치 문항이 아직 등록되지 않았습니다.`,
+          )}
+          {itemTable(
+            picked.job ? `2. 직무역량 · ${picked.job.name}` : "2. 직무역량",
             form.job,
-            `${target.team?.name ?? "이 팀"}의 직무역량 문항이 아직 등록되지 않았습니다. 직무별 양식을 인사팀에서 받아 넣어야 합니다.`,
+            `${target.name} 님의 직무가 아직 배정되지 않았습니다 — 관리 → 「역량평가 문항」에서 팀 기본 직무나 사람별 직무를 정해 주세요.`,
           )}
 
           {/*
@@ -1391,7 +1442,9 @@ export default async function Evaluation2Page({
           </section>
 
           {canWrite && (
-            <div className={`${CARD_CLASS} flex flex-wrap items-center gap-3 px-4 py-3`}>
+            <div
+              className={`${CARD_CLASS} flex flex-wrap items-center gap-3 px-4 py-3`}
+            >
               <span className="text-xs break-keep text-slate-500">
                 {canWriteSelf && canWriteLead
                   ? "자기평가와 팀장평가 모두 적을 수 있습니다."
@@ -1400,7 +1453,10 @@ export default async function Evaluation2Page({
                     : "팀장평가 칸만 적습니다. 자기평가는 본인이 적습니다."}{" "}
                 비워 두면 «아직 안 적음»으로 남고 평균에서 빠집니다.
               </span>
-              <button type="submit" className={`ml-auto ${PRIMARY_BUTTON_CLASS}`}>
+              <button
+                type="submit"
+                className={`ml-auto ${PRIMARY_BUTTON_CLASS}`}
+              >
                 저장
               </button>
             </div>
@@ -1682,7 +1738,9 @@ export default async function Evaluation2Page({
     ];
 
     const cycleOf = (rank?: number) =>
-      rank ? (yearCycles.find((c) => cyclePhaseRank(c) === rank) ?? null) : null;
+      rank
+        ? (yearCycles.find((c) => cyclePhaseRank(c) === rank) ?? null)
+        : null;
 
     const midnight = new Date(
       now.getFullYear(),
@@ -1751,7 +1809,11 @@ export default async function Evaluation2Page({
       남기고 뒤는 예정으로 내린다.
     */
     const currentIndex = nodes.findIndex((n) => n.state === "current");
-    for (let i = currentIndex + 1; i < nodes.length && currentIndex >= 0; i += 1) {
+    for (
+      let i = currentIndex + 1;
+      i < nodes.length && currentIndex >= 0;
+      i += 1
+    ) {
       if (nodes[i].state === "current") nodes[i].state = "todo";
     }
     const active = currentIndex >= 0 ? nodes[currentIndex] : null;
@@ -1795,7 +1857,8 @@ export default async function Evaluation2Page({
         <div className="mt-2 overflow-x-auto">
           <ol className="flex min-w-[640px] items-start">
             {nodes.map((n, i) => {
-              const passed = currentIndex < 0 ? n.state === "done" : i <= currentIndex;
+              const passed =
+                currentIndex < 0 ? n.state === "done" : i <= currentIndex;
               const lineBefore =
                 i > 0 && (nodes[i - 1].state === "done" || passed);
               const lineAfter = i < nodes.length - 1 && n.state === "done";
@@ -2421,7 +2484,8 @@ export default async function Evaluation2Page({
     const canWriteSelf =
       !evalLocked && (isAdmin || evalSubjectId === session!.user.id);
     const canWriteFirst =
-      !evalLocked && (isAdmin || (!!evalFirst && evalFirst.id === session!.user.id));
+      !evalLocked &&
+      (isAdmin || (!!evalFirst && evalFirst.id === session!.user.id));
     // 내용(제목·가중치·상위)을 고칠 수 있는 사람. 평가만 하는 사람은 못 고친다.
     const canEditContent = !evalLocked && (!goal || canManage(goal));
     /*
@@ -3845,23 +3909,21 @@ export default async function Evaluation2Page({
               )}
               {companyGoalBoard()}
             </>
+          ) : tab === "result" ? (
+            comingUp("최종결과", null, [
+              "성과평가(최종평가) 점수와 역량평가 점수를 합쳐 최종 점수와 등급을 봅니다.",
+              "보이는 범위는 목록과 같습니다 — 본인은 자기 것, 팀장·책임은 자기 조직, 관리자는 전사입니다.",
+            ])
+          ) : tab === "hrreport" ? (
+            comingUp("HR REPORT", "관리자 전용", [
+              "평가 결과를 사람 하나하나가 아니라 조직 단위로 읽는 자리입니다.",
+              "부문·팀별 등급 분포, 목표 달성률과 최종 점수의 관계, 평가자별 점수 성향, 미제출 현황.",
+            ])
           ) : (
-            tab === "result" ? (
-              comingUp("최종결과", null, [
-                "성과평가(최종평가) 점수와 역량평가 점수를 합쳐 최종 점수와 등급을 봅니다.",
-                "보이는 범위는 목록과 같습니다 — 본인은 자기 것, 팀장·책임은 자기 조직, 관리자는 전사입니다.",
-              ])
-            ) : tab === "hrreport" ? (
-              comingUp("HR REPORT", "관리자 전용", [
-                "평가 결과를 사람 하나하나가 아니라 조직 단위로 읽는 자리입니다.",
-                "부문·팀별 등급 분포, 목표 달성률과 최종 점수의 관계, 평가자별 점수 성향, 미제출 현황.",
-              ])
-            ) : (
-              // key에 탭을 넣어 탭을 옮길 때마다 이 안을 새로 그린다. 안 그러면
-              // React가 같은 자리의 등록 폼을 재사용해서, 개인목표에 쳐 넣던
-              // 목표명이 팀목표 탭 입력칸에 그대로 남아 있는다.
-              <div key={tab}>{levelTab(TAB_TO_LEVEL[tab])}</div>
-            )
+            // key에 탭을 넣어 탭을 옮길 때마다 이 안을 새로 그린다. 안 그러면
+            // React가 같은 자리의 등록 폼을 재사용해서, 개인목표에 쳐 넣던
+            // 목표명이 팀목표 탭 입력칸에 그대로 남아 있는다.
+            <div key={tab}>{levelTab(TAB_TO_LEVEL[tab])}</div>
           )}
         </>
       )}
