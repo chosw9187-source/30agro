@@ -1338,6 +1338,16 @@ model CompetencyReview {
   userId String
   user   User   @relation("CompetencyReviewee", fields: [userId], references: [id], onDelete: Cascade)
 
+  /**
+   * 양식 맨 아래의 「전체 코멘트」 — 팀장평가자만 적는다.
+   *
+   * 문항별 점수로는 «왜 이 점수인지»가 남지 않는다. 사내 양식이 이 칸을 따로
+   * 둔 이유가 그것이다(«평가 부여에 대한 추가적인 설명이나 격려/감사/교정 등
+   * 정성적인 피드백»). 점수는 열 칸으로 흩어지지만 이 말은 한 덩어리라, 문항이
+   * 아니라 평가 한 벌에 붙인다.
+   */
+  leadComment String?
+
   scores CompetencyScore[]
 
   createdAt DateTime @default(now())

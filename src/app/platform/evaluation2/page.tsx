@@ -866,6 +866,15 @@ export default async function Evaluation2Page({
       competencyPeople[0] ??
       null)
     : null;
+  const competencyReview =
+    competencyView && competencyTarget
+      ? await prisma.competencyReview.findUnique({
+          where: {
+            year_userId: { year: selectedYear, userId: competencyTarget.id },
+          },
+          select: { leadComment: true },
+        })
+      : null;
   const competencyScores =
     competencyView && competencyTarget
       ? await prisma.competencyScore.findMany({
@@ -1351,6 +1360,35 @@ export default async function Evaluation2Page({
             form.job,
             `${target.team?.name ?? "이 팀"}의 직무역량 문항이 아직 등록되지 않았습니다. 직무별 양식을 인사팀에서 받아 넣어야 합니다.`,
           )}
+
+          {/*
+            양식 맨 아래의 「전체 코멘트」. 점수 열 칸으로는 «왜 이 점수인지»가
+            남지 않아서 사내 양식이 이 칸을 따로 뒀다. 팀장평가자만 적고, 피평가자
+            본인은 읽는다 — 적어 준 말을 못 보면 피드백이 아니다.
+          */}
+          <section className={CARD_CLASS}>
+            <div className="flex flex-wrap items-baseline gap-x-2 px-4 py-2">
+              <h2 className="text-sm font-bold text-slate-900">전체 코멘트</h2>
+              <span className="text-xs text-slate-500">
+                1차 평가자만 작성합니다
+              </span>
+            </div>
+            <div className="border-t border-slate-100 px-4 py-3">
+              <textarea
+                key={`leadComment:${competencyReview?.leadComment ?? ""}`}
+                name="leadComment"
+                rows={3}
+                defaultValue={competencyReview?.leadComment ?? ""}
+                disabled={!canWriteLead}
+                placeholder={
+                  canWriteLead
+                    ? "점수를 그렇게 준 이유, 격려·감사·교정하고 싶은 점을 적어 주세요."
+                    : "1차 평가자가 적으면 여기에 보입니다."
+                }
+                className={INPUT_CLASS}
+              />
+            </div>
+          </section>
 
           {canWrite && (
             <div className={`${CARD_CLASS} flex flex-wrap items-center gap-3 px-4 py-3`}>
