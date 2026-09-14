@@ -70,74 +70,76 @@ enum TaskPriority {
 }
 
 model User {
-  id             String   @id @default(cuid())
-  name           String
-  email          String?  @unique
-  employeeNumber String   @unique
-  passwordHash   String
-  mustChangePassword Boolean @default(true)
-  role           Role
-  position       Position @default(STAFF)
-  birthDate       DateTime?
-  hireDate        DateTime?
-  terminationDate DateTime?
-  employmentType  String?
-  jobGrade        String?
-  educationLevel  String?
-  school          String?
-  major           String?
-  degree          String?
-  jobFamily       String?
-  gender          String?
-  photo           Bytes?
-  photoType       String?
-  businessUnit    String?
-  division        String?
-  isKeyTalent     Boolean  @default(false)
-  hiddenFromDirectory Boolean @default(false)
-  teamId         String?
-  team           Team?    @relation("TeamMember", fields: [teamId], references: [id])
-  createdAt      DateTime @default(now())
+  id                  String    @id @default(cuid())
+  name                String
+  email               String?   @unique
+  employeeNumber      String    @unique
+  passwordHash        String
+  mustChangePassword  Boolean   @default(true)
+  role                Role
+  position            Position  @default(STAFF)
+  birthDate           DateTime?
+  hireDate            DateTime?
+  terminationDate     DateTime?
+  employmentType      String?
+  jobGrade            String?
+  educationLevel      String?
+  school              String?
+  major               String?
+  degree              String?
+  jobFamily           String?
+  gender              String?
+  photo               Bytes?
+  photoType           String?
+  businessUnit        String?
+  division            String?
+  isKeyTalent         Boolean   @default(false)
+  hiddenFromDirectory Boolean   @default(false)
+  teamId              String?
+  team                Team?     @relation("TeamMember", fields: [teamId], references: [id])
+  createdAt           DateTime  @default(now())
 
-  createdTemplates EvaluationTemplate[] @relation("TemplateCreator")
-  evaluationsGiven Evaluation[]         @relation("Evaluator")
-  evaluationsOwned Evaluation[]         @relation("Evaluatee")
-  comments         Comment[]
-  ledTeams         Team[]               @relation("TeamLeader")
-  assignedItems    TemplateItem[]       @relation("AssignedItems")
-  notifications    Notification[]       @relation("NotificationRecipient")
-  targetYears      UserTargetYear[]
-  appointmentRecords AppointmentRecord[]
-  performanceHistory PerformanceHistory[]
-  educationRecords EducationRecord[]
-  careerHistory    CareerHistory[]
-  certifications   Certification[]
-  commendationDiscipline CommendationDiscipline[]
-  permissionOverrides UserPermissionOverride[]
-  tasksAssigned    Task[]         @relation("TaskAssignee")
-  tasksCreated     Task[]         @relation("TaskCreator")
-  sopDocuments     SopDocument[]
-  workLogEntries   WorkLogEntry[]
-  surveyInvitesCreated SurveyInviteLink[]
-  competencyResponses CompetencyAssessmentResponse[]
-  erpImportBatches ErpImportBatch[]
-  pageViews        PageView[]
-  onboardingPrograms    OnboardingProgram[]    @relation("OnboardingProgramCreator")
-  uploadedRegulations   Regulation[]           @relation("RegulationUploader")
-  onboardingSessionsAdded OnboardingSession[]  @relation("OnboardingSessionCreator")
-  onboardingLogisticsAdded OnboardingLogistics[] @relation("OnboardingLogisticsCreator")
+  createdTemplates         EvaluationTemplate[]           @relation("TemplateCreator")
+  evaluationsGiven         Evaluation[]                   @relation("Evaluator")
+  evaluationsOwned         Evaluation[]                   @relation("Evaluatee")
+  comments                 Comment[]
+  ledTeams                 Team[]                         @relation("TeamLeader")
+  assignedItems            TemplateItem[]                 @relation("AssignedItems")
+  notifications            Notification[]                 @relation("NotificationRecipient")
+  targetYears              UserTargetYear[]
+  appointmentRecords       AppointmentRecord[]
+  performanceHistory       PerformanceHistory[]
+  educationRecords         EducationRecord[]
+  careerHistory            CareerHistory[]
+  certifications           Certification[]
+  commendationDiscipline   CommendationDiscipline[]
+  permissionOverrides      UserPermissionOverride[]
+  tasksAssigned            Task[]                         @relation("TaskAssignee")
+  tasksCreated             Task[]                         @relation("TaskCreator")
+  sopDocuments             SopDocument[]
+  workLogEntries           WorkLogEntry[]
+  surveyInvitesCreated     SurveyInviteLink[]
+  competencyResponses      CompetencyAssessmentResponse[]
+  erpImportBatches         ErpImportBatch[]
+  pageViews                PageView[]
+  onboardingPrograms       OnboardingProgram[]            @relation("OnboardingProgramCreator")
+  uploadedRegulations      Regulation[]                   @relation("RegulationUploader")
+  onboardingSessionsAdded  OnboardingSession[]            @relation("OnboardingSessionCreator")
+  onboardingLogisticsAdded OnboardingLogistics[]          @relation("OnboardingLogisticsCreator")
   onboardingSessionsTaught OnboardingSessionInstructor[]
-  onboardingTrainee       OnboardingTrainee[]  @relation("OnboardingTrainee")
-  onboardingTraineesAdded OnboardingTrainee[]  @relation("OnboardingTraineeAdder")
-  goalsOwned            Goal[]                 @relation("GoalOwner")
-  goalsCreated          Goal[]                 @relation("GoalCreator")
-  goalCheckIns          GoalCheckIn[]          @relation("GoalCheckInAuthor")
-  goalsAgreed           Goal[]                 @relation("GoalAgreedBy")
-  goalCycleTargets      GoalCycleTarget[]      @relation("GoalCycleTargetUser")
-  goalSheetInfos        GoalSheetInfo[]        @relation("GoalSheetInfoUser")
-  goalCycleTargetsSet   GoalCycleTarget[]      @relation("GoalCycleTargetSetter")
-  goalCyclesLocked      GoalCycle[]            @relation("GoalCycleLockedBy")
-  goalCheckpoints       GoalCheckpoint[]       @relation("GoalCheckpointCreator")
+  onboardingTrainee        OnboardingTrainee[]            @relation("OnboardingTrainee")
+  onboardingTraineesAdded  OnboardingTrainee[]            @relation("OnboardingTraineeAdder")
+  goalsOwned               Goal[]                         @relation("GoalOwner")
+  goalsCreated             Goal[]                         @relation("GoalCreator")
+  goalCheckIns             GoalCheckIn[]                  @relation("GoalCheckInAuthor")
+  goalsAgreed              Goal[]                         @relation("GoalAgreedBy")
+  goalCycleTargets         GoalCycleTarget[]              @relation("GoalCycleTargetUser")
+  goalSheetInfos           GoalSheetInfo[]                @relation("GoalSheetInfoUser")
+  goalCycleTargetsSet      GoalCycleTarget[]              @relation("GoalCycleTargetSetter")
+  goalCyclesLocked         GoalCycle[]                    @relation("GoalCycleLockedBy")
+  goalCheckpoints          GoalCheckpoint[]               @relation("GoalCheckpointCreator")
+  competencyReviews        CompetencyReview[]             @relation("CompetencyReviewee")
+  competencyLeadRatings    CompetencyScore[]              @relation("CompetencyLeadRater")
 }
 
 model AppointmentRecord {
@@ -184,7 +186,9 @@ model EducationRecord {
   @@unique([userId, level, school])
 }
 
-/** 인사카드의 [외부경력사항] — 입사 전 다른 회사에서의 근무 이력. */
+/**
+ * 인사카드의 [외부경력사항] — 입사 전 다른 회사에서의 근무 이력.
+ */
 model CareerHistory {
   id        String    @id @default(cuid())
   userId    String
@@ -199,7 +203,9 @@ model CareerHistory {
   @@index([userId])
 }
 
-/** 인사카드의 [자격사항] — 보유 자격증/면허. */
+/**
+ * 인사카드의 [자격사항] — 보유 자격증/면허.
+ */
 model Certification {
   id           String    @id @default(cuid())
   userId       String
@@ -214,18 +220,20 @@ model Certification {
   @@index([userId])
 }
 
-/** 인사카드의 [상벌사항] — 포상/징계 이력. */
+/**
+ * 인사카드의 [상벌사항] — 포상/징계 이력.
+ */
 model CommendationDiscipline {
-  id         String    @id @default(cuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type       String // 상 | 벌
-  category   String?
-  reason     String?
-  authority  String?
-  startDate  DateTime?
-  endDate    DateTime?
-  order      Int       @default(0)
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String // 상 | 벌
+  category  String?
+  reason    String?
+  authority String?
+  startDate DateTime?
+  endDate   DateTime?
+  order     Int       @default(0)
 
   @@index([userId])
 }
@@ -241,30 +249,30 @@ model UserTargetYear {
 }
 
 model Team {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  leaderId  String?
-  leader    User?    @relation("TeamLeader", fields: [leaderId], references: [id])
+  id       String  @id @default(cuid())
+  name     String  @unique
+  leaderId String?
+  leader   User?   @relation("TeamLeader", fields: [leaderId], references: [id])
 
   businessUnit String?
   division     String?
-  active       Boolean  @default(true)
-  sortOrder    Int      @default(0)
+  active       Boolean @default(true)
+  sortOrder    Int     @default(0)
 
   createdAt DateTime @default(now())
 
-  members       User[]         @relation("TeamMember")
+  members            User[]                  @relation("TeamMember")
   onboardingSessions OnboardingSessionTeam[]
-  templateItems TemplateItem[]
-  jobDescription JobDescription?
-  tasks         Task[]
-  goals         Goal[]
+  templateItems      TemplateItem[]
+  jobDescription     JobDescription?
+  tasks              Task[]
+  goals              Goal[]
 }
 
 model JobDescription {
-  id                 String   @id @default(cuid())
-  teamId             String   @unique
-  team               Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  id                 String    @id @default(cuid())
+  teamId             String    @unique
+  team               Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
   responsibilities   String?
   purpose            String?
   relatedDepartments String?
@@ -274,7 +282,7 @@ model JobDescription {
   fileType           String?
   fileData           Bytes?
   fileUpdatedAt      DateTime?
-  updatedAt          DateTime @updatedAt
+  updatedAt          DateTime  @updatedAt
 }
 
 model EvaluationTemplate {
@@ -316,33 +324,33 @@ model TemplateItem {
 }
 
 model EvaluationCycle {
-  id              String      @id @default(cuid())
+  id              String             @id @default(cuid())
   name            String
   templateId      String
   template        EvaluationTemplate @relation(fields: [templateId], references: [id])
   startDate       DateTime
   endDate         DateTime
-  status          CycleStatus @default(DRAFT)
-  resultsReleased Boolean     @default(false)
-  createdAt       DateTime    @default(now())
+  status          CycleStatus        @default(DRAFT)
+  resultsReleased Boolean            @default(false)
+  createdAt       DateTime           @default(now())
 
   evaluations Evaluation[]
 }
 
 model Evaluation {
-  id          String           @id @default(cuid())
-  cycleId     String
-  cycle       EvaluationCycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  evaluatorId String
-  evaluator   User             @relation("Evaluator", fields: [evaluatorId], references: [id])
-  evaluateeId String
-  evaluatee   User             @relation("Evaluatee", fields: [evaluateeId], references: [id])
-  status      EvaluationStatus @default(PENDING)
-  submittedAt DateTime?
-  managerComment String?
-  selfStatus     EvaluationStatus @default(PENDING)
+  id              String           @id @default(cuid())
+  cycleId         String
+  cycle           EvaluationCycle  @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  evaluatorId     String
+  evaluator       User             @relation("Evaluator", fields: [evaluatorId], references: [id])
+  evaluateeId     String
+  evaluatee       User             @relation("Evaluatee", fields: [evaluateeId], references: [id])
+  status          EvaluationStatus @default(PENDING)
+  submittedAt     DateTime?
+  managerComment  String?
+  selfStatus      EvaluationStatus @default(PENDING)
   selfSubmittedAt DateTime?
-  createdAt   DateTime         @default(now())
+  createdAt       DateTime         @default(now())
 
   scores   EvaluationScore[]
   comments Comment[]
@@ -408,7 +416,9 @@ model CompetencyAssessmentResponse {
   createdAt      DateTime          @default(now())
 }
 
-/** 외부 지원자용 1회성 응시 링크. */
+/**
+ * 외부 지원자용 1회성 응시 링크.
+ */
 model SurveyInviteLink {
   id            String   @id @default(cuid())
   token         String   @unique @default(cuid())
@@ -441,7 +451,9 @@ enum PermissionScope {
   DIVISION
   BUSINESS_UNIT
   FULL
-  /** EMPLOYEES 모듈 전용: 목록은 전체 공개하되 개인 인사카드 상세는 본인만. */
+  /**
+   * EMPLOYEES 모듈 전용: 목록은 전체 공개하되 개인 인사카드 상세는 본인만.
+   */
   LIST_ONLY
 }
 
@@ -476,20 +488,20 @@ model UserPermissionOverride {
  * 정렬을, assignee가 나인 것만 필터링하면 To-do 목록이 된다.
  */
 model Task {
-  id          String     @id @default(cuid())
+  id          String       @id @default(cuid())
   title       String
   description String?
-  status      TaskStatus @default(TODO)
+  status      TaskStatus   @default(TODO)
   priority    TaskPriority @default(MEDIUM)
   dueDate     DateTime?
   assigneeId  String?
-  assignee    User?      @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
   teamId      String?
-  team        Team?      @relation(fields: [teamId], references: [id])
+  team        Team?        @relation(fields: [teamId], references: [id])
   createdById String
-  createdBy   User       @relation("TaskCreator", fields: [createdById], references: [id])
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdBy   User         @relation("TaskCreator", fields: [createdById], references: [id])
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   subtasks Subtask[]
 
@@ -497,7 +509,9 @@ model Task {
   @@index([status])
 }
 
-/** 업무 관리 > 하위 체크리스트 항목. */
+/**
+ * 업무 관리 > 하위 체크리스트 항목.
+ */
 model Subtask {
   id     String  @id @default(cuid())
   taskId String
@@ -509,7 +523,9 @@ model Subtask {
   @@index([taskId])
 }
 
-/** 업무 관리 > SOP: 반복 업무의 표준 절차 문서. */
+/**
+ * 업무 관리 > SOP: 반복 업무의 표준 절차 문서.
+ */
 model SopDocument {
   id          String   @id @default(cuid())
   title       String
@@ -521,7 +537,9 @@ model SopDocument {
   updatedAt   DateTime @updatedAt
 }
 
-/** 업무 관리 > 업무일지 DB: 개인별 일일 업무 기록. */
+/**
+ * 업무 관리 > 업무일지 DB: 개인별 일일 업무 기록.
+ */
 model WorkLogEntry {
   id        String   @id @default(cuid())
   userId    String
@@ -559,11 +577,15 @@ model ModuleUiConfig {
   order      Int     @default(0)
   comingSoon Boolean @default(false)
   hidden     Boolean @default(false)
-  /** 사이드바에 표시할 커스텀 이름. null이면 기본 이름을 그대로 쓴다. */
+  /**
+   * 사이드바에 표시할 커스텀 이름. null이면 기본 이름을 그대로 쓴다.
+   */
   label      String?
 }
 
-/** 사이드바 "관리"(admin) 섹션 항목별 숨김 여부. key는 AdminMenuKey 문자열. */
+/**
+ * 사이드바 "관리"(admin) 섹션 항목별 숨김 여부. key는 AdminMenuKey 문자열.
+ */
 model AdminMenuConfig {
   id     String  @id @default(cuid())
   key    String  @unique
@@ -675,17 +697,19 @@ model OnboardingProgram {
   // 않고 OnboardingSession에 붙인다.
   notice String? @db.Text
 
-  active      Boolean   @default(true)
+  active      Boolean  @default(true)
   createdById String
-  createdBy   User      @relation("OnboardingProgramCreator", fields: [createdById], references: [id])
-  createdAt   DateTime  @default(now())
+  createdBy   User     @relation("OnboardingProgramCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
 
   sessions  OnboardingSession[]
   trainees  OnboardingTrainee[]
   logistics OnboardingLogistics[]
 }
 
-/** 숙박이냐 이동이냐. 안내서에서 아이콘과 묶는 순서를 가르는 데 쓴다. */
+/**
+ * 숙박이냐 이동이냐. 안내서에서 아이콘과 묶는 순서를 가르는 데 쓴다.
+ */
 enum OnboardingLogisticsKind {
   LODGING
   TRANSPORT
@@ -693,7 +717,6 @@ enum OnboardingLogisticsKind {
 
 /**
  * 날짜에 걸리는 숙박·교통 안내.
- *
  * 강의 한 건에 딸린 정보가 아니다 — 숙박은 밤에 걸리고, 전세버스는 그 날
  * 아침에 한 번 뜬다. 강의에 붙여 두면 "8/12 오전 강의"와 "8/12 오후 강의"에
  * 같은 숙소를 두 번 적게 되고, 강의가 없는 이동일에는 적을 자리가 없다.
@@ -724,13 +747,13 @@ model OnboardingLogistics {
  * 결과만 적는다 — 그래서 적히는 즉시 확정본이고, 상태나 조율 절차가 없다.
  */
 model OnboardingSession {
-  id          String            @id @default(cuid())
-  programId   String
-  program     OnboardingProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
-  title       String
-  startAt     DateTime
-  endAt       DateTime
-  location    String?
+  id        String            @id @default(cuid())
+  programId String
+  program   OnboardingProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  title     String
+  startAt   DateTime
+  endAt     DateTime
+  location  String?
 
   // 두 갈래의 전달사항. description은 강사에게만 넘기는 준비·진행 메모라
   // 안내서에 싣지 않고, traineeNote는 강사가 수강생에게 전하고 싶은 말이라
@@ -824,24 +847,30 @@ model OnboardingSessionAttendee {
  * 재파싱할 때 원본이 없으면 다시 업로드받아야 하기 때문.
  */
 model Regulation {
-  id            String               @id @default(cuid())
-  title         String
-  category      String?
-  /** 개정일. 같은 규정의 구버전과 구분해야 "현재 유효한 조항"을 답할 수 있다. */
-  revisedAt     DateTime?
-  /** false면 검색·챗봇 답변에서 제외한다(폐지·구버전 보관용). */
-  isActive      Boolean              @default(true)
-  fileName      String?
-  fileType      String?
-  fileData      Bytes?
-  /** 파싱 원문. 조문 재파싱 시 파일 재추출 없이 여기서 바로 돌린다. */
-  sourceText    String?
-  articleCount  Int                  @default(0)
-  articles      RegulationArticle[]
-  uploadedById  String?
-  uploadedBy    User?                @relation("RegulationUploader", fields: [uploadedById], references: [id])
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
+  id           String              @id @default(cuid())
+  title        String
+  category     String?
+  /**
+   * 개정일. 같은 규정의 구버전과 구분해야 "현재 유효한 조항"을 답할 수 있다.
+   */
+  revisedAt    DateTime?
+  /**
+   * false면 검색·챗봇 답변에서 제외한다(폐지·구버전 보관용).
+   */
+  isActive     Boolean             @default(true)
+  fileName     String?
+  fileType     String?
+  fileData     Bytes?
+  /**
+   * 파싱 원문. 조문 재파싱 시 파일 재추출 없이 여기서 바로 돌린다.
+   */
+  sourceText   String?
+  articleCount Int                 @default(0)
+  articles     RegulationArticle[]
+  uploadedById String?
+  uploadedBy   User?               @relation("RegulationUploader", fields: [uploadedById], references: [id])
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
   @@index([isActive])
 }
@@ -855,17 +884,25 @@ model RegulationArticle {
   id           String     @id @default(cuid())
   regulationId String
   regulation   Regulation @relation(fields: [regulationId], references: [id], onDelete: Cascade)
-  /** 문서 내 원문 순서. 목차를 원문 순서대로 재현하는 데 쓴다. */
+  /**
+   * 문서 내 원문 순서. 목차를 원문 순서대로 재현하는 데 쓴다.
+   */
   order        Int
-  /** 인용 표기. 예: "제23조", "제23조의2", "부칙 제1조" */
+  /**
+   * 인용 표기. 예: "제23조", "제23조의2", "부칙 제1조"
+   */
   label        String
   articleNo    Int
-  /** 가지번호(제23조의2의 "2"). 없으면 null. */
+  /**
+   * 가지번호(제23조의2의 "2"). 없으면 null.
+   */
   branchNo     Int?
   title        String?
   chapter      String?
   section      String?
-  /** 부칙은 조 번호가 제1조부터 다시 시작해서 본칙과 구분이 필요하다. */
+  /**
+   * 부칙은 조 번호가 제1조부터 다시 시작해서 본칙과 구분이 필요하다.
+   */
   isAddenda    Boolean    @default(false)
   body         String
 
@@ -889,13 +926,21 @@ enum GoalLevel {
 }
 
 enum GoalStatus {
-  /** 작성 중 — 상위에서 확정되기 전 */
+  /**
+   * 작성 중 — 상위에서 확정되기 전
+   */
   DRAFT
-  /** 진행 중 */
+  /**
+   * 진행 중
+   */
   ACTIVE
-  /** 달성 완료 */
+  /**
+   * 달성 완료
+   */
   DONE
-  /** 중단·폐기 */
+  /**
+   * 중단·폐기
+   */
   DROPPED
 }
 
@@ -905,13 +950,21 @@ enum GoalStatus {
  * 않은 목표에 점수를 매기면 평가가 성립하지 않는다.
  */
 enum GoalAgreementStatus {
-  /** 작성 중 — 아직 팀장에게 올리지 않음 */
+  /**
+   * 작성 중 — 아직 팀장에게 올리지 않음
+   */
   DRAFT
-  /** 합의 요청 — 팀장 승인 대기 */
+  /**
+   * 합의 요청 — 팀장 승인 대기
+   */
   REQUESTED
-  /** 합의 완료 — 팀장 승인됨 */
+  /**
+   * 합의 완료 — 팀장 승인됨
+   */
   AGREED
-  /** 되돌림 — 팀장이 사유를 달아 반려 */
+  /**
+   * 되돌림 — 팀장이 사유를 달아 반려
+   */
   RETURNED
 }
 
@@ -921,7 +974,9 @@ enum GoalCycleStatus {
   CLOSED
 }
 
-/** 목표 운영 기간(예: 2026년 상반기). 모든 목표는 한 사이클에 속한다. */
+/**
+ * 목표 운영 기간(예: 2026년 상반기). 모든 목표는 한 사이클에 속한다.
+ */
 model GoalCycle {
   id        String          @id @default(cuid())
   name      String
@@ -932,13 +987,12 @@ model GoalCycle {
 
   /**
    * 목록에 늘어놓는 순서. 관리자가 위·아래로 옮겨 정한다.
-   *
    * 연도·기간순으로만 세우면 "2026년 목표설정 → 상반기 → 최종평가"처럼 일이
    * 진행되는 순서로 못 늘어놓는다. 상반기(1~6월)가 목표설정(7~12월)보다 앞선
    * 기간이라 날짜로는 뒤집히기 때문이다. 0이면 아직 정하지 않은 것이라
    * 날짜순으로 떨어진다.
    */
-  sortOrder Int             @default(0)
+  sortOrder Int @default(0)
 
   /**
    * 입사일 기준일. 이 날짜 **이후** 입사자는 이번 평가 대상에서 자동으로
@@ -963,11 +1017,9 @@ model GoalCycle {
    * 목표를 빌려오는 사이클. 같은 해 목표 한 벌을 여러 평가가 나눠 볼 때 쓴다 —
    * "2026년 상반기"와 "2026년 최종평가"는 "2026년 목표설정"의 목표를 그대로
    * 보고, 목표를 각자 한 벌씩 들고 있지 않는다.
-   *
    * 복사가 아니라 참조다. 복사하면 어느 쪽이 진짜인지가 생기고, 한쪽에서 목표를
    * 고치면 다른 쪽과 어긋난다. 여기서는 화면만 여러 개고 목표는 한 벌이다.
    * 연도가 바뀔 때는 참조가 아니라 복사가 맞다(copyGoalsFromCycle).
-   *
    * 한 단계만 허용한다 — 빌려온 사이클을 또 빌려주면 어디가 원본인지 따라가기
    * 어려워진다.
    */
@@ -975,7 +1027,7 @@ model GoalCycle {
   sourceCycle   GoalCycle?  @relation("GoalCycleShare", fields: [sourceCycleId], references: [id])
   sharedBy      GoalCycle[] @relation("GoalCycleShare")
 
-  createdAt DateTime        @default(now())
+  createdAt DateTime @default(now())
 
   goals       Goal[]
   targets     GoalCycleTarget[]
@@ -988,7 +1040,6 @@ model GoalCycle {
 /**
  * 평가 시점 스냅샷. "2026년 상반기 평가"처럼 한 사이클 안에서 성적을 끊어
  * 읽어야 할 때, 그 순간의 달성률을 얼려 둔다.
- *
  * 상반기 평가를 하겠다고 목표를 통째로 복사해 새 사이클을 만들면 같은 목표가
  * 두 벌이 되고, 어느 쪽이 진짜인지가 생긴다. 목표는 한 벌로 두고 시점만
  * 남기면 하반기에 달성률이 더 올라가도 상반기 성적은 흔들리지 않는다.
@@ -997,7 +1048,9 @@ model GoalCheckpoint {
   id      String    @id @default(cuid())
   cycleId String
   cycle   GoalCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  /** 예: "2026년 상반기 평가". */
+  /**
+   * 예: "2026년 상반기 평가".
+   */
   name    String
   takenAt DateTime  @default(now())
   note    String?
@@ -1010,7 +1063,9 @@ model GoalCheckpoint {
   @@index([cycleId, takenAt])
 }
 
-/** 스냅샷에 찍힌 목표 한 건의 그 시점 성적. */
+/**
+ * 스냅샷에 찍힌 목표 한 건의 그 시점 성적.
+ */
 model GoalCheckpointEntry {
   id           String         @id @default(cuid())
   checkpointId String
@@ -1018,12 +1073,16 @@ model GoalCheckpointEntry {
   goalId       String
   goal         Goal           @relation(fields: [goalId], references: [id], onDelete: Cascade)
 
-  level GoalLevel
-  /** 그 시점의 달성률 — 하위가 있으면 굴려 올린 값이다. */
+  level    GoalLevel
+  /**
+   * 그 시점의 달성률 — 하위가 있으면 굴려 올린 값이다.
+   */
   progress Int
   status   GoalStatus
-  /** 그 시점에 집계에서 빠져 있었는지(개별 제외 또는 평가대상 제외). */
-  excluded Boolean @default(false)
+  /**
+   * 그 시점에 집계에서 빠져 있었는지(개별 제외 또는 평가대상 제외).
+   */
+  excluded Boolean    @default(false)
 
   @@unique([checkpointId, goalId])
   @@index([goalId])
@@ -1047,21 +1106,28 @@ model Goal {
   title       String
   description String?
 
-  /** 책임목표가 속한 부문(책임) 이름. User.division / Team.division과 같은 값. */
+  /**
+   * 책임목표가 속한 부문(책임) 이름. User.division / Team.division과 같은 값.
+   */
   division String?
-  /** 팀목표가 걸린 팀. */
-  teamId String?
-  team   Team?   @relation(fields: [teamId], references: [id])
-  /** 개인목표 담당자. 팀·책임 목표에서는 책임자(팀장·책임)를 가리킨다. */
-  ownerId String?
-  owner   User?   @relation("GoalOwner", fields: [ownerId], references: [id])
+  /**
+   * 팀목표가 걸린 팀.
+   */
+  teamId   String?
+  team     Team?   @relation(fields: [teamId], references: [id])
+  /**
+   * 개인목표 담당자. 팀·책임 목표에서는 책임자(팀장·책임)를 가리킨다.
+   */
+  ownerId  String?
+  owner    User?   @relation("GoalOwner", fields: [ownerId], references: [id])
 
-  /** 같은 부모 아래 형제 목표들 사이의 가중치(%). 진척 롤업에 쓴다. */
+  /**
+   * 같은 부모 아래 형제 목표들 사이의 가중치(%). 진척 롤업에 쓴다.
+   */
   weight Float @default(0)
 
   /**
    * "기타" 묶음인지. 위 층의 어느 목표에도 딱 붙지 않는 일을 담아 두는 자리다.
-   *
    * 이런 목표를 상위 없이 두면 아무리 달성해도 전사 달성률이 안 움직인다 —
    * 그래서 층마다 기타 한 칸을 두고 거기에 매단다. 등록할 때 상위 목표로
    * 「기타」를 고르면 필요한 만큼 자동으로 만들어진다(전사 기타 → 책임 기타 →
@@ -1069,14 +1135,15 @@ model Goal {
    */
   isOther Boolean @default(false)
 
-  /** 측정지표와 목표수준 — 서술형으로 받는다(예: "신규 거래처 20개"). */
-  metric      String?
-  targetValue String?
+  /**
+   * 측정지표와 목표수준 — 서술형으로 받는다(예: "신규 거래처 20개").
+   */
+  metric       String?
+  targetValue  String?
   currentValue String?
 
   /**
    * 평가척도. 사내 "팀 목표 설정" 양식의 S(110)~D(70) 다섯 칸을 그대로 받는다.
-   *
    * 점수가 아니라 **그 등급이 되려면 어디까지 해야 하는지를 서술로** 적는 칸이다
    * (예: S = "3천만원 이상 절감", C = "천만원 미만~백만원 이상 절감"). 목표를
    * 세울 때 등급 기준을 같이 못박아 둬야, 연말에 "이 정도면 A인가 B인가"를
@@ -1088,13 +1155,14 @@ model Goal {
   scaleC String?
   scaleD String?
 
-  /** 산출식/방안 — 이 지표를 무엇으로 재는지(예: "= 절감액", "= 만족도Survey"). */
+  /**
+   * 산출식/방안 — 이 지표를 무엇으로 재는지(예: "= 절감액", "= 만족도Survey").
+   */
   formula String?
 
   /**
    * 목표 유형. 사내 "개인목표 설정" 양식에서 목표 앞에 붙는 괄호 —
    * (업무목표) / (개선목표) / (자기계발목표).
-   *
    * 세 가지를 섞어 세우게 하려고 두는 칸이다. 유형을 안 적게 하면 개인목표가
    * 전부 (업무목표)로만 채워져서, 개선과 자기계발이 목표 설정 단계에서 아예
    * 빠진다.
@@ -1106,7 +1174,6 @@ model Goal {
 
   /**
    * Key Results(핵심결과). 줄바꿈 한 줄이 ① ② ③ 한 항목이다.
-   *
    * 항목마다 별도 행으로 두지 않는 이유는, 양식에서도 이것들이 달성률을 따로
    * 매기는 대상이 아니라 "목표를 무엇으로 봤다고 할지"를 적어 두는 목록이기
    * 때문이다. 나중에 항목별 진척을 재게 되면 그때 행으로 쪼갠다.
@@ -1119,14 +1186,13 @@ model Goal {
   /**
    * 그 단계의 평가 — 사내 「개인목표 평가(상반기)」 표를 그대로 옮긴 칸들이다.
    * 본인이 자기 점수와 사유를 적고, 1차 평가자(팀장)가 그 아래 칸을 적는다.
-   *
    * 목표 행에 같이 두는 이유는, 마감할 때 단계마다 목표를 한 벌씩 복사해 갖기
    * 때문이다(`handOffToNextPhase`). 중간평가의 목표 행에 적힌 점수는 상반기
    * 평가이고, 최종평가 행에 적힌 것은 하반기 평가다 — 한 행이 두 학기를
    * 겸하지 않으므로 칸을 반기마다 따로 둘 필요가 없다.
    */
-  selfScore    Int?
-  selfComment  String?
+  selfScore   Int?
+  selfComment String?
 
   /**
    * 1차 평가자가 매긴 값. **적혀 있으면 이것이 그 목표의 달성률·점수다.**
@@ -1134,8 +1200,8 @@ model Goal {
    * 남고, 위로 굴러 올라가는 숫자는 평가자 것이 된다(`effectiveProgress`).
    */
   firstProgress Int?
-  firstScore   Int?
-  firstComment String?
+  firstScore    Int?
+  firstComment  String?
 
   /**
    * 1차 평가자가 «평가완료»를 누른 시각. 찍히면 그 단계의 평가가 끝났다는
@@ -1159,20 +1225,22 @@ model Goal {
    * 직접 세우는 값이라 합의 대상이 아니다.
    */
   agreementStatus GoalAgreementStatus @default(DRAFT)
-  /** 팀장이 되돌리며 남긴 사유, 또는 승인하며 남긴 메모. */
+  /**
+   * 팀장이 되돌리며 남긴 사유, 또는 승인하며 남긴 메모.
+   */
   agreementNote   String?
   agreedAt        DateTime?
   agreedById      String?
   agreedBy        User?               @relation("GoalAgreedBy", fields: [agreedById], references: [id])
-  dueDate  DateTime?
-  sortOrder Int       @default(0)
+  dueDate         DateTime?
+  sortOrder       Int                 @default(0)
 
   createdById String
   createdBy   User     @relation("GoalCreator", fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  checkIns         GoalCheckIn[]
+  checkIns          GoalCheckIn[]
   checkpointEntries GoalCheckpointEntry[]
 
   @@index([cycleId, level])
@@ -1181,15 +1249,17 @@ model Goal {
   @@index([ownerId])
 }
 
-/** 진척 업데이트 이력. 언제 몇 %로 올렸고 무슨 근거였는지 남긴다. */
+/**
+ * 진척 업데이트 이력. 언제 몇 %로 올렸고 무슨 근거였는지 남긴다.
+ */
 model GoalCheckIn {
-  id       String @id @default(cuid())
-  goalId   String
-  goal     Goal   @relation(fields: [goalId], references: [id], onDelete: Cascade)
-  progress Int
-  note     String?
-  authorId String
-  author   User     @relation("GoalCheckInAuthor", fields: [authorId], references: [id])
+  id        String   @id @default(cuid())
+  goalId    String
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  progress  Int
+  note      String?
+  authorId  String
+  author    User     @relation("GoalCheckInAuthor", fields: [authorId], references: [id])
   createdAt DateTime @default(now())
 
   @@index([goalId, createdAt])
@@ -1197,24 +1267,20 @@ model GoalCheckIn {
 
 /**
  * 평가대상자. 사이클마다 "이 사람을 이번 목표관리에 넣는지"를 남긴다.
- *
  * 행이 없으면 대상이다 — 재직 중인 사람은 기본적으로 전원 대상이고, 빼야 할
  * 사람만 included=false 로 행을 만든다. 그래야 입사자가 들어올 때마다 누가
  * 명단에 넣어주지 않아도 자동으로 대상에 잡힌다.
- *
  * 제외로 바꾸면 그 사람이 이 사이클에서 가진 목표의 Goal.excluded 도 같이
  * 켜서 상위 달성률 집계에서 빠지게 한다 — 명단과 집계가 따로 놀면 "명단에서
  * 뺐는데 달성률은 그대로"가 된다.
  */
 /**
  * 개인목표 설정 양식의 «1. 기본사항» 중 **사람이 직접 적는 칸**.
- *
  * 인사카드(User)와 잇지 않는다 — 담당업무는 «인사 기획/보상평가»처럼 그 해
  * 자기가 무엇을 맡았는지 본인이 적는 문장이라, 인사 정보로 관리하면 매번
  * 인사팀을 거쳐야 한다. 평가대상 여부를 담는 GoalCycleTarget에 얹지 않은
  * 이유도 분명하다 — 그 표에 줄이 생기면 «손으로 정한 대상»으로 읽혀서
  * 입사일 기준(hireCutoff)을 덮어써 버린다.
- *
  * 사이클마다 한 줄. 중간평가·최종평가는 목표를 빌려 쓰므로 원본
  * 사이클(sourceCycleId ?? id)에 저장해서 세 단계가 같은 값을 본다.
  */
@@ -1233,7 +1299,7 @@ model GoalSheetInfo {
   @@unique([cycleId, userId])
 }
 
-model GoalCycleTarget {model GoalCycleTarget {
+model GoalCycleTarget {
   id      String    @id @default(cuid())
   cycleId String
   cycle   GoalCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
@@ -1241,13 +1307,69 @@ model GoalCycleTarget {model GoalCycleTarget {
   user    User      @relation("GoalCycleTargetUser", fields: [userId], references: [id], onDelete: Cascade)
 
   included Boolean @default(true)
-  /** 제외 사유(퇴사, 부서이동, 휴직 등). 화면과 집계 제외 사유에 같이 쓴다. */
+  /**
+   * 제외 사유(퇴사, 부서이동, 휴직 등). 화면과 집계 제외 사유에 같이 쓴다.
+   */
   reason   String?
 
-  setById String?
-  setBy   User?    @relation("GoalCycleTargetSetter", fields: [setById], references: [id])
+  setById   String?
+  setBy     User?    @relation("GoalCycleTargetSetter", fields: [setById], references: [id])
   updatedAt DateTime @updatedAt
 
   @@unique([cycleId, userId])
   @@index([cycleId, included])
+}
+
+/**
+ * 역량평가 한 벌 — **한 사람의 한 해**다.
+ * 목표(GoalCycle)에 매달지 않는다. 역량평가는 «목표를 몇 % 했나»가 아니라 «어떤
+ * 역량을 어느 수준으로 갖췄나»라서 목표설정·중간평가·최종평가로 갈리지 않고, 한
+ * 해에 한 번 매긴다. 그래서 묶는 열쇠도 연도 하나다.
+ * 문항 자체는 여기 담지 않는다(`src/lib/competency.ts`). 핵심가치 다섯 줄은 회사가
+ * 해마다 같게 쓰고, 직무역량 다섯 줄은 직무마다 다른데 — 둘 다 인사팀이 정해서
+ * 내려주는 양식이라 사람이 화면에서 만들 것이 아니다. 점수만 여기 남는다.
+ */
+model CompetencyReview {
+  id     String @id @default(cuid())
+  year   Int
+  /**
+   * 피평가자.
+   */
+  userId String
+  user   User   @relation("CompetencyReviewee", fields: [userId], references: [id], onDelete: Cascade)
+
+  scores CompetencyScore[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, userId])
+  @@index([year])
+}
+
+/**
+ * 문항 한 줄의 자기평가·팀장평가 점수. 둘 다 1~5 정수이고, 아직 안 적었으면
+ * null이다 — 0으로 두면 «부족(1)보다 낮은 점수»가 생기고 평균이 내려간다.
+ */
+model CompetencyScore {
+  id       String           @id @default(cuid())
+  reviewId String
+  review   CompetencyReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  /**
+   * `src/lib/competency.ts`의 문항 키. 문항 문장을 다듬어도 점수는 이어진다 —
+   * 질문 원문을 열쇠로 쓰면 쉼표 하나 고친 순간 지난 점수가 떨어져 나간다.
+   */
+  itemKey  String
+
+  selfScore Int?
+  leadScore Int?
+  /**
+   * 팀장평가를 적은 사람. 조직도가 바뀌어도 «누가 적었나»는 남아야 한다.
+   */
+  leadById  String?
+  leadBy    User?   @relation("CompetencyLeadRater", fields: [leadById], references: [id])
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([reviewId, itemKey])
 }
