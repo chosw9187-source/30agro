@@ -126,3 +126,47 @@ export function YearPhaseSelect({
     </>
   );
 }
+
+/**
+ * 주소의 **한 칸만** 바꾸는 고르개.
+ *
+ * 역량평가에서 «누구 것을 볼지»를 고르는 데 쓴다. 연도·단계·탭 같은 나머지
+ * 조건은 건드리지 않는다 — 사람을 바꿨다고 보고 있던 해가 바뀔 이유가 없다.
+ * 빈 값을 고르면 그 칸을 주소에서 지운다(기본값으로 돌아간다).
+ */
+export function ParamSelect({
+  param,
+  value,
+  options,
+  ariaLabel,
+}: {
+  param: string;
+  value: string;
+  options: Option[];
+  ariaLabel: string;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  return (
+    <select
+      value={value}
+      aria-label={ariaLabel}
+      onChange={(e) => {
+        const params = new URLSearchParams(searchParams.toString());
+        if (e.target.value) params.set(param, e.target.value);
+        else params.delete(param);
+        const qs = params.toString();
+        router.push(qs ? `${pathname}?${qs}` : pathname);
+      }}
+      className="rounded-md border border-slate-300 px-3 py-1 text-xs"
+    >
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}

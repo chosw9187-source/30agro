@@ -82,8 +82,17 @@ import {
   setGoalEvalDone,
   setGoalExcluded,
   updateGoal,
+  saveCompetencyScores,
 } from "./actions";
-import { YearPhaseSelect } from "./cycle-select";
+import {
+  COMPETENCY_NOTES,
+  COMPETENCY_SCALE,
+  competencyAverage,
+  competencyFormFor,
+  competencyScoreLabel,
+  type CompetencyItem,
+} from "@/lib/competency";
+import { YearPhaseSelect, ParamSelect } from "./cycle-select";
 import { ActionForm } from "@/components/action-form";
 import { AutoRefresh } from "@/components/auto-refresh";
 
@@ -423,6 +432,8 @@ export default async function Evaluation2Page({
     edit?: string;
     year?: string;
     phase?: string;
+    /** 역량평가에서 누구 것을 볼지. 비면 본인. */
+    who?: string;
   }>;
 }) {
   if (!(await checkModuleAccess("EVALUATION_V2"))) {
@@ -822,6 +833,85 @@ export default async function Evaluation2Page({
   const visibleRows = (rows: GoalNode[]) =>
     rows.filter((g) => canViewGoalRow(g, viewer, org));
 
+  /*
+    ── 역량평가 ─────────────────────────────────────────────────────────────
+    필요한 것만 그때 읽는다. 다른 단계(목표설정·중간평가…)에서는 이 쿼리가
+    돌지 않는다.
+  */
+  /**
+   * 이 사람의 역량평가를 열어 볼 수 있나.
+   *
+   * 목표의 범위 규칙(`canViewGoalRow`)을 그대로 쓸 수는 없었다. 그쪽은 «팀이 안
+   * 붙은 목표»(전사·책임 목표)를 모두에게 열어 주는데, 같은 규칙을 사람에 대면
+   * 팀에 속하지 않은 사람 — 책임·운영책임·사장 — 이 전원에게 보인다. 팀장의
+   * 피평가자 고르개에 사장이 끼어 있던 것이 그 때문이다.
+   *
+   * 사람은 조직의 위에서 아래로만 본다. 다만 **내가 1차 평가자인 사람**은 직책과
+   * 무관하게 본다 — 점수를 적어야 하는 사람이 목록에 없으면 평가를 할 수가 없다.
+   */
+  const canSeePerson = (p: {
+    id: string;
+    teamId: string | null;
+    division: string | null;
+    businessUnit: string | null;
+  }) => {
+    if (p.id === viewer.id) return true;
+    if (viewer.isAdmin || viewer.position === "CEO") return true;
+    if (evaluatorByPerson.get(p.id)?.first?.id === viewer.id) return true;
+
+    const theirDivision = p.teamId
+      ? (org.teamDivision(p.teamId) ?? p.division)
+      : p.division;
+    const theirUnit = p.teamId
+      ? (org.teamUnit(p.teamId) ?? p.businessUnit)
+      : (p.division ? org.divisionUnit(p.division) : null) ?? p.businessUnit;
+
+    switch (viewer.position) {
+      case "OPERATIONS_HEAD":
+        return (
+          !!theirUnit &&
+          !!viewer.businessUnit &&
+          theirUnit === viewer.businessUnit
+        );
+      case "SENIOR_STAFF":
+        return (
+          !!theirDivision && !!viewer.division && theirDivision === viewer.division
+        );
+      case "TEAM_LEADER": {
+        const myTeams = new Set([
+          ...(viewer.teamId ? [viewer.teamId] : []),
+          ...viewer.ledTeamIds,
+        ]);
+        return !!p.teamId && myTeams.has(p.teamId);
+      }
+      default:
+        // 담당은 자기 것만 본다(맨 위에서 이미 통과).
+        return false;
+    }
+  };
+  const competencyPeople = competencyView ? people.filter(canSeePerson) : [];
+  const competencyTarget = competencyView
+    ? (competencyPeople.find((p) => p.id === params.who) ??
+      competencyPeople.find((p) => p.id === session!.user.id) ??
+      competencyPeople[0] ??
+      null)
+    : null;
+  const competencyScores =
+    competencyView && competencyTarget
+      ? await prisma.competencyScore.findMany({
+          where: {
+            review: { year: selectedYear, userId: competencyTarget.id },
+          },
+          select: {
+            itemKey: true,
+            selfScore: true,
+            leadScore: true,
+            leadBy: { select: { name: true } },
+            updatedAt: true,
+          },
+        })
+      : [];
+
   const editingGoal = params.edit ? (nodeById.get(params.edit) ?? null) : null;
 
   function buildHref(next: { tab?: string; edit?: string | null }) {
@@ -947,7 +1037,7 @@ export default async function Evaluation2Page({
                   GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]
                 })`,
               })),
-              { value: COMPETENCY_PHASE, label: "역량평가 (준비 중)" },
+              { value: COMPETENCY_PHASE, label: "역량평가" },
             ]}
             phase={selectedPhase}
           />
@@ -1020,6 +1110,294 @@ export default async function Evaluation2Page({
           );
         })}
       </nav>
+    );
+  }
+
+  /**
+   * 역량평가 — 사내 「한국삼공 역량평가 양식」 한 장을 그대로 옮긴 화면.
+   *
+   * 목표 화면과 다른 점이 둘 있다. 하나는 **사람 단위**라는 것 — 목표는 여러
+   * 사람 것을 한 목록에 늘어놓지만, 역량평가는 한 사람이 표 두 개·열 문항이라
+   * 여럿을 한 화면에 쌓으면 아무것도 안 읽힌다. 그래서 위에서 사람을 고른다.
+   * 다른 하나는 **한 번에 저장**이라는 것 — 엑셀에서 하던 대로 표를 다 채우고
+   * 아래의 저장을 한 번 누른다.
+   */
+  function competencyBoard() {
+    if (!competencyTarget) {
+      return comingUp("역량평가", null, [
+        "볼 수 있는 사람이 없습니다. 조직도에 소속이 등록되어 있는지 확인해 주세요.",
+      ]);
+    }
+
+    const target = competencyTarget;
+    const form = competencyFormFor(target.team?.name ?? null);
+    const saved = new Map(competencyScores.map((s) => [s.itemKey, s]));
+    const rows = [...form.core, ...form.job].map((i) => ({
+      itemKey: i.key,
+      selfScore: saved.get(i.key)?.selfScore ?? null,
+      leadScore: saved.get(i.key)?.leadScore ?? null,
+    }));
+    const avg = competencyAverage(rows);
+    const itemCount = rows.length;
+
+    const chain = evaluatorByPerson.get(target.id) ?? null;
+    const isSelf = target.id === session!.user.id;
+    const isFirstEvaluator = !!chain?.first && chain.first.id === session!.user.id;
+    /*
+      자기평가는 본인만, 팀장평가는 조직도가 정한 1차 평가자만 적는다(관리자는
+      둘 다). 남의 칸은 잠가 둔다 — 잠긴 칸은 브라우저가 값을 보내지 않고,
+      서버도 같은 기준으로 한 번 더 가른다.
+    */
+    const canWriteSelf = isAdmin || isSelf;
+    const canWriteLead = isAdmin || isFirstEvaluator;
+    const canWrite = (canWriteSelf || canWriteLead) && itemCount > 0;
+
+    const scoreSelectClass =
+      "w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm tabular-nums focus:border-brand-green focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
+
+    const scoreCell = (
+      item: CompetencyItem,
+      who: "self" | "lead",
+      value: number | null,
+      enabled: boolean,
+    ) => (
+      <td className="px-2 py-1.5 align-middle">
+        <select
+          /*
+            저장한 뒤 서버가 준 새 점수가 칸에 그대로 보여야 한다. `defaultValue`는
+            처음 그려질 때만 먹으므로, 저장 → 갱신 후에도 React가 같은 select를
+            재사용하면서 칸이 «–»로 비어 보였다(평균만 바뀌어서 저장이 안 된 것처럼
+            읽혔다). 값을 열쇠에 넣어 두면 값이 달라질 때만 칸을 다시 그린다.
+          */
+          key={`${who}:${item.key}:${value ?? ""}`}
+          name={`${who}:${item.key}`}
+          defaultValue={value == null ? "" : String(value)}
+          disabled={!enabled}
+          aria-label={`${item.area} ${who === "self" ? "자기평가" : "팀장평가"}`}
+          className={scoreSelectClass}
+        >
+          <option value="">–</option>
+          {COMPETENCY_SCALE.map((r) => (
+            <option key={r.score} value={r.score}>
+              {competencyScoreLabel(r.score)}
+            </option>
+          ))}
+        </select>
+      </td>
+    );
+
+    const itemTable = (
+      heading: string,
+      items: CompetencyItem[],
+      emptyNote?: string,
+    ) => (
+      <section className={CARD_CLASS}>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2">
+          <h2 className="text-sm font-bold text-slate-900">{heading}</h2>
+          <span className="text-xs text-slate-500">{items.length}문항</span>
+        </div>
+        {items.length === 0 ? (
+          <p className="border-t border-slate-100 px-4 py-6 text-center text-sm break-keep text-slate-500">
+            {emptyNote}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            {/* 네 칸(영역·질문·자기평가·팀장평가)이 들어가야 표로 읽힌다. 좁은
+                화면에서는 이 상자만 옆으로 굴린다 — 본문이 흔들리지 않게. */}
+            <table className="w-full min-w-[620px] text-sm">
+              <thead className="bg-slate-100 text-slate-600">
+                <tr>
+                  <th className="w-36 px-3 py-1 text-left text-xs font-semibold">
+                    영역
+                  </th>
+                  <th className="px-3 py-1 text-left text-xs font-semibold">
+                    질문
+                  </th>
+                  <th className="w-28 px-2 py-1 text-left text-xs font-semibold">
+                    자기평가
+                  </th>
+                  <th className="w-28 px-2 py-1 text-left text-xs font-semibold">
+                    팀장평가
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, i) => {
+                  const row = saved.get(item.key);
+                  return (
+                    <tr
+                      key={item.key}
+                      className={`border-t border-slate-100 align-middle ${
+                        i % 2 === 1 ? "bg-slate-50/70" : ""
+                      }`}
+                    >
+                      <td className="px-3 py-1.5 text-xs font-medium break-keep text-slate-800">
+                        {item.area}
+                      </td>
+                      <td className="px-3 py-1.5 text-xs leading-relaxed break-keep text-slate-600">
+                        {item.question}
+                      </td>
+                      {scoreCell(item, "self", row?.selfScore ?? null, canWriteSelf)}
+                      {scoreCell(item, "lead", row?.leadScore ?? null, canWriteLead)}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    );
+
+    return (
+      <div className="flex flex-col gap-2">
+        {/* 누구 것을 보는 중인가. 남의 것을 채우다 엉뚱한 사람에게 적는 일이
+            없도록, 이름과 소속을 고르개 옆에 그대로 적어 둔다. */}
+        <section className={`${CARD_CLASS} flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2`}>
+          <span className="text-xs font-medium text-slate-500">피평가자</span>
+          {competencyPeople.length > 1 ? (
+            <ParamSelect
+              param="who"
+              value={target.id}
+              ariaLabel="역량평가 피평가자 선택"
+              options={competencyPeople.map((p) => ({
+                value: p.id,
+                label: `${p.name} ${POSITION_LABEL[p.position]}${
+                  p.team?.name ? ` (${p.team.name})` : ""
+                }`,
+              }))}
+            />
+          ) : (
+            <span className="text-sm font-semibold text-slate-900">
+              {target.name} {POSITION_LABEL[target.position]}
+            </span>
+          )}
+          <span className="text-xs text-slate-500">
+            {selectedYear}년 · 1차 평가자{" "}
+            <b className="font-medium text-slate-700">
+              {chain?.first ? evaluatorLabel(chain.first) : "미지정"}
+            </b>
+          </span>
+          {/* 평균은 적은 칸만 세어 낸다. 결과 화면이 쓸 숫자와 같은 값이라,
+              여기서 먼저 보여 주면 «내 역량 점수»가 어디서 나온 것인지 읽힌다. */}
+          <span className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs whitespace-nowrap">
+            <span className="text-slate-500">
+              자기평가 평균{" "}
+              <b className="text-sm font-semibold tabular-nums text-goal-4">
+                {avg.self ?? "–"}
+              </b>
+              <span className="ml-1 text-slate-400">
+                {avg.selfCount}/{itemCount}
+              </span>
+            </span>
+            <span className="text-slate-500">
+              팀장평가 평균{" "}
+              <b className="text-sm font-semibold tabular-nums text-goal-4">
+                {avg.lead ?? "–"}
+              </b>
+              <span className="ml-1 text-slate-400">
+                {avg.leadCount}/{itemCount}
+              </span>
+            </span>
+          </span>
+        </section>
+
+        {/* 평가스케일 정의 — 점수를 고르는 동안 계속 참조하는 표라 펼쳐 두고,
+            다 외운 사람은 접을 수 있게 한다. */}
+        <details className={CARD_CLASS} open>
+          <summary className="cursor-pointer list-none px-4 py-2 text-sm font-bold text-slate-900 [&::-webkit-details-marker]:hidden">
+            평가스케일 정의
+            <span className="ml-2 text-xs font-normal text-slate-400">
+              눌러서 접기 / 펼치기
+            </span>
+          </summary>
+          <div className="overflow-x-auto border-t border-slate-100">
+            <table className="w-full min-w-[560px] text-sm">
+              <thead className="bg-slate-100 text-slate-600">
+                <tr>
+                  <th className="w-24 px-3 py-1 text-left text-xs font-semibold">
+                    스케일
+                  </th>
+                  <th className="w-36 px-3 py-1 text-left text-xs font-semibold">
+                    점수환산 (참고용)
+                  </th>
+                  <th className="px-3 py-1 text-left text-xs font-semibold">
+                    정의
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {COMPETENCY_SCALE.map((r, i) => (
+                  <tr
+                    key={r.score}
+                    className={`border-t border-slate-100 ${
+                      i % 2 === 1 ? "bg-slate-50/70" : ""
+                    }`}
+                  >
+                    <td className="px-3 py-1 text-xs font-semibold whitespace-nowrap text-slate-800">
+                      {r.score} ({r.label})
+                    </td>
+                    <td className="px-3 py-1 text-xs whitespace-nowrap text-slate-600">
+                      {r.points}
+                    </td>
+                    <td className="px-3 py-1 text-xs break-keep text-slate-600">
+                      {r.definition}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <ul className="flex flex-col gap-1 border-t border-slate-100 px-4 py-2">
+            {COMPETENCY_NOTES.map((note) => (
+              <li key={note} className="text-[11px] break-keep text-slate-500">
+                ※ {note}
+              </li>
+            ))}
+          </ul>
+        </details>
+
+        {/* 쓸 수 없는 사람에게는 왜 칸이 잠겼는지 적는다 — 잠긴 칸만 보면
+            고장인 줄 안다. */}
+        {!canWrite && itemCount > 0 && (
+          <p className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm break-keep text-slate-600">
+            읽기 전용입니다. 자기평가는 본인이, 팀장평가는 1차 평가자
+            {chain?.first ? `(${evaluatorLabel(chain.first)})` : ""}가 적습니다.
+          </p>
+        )}
+
+        <ActionForm
+          action={saveCompetencyScores}
+          successMessage="역량평가를 저장했습니다."
+          className="flex flex-col gap-2"
+        >
+          <input type="hidden" name="year" value={selectedYear} />
+          <input type="hidden" name="userId" value={target.id} />
+
+          {itemTable("1. 핵심가치", form.core)}
+          {itemTable(
+            "2. 직무역량",
+            form.job,
+            `${target.team?.name ?? "이 팀"}의 직무역량 문항이 아직 등록되지 않았습니다. 직무별 양식을 인사팀에서 받아 넣어야 합니다.`,
+          )}
+
+          {canWrite && (
+            <div className={`${CARD_CLASS} flex flex-wrap items-center gap-3 px-4 py-3`}>
+              <span className="text-xs break-keep text-slate-500">
+                {canWriteSelf && canWriteLead
+                  ? "자기평가와 팀장평가 모두 적을 수 있습니다."
+                  : canWriteSelf
+                    ? "자기평가 칸만 적습니다. 팀장평가는 1차 평가자가 적습니다."
+                    : "팀장평가 칸만 적습니다. 자기평가는 본인이 적습니다."}{" "}
+                비워 두면 «아직 안 적음»으로 남고 평균에서 빠집니다.
+              </span>
+              <button type="submit" className={`ml-auto ${PRIMARY_BUTTON_CLASS}`}>
+                저장
+              </button>
+            </div>
+          )}
+        </ActionForm>
+      </div>
     );
   }
 
@@ -1396,7 +1774,7 @@ export default async function Evaluation2Page({
                 : `(남은 기간 ${remainDays}일)`}
             </span>
           )}
-          <HelpMark text="기간과 남은 날짜는 관리자가 「조직 목표 관리」의 목표 사이클에 적어 둔 시작일·마감일을 그대로 읽습니다. 사이클 날짜를 고치면 이 줄도 같이 바뀝니다. 합의·피드백·역량평가는 아직 준비 중이라 자리만 잡아 두었습니다. 성과평가는 「최종평가」가 그 자리입니다." />
+          <HelpMark text="기간과 남은 날짜는 관리자가 「조직 목표 관리」의 목표 사이클에 적어 둔 시작일·마감일을 그대로 읽습니다. 사이클 날짜를 고치면 이 줄도 같이 바뀝니다. 합의·피드백은 아직 준비 중이라 자리만 잡아 두었습니다. 성과평가는 「최종평가」가 그 자리이고, 역량평가는 위의 목표 고르개에서 「역량평가」를 고르면 적을 수 있습니다." />
           {activeCycle && (
             <span className="ml-auto text-xs text-slate-500 tabular-nums">
               {fmtFull(activeCycle.startDate)} ~ {fmtFull(activeCycle.endDate)}
@@ -3381,10 +3759,7 @@ export default async function Evaluation2Page({
         )}
 
       {competencyView ? (
-        comingUp("역량평가", null, [
-          "역량 항목과 척도에 따라 본인과 1차 평가자가 각각 매깁니다.",
-          "여기서 나온 점수는 「최종결과」에서 성과평가(최종평가) 점수와 합쳐져 최종 점수와 등급이 됩니다.",
-        ])
+        competencyBoard()
       ) : !cycle ? (
         // 인사평가를 고르기 전에는 어느 탭이든 비워 둔다. 어느 해 숫자인지
         // 모르는 채로 목표를 읽게 두지 않는다.

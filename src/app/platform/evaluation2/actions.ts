@@ -42,6 +42,7 @@ import {
 } from "@/lib/goals";
 import { buildEvaluatorMap } from "@/lib/evaluator";
 import { activePrismaWhere } from "@/lib/hr-analytics";
+import { competencyItemKeys, parseCompetencyScore } from "@/lib/competency";
 
 const ALL_ROLES = ["ADMIN", "EVALUATOR", "EMPLOYEE"] as const;
 const PATH = "/platform/evaluation2";
@@ -1806,5 +1807,79 @@ export async function addGoalCheckIn(formData: FormData) {
       data: { goalId, progress, note: note || null, authorId: session.user.id },
     }),
   ]);
+  revalidatePath(PATH);
+}
+
+
+// --- 역량평가 --------------------------------------------------------------
+
+/**
+ * 역량평가 점수를 한 번에 저장한다 — 표 한 장이 폼 하나다.
+ *
+ * 자기평가 칸과 팀장평가 칸은 쓸 수 있는 사람이 다르다. 화면에서도 남의 칸을
+ * 잠가 두지만, 폼은 믿지 않고 여기서 다시 가른다 — 쓸 수 없는 칸은 아예 손대지
+ * 않는다(덮어쓰지도, 지우지도 않는다). 잠긴 칸은 브라우저가 값을 보내지 않으므로,
+ * 여기서 걸러내지 않으면 «빈 값으로 왔다»고 읽어 남이 적어 둔 점수를 지운다.
+ *
+ * 문항 목록은 폼이 아니라 그 사람의 팀에서 다시 세운다(`competencyItemKeys`).
+ * 폼에 실려 온 열쇠를 그대로 쓰면 없는 문항을 만들어 넣을 수 있다.
+ */
+export async function saveCompetencyScores(formData: FormData) {
+  const session = await requireGoalModule();
+
+  const year = Number(str(formData.get("year")));
+  const userId = str(formData.get("userId"));
+  if (!Number.isInteger(year) || year <= 0 || !userId) {
+    throw new Error("연도와 피평가자를 확인해 주세요.");
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, team: { select: { name: true } } },
+  });
+  if (!target) throw new Error("피평가자를 찾을 수 없습니다.");
+
+  const admin = await isAdmin();
+  const isSelf = userId === session.user.id;
+  const firstEvaluatorId = await firstEvaluatorIdOf(userId);
+  const isFirstEvaluator =
+    !!firstEvaluatorId && firstEvaluatorId === session.user.id;
+  if (!admin && !isSelf && !isFirstEvaluator) {
+    throw new Error("이 사람의 역량평가를 적을 권한이 없습니다.");
+  }
+
+  const canWriteSelf = admin || isSelf;
+  const canWriteLead = admin || isFirstEvaluator;
+
+  const keys = competencyItemKeys(target.team?.name ?? null);
+  if (keys.size === 0) throw new Error("이 사람에게 뜨는 역량평가 문항이 없습니다.");
+
+  const review = await prisma.competencyReview.upsert({
+    where: { year_userId: { year, userId } },
+    create: { year, userId },
+    update: {},
+    select: { id: true },
+  });
+
+  for (const itemKey of keys) {
+    const selfScore = canWriteSelf
+      ? parseCompetencyScore(formData.get(`self:${itemKey}`))
+      : null;
+    const leadScore = canWriteLead
+      ? parseCompetencyScore(formData.get(`lead:${itemKey}`))
+      : null;
+    // 쓸 수 있는 칸만 담는다 — 빈 객체면 그 줄은 손대지 않는다.
+    const selfData = canWriteSelf ? { selfScore } : {};
+    const leadData = canWriteLead
+      ? { leadScore, leadById: leadScore == null ? null : session.user.id }
+      : {};
+
+    await prisma.competencyScore.upsert({
+      where: { reviewId_itemKey: { reviewId: review.id, itemKey } },
+      create: { reviewId: review.id, itemKey, ...selfData, ...leadData },
+      update: { ...selfData, ...leadData },
+    });
+  }
+
   revalidatePath(PATH);
 }
