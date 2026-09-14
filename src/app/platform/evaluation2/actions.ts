@@ -46,7 +46,9 @@ import {
   competencyItemKeys,
   isCompetencyTarget,
   parseCompetencyScore,
+  pickCompetencySets,
 } from "@/lib/competency";
+import { loadCompetencyForm, competencyFormOpen } from "@/lib/competency-form";
 
 const ALL_ROLES = ["ADMIN", "EVALUATOR", "EMPLOYEE"] as const;
 const PATH = "/platform/evaluation2";
@@ -92,7 +94,7 @@ function progressForStatus(status: GoalStatus, progress: number): number {
  */
 function reconcileProgressAndStatus(
   next: { progress: number; status: GoalStatus },
-  prev: { progress: number; status: GoalStatus }
+  prev: { progress: number; status: GoalStatus },
 ): { progress: number; status: GoalStatus } {
   // 상태를 완료로 바꿨다 → 달성률은 100.
   if (next.status !== prev.status && next.status === "DONE") {
@@ -114,12 +116,16 @@ function reconcileProgressAndStatus(
 
 function asLevel(value: FormDataEntryValue | null): GoalLevel | null {
   const s = str(value);
-  return (GOAL_LEVELS as readonly string[]).includes(s) ? (s as GoalLevel) : null;
+  return (GOAL_LEVELS as readonly string[]).includes(s)
+    ? (s as GoalLevel)
+    : null;
 }
 
 function asStatus(value: FormDataEntryValue | null): GoalStatus {
   const s = str(value);
-  return (GOAL_STATUSES as readonly string[]).includes(s) ? (s as GoalStatus) : "ACTIVE";
+  return (GOAL_STATUSES as readonly string[]).includes(s)
+    ? (s as GoalStatus)
+    : "ACTIVE";
 }
 
 /**
@@ -131,7 +137,7 @@ function asStatus(value: FormDataEntryValue | null): GoalStatus {
 function statusFor(
   level: GoalLevel,
   value: FormDataEntryValue | null,
-  cycle: { name: string } | null
+  cycle: { name: string } | null,
 ): GoalStatus {
   // 목표설정 단계의 팀·개인 목표는 전부 진행중이다 — 폼에도 고를 칸이 없다.
   if (usesFixedActiveStatus(level, cycle)) return "ACTIVE";
@@ -199,7 +205,10 @@ async function canExcludeGoal(): Promise<boolean> {
  * 관리자도 통과시키지 않는다. 마감을 눌러 놓고도 관리자만 몰래 고칠 수 있으면
  * "마감"이라는 말이 화면에서 거짓이 된다. 고쳐야 하면 마감을 풀고 고친다.
  */
-async function requireCycleEditable(cycleId: string, kind: "goal" | "progress") {
+async function requireCycleEditable(
+  cycleId: string,
+  kind: "goal" | "progress",
+) {
   const cycle = await prisma.goalCycle.findUnique({
     where: { id: cycleId },
     select: { status: true, goalsLockedAt: true },
@@ -257,7 +266,8 @@ async function requireGoalEditable(goalId: string, kind: "goal" | "progress") {
  */
 export async function createGoalYear(formData: FormData) {
   await requireGoalModule();
-  if (!(await isAdmin())) throw new Error("목표 사이클은 관리자만 만들 수 있습니다.");
+  if (!(await isAdmin()))
+    throw new Error("목표 사이클은 관리자만 만들 수 있습니다.");
 
   const year = parseNumber(formData.get("year"), 0);
   if (year < 2000 || year > 2999) throw new Error("연도를 확인해 주세요.");
@@ -273,7 +283,8 @@ export async function createGoalYear(formData: FormData) {
     select: { id: true, name: true, year: true, sourceCycleId: true },
   });
   const mine = all.filter((c) => cycleYear(c) === year);
-  const has = (rank: number) => mine.find((c) => cyclePhaseRank(c) === rank) ?? null;
+  const has = (rank: number) =>
+    mine.find((c) => cyclePhaseRank(c) === rank) ?? null;
 
   // 그 해의 목표를 담는 사이클 — 목표설정이 있으면 그것, 없으면 이제 만든다.
   let sourceId = has(1) ? (has(1)!.sourceCycleId ?? has(1)!.id) : null;
@@ -317,18 +328,22 @@ export async function createGoalYear(formData: FormData) {
   const flat = groups.flatMap((g) => g.items);
   const list = groups.find((g) => g.year === year)?.items ?? [];
   const slots = list.map((c) => flat.findIndex((a) => a.id === c.id) + 1);
-  const ordered = [...list].sort((a, b) => cyclePhaseRank(a) - cyclePhaseRank(b));
+  const ordered = [...list].sort(
+    (a, b) => cyclePhaseRank(a) - cyclePhaseRank(b),
+  );
   await prisma.$transaction(
     ordered.map((c, i) =>
-      prisma.goalCycle.update({ where: { id: c.id }, data: { sortOrder: slots[i] } })
-    )
+      prisma.goalCycle.update({
+        where: { id: c.id },
+        data: { sortOrder: slots[i] },
+      }),
+    ),
   );
 
   revalidatePath(PATH);
   revalidatePath(ADMIN_PATH);
   revalidatePath(TARGETS_PATH);
 }
-
 
 /**
  * 목표를 빌려올 사이클을 확인한다. 빈 값이면 자기 목표를 쓴다는 뜻이다.
@@ -337,9 +352,13 @@ export async function createGoalYear(formData: FormData) {
  * 사이클을 또 빌리는 것. 사슬이 길어지면 어디가 원본인지 따라가기 어려워지고,
  * 원본을 지울 때 무엇이 함께 비는지도 알 수 없게 된다.
  */
-async function resolveShareSource(raw: string, selfId: string | null): Promise<string | null> {
+async function resolveShareSource(
+  raw: string,
+  selfId: string | null,
+): Promise<string | null> {
   if (!raw) return null;
-  if (raw === selfId) throw new Error("자기 자신의 목표를 빌려올 수는 없습니다.");
+  if (raw === selfId)
+    throw new Error("자기 자신의 목표를 빌려올 수는 없습니다.");
 
   const source = await prisma.goalCycle.findUnique({
     where: { id: raw },
@@ -347,7 +366,9 @@ async function resolveShareSource(raw: string, selfId: string | null): Promise<s
   });
   if (!source) throw new Error("빌려올 인사평가를 찾을 수 없습니다.");
   if (source.sourceCycleId) {
-    throw new Error(`「${source.name}」도 다른 평가의 목표를 빌려 쓰고 있어 고를 수 없습니다.`);
+    throw new Error(
+      `「${source.name}」도 다른 평가의 목표를 빌려 쓰고 있어 고를 수 없습니다.`,
+    );
   }
   return source.id;
 }
@@ -389,8 +410,11 @@ export async function moveGoalCycle(cycleId: string, direction: "up" | "down") {
   const slots = list.map((c) => all.findIndex((a) => a.id === c.id) + 1);
   await prisma.$transaction(
     moved.map((c, i) =>
-      prisma.goalCycle.update({ where: { id: c.id }, data: { sortOrder: slots[i] } })
-    )
+      prisma.goalCycle.update({
+        where: { id: c.id },
+        data: { sortOrder: slots[i] },
+      }),
+    ),
   );
   revalidatePath(PATH);
   revalidatePath(ADMIN_PATH);
@@ -400,21 +424,32 @@ export async function moveGoalCycle(cycleId: string, direction: "up" | "down") {
 /** 이미 만들어 둔 사이클의 목표 공유 대상을 바꾼다. */
 export async function setGoalCycleSource(formData: FormData) {
   await requireGoalModule();
-  if (!(await isAdmin())) throw new Error("목표 공유는 관리자만 바꿀 수 있습니다.");
+  if (!(await isAdmin()))
+    throw new Error("목표 공유는 관리자만 바꿀 수 있습니다.");
 
   const cycleId = str(formData.get("cycleId"));
   if (!cycleId) return;
 
-  const sourceCycleId = await resolveShareSource(str(formData.get("sourceCycleId")), cycleId);
+  const sourceCycleId = await resolveShareSource(
+    str(formData.get("sourceCycleId")),
+    cycleId,
+  );
   if (sourceCycleId) {
     // 이 사이클의 목표를 빌려 쓰는 다른 사이클이 있으면, 그것들이 갈 곳을 잃는다.
-    const dependents = await prisma.goalCycle.count({ where: { sourceCycleId: cycleId } });
+    const dependents = await prisma.goalCycle.count({
+      where: { sourceCycleId: cycleId },
+    });
     if (dependents > 0) {
-      throw new Error("다른 평가가 이 평가의 목표를 빌려 쓰고 있어 바꿀 수 없습니다.");
+      throw new Error(
+        "다른 평가가 이 평가의 목표를 빌려 쓰고 있어 바꿀 수 없습니다.",
+      );
     }
   }
 
-  await prisma.goalCycle.update({ where: { id: cycleId }, data: { sourceCycleId } });
+  await prisma.goalCycle.update({
+    where: { id: cycleId },
+    data: { sourceCycleId },
+  });
   revalidatePath(PATH);
   revalidatePath(ADMIN_PATH);
 }
@@ -428,7 +463,8 @@ export async function setGoalCycleSource(formData: FormData) {
  */
 export async function renameGoalCycle(formData: FormData) {
   await requireGoalModule();
-  if (!(await isAdmin())) throw new Error("인사평가는 관리자만 고칠 수 있습니다.");
+  if (!(await isAdmin()))
+    throw new Error("인사평가는 관리자만 고칠 수 있습니다.");
 
   const cycleId = str(formData.get("cycleId"));
   const name = str(formData.get("name"));
@@ -439,7 +475,8 @@ export async function renameGoalCycle(formData: FormData) {
 
   const startYear = Number(str(formData.get("startDate")).slice(0, 4));
   const resolvedYear =
-    parseNameYear(name) ?? (Number.isFinite(startYear) && startYear > 0 ? startYear : null);
+    parseNameYear(name) ??
+    (Number.isFinite(startYear) && startYear > 0 ? startYear : null);
 
   await prisma.goalCycle.update({
     where: { id: cycleId },
@@ -456,9 +493,13 @@ export async function renameGoalCycle(formData: FormData) {
   revalidatePath(ADMIN_PATH);
 }
 
-export async function setGoalCycleStatus(cycleId: string, status: GoalCycleStatus) {
+export async function setGoalCycleStatus(
+  cycleId: string,
+  status: GoalCycleStatus,
+) {
   await requireGoalModule();
-  if (!(await isAdmin())) throw new Error("목표 사이클은 관리자만 바꿀 수 있습니다.");
+  if (!(await isAdmin()))
+    throw new Error("목표 사이클은 관리자만 바꿀 수 있습니다.");
   if (!(GOAL_CYCLE_STATUSES as readonly string[]).includes(status)) return;
 
   await prisma.goalCycle.update({ where: { id: cycleId }, data: { status } });
@@ -467,7 +508,8 @@ export async function setGoalCycleStatus(cycleId: string, status: GoalCycleStatu
 
 export async function deleteGoalCycle(cycleId: string) {
   await requireGoalModule();
-  if (!(await isAdmin())) throw new Error("목표 사이클은 관리자만 지울 수 있습니다.");
+  if (!(await isAdmin()))
+    throw new Error("목표 사이클은 관리자만 지울 수 있습니다.");
 
   await prisma.goalCycle.delete({ where: { id: cycleId } });
   revalidatePath(PATH);
@@ -481,8 +523,13 @@ export async function deleteGoalCycle(cycleId: string) {
 const COMPANY_GOAL_TEMPLATE = [
   { title: "VISION 2028을 위한 신규시장 개척 및 대형 품목 육성" },
   { title: "매출 목표 달성" },
-  { title: "신규제형 및 약제 효과 개선제품 개발과 판매제품의 안전성 자료 확보" },
-  { title: "생산성 향상을 위한 자동화 공정 구축과 신제형 생산라인 신설 타당성 확보" },
+  {
+    title: "신규제형 및 약제 효과 개선제품 개발과 판매제품의 안전성 자료 확보",
+  },
+  {
+    title:
+      "생산성 향상을 위한 자동화 공정 구축과 신제형 생산라인 신설 타당성 확보",
+  },
   { title: "사업 경쟁력 강화를 위한 전략적 재무관리와 성과중심 조직문화 구축" },
 ] as const;
 
@@ -492,10 +539,13 @@ const COMPANY_GOAL_TEMPLATE = [
  */
 export async function seedCompanyGoalTemplate(cycleId: string) {
   const session = await requireGoalModule();
-  if (!(await isAdmin())) throw new Error("전사목표 양식은 관리자만 넣을 수 있습니다.");
+  if (!(await isAdmin()))
+    throw new Error("전사목표 양식은 관리자만 넣을 수 있습니다.");
   await requireCycleEditable(cycleId, "goal");
 
-  const existing = await prisma.goal.count({ where: { cycleId, level: "COMPANY" } });
+  const existing = await prisma.goal.count({
+    where: { cycleId, level: "COMPANY" },
+  });
   if (existing > 0) return;
 
   const cycle = await prisma.goalCycle.findUnique({
@@ -543,7 +593,7 @@ async function copyGoalsInto(
   sourceCycleId: string,
   targetCycleId: string,
   createdById: string,
-  opts: { carryProgress?: boolean } = {}
+  opts: { carryProgress?: boolean } = {},
 ) {
   const rows = await prisma.goal.findMany({
     where: { cycleId: sourceCycleId },
@@ -585,7 +635,9 @@ async function copyGoalsInto(
         data: {
           cycleId: targetCycleId,
           level: row.level,
-          parentId: row.parentId ? (newIdByOldId.get(row.parentId) ?? null) : null,
+          parentId: row.parentId
+            ? (newIdByOldId.get(row.parentId) ?? null)
+            : null,
           title: row.title,
           description: row.description,
           division: row.division,
@@ -625,22 +677,35 @@ async function copyGoalsInto(
 
 export async function copyGoalsFromCycle(formData: FormData) {
   const session = await requireGoalModule();
-  if (!(await isAdmin())) throw new Error("목표 복사는 관리자만 할 수 있습니다.");
+  if (!(await isAdmin()))
+    throw new Error("목표 복사는 관리자만 할 수 있습니다.");
 
   const targetCycleId = str(formData.get("targetCycleId"));
   const sourceCycleId = str(formData.get("sourceCycleId"));
-  if (!targetCycleId || !sourceCycleId) throw new Error("가져올 사이클을 골라 주세요.");
-  if (targetCycleId === sourceCycleId) throw new Error("같은 사이클끼리는 복사할 수 없습니다.");
+  if (!targetCycleId || !sourceCycleId)
+    throw new Error("가져올 사이클을 골라 주세요.");
+  if (targetCycleId === sourceCycleId)
+    throw new Error("같은 사이클끼리는 복사할 수 없습니다.");
   await requireCycleEditable(targetCycleId, "goal");
 
-  const existing = await prisma.goal.count({ where: { cycleId: targetCycleId } });
+  const existing = await prisma.goal.count({
+    where: { cycleId: targetCycleId },
+  });
   if (existing > 0) {
-    throw new Error("이미 목표가 있는 사이클입니다. 비운 뒤에 다시 시도해 주세요.");
+    throw new Error(
+      "이미 목표가 있는 사이클입니다. 비운 뒤에 다시 시도해 주세요.",
+    );
   }
 
   const [source, target] = await Promise.all([
-    prisma.goalCycle.findUnique({ where: { id: sourceCycleId }, select: { id: true } }),
-    prisma.goalCycle.findUnique({ where: { id: targetCycleId }, select: { id: true } }),
+    prisma.goalCycle.findUnique({
+      where: { id: sourceCycleId },
+      select: { id: true },
+    }),
+    prisma.goalCycle.findUnique({
+      where: { id: targetCycleId },
+      select: { id: true },
+    }),
   ]);
   if (!source || !target) throw new Error("사이클을 찾을 수 없습니다.");
 
@@ -674,10 +739,19 @@ export async function saveGoalSheetDuty(formData: FormData) {
   if (!cycle) return;
 
   const duty = str(formData.get("duty")) || null;
-  const where = { cycleId_userId: { cycleId: cycle.sourceCycleId ?? cycle.id, userId: session.user.id } };
+  const where = {
+    cycleId_userId: {
+      cycleId: cycle.sourceCycleId ?? cycle.id,
+      userId: session.user.id,
+    },
+  };
   await prisma.goalSheetInfo.upsert({
     where,
-    create: { cycleId: cycle.sourceCycleId ?? cycle.id, userId: session.user.id, duty },
+    create: {
+      cycleId: cycle.sourceCycleId ?? cycle.id,
+      userId: session.user.id,
+      duty,
+    },
     update: { duty },
   });
   revalidatePath(PATH);
@@ -685,7 +759,8 @@ export async function saveGoalSheetDuty(formData: FormData) {
 
 export async function setGoalCycleHireCutoff(formData: FormData) {
   await requireGoalModule();
-  if (!(await isAdmin())) throw new Error("기준일은 관리자만 정할 수 있습니다.");
+  if (!(await isAdmin()))
+    throw new Error("기준일은 관리자만 정할 수 있습니다.");
 
   const cycleId = str(formData.get("cycleId"));
   if (!cycleId) return;
@@ -705,7 +780,8 @@ export async function setGoalCycleHireCutoff(formData: FormData) {
  */
 export async function lockGoalSetting(cycleId: string) {
   const session = await requireGoalModule();
-  if (!(await isAdmin())) throw new Error("목표 마감은 관리자만 할 수 있습니다.");
+  if (!(await isAdmin()))
+    throw new Error("목표 마감은 관리자만 할 수 있습니다.");
 
   await prisma.goalCycle.update({
     where: { id: cycleId },
@@ -748,7 +824,12 @@ async function handOffToNextPhase(cycleId: string, actorId: string) {
 
   const myRank = cyclePhaseRank(me);
   const later = all
-    .filter((c) => c.id !== cycleId && cycleYear(c) === cycleYear(me) && cyclePhaseRank(c) > myRank)
+    .filter(
+      (c) =>
+        c.id !== cycleId &&
+        cycleYear(c) === cycleYear(me) &&
+        cyclePhaseRank(c) > myRank,
+    )
     .sort((a, b) => cyclePhaseRank(a) - cyclePhaseRank(b));
   const next = later[0];
   if (!next) return;
@@ -772,13 +853,19 @@ async function handOffToNextPhase(cycleId: string, actorId: string) {
 
   // 넘겨받은 단계는 이제 자기 목표를 가진다 — 더 이상 남의 것을 빌려 보지 않는다.
   if (next.sourceCycleId) {
-    await prisma.goalCycle.update({ where: { id: next.id }, data: { sourceCycleId: null } });
+    await prisma.goalCycle.update({
+      where: { id: next.id },
+      data: { sourceCycleId: null },
+    });
   }
 
   // 그 뒤 단계는 «다음 단계»가 마감될 때까지 기다린다.
   for (const rest of later.slice(1)) {
     if (rest._count.goals === 0 && rest.sourceCycleId !== next.id) {
-      await prisma.goalCycle.update({ where: { id: rest.id }, data: { sourceCycleId: next.id } });
+      await prisma.goalCycle.update({
+        where: { id: rest.id },
+        data: { sourceCycleId: next.id },
+      });
     }
   }
 }
@@ -786,7 +873,8 @@ async function handOffToNextPhase(cycleId: string, actorId: string) {
 /** 목표 마감을 푼다. */
 export async function unlockGoalSetting(cycleId: string) {
   await requireGoalModule();
-  if (!(await isAdmin())) throw new Error("목표 마감 해제는 관리자만 할 수 있습니다.");
+  if (!(await isAdmin()))
+    throw new Error("목표 마감 해제는 관리자만 할 수 있습니다.");
 
   await prisma.goalCycle.update({
     where: { id: cycleId },
@@ -810,7 +898,8 @@ export async function unlockGoalSetting(cycleId: string) {
  */
 export async function createGoalCheckpoint(formData: FormData) {
   const session = await requireGoalModule();
-  if (!(await isAdmin())) throw new Error("평가 시점은 관리자만 확정할 수 있습니다.");
+  if (!(await isAdmin()))
+    throw new Error("평가 시점은 관리자만 확정할 수 있습니다.");
 
   const cycleId = str(formData.get("cycleId"));
   const name = str(formData.get("name"));
@@ -851,7 +940,9 @@ export async function createGoalCheckpoint(formData: FormData) {
         agreedAt: true,
         dueDate: true,
         sortOrder: true,
-        owner: { select: { id: true, name: true, teamId: true, hireDate: true } },
+        owner: {
+          select: { id: true, name: true, teamId: true, hireDate: true },
+        },
       },
     }),
     prisma.goalCycleTarget.findMany({
@@ -867,7 +958,7 @@ export async function createGoalCheckpoint(formData: FormData) {
       ? evalTargetState(
           { hireDate: r.owner?.hireDate ?? null },
           cycle,
-          manualByUser.get(r.ownerId) ?? null
+          manualByUser.get(r.ownerId) ?? null,
         )
       : null;
     return {
@@ -906,7 +997,8 @@ export async function createGoalCheckpoint(formData: FormData) {
 /** 잘못 찍은 평가 시점을 지운다. 목표 자체는 건드리지 않는다. */
 export async function deleteGoalCheckpoint(checkpointId: string) {
   await requireGoalModule();
-  if (!(await isAdmin())) throw new Error("평가 시점은 관리자만 지울 수 있습니다.");
+  if (!(await isAdmin()))
+    throw new Error("평가 시점은 관리자만 지울 수 있습니다.");
 
   await prisma.goalCheckpoint.delete({ where: { id: checkpointId } });
   revalidatePath(PATH);
@@ -924,12 +1016,25 @@ function scopeFieldsFor(level: GoalLevel, formData: FormData) {
   const teamId = str(formData.get("teamId"));
   const ownerId = str(formData.get("ownerId"));
 
-  if (level === "COMPANY") return { division: null, teamId: null, ownerId: ownerId || null };
+  if (level === "COMPANY")
+    return { division: null, teamId: null, ownerId: ownerId || null };
   if (level === "DIVISION")
-    return { division: division || null, teamId: null, ownerId: ownerId || null };
+    return {
+      division: division || null,
+      teamId: null,
+      ownerId: ownerId || null,
+    };
   if (level === "TEAM")
-    return { division: division || null, teamId: teamId || null, ownerId: ownerId || null };
-  return { division: division || null, teamId: teamId || null, ownerId: ownerId || null };
+    return {
+      division: division || null,
+      teamId: teamId || null,
+      ownerId: ownerId || null,
+    };
+  return {
+    division: division || null,
+    teamId: teamId || null,
+    ownerId: ownerId || null,
+  };
 }
 
 /**
@@ -947,7 +1052,7 @@ async function ensureOtherGoal(
   level: GoalLevel,
   cycleId: string,
   scope: { division: string | null; teamId: string | null },
-  createdById: string
+  createdById: string,
 ): Promise<string | null> {
   /*
     팀 기타는 팀마다 하나다. 팀을 모른 채로 만들면 어느 팀 것도 아닌 묶음이
@@ -996,7 +1101,8 @@ async function ensureOtherGoal(
       // 설명은 붙이지 않는다. 표에서 이름 아래로 한 줄이 더 늘어나는데,
       // «기타 목표»라는 이름이 이미 그 뜻이다.
       description: null,
-      division: level === "DIVISION" || level === "TEAM" ? scope.division : null,
+      division:
+        level === "DIVISION" || level === "TEAM" ? scope.division : null,
       teamId: level === "TEAM" ? scope.teamId : null,
       weight: defaultOtherWeight(siblings),
       sortOrder: 9999,
@@ -1021,7 +1127,8 @@ function formFields(formData: FormData, level: GoalLevel) {
     // 줄바꿈은 그대로 둔다 — 한 줄이 ① ② ③ 한 항목이다.
     keyResults: String(formData.get("keyResults") ?? "").trim() || null,
   };
-  for (const s of GOAL_SCALES) out[s.field] = str(formData.get(s.field)) || null;
+  for (const s of GOAL_SCALES)
+    out[s.field] = str(formData.get(s.field)) || null;
   return out;
 }
 
@@ -1041,14 +1148,18 @@ function formFields(formData: FormData, level: GoalLevel) {
 async function actingCycle(formData: FormData, goalCycleId: string) {
   const viewId = str(formData.get("viewCycleId"));
   const fallback = () =>
-    prisma.goalCycle.findUnique({ where: { id: goalCycleId }, select: { id: true, name: true } });
+    prisma.goalCycle.findUnique({
+      where: { id: goalCycleId },
+      select: { id: true, name: true },
+    });
   if (!viewId) return fallback();
 
   const viewed = await prisma.goalCycle.findUnique({
     where: { id: viewId },
     select: { id: true, name: true, sourceCycleId: true },
   });
-  if (!viewed || (viewed.sourceCycleId ?? viewed.id) !== goalCycleId) return fallback();
+  if (!viewed || (viewed.sourceCycleId ?? viewed.id) !== goalCycleId)
+    return fallback();
   return viewed;
 }
 
@@ -1061,7 +1172,10 @@ function weightFor(level: GoalLevel, formData: FormData): number {
 }
 
 /** 기타 사슬을 만들 때 쓸 소속. 부문이 비어 있으면 팀에서 끌어온다. */
-async function resolveOtherScope(scope: { division?: string | null; teamId?: string | null }) {
+async function resolveOtherScope(scope: {
+  division?: string | null;
+  teamId?: string | null;
+}) {
   let division = scope.division ?? null;
   if (!division && scope.teamId) {
     const team = await prisma.team.findUnique({
@@ -1079,7 +1193,7 @@ async function resolveParentId(
   rawParentId: string,
   cycleId: string,
   scope: { division: string | null; teamId: string | null },
-  createdById: string
+  createdById: string,
 ) {
   const expected = GOAL_PARENT_LEVEL[level];
   if (!expected || !rawParentId) return null;
@@ -1093,7 +1207,8 @@ async function resolveParentId(
     where: { id: rawParentId },
     select: { level: true, cycleId: true },
   });
-  if (!parent || parent.level !== expected || parent.cycleId !== cycleId) return null;
+  if (!parent || parent.level !== expected || parent.cycleId !== cycleId)
+    return null;
   return rawParentId;
 }
 
@@ -1107,7 +1222,7 @@ async function resolveParentId(
 function requireGoalFields(
   level: GoalLevel,
   formData: FormData,
-  scope: { teamId?: string | null; ownerId?: string | null }
+  scope: { teamId?: string | null; ownerId?: string | null },
 ) {
   if (level === "COMPANY") return;
 
@@ -1116,7 +1231,8 @@ function requireGoalFields(
     ["parentId", `상위 ${GOAL_LEVEL_LABEL[GOAL_PARENT_LEVEL[level]!]}`],
   ];
   if (level === "DIVISION") need.push(["division", "책임"]);
-  if (level !== "DIVISION" && !usesDerivedWeight(level)) need.push(["weight", "가중치"]);
+  if (level !== "DIVISION" && !usesDerivedWeight(level))
+    need.push(["weight", "가중치"]);
   if (usesHalf(level)) need.push(["half", "목표 구분(상반기·하반기)"]);
   /*
     지표·목표수준·현재수준은 팀목표에만 있다. 책임목표는 아래 팀목표가 굴러
@@ -1127,7 +1243,7 @@ function requireGoalFields(
     need.push(
       ["metric", "성과지표(KPI)"],
       ["targetValue", "목표수준 · 목표치"],
-      ["currentValue", "목표수준 · 현수준"]
+      ["currentValue", "목표수준 · 현수준"],
     );
   }
   need.push(["status", "상태"], ["dueDate", "마감일"]);
@@ -1136,13 +1252,17 @@ function requireGoalFields(
     need.push(["goalType", "목표 유형"], ["keyResults", "Key Results"]);
   }
 
-  const missing = need.filter(([field]) => !str(formData.get(field))).map(([, label]) => label);
+  const missing = need
+    .filter(([field]) => !str(formData.get(field)))
+    .map(([, label]) => label);
   /*
     팀·책임자는 폼에 칸이 없을 수 있다 — 관리자가 아니면 로그인 정보에서 그대로
     끌어온다. 그래서 폼에 뭐가 들어왔는지가 아니라 **실제로 저장될 값**을 본다.
   */
-  if ((level === "TEAM" || level === "INDIVIDUAL") && !scope.teamId) missing.push("팀");
-  if (!scope.ownerId) missing.push(level === "INDIVIDUAL" ? "담당자" : "책임자");
+  if ((level === "TEAM" || level === "INDIVIDUAL") && !scope.teamId)
+    missing.push("팀");
+  if (!scope.ownerId)
+    missing.push(level === "INDIVIDUAL" ? "담당자" : "책임자");
 
   if (missing.length > 0) {
     throw new Error(`필수 항목을 입력해 주세요: ${missing.join(", ")}`);
@@ -1160,7 +1280,9 @@ function requireGoalFields(
  * 예외는 팀을 둘 이상 이끄는 팀장이다 — 그때는 어느 팀 목표인지 사람만 안다.
  */
 /** 이 사람이 속한 팀. 개인목표는 늘 그 사람의 팀에 걸린다. */
-async function teamOfOwner(ownerId: string | null | undefined): Promise<string | null> {
+async function teamOfOwner(
+  ownerId: string | null | undefined,
+): Promise<string | null> {
   if (!ownerId) return null;
   const owner = await prisma.user.findUnique({
     where: { id: ownerId },
@@ -1173,7 +1295,7 @@ async function resolveGoalScope(
   level: GoalLevel,
   formData: FormData,
   userId: string,
-  admin: boolean
+  admin: boolean,
 ) {
   const scope = scopeFieldsFor(level, formData);
 
@@ -1211,7 +1333,10 @@ async function resolveGoalScope(
  * 갈렸다. 그러면 방금 등록한 목표가 예전에 적어 둔 목표들 사이에 끼어 들어가서,
  * 등록을 누르고도 어디에 붙었는지 찾아 헤매게 된다. 새로 적은 것은 늘 맨 뒤다.
  */
-async function nextSortOrder(cycleId: string, level: GoalLevel): Promise<number> {
+async function nextSortOrder(
+  cycleId: string,
+  level: GoalLevel,
+): Promise<number> {
   const last = await prisma.goal.findFirst({
     where: { cycleId, level },
     orderBy: { sortOrder: "desc" },
@@ -1249,7 +1374,8 @@ export async function createGoal(formData: FormData) {
         where: { id: scope.teamId ?? "", leaderId: session.user.id },
         select: { id: true },
       });
-      if (!leads) throw new Error("본인이 팀장인 팀의 팀목표만 만들 수 있습니다.");
+      if (!leads)
+        throw new Error("본인이 팀장인 팀의 팀목표만 만들 수 있습니다.");
     } else {
       throw new Error("전사·책임 목표는 관리자만 만들 수 있습니다.");
     }
@@ -1264,7 +1390,7 @@ export async function createGoal(formData: FormData) {
         str(formData.get("parentId")),
         cycleId,
         otherScope,
-        session.user.id
+        session.user.id,
       ),
       title,
       description: str(formData.get("description")) || null,
@@ -1278,12 +1404,15 @@ export async function createGoal(formData: FormData) {
       progress: allowsProgressInput(acting)
         ? progressForStatus(
             statusFor(level, formData.get("status"), acting),
-            clampProgress(parseNumber(formData.get("progress"), 0))
+            clampProgress(parseNumber(formData.get("progress"), 0)),
           )
         : 0,
       status: statusFor(level, formData.get("status"), acting),
       dueDate: parseDate(formData.get("dueDate")),
-      sortOrder: parseNumber(formData.get("sortOrder"), await nextSortOrder(cycleId, level)),
+      sortOrder: parseNumber(
+        formData.get("sortOrder"),
+        await nextSortOrder(cycleId, level),
+      ),
       createdById: session.user.id,
     },
   });
@@ -1297,7 +1426,9 @@ export async function createGoal(formData: FormData) {
  * 수 있는지는 폼이 아니라 조직도가 정하는 값이라, 폼에서 온 말을 믿으면 남의
  * 평가 칸을 적을 수 있게 된다.
  */
-async function firstEvaluatorIdOf(ownerId: string | null | undefined): Promise<string | null> {
+async function firstEvaluatorIdOf(
+  ownerId: string | null | undefined,
+): Promise<string | null> {
   if (!ownerId) return null;
   const [people, teams] = await Promise.all([
     prisma.user.findMany({
@@ -1314,7 +1445,13 @@ async function firstEvaluatorIdOf(ownerId: string | null | undefined): Promise<s
     }),
     prisma.team.findMany({
       where: { active: true },
-      select: { id: true, name: true, division: true, businessUnit: true, leaderId: true },
+      select: {
+        id: true,
+        name: true,
+        division: true,
+        businessUnit: true,
+        leaderId: true,
+      },
     }),
   ]);
   return buildEvaluatorMap(people, teams).get(ownerId)?.first?.id ?? null;
@@ -1332,7 +1469,11 @@ function progressField(formData: FormData, name: string): number | null {
  *
  * 상한은 그 목표 가중치의 110%다(`maxScore`). 화면에서도 막지만 폼을 믿지 않는다.
  */
-function scoreField(formData: FormData, name: string, weight: number): number | null {
+function scoreField(
+  formData: FormData,
+  name: string,
+  weight: number,
+): number | null {
   const raw = str(formData.get(name));
   if (!raw) return null;
   return clampScore(parseNumber(raw, 0), maxScore(weight));
@@ -1368,7 +1509,9 @@ export async function updateGoal(formData: FormData) {
     경우가 실제로 있다.
   */
   if (existing.evalDoneAt) {
-    throw new Error("평가완료된 목표입니다. 수정하려면 「평가완료 취소」를 눌러 주세요.");
+    throw new Error(
+      "평가완료된 목표입니다. 수정하려면 「평가완료 취소」를 눌러 주세요.",
+    );
   }
 
   /*
@@ -1379,13 +1522,21 @@ export async function updateGoal(formData: FormData) {
   */
   const manage = await canManageGoal(goalId);
   const firstEvaluatorId = await firstEvaluatorIdOf(existing.ownerId);
-  const isFirstEvaluator = !!firstEvaluatorId && firstEvaluatorId === session.user.id;
-  if (!manage && !isFirstEvaluator) throw new Error("이 목표를 수정할 권한이 없습니다.");
+  const isFirstEvaluator =
+    !!firstEvaluatorId && firstEvaluatorId === session.user.id;
+  if (!manage && !isFirstEvaluator)
+    throw new Error("이 목표를 수정할 권한이 없습니다.");
 
   // 합의가 끝난 목표는 담당자가 혼자 바꿀 수 없다. 바꾸려면 팀장이 합의를
   // 해제하고 다시 받는 게 맞다 — 아니면 승인한 내용과 실제 목표가 달라진다.
-  if (AGREEMENT_ENABLED && existing.agreementStatus === "AGREED" && !(await canApproveGoal(goalId))) {
-    throw new Error("합의 완료된 목표입니다. 팀장에게 합의 해제를 요청해 주세요.");
+  if (
+    AGREEMENT_ENABLED &&
+    existing.agreementStatus === "AGREED" &&
+    !(await canApproveGoal(goalId))
+  ) {
+    throw new Error(
+      "합의 완료된 목표입니다. 팀장에게 합의 해제를 요청해 주세요.",
+    );
   }
 
   const level = existing.level as GoalLevel;
@@ -1398,7 +1549,8 @@ export async function updateGoal(formData: FormData) {
   */
   if (!manage) {
     const { lock: evalLock } = await actingLock(formData, existing.cycleId);
-    if (!evalLock.canEditGoals) throw new Error(evalLock.message ?? "지금은 고칠 수 없습니다.");
+    if (!evalLock.canEditGoals)
+      throw new Error(evalLock.message ?? "지금은 고칠 수 없습니다.");
     await prisma.goal.update({
       where: { id: goalId },
       data: {
@@ -1420,7 +1572,8 @@ export async function updateGoal(formData: FormData) {
     ? await (async () => {
         const s = scopeFieldsFor(level, formData);
         // 개인목표의 팀은 피평가자를 따라간다 — 폼에 팀 칸이 없다.
-        if (level === "INDIVIDUAL") s.teamId = (await teamOfOwner(s.ownerId)) ?? existing.teamId;
+        if (level === "INDIVIDUAL")
+          s.teamId = (await teamOfOwner(s.ownerId)) ?? existing.teamId;
         return s;
       })()
     : { teamId: existing.teamId, ownerId: existing.ownerId };
@@ -1464,9 +1617,12 @@ export async function updateGoal(formData: FormData) {
           progress: clampProgress(parseNumber(formData.get("progress"), 0)),
           status: statusFor(level, formData.get("status"), acting),
         },
-        { progress: existing.progress, status: existing.status as GoalStatus }
+        { progress: existing.progress, status: existing.status as GoalStatus },
       )
-    : { progress: existing.progress, status: statusFor(level, formData.get("status"), acting) };
+    : {
+        progress: existing.progress,
+        status: statusFor(level, formData.get("status"), acting),
+      };
 
   // 목표 확정(마감) 이후에는 내용은 그대로 두고 진척과 상태만 받는다. 여기서
   // 통째로 막지 않는 이유는, 마감한 뒤에도 "완료" 처리는 계속 해야 하기
@@ -1478,7 +1634,8 @@ export async function updateGoal(formData: FormData) {
     select: { status: true, goalsLockedAt: true },
   });
   const lock = cycleLock(cycle);
-  if (!lock.canEditProgress) throw new Error(lock.message ?? "지금은 고칠 수 없습니다.");
+  if (!lock.canEditProgress)
+    throw new Error(lock.message ?? "지금은 고칠 수 없습니다.");
 
   if (!lock.canEditGoals) {
     await prisma.goal.update({
@@ -1524,10 +1681,12 @@ export async function updateGoal(formData: FormData) {
         str(formData.get("parentId")),
         existing.cycleId,
         await resolveOtherScope(scope),
-        session.user.id
+        session.user.id,
       ),
       ...evalData,
-      ...(admin ? { sortOrder: parseNumber(formData.get("sortOrder"), 0) } : {}),
+      ...(admin
+        ? { sortOrder: parseNumber(formData.get("sortOrder"), 0) }
+        : {}),
       metric: str(formData.get("metric")) || null,
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
@@ -1544,7 +1703,8 @@ export async function deleteGoal(goalId: string, formData?: FormData) {
   await requireGoalModule();
   // 고칠 수 있는 사람이면 지울 수도 있다 — 자기가 잘못 만든 목표를 지우려고
   // 관리자를 찾아가야 하면, 대신 제목만 «(취소)»로 바꿔 둔 껍데기가 쌓인다.
-  if (!(await canManageGoal(goalId))) throw new Error("이 목표를 지울 권한이 없습니다.");
+  if (!(await canManageGoal(goalId)))
+    throw new Error("이 목표를 지울 권한이 없습니다.");
 
   // 고치는 것과 같은 기준이다 — 보고 있는 단계가 열려 있으면 지울 수도 있다.
   const owner = await prisma.goal.findUnique({
@@ -1553,7 +1713,8 @@ export async function deleteGoal(goalId: string, formData?: FormData) {
   });
   if (!owner) throw new Error("목표를 찾을 수 없습니다.");
   const { lock } = await actingLock(formData ?? new FormData(), owner.cycleId);
-  if (!lock.canEditGoals) throw new Error(lock.message ?? "지금은 지울 수 없습니다.");
+  if (!lock.canEditGoals)
+    throw new Error(lock.message ?? "지금은 지울 수 없습니다.");
 
   // 합의가 끝난 목표는 담당자 혼자 지울 수 없다. 수정과 같은 규칙이다 —
   // 승인한 사람 모르게 사라지면 합의라는 말이 뜻을 잃는다.
@@ -1561,13 +1722,22 @@ export async function deleteGoal(goalId: string, formData?: FormData) {
     where: { id: goalId },
     select: { agreementStatus: true },
   });
-  if (AGREEMENT_ENABLED && agreed?.agreementStatus === "AGREED" && !(await canApproveGoal(goalId))) {
-    throw new Error("합의 완료된 목표입니다. 팀장에게 합의 해제를 요청해 주세요.");
+  if (
+    AGREEMENT_ENABLED &&
+    agreed?.agreementStatus === "AGREED" &&
+    !(await canApproveGoal(goalId))
+  ) {
+    throw new Error(
+      "합의 완료된 목표입니다. 팀장에게 합의 해제를 요청해 주세요.",
+    );
   }
 
   // 하위 목표는 지우지 않고 부모만 끊어서, 실수로 팀·개인 목표가 통째로
   // 사라지는 일이 없게 한다.
-  await prisma.goal.updateMany({ where: { parentId: goalId }, data: { parentId: null } });
+  await prisma.goal.updateMany({
+    where: { parentId: goalId },
+    data: { parentId: null },
+  });
   await prisma.goal.delete({ where: { id: goalId } });
   revalidatePath(PATH);
 }
@@ -1592,7 +1762,8 @@ async function canApproveGoal(goalId: string): Promise<boolean> {
 /** 담당자가 목표를 팀장에게 올린다. */
 export async function requestGoalAgreement(goalId: string) {
   await requireGoalModule();
-  if (!(await canManageGoal(goalId))) throw new Error("이 목표를 올릴 권한이 없습니다.");
+  if (!(await canManageGoal(goalId)))
+    throw new Error("이 목표를 올릴 권한이 없습니다.");
   await requireGoalEditable(goalId, "progress");
 
   const goal = await prisma.goal.findUnique({
@@ -1600,7 +1771,8 @@ export async function requestGoalAgreement(goalId: string) {
     select: { level: true, agreementStatus: true },
   });
   if (!goal || !needsAgreement(goal.level)) return;
-  if (goal.agreementStatus === "AGREED") throw new Error("이미 합의된 목표입니다.");
+  if (goal.agreementStatus === "AGREED")
+    throw new Error("이미 합의된 목표입니다.");
 
   await prisma.goal.update({
     where: { id: goalId },
@@ -1610,7 +1782,10 @@ export async function requestGoalAgreement(goalId: string) {
 }
 
 /** 팀장이 승인한다. */
-export async function approveGoalAgreement(goalId: string, formData?: FormData) {
+export async function approveGoalAgreement(
+  goalId: string,
+  formData?: FormData,
+) {
   const session = await requireGoalModule();
   if (!(await canApproveGoal(goalId))) {
     throw new Error("팀장 또는 관리자만 합의할 수 있습니다.");
@@ -1694,7 +1869,11 @@ export async function reopenGoalAgreement(goalId: string) {
  * 되돌릴 수 있게 시각만 남긴다 — 잘못 눌렀을 때 관리자를 찾아가야 하면 아무도
  * 안 누른다.
  */
-export async function setGoalEvalDone(goalId: string, done: boolean, formData?: FormData) {
+export async function setGoalEvalDone(
+  goalId: string,
+  done: boolean,
+  formData?: FormData,
+) {
   const session = await requireGoalModule();
 
   const goal = await prisma.goal.findUnique({
@@ -1708,7 +1887,8 @@ export async function setGoalEvalDone(goalId: string, done: boolean, formData?: 
   if (!allowed) throw new Error("평가완료는 1차 평가자만 누를 수 있습니다.");
 
   const { lock } = await actingLock(formData ?? new FormData(), goal.cycleId);
-  if (!lock.canEditGoals) throw new Error(lock.message ?? "지금은 고칠 수 없습니다.");
+  if (!lock.canEditGoals)
+    throw new Error(lock.message ?? "지금은 고칠 수 없습니다.");
 
   await prisma.goal.update({
     where: { id: goalId },
@@ -1721,7 +1901,8 @@ export async function setGoalEvalDone(goalId: string, done: boolean, formData?: 
 
 export async function setGoalDropped(goalId: string, dropped: boolean) {
   await requireGoalModule();
-  if (!(await isAdmin())) throw new Error("중단 처리는 관리자만 할 수 있습니다.");
+  if (!(await isAdmin()))
+    throw new Error("중단 처리는 관리자만 할 수 있습니다.");
   await requireGoalEditable(goalId, "progress");
 
   const goal = await prisma.goal.findUnique({
@@ -1746,7 +1927,7 @@ export async function setGoalDropped(goalId: string, dropped: boolean) {
 export async function setGoalExcluded(
   goalId: string,
   excluded: boolean,
-  formData?: FormData
+  formData?: FormData,
 ) {
   await requireGoalModule();
   if (!(await canExcludeGoal())) {
@@ -1772,7 +1953,8 @@ export async function addGoalCheckIn(formData: FormData) {
 
   const goalId = str(formData.get("goalId"));
   if (!goalId) return;
-  if (!(await canManageGoal(goalId))) throw new Error("이 목표의 진척을 올릴 권한이 없습니다.");
+  if (!(await canManageGoal(goalId)))
+    throw new Error("이 목표의 진척을 올릴 권한이 없습니다.");
   await requireGoalEditable(goalId, "progress");
 
   const progress = clampProgress(parseNumber(formData.get("progress"), 0));
@@ -1787,10 +1969,14 @@ export async function addGoalCheckIn(formData: FormData) {
   // 평가완료된 목표는 달성률도 그대로 둔다 — 점수의 근거가 되는 값이라 여기서
   // 바뀌면 완료된 평가가 조용히 달라진다.
   if (current.evalDoneAt) {
-    throw new Error("평가완료된 목표입니다. 수정하려면 「평가완료 취소」를 눌러 주세요.");
+    throw new Error(
+      "평가완료된 목표입니다. 수정하려면 「평가완료 취소」를 눌러 주세요.",
+    );
   }
   if (!allowsProgressInput(await actingCycle(formData, current.cycleId))) {
-    throw new Error("목표설정 단계에서는 달성률을 적지 않습니다. 중간평가·최종평가에서 올려 주세요.");
+    throw new Error(
+      "목표설정 단계에서는 달성률을 적지 않습니다. 중간평가·최종평가에서 올려 주세요.",
+    );
   }
 
   // 100%를 찍으면 완료로 올리고, 100% 아래로 내리면 완료를 풀어준다. 안 풀면
@@ -1813,7 +1999,6 @@ export async function addGoalCheckIn(formData: FormData) {
   ]);
   revalidatePath(PATH);
 }
-
 
 // --- 역량평가 --------------------------------------------------------------
 
@@ -1839,7 +2024,7 @@ export async function saveCompetencyScores(formData: FormData) {
 
   const target = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, position: true, team: { select: { name: true } } },
+    select: { id: true, position: true, teamId: true },
   });
   if (!target) throw new Error("피평가자를 찾을 수 없습니다.");
   /*
@@ -1862,8 +2047,25 @@ export async function saveCompetencyScores(formData: FormData) {
   const canWriteSelf = admin || isSelf;
   const canWriteLead = admin || isFirstEvaluator;
 
-  const keys = competencyItemKeys(target.team?.name ?? null);
-  if (keys.size === 0) throw new Error("이 사람에게 뜨는 역량평가 문항이 없습니다.");
+  /*
+    문항 목록은 폼이 아니라 그 해 양식에서 다시 세운다. 폼에 실려 온 열쇠를 그대로
+    믿으면 없는 문항을 만들어 넣거나 남의 직무 문항에 점수를 남길 수 있다.
+  */
+  const form = await loadCompetencyForm(year);
+  if (!form) throw new Error(`${year}년 역량평가 양식이 아직 없습니다.`);
+  if (!competencyFormOpen(form.status)) {
+    throw new Error(
+      "지금은 점수를 적을 수 없습니다 — 관리자가 「평가 시작」을 눌러야 합니다.",
+    );
+  }
+  const picked = pickCompetencySets(
+    { position: target.position, teamId: target.teamId, id: target.id },
+    form.sets,
+    form.assignments,
+  );
+  const keys = competencyItemKeys(picked);
+  if (keys.size === 0)
+    throw new Error("이 사람에게 뜨는 역량평가 문항이 없습니다.");
 
   /*
     「전체 코멘트」는 팀장평가자 몫이다(양식에 «팀장평가자만 작성»이라 적혀 있다).

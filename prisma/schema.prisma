@@ -140,6 +140,7 @@ model User {
   goalCheckpoints          GoalCheckpoint[]               @relation("GoalCheckpointCreator")
   competencyReviews        CompetencyReview[]             @relation("CompetencyReviewee")
   competencyLeadRatings    CompetencyScore[]              @relation("CompetencyLeadRater")
+  competencyJobOverride    CompetencyJobAssignment[]      @relation("CompetencyJobUser")
 }
 
 model AppointmentRecord {
@@ -261,12 +262,13 @@ model Team {
 
   createdAt DateTime @default(now())
 
-  members            User[]                  @relation("TeamMember")
+  members            User[]                    @relation("TeamMember")
   onboardingSessions OnboardingSessionTeam[]
   templateItems      TemplateItem[]
   jobDescription     JobDescription?
   tasks              Task[]
   goals              Goal[]
+  competencyJobSets  CompetencyJobAssignment[] @relation("CompetencyJobTeam")
 }
 
 model JobDescription {
@@ -1340,7 +1342,6 @@ model CompetencyReview {
 
   /**
    * 양식 맨 아래의 「전체 코멘트」 — 팀장평가자만 적는다.
-   *
    * 문항별 점수로는 «왜 이 점수인지»가 남지 않는다. 사내 양식이 이 칸을 따로
    * 둔 이유가 그것이다(«평가 부여에 대한 추가적인 설명이나 격려/감사/교정 등
    * 정성적인 피드백»). 점수는 열 칸으로 흩어지지만 이 말은 한 덩어리라, 문항이
@@ -1348,10 +1349,9 @@ model CompetencyReview {
    */
   leadComment String?
 
-  scores CompetencyScore[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  competencyScores CompetencyScore[]
 
   @@unique([year, userId])
   @@index([year])
@@ -1366,8 +1366,11 @@ model CompetencyScore {
   reviewId String
   review   CompetencyReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
   /**
-   * `src/lib/competency.ts`의 문항 키. 문항 문장을 다듬어도 점수는 이어진다 —
-   * 질문 원문을 열쇠로 쓰면 쉼표 하나 고친 순간 지난 점수가 떨어져 나간다.
+   * 문항의 **열쇠**(`CompetencyFormItem.key`). 문항 줄과 외래키로 묶지 않는다 —
+   * 이 앱은 기동할 때 `prisma db push`를 돌리므로, 이미 점수가 들어 있는 표에
+   * 필수 외래키를 새로 걸면 그 순간 배포가 멈춘다. 그리고 열쇠로 두면 해를
+   * 넘겨도 같은 문항의 점수를 나란히 놓고 볼 수 있다.
+   * 열쇠는 한 해 안에서 겹치지 않게 «갈래.직무.항목» 꼴로 짓는다.
    */
   itemKey  String
 
@@ -1379,7 +1382,136 @@ model CompetencyScore {
   leadById  String?
   leadBy    User?   @relation("CompetencyLeadRater", fields: [leadById], references: [id])
 
-  updatedAt DateTime @updatedAt
+  updatedAt            DateTime            @updatedAt
+  competencyFormItem   CompetencyFormItem? @relation(fields: [competencyFormItemId], references: [id])
+  competencyFormItemId String?
 
   @@unique([reviewId, itemKey])
+}
+
+// --- 역량평가 양식(연도판) --------------------------------------------------
+
+enum CompetencyFormStatus {
+  /**
+   * 작성 중 — 인사팀이 문항을 고칠 수 있다.
+   */
+  DRAFT
+  /**
+   * 평가 중 — 문항이 잠기고 점수를 받는다.
+   */
+  OPEN
+  /**
+   * 종료.
+   */
+  CLOSED
+}
+
+enum CompetencySetKind {
+  /**
+   * 핵심가치 · 팀원용.
+   */
+  CORE_STAFF
+  /**
+   * 핵심가치 · 팀장용.
+   */
+  CORE_LEADER
+  /**
+   * 직무역량 — 직무마다 한 벌.
+   */
+  JOB
+}
+
+/**
+ * 그 해의 역량평가 양식 한 벌.
+ * 해마다 문항이 바뀌므로 연도로 판을 가른다. 2026년 문항을 고쳐도 2025년에 매긴
+ * 점수는 2025년 문항에 그대로 붙어 있다 — 판을 가르지 않으면 문항을 손보는 순간
+ * 지난해 평균이 «무엇에 대한 점수인지» 알 수 없게 된다.
+ * 평가를 시작(OPEN)하면 문항이 잠긴다. 평가 도중에 문항이 바뀌면 먼저 제출한
+ * 사람과 나중 사람이 다른 양식으로 평가받는다.
+ */
+model CompetencyForm {
+  id     String               @id @default(cuid())
+  year   Int                  @unique
+  status CompetencyFormStatus @default(DRAFT)
+
+  sets        CompetencyItemSet[]
+  assignments CompetencyJobAssignment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * 문항 다섯 줄 묶음. 핵심가치는 팀원용·팀장용 두 벌, 직무역량은 직무마다 한 벌이다.
+ * 직무역량을 «팀마다 한 벌»이 아니라 «직무마다 한 벌»로 두는 이유는 사내 양식이
+ * 그렇게 생겼기 때문이다 — 관리팀 하나에 환경안전·일반·출고 세 직무가 있고,
+ * 지점 열한 곳은 한 벌을 함께 쓴다. 팀에 매어 두면 둘 다 표현할 수 없다.
+ */
+model CompetencyItemSet {
+  id     String            @id @default(cuid())
+  formId String
+  form   CompetencyForm    @relation(fields: [formId], references: [id], onDelete: Cascade)
+  kind   CompetencySetKind
+  /**
+   * 「인사팀」·「지점」처럼 직무 이름. 핵심가치는 kind가 이미 말해 주므로 표시용이다.
+   */
+  name   String
+
+  sortOrder Int @default(0)
+
+  items       CompetencyFormItem[]
+  assignments CompetencyJobAssignment[]
+
+  @@unique([formId, kind, name])
+  @@index([formId, kind])
+}
+
+/**
+ * 문항 한 줄 — 영역 · 질문. 묶음마다 다섯 줄이다.
+ */
+model CompetencyFormItem {
+  id    String            @id @default(cuid())
+  setId String
+  set   CompetencyItemSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+  /**
+   * 해를 넘겨도 이어지는 열쇠. 연도판을 복사할 때 그대로 옮기므로, 2025년과
+   * 2026년의 같은 문항을 나란히 놓고 볼 수 있다.
+   */
+  key   String
+
+  area     String
+  question String
+
+  sortOrder Int @default(0)
+
+  scores CompetencyScore[]
+
+  @@unique([setId, key])
+}
+
+/**
+ * 직무역량 묶음을 누구에게 씌울지.
+ * 줄은 두 가지다 — **팀 기본값**(teamId)과 **사람 예외**(userId). 팀에 하나를
+ * 정해 두고 다른 직무인 사람만 따로 지정한다. 팀 하나에 직무가 하나인 대부분은
+ * 팀 줄만 있으면 된다.
+ * 한 팀·한 사람에 묶음은 하나뿐이다. 둘이 걸리면 직무역량이 열 문항이 된다.
+ * 핵심가치는 여기 오지 않는다 — 직책(담당·팀장)이 정하므로 고를 것이 없다.
+ */
+model CompetencyJobAssignment {
+  id     String            @id @default(cuid())
+  formId String
+  form   CompetencyForm    @relation(fields: [formId], references: [id], onDelete: Cascade)
+  setId  String
+  set    CompetencyItemSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  teamId String?
+  team   Team?   @relation("CompetencyJobTeam", fields: [teamId], references: [id], onDelete: Cascade)
+  userId String?
+  user   User?   @relation("CompetencyJobUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([formId, teamId])
+  @@unique([formId, userId])
+  @@index([formId])
 }
