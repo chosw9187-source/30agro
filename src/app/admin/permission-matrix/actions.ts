@@ -49,8 +49,9 @@ export async function savePermissionMatrix(
  * LIST_ONLY로 목록만 보인다(팀장은 본인 팀 구성원에 한해 상세도 열림).
  *
  * 참고: 여기서 무엇을 고르든 인사카드 상세는 직책별 상한
- * (POSITION_CARD_SCOPE_CEILING)을 넘지 못한다. 즉 이 값은 상한을 좁히는
- * 용도로만 의미가 있고, 넓히려면 그 사람의 역할을 ADMIN으로 올려야 한다.
+ * (POSITION_CARD_SCOPE_CEILING)을 넘지 못한다 — 이 표는 상한을 좁히는
+ * 용도로만 의미가 있다. 상한을 넘겨 열어줘야 하면 사용자별 개별 설정
+ * (UserPermissionOverride)으로 그 사람을 콕 집어 지정한다.
  */
 const RECOMMENDED_EMPLOYEES_SCOPE: Record<(typeof POSITIONS)[number], PermissionScope> = {
   CEO: "FULL",

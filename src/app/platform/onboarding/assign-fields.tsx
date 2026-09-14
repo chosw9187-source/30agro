@@ -50,10 +50,6 @@ export function AssignFields({
           placeholder="부서 검색..."
           inputClassName={inputClassName}
         />
-        <p className="mt-1 text-[11px] text-slate-400">
-          그 날 되는 사람이 나가는 경우처럼 이름을 미리 못 박을 수 없을 때 부서로 답니다. 강사와 함께 고를 수
-          있습니다.
-        </p>
       </div>
     </>
   );

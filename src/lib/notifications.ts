@@ -5,7 +5,8 @@ type NotificationType =
   | "COMMENT_ADDED"
   | "ONBOARDING_BOOKING_REQUESTED"
   | "ONBOARDING_BOOKING_DECIDED"
-  | "ONBOARDING_SCHEDULE_CHANGED";
+  | "ONBOARDING_SCHEDULE_CHANGED"
+  | "ONBOARDING_NOTICE_POSTED";
 
 /**
  * 알림 한 건을 남긴다. `link`를 주면 알림 목록에서 그 화면으로 바로 갈 수

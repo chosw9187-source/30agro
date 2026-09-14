@@ -55,7 +55,7 @@ function mainItems(
   notificationCount: number,
   moduleUiConfig: Record<
     string,
-    { order: number; comingSoon: boolean; hidden: boolean }
+    { order: number; comingSoon: boolean; hidden: boolean; label?: string | null }
   >,
 ): NavItem[] {
   const orderedModules = [...SIDEBAR_MODULES].sort(
@@ -63,7 +63,7 @@ function mainItems(
   );
   const moduleItems: NavItem[] = orderedModules.map((m) => ({
     href: m === "EVALUATION" ? evaluationHref(role) : MODULE_NAV[m].href,
-    label: MODULE_LABEL_FOR_NAV[m],
+    label: moduleUiConfig[m]?.label || MODULE_LABEL_FOR_NAV[m],
     module: m as Module,
     comingSoon: moduleUiConfig[m]?.comingSoon ?? false,
     hidden: moduleUiConfig[m]?.hidden ?? false,
@@ -177,7 +177,7 @@ export function PlatformSidebar({
   visibleModules: Module[];
   moduleUiConfig: Record<
     string,
-    { order: number; comingSoon: boolean; hidden: boolean }
+    { order: number; comingSoon: boolean; hidden: boolean; label?: string | null }
   >;
   hiddenAdminMenuKeys?: AdminMenuKey[];
 }) {

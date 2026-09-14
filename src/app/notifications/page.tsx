@@ -11,6 +11,7 @@ const typeLabel: Record<string, string> = {
   ONBOARDING_BOOKING_REQUESTED: "온보딩 강의 신청",
   ONBOARDING_BOOKING_DECIDED: "온보딩 강의 확정·반려",
   ONBOARDING_SCHEDULE_CHANGED: "온보딩 일정 변경",
+  ONBOARDING_NOTICE_POSTED: "온보딩 공지사항",
 };
 
 export default async function NotificationsPage() {

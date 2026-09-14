@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { hasAnyOnboardingAccess } from "@/lib/onboarding";
 import { PlatformSidebar } from "@/components/platform-sidebar";
 import { CompanyLogo } from "@/components/company-logo";
 import { Watermark } from "@/components/watermark";
@@ -40,14 +41,18 @@ export async function PlatformShell({
     logPageView(user.id),
   ]);
   const position = (dbUser?.position ?? "STAFF") as Position;
-  const [visibleModules, moduleUiConfig, hiddenAdminMenuKeys] =
+  const [visibleModules, moduleUiConfig, hiddenAdminMenuKeys, onboardingInvolved] =
     await Promise.all([
       getVisibleModules(user.id, user.role, position),
       getModuleUiConfig(),
       user.role === "ADMIN"
         ? getHiddenAdminMenuKeys()
         : Promise.resolve(new Set<never>()),
+      hasAnyOnboardingAccess(user.id, user.role === "ADMIN"),
     ]);
+  // 이번 기수의 강사·부서·교육생에게는 권한 매트릭스와 별개로 메뉴를 연다 —
+  // 안내서를 볼 사람인데 들어갈 문이 없으면 소용이 없다.
+  if (onboardingInvolved) visibleModules.add("ONBOARDING");
 
   async function logout() {
     "use server";
