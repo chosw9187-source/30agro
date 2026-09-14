@@ -90,6 +90,7 @@ import {
   competencyAverage,
   competencyFormFor,
   competencyScoreLabel,
+  isCompetencyTarget,
   type CompetencyItem,
 } from "@/lib/competency";
 import { YearPhaseSelect, ParamSelect } from "./cycle-select";
@@ -839,57 +840,26 @@ export default async function Evaluation2Page({
     돌지 않는다.
   */
   /**
-   * 이 사람의 역량평가를 열어 볼 수 있나.
+   * 역량평가 화면에 뜨는 사람 — **평가 관계에 있는 사람만**이다.
    *
-   * 목표의 범위 규칙(`canViewGoalRow`)을 그대로 쓸 수는 없었다. 그쪽은 «팀이 안
-   * 붙은 목표»(전사·책임 목표)를 모두에게 열어 주는데, 같은 규칙을 사람에 대면
-   * 팀에 속하지 않은 사람 — 책임·운영책임·사장 — 이 전원에게 보인다. 팀장의
-   * 피평가자 고르개에 사장이 끼어 있던 것이 그 때문이다.
+   * 역량평가는 조직도를 따라 두 갈래로만 돈다: 담당은 그 팀의 팀장이, 팀장은
+   * 부문의 책임(없으면 본부의 운영책임)이 평가한다. 그래서 목록에 필요한 것은
+   * «내 것»과 «내가 1차 평가자인 사람» 둘뿐이다. 관리자는 인사팀 몫으로 전원을
+   * 본다.
    *
-   * 사람은 조직의 위에서 아래로만 본다. 다만 **내가 1차 평가자인 사람**은 직책과
-   * 무관하게 본다 — 점수를 적어야 하는 사람이 목록에 없으면 평가를 할 수가 없다.
+   * 목표의 범위 규칙(부문·본부까지 훑는 `canViewGoalRow`)은 쓰지 않는다. 그
+   * 규칙을 대면 팀장의 목록에 사장까지 들어오고, 평가할 일도 없는 사람의 점수를
+   * 열어 보게 된다.
    */
-  const canSeePerson = (p: {
-    id: string;
-    teamId: string | null;
-    division: string | null;
-    businessUnit: string | null;
-  }) => {
-    if (p.id === viewer.id) return true;
-    if (viewer.isAdmin || viewer.position === "CEO") return true;
-    if (evaluatorByPerson.get(p.id)?.first?.id === viewer.id) return true;
-
-    const theirDivision = p.teamId
-      ? (org.teamDivision(p.teamId) ?? p.division)
-      : p.division;
-    const theirUnit = p.teamId
-      ? (org.teamUnit(p.teamId) ?? p.businessUnit)
-      : (p.division ? org.divisionUnit(p.division) : null) ?? p.businessUnit;
-
-    switch (viewer.position) {
-      case "OPERATIONS_HEAD":
-        return (
-          !!theirUnit &&
-          !!viewer.businessUnit &&
-          theirUnit === viewer.businessUnit
-        );
-      case "SENIOR_STAFF":
-        return (
-          !!theirDivision && !!viewer.division && theirDivision === viewer.division
-        );
-      case "TEAM_LEADER": {
-        const myTeams = new Set([
-          ...(viewer.teamId ? [viewer.teamId] : []),
-          ...viewer.ledTeamIds,
-        ]);
-        return !!p.teamId && myTeams.has(p.teamId);
-      }
-      default:
-        // 담당은 자기 것만 본다(맨 위에서 이미 통과).
-        return false;
-    }
-  };
-  const competencyPeople = competencyView ? people.filter(canSeePerson) : [];
+  const competencyPeople = competencyView
+    ? people.filter((p) => {
+        // 담당·팀장만 평가받는다. 책임·운영책임·사장은 대상이 아니다.
+        if (!isCompetencyTarget(p.position)) return false;
+        if (isAdmin) return true;
+        if (p.id === session!.user.id) return true;
+        return evaluatorByPerson.get(p.id)?.first?.id === session!.user.id;
+      })
+    : [];
   const competencyTarget = competencyView
     ? (competencyPeople.find((p) => p.id === params.who) ??
       competencyPeople.find((p) => p.id === session!.user.id) ??
@@ -1125,7 +1095,8 @@ export default async function Evaluation2Page({
   function competencyBoard() {
     if (!competencyTarget) {
       return comingUp("역량평가", null, [
-        "볼 수 있는 사람이 없습니다. 조직도에 소속이 등록되어 있는지 확인해 주세요.",
+        "역량평가는 담당과 팀장을 대상으로 합니다 — 담당은 그 팀의 팀장이, 팀장은 부문의 책임(없으면 본부의 운영책임)이 평가합니다.",
+        "본인이 대상이 아니고, 평가할 사람도 배정되어 있지 않습니다. 조직도의 팀장·책임 지정을 확인해 주세요.",
       ]);
     }
 

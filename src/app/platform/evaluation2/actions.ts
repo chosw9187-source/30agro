@@ -42,7 +42,11 @@ import {
 } from "@/lib/goals";
 import { buildEvaluatorMap } from "@/lib/evaluator";
 import { activePrismaWhere } from "@/lib/hr-analytics";
-import { competencyItemKeys, parseCompetencyScore } from "@/lib/competency";
+import {
+  competencyItemKeys,
+  isCompetencyTarget,
+  parseCompetencyScore,
+} from "@/lib/competency";
 
 const ALL_ROLES = ["ADMIN", "EVALUATOR", "EMPLOYEE"] as const;
 const PATH = "/platform/evaluation2";
@@ -1835,9 +1839,16 @@ export async function saveCompetencyScores(formData: FormData) {
 
   const target = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, team: { select: { name: true } } },
+    select: { id: true, position: true, team: { select: { name: true } } },
   });
   if (!target) throw new Error("피평가자를 찾을 수 없습니다.");
+  /*
+    담당·팀장만 역량평가를 받는다. 화면에서는 목록에 아예 뜨지 않지만, 주소나
+    폼을 고쳐 넣으면 통과할 수 있으므로 여기서 한 번 더 막는다.
+  */
+  if (!isCompetencyTarget(target.position)) {
+    throw new Error("역량평가 대상이 아닙니다 — 담당과 팀장만 평가합니다.");
+  }
 
   const admin = await isAdmin();
   const isSelf = userId === session.user.id;

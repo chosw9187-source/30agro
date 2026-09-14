@@ -75,6 +75,22 @@ export const COMPETENCY_NOTES = [
   "스케일은 정수로만 고릅니다 (소수점 불가).",
 ] as const;
 
+/**
+ * 역량평가를 **받는** 직책 — 담당과 팀장뿐이다.
+ *
+ * 평가 관계는 조직도를 따라 두 갈래로만 돈다: 담당은 그 팀의 팀장이, 팀장은
+ * 부문의 책임(없으면 본부의 운영책임)이 평가한다. 그 위 — 책임·운영책임·사장 —
+ * 는 역량평가 대상이 아니다.
+ *
+ * 직책으로 가른다. «1차 평가자가 있는 사람»으로 가르면 사슬이 위로 계속
+ * 이어져서 운영책임도 사장에게 평가받는 대상이 되어 버린다.
+ */
+export const COMPETENCY_TARGET_POSITIONS = ["STAFF", "TEAM_LEADER"] as const;
+
+export function isCompetencyTarget(position: string): boolean {
+  return (COMPETENCY_TARGET_POSITIONS as readonly string[]).includes(position);
+}
+
 export type CompetencyItem = {
   /** 점수를 잇는 열쇠. 한 번 정하면 바꾸지 않는다. */
   key: string;
