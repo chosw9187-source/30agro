@@ -9,8 +9,8 @@ import { COMPETENCY_MAX, COMPETENCY_SCALE } from "@/lib/competency";
  * 한눈에 보여 준다. 정확한 값은 바로 옆 표가 맡는다.
  *
  * 구 평가 모듈의 `RadarChart`와 따로 두는 이유는 축의 뜻이 다르기 때문이다. 그쪽은
- * 문항마다 만점이 달라 비율로 그리고, 이쪽은 모든 축이 1~5 한 눈금이라 눈금 이름
- * (부족~탁월)을 그려 넣을 수 있다.
+ * 문항마다 만점이 달라 비율로 그리고, 이쪽은 모든 축이 1~5 한 눈금이라 눈금을
+ * 1~5로 그려 넣을 수 있다 — 점수가 곧 눈금이라 값을 되짚을 필요가 없다.
  *
  * 색은 두 계열뿐이다 — 자기평가 파랑, 팀장평가 주황. 빨강은 쓰지 않는다: 이 앱에서
  * 빨강은 «지연·미입력» 같은 상태를 뜻해서, 사람 계열에 쓰면 팀장평가가 경고처럼
@@ -30,7 +30,7 @@ const SELF_COLOR = "#2a78d6";
 const LEAD_COLOR = "#c98500";
 
 /** 축 이름이 길면 줄인다 — 길게 두면 바깥 지름이 라벨에 먹힌다. 전체 이름은 옆 표에 있다. */
-function shortLabel(label: string, max = 8): string {
+function shortLabel(label: string, max = 7): string {
   return label.length > max ? `${label.slice(0, max - 1)}…` : label;
 }
 
@@ -48,10 +48,16 @@ export function CompetencyRadar({
 
   /*
     라벨이 바깥으로 나가므로 그림 자리보다 뷰박스를 넉넉히 잡는다. 9시·3시 방향
-    라벨이 가장 멀리 뻗으니 그 길이로 잡는다 — 여덟 자 ≈ 84px에 지름 바깥 여백
-    16px을 더한 만큼. 좁게 잡았더니 「고객 충성도 유지」의 첫 자가 잘려 나갔다.
+    라벨이 가장 멀리 뻗으니 그 길이로 잡는다 — 여덟 자에 지름 바깥 여백을 더한
+    만큼. 좁게 잡았더니 「고객 충성도 유지」의 첫 자가 잘려 나갔다.
+
+    글자 크기(15)에 맞춰 여백도 같이 잡았다 — 일곱 자 × 15 + 지름 바깥 여백.
+    뷰박스는 칸 너비에 맞춰 줄어드니 글자 «단위»가 커야 화면에서 읽히는 크기가
+    나온다: 10.5로 뒀을 때는 8px까지 내려가 읽을 수 없었다. 여백을 키우면 그만큼
+    그림이 줄어들므로 이름을 한 자 더 줄여(일곱 자) 자리를 벌었다 — 온전한 이름은
+    바로 옆 표에 있고, 축에 마우스를 올려도 나온다.
   */
-  const pad = 115;
+  const pad = 126;
   const box = size + pad * 2;
   const cx = box / 2;
   const cy = box / 2;
@@ -130,7 +136,7 @@ export function CompetencyRadar({
 
       <svg
         viewBox={`0 0 ${box} ${box}`}
-        className="h-auto w-full max-w-[480px]"
+        className="h-auto w-full max-w-[520px]"
         role="img"
         aria-label={`역량별 자기평가와 팀장평가 방사형 비교 — ${axes
           .map((a) => a.label)
@@ -161,18 +167,31 @@ export function CompetencyRadar({
           );
         })}
 
-        {/* 눈금 이름 — 12시 축을 따라 부족 → 탁월. 사내 양식과 같은 말을 쓴다. */}
+        {/*
+          눈금 이름 — 12시 축을 따라 1에서 5까지. **숫자로 적는다**: 축마다 찍힌
+          점도 1~5이고 옆 표의 값도 1~5인데 눈금만 「부족·미흡·보통·우수·탁월」로
+          적혀 있으면, 점이 어느 눈금에 놓였는지 눈으로 되짚어야 한다. 말뜻은
+          눈금에 마우스를 올리면 나온다(「3 (보통)」).
+
+          흰 테를 둘러 눈금선·계열선 위에서도 숫자가 읽히게 한다 — paintOrder를
+          주지 않으면 테가 글자를 덮는다.
+        */}
         {COMPETENCY_SCALE.map((row) => {
           const [, y] = point(0, row.score);
           return (
             <text
               key={`tick-${row.score}`}
-              x={cx + 4}
-              y={y + 3}
-              className="fill-slate-400"
-              fontSize="9"
+              x={cx + 5}
+              y={y + 4}
+              className="fill-slate-500"
+              fontSize="15"
+              fontWeight="600"
+              stroke="#ffffff"
+              strokeWidth="3"
+              paintOrder="stroke"
             >
-              {row.label}
+              <title>{`${row.score} (${row.label})`}</title>
+              {row.score}
             </text>
           );
         })}
@@ -217,8 +236,8 @@ export function CompetencyRadar({
         {/* 축 이름 — 바깥에. 왼쪽 축은 오른쪽 정렬해야 그림에 겹치지 않는다. */}
         {axes.map((a, i) => {
           const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
-          const lx = cx + (r + 16) * Math.cos(angle);
-          const ly = cy + (r + 16) * Math.sin(angle);
+          const lx = cx + (r + 18) * Math.cos(angle);
+          const ly = cy + (r + 18) * Math.sin(angle);
           const cos = Math.cos(angle);
           const anchor =
             Math.abs(cos) < 0.25 ? "middle" : cos > 0 ? "start" : "end";
@@ -226,10 +245,10 @@ export function CompetencyRadar({
             <text
               key={`label-${i}`}
               x={lx}
-              y={ly + 4}
+              y={ly + 5}
               textAnchor={anchor}
               className="fill-slate-700"
-              fontSize="10.5"
+              fontSize="15"
               fontWeight="500"
             >
               <title>{a.label}</title>
