@@ -22,7 +22,11 @@ export const POSITION_LABEL: Record<Position, string> = {
 };
 
 /** 조직도에서 팀 트리 대신 상단 경영진 영역에 별도로 표시되는 직책. */
-export const EXECUTIVE_POSITIONS: Position[] = ["CEO", "OPERATIONS_HEAD", "SENIOR_STAFF"];
+export const EXECUTIVE_POSITIONS: Position[] = [
+  "CEO",
+  "OPERATIONS_HEAD",
+  "SENIOR_STAFF",
+];
 
 export type Module =
   | "EMPLOYEES"
@@ -129,7 +133,12 @@ export const DEFAULT_COMING_SOON_MODULES = new Set<Module>([
  */
 export const ADMIN_ONLY_MODULES = new Set<Module>([]);
 
-export type ModuleUiConfigEntry = { order: number; comingSoon: boolean; hidden: boolean; label: string | null };
+export type ModuleUiConfigEntry = {
+  order: number;
+  comingSoon: boolean;
+  hidden: boolean;
+  label: string | null;
+};
 
 /** 사이드바 "관리" 섹션 항목 — ADMIN 역할에게만 보이는 관리자 전용 메뉴. */
 export type AdminMenuKey =
@@ -144,21 +153,35 @@ export type AdminMenuKey =
   | "TRAFFIC"
   | "ORG_GOALS"
   | "EVAL_TARGETS"
-  | "COMPETENCY_FORM";
+  | "COMPETENCY_FORM"
+  | "GRADE_PLAN";
 
-export const ADMIN_MENU_ITEMS: { key: AdminMenuKey; href: string; label: string }[] = [
+export const ADMIN_MENU_ITEMS: {
+  key: AdminMenuKey;
+  href: string;
+  label: string;
+}[] = [
   { key: "USERS", href: "/admin/users", label: "사용자 관리" },
   { key: "TEAMS", href: "/admin/teams", label: "팀 관리" },
   { key: "DATA_UPLOAD", href: "/platform/data-upload", label: "데이터 업로드" },
   { key: "TEMPLATES", href: "/admin/templates", label: "평가 템플릿" },
   { key: "CYCLES", href: "/admin/cycles", label: "평가 사이클" },
   { key: "REPORTS", href: "/admin/reports", label: "결과 다운로드" },
-  { key: "PERMISSION_MATRIX", href: "/admin/permission-matrix", label: "권한 매트릭스" },
+  {
+    key: "PERMISSION_MATRIX",
+    href: "/admin/permission-matrix",
+    label: "권한 매트릭스",
+  },
   { key: "SCREEN_CONFIG", href: "/admin/screen-config", label: "화면 구성" },
   { key: "TRAFFIC", href: "/admin/traffic", label: "일일 트래픽" },
   { key: "ORG_GOALS", href: "/admin/org-goals", label: "조직 목표 관리" },
-  { key: "EVAL_TARGETS", href: "/admin/eval-targets", label: "평가대상자 관리" },
+  {
+    key: "EVAL_TARGETS",
+    href: "/admin/eval-targets",
+    label: "평가대상자 관리",
+  },
   { key: "COMPETENCY_FORM", href: "/admin/competency", label: "역량평가 문항" },
+  { key: "GRADE_PLAN", href: "/admin/grade", label: "등급 · 정원 관리" },
 ];
 
 export type HomeBlock = "TEAM_SUMMARY" | "OVERALL_SUMMARY" | "QUICK_LINKS";
@@ -216,6 +239,9 @@ const CARD_SCOPE_WIDTH: Record<PermissionScope, number> = {
 };
 
 /** 두 범위 중 더 좁은 쪽을 고른다(같은 넓이면 앞의 값). */
-export function narrowerCardScope(a: PermissionScope, b: PermissionScope): PermissionScope {
+export function narrowerCardScope(
+  a: PermissionScope,
+  b: PermissionScope,
+): PermissionScope {
   return CARD_SCOPE_WIDTH[a] <= CARD_SCOPE_WIDTH[b] ? a : b;
 }
