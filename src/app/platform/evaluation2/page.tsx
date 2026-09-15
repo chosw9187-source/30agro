@@ -95,6 +95,20 @@ import {
   type CompetencyItem,
 } from "@/lib/competency";
 import {
+  CompetencyRadar,
+  type CompetencyRadarAxis,
+} from "@/components/competency-radar";
+import {
+  PERFORMANCE_WEIGHT,
+  COMPETENCY_WEIGHT,
+  competencyScore100,
+  overallScore,
+  buildResultRow,
+  strengthsAndWeaknesses,
+  gapNote,
+  type CompetencyResultRow,
+} from "@/lib/competency-result";
+import {
   loadCompetencyForm,
   competencyFormOpen,
   COMPETENCY_FORM_STATUS_LABEL,
@@ -857,10 +871,16 @@ export default async function Evaluation2Page({
    * 규칙을 대면 팀장의 목록에 사장까지 들어오고, 평가할 일도 없는 사람의 점수를
    * 열어 보게 된다.
    */
-  const competencyFormEarly = competencyView
+  /*
+    역량평가 화면과 「최종결과」 결과지는 같은 데이터를 본다 — 그 해 양식, 그
+    사람의 점수, 팀장 코멘트. 그래서 읽는 조건도 하나로 묶는다. 다른 단계·탭에서는
+    이 쿼리가 돌지 않는다.
+  */
+  const personView = competencyView || params.tab === "result";
+  const competencyFormEarly = personView
     ? await loadCompetencyForm(selectedYear)
     : null;
-  const competencyPeople = competencyView
+  const competencyPeople = personView
     ? people.filter((p) => {
         // 담당·팀장만 평가받는다. 책임·운영책임·사장은 대상이 아니다.
         if (!isCompetencyTarget(p.position)) return false;
@@ -880,7 +900,7 @@ export default async function Evaluation2Page({
         return evaluatorByPerson.get(p.id)?.first?.id === session!.user.id;
       })
     : [];
-  const competencyTarget = competencyView
+  const competencyTarget = personView
     ? (competencyPeople.find((p) => p.id === params.who) ??
       competencyPeople.find((p) => p.id === session!.user.id) ??
       competencyPeople[0] ??
@@ -888,7 +908,7 @@ export default async function Evaluation2Page({
     : null;
   const competencyForm = competencyFormEarly;
   const competencyReview =
-    competencyView && competencyTarget
+    personView && competencyTarget
       ? await prisma.competencyReview.findUnique({
           where: {
             year_userId: { year: selectedYear, userId: competencyTarget.id },
@@ -897,7 +917,7 @@ export default async function Evaluation2Page({
         })
       : null;
   const competencyScores =
-    competencyView && competencyTarget
+    personView && competencyTarget
       ? await prisma.competencyScore.findMany({
           where: {
             review: { year: selectedYear, userId: competencyTarget.id },
@@ -909,6 +929,33 @@ export default async function Evaluation2Page({
             leadBy: { select: { name: true } },
             updatedAt: true,
           },
+        })
+      : [];
+
+  /*
+    성과평가 점수 — 그 해 **최종평가**에서 목표마다 1차 평가자가 매긴 점수의 합.
+    가중치 합이 100이므로 합이 곧 100점 자리 점수다(상한은 가중치의 110%라
+    110점까지 나올 수 있다). 「성과평가 = 최종평가」라 다른 단계는 보지 않는다.
+  */
+  const finalCycle = yearCycles.find((c) => cyclePhaseRank(c) === 3) ?? null;
+  /*
+    최종평가가 자기 목표를 갖지 않고 앞 단계의 목표를 빌려 보는 경우가 있다
+    (`sourceCycleId`). 그때 최종평가 id로 찾으면 목표가 0건이라 성과점수가 영영
+    비어 있다 — 화면 다른 곳과 같은 규칙으로 목표가 실제로 담긴 사이클을 본다.
+  */
+  const finalGoalCycleId = finalCycle
+    ? (finalCycle.sourceCycleId ?? finalCycle.id)
+    : null;
+  const performanceGoals =
+    personView && competencyTarget && finalGoalCycleId
+      ? await prisma.goal.findMany({
+          where: {
+            cycleId: finalGoalCycleId,
+            level: "INDIVIDUAL",
+            ownerId: competencyTarget.id,
+            excluded: false,
+          },
+          select: { title: true, weight: true, firstScore: true, half: true },
         })
       : [];
 
@@ -1487,6 +1534,411 @@ export default async function Evaluation2Page({
             </div>
           )}
         </ActionForm>
+      </div>
+    );
+  }
+
+  /**
+   * 「최종결과」 — 사내 「인사평가 결과지」 한 장.
+   *
+   * 세 토막이다: ① 결과 요약(성과·역량·종합과 강점·약점) ② 역량별 결과(방사형
+   * 차트와 표) ③ 주관적 서술(팀장의 코멘트). 종이 양식을 그대로 옮긴 것이라
+   * 순서와 이름을 바꾸지 않았다 — 인사팀과 직원이 이미 이 순서로 읽는다.
+   *
+   * 숫자는 하나도 사람이 다시 적지 않는다. 성과는 최종평가의 목표별 점수 합이고,
+   * 역량은 자기평가·팀장평가의 평균이며, 종합은 그 둘을 정해진 몫으로 섞은 값이다.
+   */
+  function resultBoard() {
+    const yearLinks = (
+      <span className="flex flex-wrap items-center gap-1.5">
+        {years.map((y) => {
+          const qs = new URLSearchParams({
+            tab: "result",
+            year: String(y),
+            phase: selectedPhase,
+          });
+          if (params.who) qs.set("who", params.who);
+          return (
+            <Link
+              key={y}
+              href={`/platform/evaluation2?${qs.toString()}`}
+              className={`rounded-full px-2.5 py-0.5 text-xs ${
+                y === selectedYear
+                  ? "bg-goal-4 text-white"
+                  : "border border-slate-300 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {y}년
+            </Link>
+          );
+        })}
+      </span>
+    );
+
+    if (!competencyTarget) {
+      return (
+        <div className="flex flex-col gap-2">
+          <section
+            className={`${CARD_CLASS} flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2`}
+          >
+            <span className="text-xs font-medium text-slate-500">연도</span>
+            {yearLinks}
+          </section>
+          {comingUp("최종결과", null, [
+            "결과지는 담당과 팀장에게 나옵니다 — 담당은 그 팀의 팀장이, 팀장은 부문의 책임이 평가합니다.",
+            "본인이 대상이 아니고, 볼 수 있는 사람도 없습니다.",
+          ])}
+        </div>
+      );
+    }
+
+    const target = competencyTarget;
+
+    const picked = competencyForm
+      ? pickCompetencySets(
+          { position: target.position, teamId: target.teamId, id: target.id },
+          competencyForm.sets,
+          competencyForm.assignments,
+        )
+      : { core: null, job: null };
+    const saved = new Map(competencyScores.map((s) => [s.itemKey, s]));
+    const groupOf = (kind: string) =>
+      kind === "JOB"
+        ? "직무역량"
+        : kind === "LEADERSHIP"
+          ? "리더십역량"
+          : "핵심가치";
+    const rows: CompetencyResultRow[] = [picked.core, picked.job]
+      .filter((set): set is NonNullable<typeof set> => !!set)
+      .flatMap((set) =>
+        set.items.map((item) =>
+          buildResultRow(
+            { itemKey: item.key, group: groupOf(set.kind), area: item.area },
+            saved.get(item.key)?.selfScore ?? null,
+            saved.get(item.key)?.leadScore ?? null,
+          ),
+        ),
+      );
+
+    const compAvg = competencyAverage(
+      rows.map((r) => ({
+        itemKey: r.itemKey,
+        selfScore: r.self,
+        leadScore: r.lead,
+      })),
+    );
+    const compScore = competencyScore100(compAvg.overall);
+
+    /*
+      성과평가 점수 — 최종평가에서 목표마다 1차 평가자가 매긴 점수의 합. 한 칸도
+      안 적혀 있으면 null이다(0이 아니다) — 0점과 «아직 안 매김»은 다른 말이다.
+    */
+    const perfFilled = performanceGoals.filter((g) => g.firstScore != null);
+    const perfScore =
+      perfFilled.length > 0
+        ? Math.round(
+            perfFilled.reduce((n, g) => n + (g.firstScore ?? 0), 0) * 10,
+          ) / 10
+        : null;
+    /*
+      점수의 합이 100점 자리가 되는 근거는 **가중치 합이 100**이라는 것뿐이다.
+      가중치가 120이면 점수도 120점대로 나오고, 그 숫자로 등급을 매기면 가중치를
+      덜 채운 사람과 나란히 놓을 수 없다. 그래서 합을 옆에 적고, 100이 아니면
+      눈에 걸리게 한다 — 목록의 「가중치 소계」 경고와 같은 기준이다.
+    */
+    const perfWeightSum = Math.round(
+      performanceGoals.reduce((n, g) => n + (g.weight > 0 ? g.weight : 0), 0),
+    );
+    const perfWeightOff = performanceGoals.length > 0 && perfWeightSum !== 100;
+    const total = overallScore(perfScore, compScore);
+
+    const { strengths, weaknesses, relativelyLow } =
+      strengthsAndWeaknesses(rows);
+    const axes: CompetencyRadarAxis[] = rows.map((r) => ({
+      label: r.area,
+      self: r.self,
+      lead: r.lead,
+    }));
+
+    const chain = evaluatorByPerson.get(target.id) ?? null;
+    const scoreCell = (
+      label: string,
+      value: number | null,
+      note: string,
+      strong = false,
+      warn: string | null = null,
+    ) => (
+      <div
+        className={`flex flex-col gap-0.5 px-4 py-3 ${strong ? "bg-goal-4/5" : ""}`}
+      >
+        <span className="text-xs font-medium text-slate-500">{label}</span>
+        <span
+          className={`text-2xl leading-none font-semibold tabular-nums ${
+            value == null ? "text-slate-300" : "text-slate-900"
+          }`}
+        >
+          {value ?? "–"}
+        </span>
+        <span className="text-[11px] break-keep text-slate-500">{note}</span>
+        {warn && (
+          <span className="text-[11px] font-medium break-keep text-status-critical">
+            {warn}
+          </span>
+        )}
+      </div>
+    );
+
+    const pickList = (list: CompetencyResultRow[], empty: string) =>
+      list.length === 0 ? (
+        <span className="text-sm text-slate-400">{empty}</span>
+      ) : (
+        <span className="flex flex-wrap gap-1.5">
+          {list.map((r) => (
+            <span
+              key={r.itemKey}
+              className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-sm break-keep text-slate-700"
+            >
+              {r.area}
+              <span className="ml-1 text-xs tabular-nums text-slate-400">
+                {r.avg}
+              </span>
+            </span>
+          ))}
+        </span>
+      );
+
+    return (
+      <div className="flex flex-col gap-2">
+        {/* 머리 — 어느 해, 누구의 결과지인가. */}
+        <section
+          className={`${CARD_CLASS} flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2`}
+        >
+          <h1 className="text-sm font-bold whitespace-nowrap text-slate-900">
+            {selectedYear}년 인사평가 결과지
+          </h1>
+          {yearLinks}
+          <span className="text-xs text-slate-300">|</span>
+          <span className="text-xs font-medium text-slate-500">피평가자</span>
+          {competencyPeople.length > 1 ? (
+            <ParamSelect
+              param="who"
+              value={target.id}
+              ariaLabel="결과지 피평가자 선택"
+              options={competencyPeople.map((p) => ({
+                value: p.id,
+                label: `${p.name} ${POSITION_LABEL[p.position]}${
+                  p.team?.name ? ` (${p.team.name})` : ""
+                }`,
+              }))}
+            />
+          ) : (
+            <span className="text-sm font-semibold text-slate-900">
+              {target.name} {POSITION_LABEL[target.position]}
+            </span>
+          )}
+          <span className="text-xs break-keep text-slate-500">
+            {target.team?.name ?? "무소속"} · 1차 평가자{" "}
+            <b className="font-medium text-slate-700">
+              {chain?.first ? evaluatorLabel(chain.first) : "미지정"}
+            </b>
+          </span>
+        </section>
+
+        {/* 1. 결과 요약 */}
+        <section className={CARD_CLASS}>
+          <div className="flex flex-wrap items-baseline gap-x-3 px-4 py-2">
+            <h2 className="text-sm font-bold text-slate-900">1. 결과 요약</h2>
+            <span className="text-xs break-keep text-slate-500">
+              성과 {Math.round(PERFORMANCE_WEIGHT * 100)}% + 역량{" "}
+              {Math.round(COMPETENCY_WEIGHT * 100)}% = 종합점수
+            </span>
+          </div>
+          <div className="grid divide-y divide-slate-100 border-t border-slate-100 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            {scoreCell(
+              "성과평가",
+              perfScore,
+              finalCycle
+                ? `${finalCycle.name}의 목표 ${performanceGoals.length}건 중 ${perfFilled.length}건 평가됨 · 가중치 합 ${perfWeightSum}%`
+                : `${selectedYear}년 최종평가가 없습니다`,
+              false,
+              perfWeightOff
+                ? `가중치 합이 ${perfWeightSum}%입니다 — 100%가 아니면 점수를 다른 사람과 나란히 놓을 수 없습니다`
+                : null,
+            )}
+            {scoreCell(
+              "역량평가",
+              compScore,
+              compAvg.overall == null
+                ? "아직 점수가 없습니다"
+                : `평균 ${compAvg.overall} × 20 · 자기 ${compAvg.self ?? "–"} / 팀장 ${compAvg.lead ?? "–"}`,
+            )}
+            {scoreCell(
+              "종합점수",
+              total,
+              total == null
+                ? "성과·역량이 모두 있어야 나옵니다"
+                : `${perfScore} × ${Math.round(PERFORMANCE_WEIGHT * 100)}% + ${compScore} × ${Math.round(COMPETENCY_WEIGHT * 100)}%`,
+              true,
+            )}
+          </div>
+          <div className="flex flex-col gap-2 border-t border-slate-100 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="w-24 shrink-0 text-xs font-medium text-slate-500">
+                주요 강점 역량
+              </span>
+              {pickList(strengths, "평균 3점을 넘는 역량이 아직 없습니다")}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="w-24 shrink-0 text-xs font-medium text-slate-500">
+                주요 약점 역량
+              </span>
+              {weaknesses.length > 0 ? (
+                pickList(weaknesses, "")
+              ) : relativelyLow.length > 0 ? (
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-slate-400">
+                    3점 미만 역량 없음
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    · 상대적으로 낮은 역량
+                  </span>
+                  {pickList(relativelyLow, "")}
+                </span>
+              ) : (
+                <span className="text-sm text-slate-400">해당 없음</span>
+              )}
+            </div>
+            {/*
+              규칙을 화면에 적어 둔다 — 왜 이 역량이 강점으로 뽑혔는지 결과지만
+              보고는 알 수 없다. 사내 양식에 적힌 문장 그대로다.
+            */}
+            <p className="text-[11px] break-keep text-slate-400">
+              자기평가와 팀장평가의 평균이 3점을 넘으면 강점, 3점 미만이면
+              약점으로 봅니다. 두 점수 차이가 2점 이상 벌어진 역량은
+              강점·약점에서 뺍니다.
+            </p>
+          </div>
+        </section>
+
+        {/* 2. 역량별 결과 */}
+        <section className={CARD_CLASS}>
+          <div className="flex flex-wrap items-baseline gap-x-3 px-4 py-2">
+            <h2 className="text-sm font-bold text-slate-900">2. 역량별 결과</h2>
+            <span className="text-xs break-keep text-slate-500">
+              자기평가와 팀장평가가 전체적으로 맞는지는 왼쪽 방사형 차트의 두
+              모양이 포개지는지로 봅니다.
+            </span>
+          </div>
+          {rows.length === 0 ? (
+            <p className="border-t border-slate-100 px-4 py-8 text-center text-sm break-keep text-slate-500">
+              {selectedYear}년 역량평가 양식이나 배정이 아직 없습니다 — 목표
+              고르개에서 「역량평가」를 열어 확인해 주세요.
+            </p>
+          ) : (
+            <div className="grid gap-3 border-t border-slate-100 p-3 lg:grid-cols-[minmax(0,420px)_1fr]">
+              <CompetencyRadar axes={axes} />
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[420px] text-sm">
+                  <thead className="bg-slate-100 text-slate-600">
+                    <tr>
+                      <th className="w-20 px-2 py-1 text-left text-xs font-semibold">
+                        구분
+                      </th>
+                      <th className="px-2 py-1 text-left text-xs font-semibold">
+                        역량 영역
+                      </th>
+                      <th className="w-12 px-2 py-1 text-right text-xs font-semibold">
+                        자기
+                      </th>
+                      <th className="w-12 px-2 py-1 text-right text-xs font-semibold">
+                        팀장
+                      </th>
+                      <th className="w-12 px-2 py-1 text-right text-xs font-semibold">
+                        평균
+                      </th>
+                      <th className="w-28 px-2 py-1 text-right text-xs font-semibold">
+                        차이
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => {
+                      const note = gapNote(r.gap);
+                      const prevGroup = i > 0 ? rows[i - 1].group : null;
+                      return (
+                        <tr
+                          key={r.itemKey}
+                          className={`border-t border-slate-100 ${
+                            i % 2 === 1 ? "bg-slate-50/70" : ""
+                          }`}
+                        >
+                          <td className="px-2 py-1 text-xs whitespace-nowrap text-slate-500">
+                            {r.group === prevGroup ? "" : r.group}
+                          </td>
+                          <td className="px-2 py-1 text-xs break-keep text-slate-800">
+                            {r.area}
+                          </td>
+                          <td className="px-2 py-1 text-right text-xs tabular-nums text-slate-600">
+                            {r.self ?? "–"}
+                          </td>
+                          <td className="px-2 py-1 text-right text-xs tabular-nums text-slate-600">
+                            {r.lead ?? "–"}
+                          </td>
+                          <td className="px-2 py-1 text-right text-xs font-semibold tabular-nums text-slate-900">
+                            {r.avg ?? "–"}
+                          </td>
+                          <td className="px-2 py-1 text-right text-xs whitespace-nowrap">
+                            <span className="tabular-nums text-slate-600">
+                              {r.gap == null
+                                ? "–"
+                                : r.gap > 0
+                                  ? `+${r.gap}`
+                                  : r.gap}
+                            </span>
+                            {note && (
+                              <span className="ml-1 rounded bg-amber-50 px-1 py-0.5 text-[10px] font-medium text-amber-700">
+                                {note}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p className="mt-2 text-[11px] break-keep text-slate-400">
+                  차이는 팀장평가 − 자기평가입니다. 자기평가가 팀장보다 1점 이상
+                  높으면 셀프 피드백을, 팀장이 2점 이상 높으면 팀장과의 1:1
+                  미팅을 권합니다.
+                </p>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* 3. 주관적 서술 */}
+        <section className={CARD_CLASS}>
+          <div className="flex flex-wrap items-baseline gap-x-3 px-4 py-2">
+            <h2 className="text-sm font-bold text-slate-900">3. 주관적 서술</h2>
+            <span className="text-xs text-slate-500">팀장의 코멘트</span>
+          </div>
+          <div className="border-t border-slate-100 px-4 py-3">
+            {competencyReview?.leadComment ? (
+              <p className="text-sm leading-relaxed break-keep whitespace-pre-wrap text-slate-700">
+                {competencyReview.leadComment}
+              </p>
+            ) : (
+              <p className="text-sm break-keep text-slate-400">
+                아직 코멘트가 없습니다 — 1차 평가자가 「역량평가」 화면의 「전체
+                코멘트」에 적으면 여기에 그대로 실립니다.
+              </p>
+            )}
+          </div>
+          <p className="border-t border-slate-100 px-4 py-2 text-center text-xs break-keep text-slate-500">
+            {selectedYear}년 한국삼공의 구성원으로서 역량과 성장을 보여주신
+            당신에게 감사드리며, 한 해 동안 고생하셨습니다.
+          </p>
+        </section>
       </div>
     );
   }
@@ -3935,10 +4387,7 @@ export default async function Evaluation2Page({
               {companyGoalBoard()}
             </>
           ) : tab === "result" ? (
-            comingUp("최종결과", null, [
-              "성과평가(최종평가) 점수와 역량평가 점수를 합쳐 최종 점수와 등급을 봅니다.",
-              "보이는 범위는 목록과 같습니다 — 본인은 자기 것, 팀장·책임은 자기 조직, 관리자는 전사입니다.",
-            ])
+            resultBoard()
           ) : tab === "hrreport" ? (
             comingUp("HR REPORT", "관리자 전용", [
               "평가 결과를 사람 하나하나가 아니라 조직 단위로 읽는 자리입니다.",
