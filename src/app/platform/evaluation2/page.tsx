@@ -85,6 +85,19 @@ import {
   saveCompetencyScores,
 } from "./actions";
 import {
+  PERSON_GRADES,
+  PERSON_GRADE_CLASS,
+  businessUnitOf,
+  type GradeRatios,
+} from "@/lib/final-grade";
+import {
+  loadFixedGrades,
+  loadQuotaTable,
+  loadUnitPlans,
+  loadUnitScores,
+  resolveUnitGrades,
+} from "@/lib/final-grade-data";
+import {
   COMPETENCY_MAX,
   COMPETENCY_NOTES,
   COMPETENCY_SCALE,
@@ -960,6 +973,76 @@ export default async function Evaluation2Page({
         })
       : [];
 
+  /*
+    최종등급 — **상대평가**라서 그 사람만 봐서는 알 수 없다.
+
+    같은 업무단위(영업고객관리 · 재무경영관리 · 연구생산 · 제품사업)에서 평가를
+    끝낸 사람 전부의 종합점수를 모아 순위를 내고, 그 업무단위의 조직등급에
+    배정된 정원만큼 위에서부터 끊는다. 결과지 한 장을 그리는 데 업무단위 사람
+    전부를 읽는 것이 무거워 보이지만, 상대평가에서 «몇 등»은 그것 말고 나올
+    길이 없다. 「최종결과」 탭에서만 읽는다.
+
+    업무단위가 적혀 있지 않은 사람은 등급을 매기지 않는다 — 어느 정원에서 몇
+    등인지 말할 수 없기 때문이다. 화면이 «업무단위가 비어 있습니다»라고 알린다.
+  */
+  const teamUnitById = new Map(teams.map((t) => [t.id, t.businessUnit]));
+  const unitOf = (p: { businessUnit: string | null; teamId: string | null }) =>
+    businessUnitOf({
+      businessUnit: p.businessUnit,
+      team: p.teamId
+        ? { businessUnit: teamUnitById.get(p.teamId) ?? null }
+        : null,
+    });
+  const gradeView = params.tab === "result" && !!competencyTarget;
+  const targetUnit = competencyTarget ? unitOf(competencyTarget) : null;
+  /*
+    정원의 «모집단»은 역량평가 대상과 같게 둔다 — 담당·팀장이고 평가에서 빠지지
+    않은 사람. 여기가 어긋나면(예: 책임까지 세면) 사람 수가 달라져 정원이 통째로
+    밀린다.
+  */
+  const unitPeople =
+    gradeView && targetUnit
+      ? people.filter(
+          (p) =>
+            isCompetencyTarget(p.position) &&
+            !(
+              competencyFormEarly &&
+              competencyExcluded(p, competencyFormEarly.targets).excluded
+            ) &&
+            unitOf(p) === targetUnit,
+        )
+      : [];
+  const [unitScores, unitPlans, quotaTable, fixedGrades] = gradeView
+    ? await Promise.all([
+        loadUnitScores(
+          selectedYear,
+          unitPeople.map((p) => p.id),
+          finalGoalCycleId,
+        ),
+        loadUnitPlans(selectedYear),
+        loadQuotaTable(selectedYear),
+        loadFixedGrades(
+          selectedYear,
+          unitPeople.map((p) => p.id),
+        ),
+      ])
+    : [new Map(), new Map(), new Map(), new Map()];
+  const unitOrgGrade = targetUnit ? (unitPlans.get(targetUnit) ?? null) : null;
+  const unitRatios: GradeRatios | null = unitOrgGrade
+    ? (quotaTable.get(unitOrgGrade) ?? null)
+    : null;
+  const unitGrades = resolveUnitGrades(
+    unitPeople.map((p) => ({
+      userId: p.id,
+      total: unitScores.get(p.id)?.total ?? null,
+    })),
+    unitRatios,
+    fixedGrades,
+  );
+  const targetGrade = competencyTarget
+    ? (unitGrades.get(competencyTarget.id) ?? null)
+    : null;
+
   const editingGoal = params.edit ? (nodeById.get(params.edit) ?? null) : null;
 
   function buildHref(next: { tab?: string; edit?: string | null }) {
@@ -1550,30 +1633,23 @@ export default async function Evaluation2Page({
    * 역량은 자기평가·팀장평가의 평균이며, 종합은 그 둘을 정해진 몫으로 섞은 값이다.
    */
   function resultBoard() {
-    const yearLinks = (
-      <span className="flex flex-wrap items-center gap-1.5">
-        {years.map((y) => {
-          const qs = new URLSearchParams({
-            tab: "result",
-            year: String(y),
-            phase: selectedPhase,
-          });
-          if (params.who) qs.set("who", params.who);
-          return (
-            <Link
-              key={y}
-              href={`/platform/evaluation2?${qs.toString()}`}
-              className={`rounded-full px-2.5 py-0.5 text-xs ${
-                y === selectedYear
-                  ? "bg-goal-4 text-white"
-                  : "border border-slate-300 text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              {y}년
-            </Link>
-          );
-        })}
-      </span>
+    /*
+      해는 고르개로 고른다 — 화면 맨 위 「연도 · 목표」와 같은 모양이다.
+
+      처음에는 해마다 동글 단추를 늘어놓았는데, 해가 쌓이면 그 줄이 계속 길어져서
+      머리글의 절반을 차지한다. 고르개는 몇 해가 되어도 한 칸이고, 같은 화면에서
+      이미 해를 고르는 방법이라 두 번 배울 것이 없다.
+
+      `ParamSelect`는 지금 주소의 다른 값(탭 · 단계 · 피평가자)을 그대로 두고
+      `year`만 바꾼다.
+    */
+    const yearPicker = (
+      <ParamSelect
+        param="year"
+        value={String(selectedYear)}
+        ariaLabel="결과지 연도 선택"
+        options={years.map((y) => ({ value: String(y), label: `${y}년` }))}
+      />
     );
 
     if (!competencyTarget) {
@@ -1583,7 +1659,7 @@ export default async function Evaluation2Page({
             className={`${CARD_CLASS} flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2`}
           >
             <span className="text-xs font-medium text-slate-500">연도</span>
-            {yearLinks}
+            {yearPicker}
           </section>
           {comingUp("최종결과", null, [
             "결과지는 담당과 팀장에게 나옵니다 — 담당은 그 팀의 팀장이, 팀장은 부문의 책임이 평가합니다.",
@@ -1680,6 +1756,7 @@ export default async function Evaluation2Page({
       note: string,
       hero = false,
       warn: string | null = null,
+      badge: ReactNode = null,
     ) => (
       <div
         className={`flex flex-col gap-1 px-4 py-4 ${
@@ -1714,6 +1791,7 @@ export default async function Evaluation2Page({
           >
             점
           </span>
+          {badge}
         </span>
         {/* 눈금 — 100점을 채운 만큼. 100을 넘는 값은 눈금이 꽉 찬 것으로 둔다. */}
         <span
@@ -1796,6 +1874,60 @@ export default async function Evaluation2Page({
       );
     };
 
+    /*
+      최종등급 딱지 — 종합점수 바로 옆에 붙인다.
+
+      점수와 등급은 한 덩어리로 읽힌다. 「85점」만 있으면 그게 좋은 것인지 알 수
+      없고, 「A」만 있으면 어디서 나온 등급인지 알 수 없다. 색을 채운 칸 안이라
+      딱지는 흰 바탕에 보라 글자로 둔다 — 등급색을 그대로 얹으면 보라 위에서
+      색끼리 싸운다. 등급마다 다른 색은 관리 화면의 명단에서 쓴다.
+
+      아직 등급이 없는 이유는 세 가지고, 그 이유를 딱지 자리에 그대로 적는다 —
+      비어 있으면 «고장났나»로 읽힌다.
+    */
+    const gradeBadge =
+      targetGrade != null ? (
+        <span className="ml-1.5 inline-flex items-baseline gap-1 rounded-lg bg-white px-2.5 py-1 leading-none">
+          <span className="text-xl font-bold text-goal-4">
+            {targetGrade.grade}
+          </span>
+          <span className="text-[11px] font-medium text-goal-4/70">등급</span>
+        </span>
+      ) : (
+        <span className="ml-1.5 rounded-lg bg-white/15 px-2 py-1 text-[11px] font-medium break-keep text-white">
+          {total == null
+            ? "등급 미정"
+            : targetUnit == null
+              ? "업무단위 미지정"
+              : unitOrgGrade == null
+                ? "조직등급 미지정"
+                : "정원 미입력"}
+        </span>
+      );
+
+    /** 등급이 어디서 나왔는지 — 업무단위 · 순위 · 정원. 근거 없는 등급은 두지 않는다. */
+    const gradeBasis = (() => {
+      const bits: string[] = [];
+      bits.push(targetUnit ? `업무단위 ${targetUnit}` : "업무단위 미지정");
+      if (targetGrade) {
+        bits.push(`${targetGrade.of}명 중 ${targetGrade.rank}위`);
+      } else if (total == null) {
+        bits.push("성과·역량이 모두 있어야 순위가 나옵니다");
+      }
+      if (unitOrgGrade) {
+        bits.push(
+          `조직등급 ${unitOrgGrade} · 정원 ${PERSON_GRADES.filter(
+            (g) => (unitRatios?.[g] ?? 0) > 0,
+          )
+            .map((g) => `${g} ${unitRatios![g]}%`)
+            .join(" · ")}`,
+        );
+      } else if (targetUnit) {
+        bits.push("조직등급이 아직 없습니다 — 관리 → 등급·정원에서 고릅니다");
+      }
+      return bits.join(" · ");
+    })();
+
     /** 절 머리 — 왼쪽에 색 막대를 세워 세 절의 시작을 눈에 걸리게 한다. */
     const sectionHead = (title: string, hint: string) => (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
@@ -1821,7 +1953,8 @@ export default async function Evaluation2Page({
           <h1 className="text-base font-bold whitespace-nowrap text-slate-900">
             {selectedYear}년 인사평가 결과지
           </h1>
-          {yearLinks}
+          <span className="text-xs font-medium text-slate-500">연도</span>
+          {yearPicker}
           <span className="text-xs text-slate-300">|</span>
           <span className="text-xs font-medium text-slate-500">피평가자</span>
           {competencyPeople.length > 1 ? (
@@ -1884,9 +2017,54 @@ export default async function Evaluation2Page({
                 ? "성과·역량이 모두 있어야 나옵니다"
                 : `${perfScore} × ${Math.round(PERFORMANCE_WEIGHT * 100)}% + ${compScore} × ${Math.round(COMPETENCY_WEIGHT * 100)}%`,
               true,
+              null,
+              gradeBadge,
             )}
           </div>
           <div className="flex flex-col gap-2 border-t border-slate-100 px-4 py-3">
+            {/*
+              등급 줄 — 상대평가라 «몇 등 / 몇 명»과 정원이 같이 있어야 등급이
+              설명된다. 반올림으로 갈린 자리는 인사팀이 직접 확정하므로 그렇다고
+              적어 둔다.
+            */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="w-24 shrink-0 text-xs font-semibold text-slate-500">
+                최종등급
+              </span>
+              {targetGrade ? (
+                <span
+                  className={`rounded-lg px-2.5 py-1 text-sm leading-none font-bold ${
+                    PERSON_GRADE_CLASS[targetGrade.grade] ??
+                    "bg-slate-500 text-white"
+                  }`}
+                >
+                  {targetGrade.grade}
+                </span>
+              ) : (
+                <span className="text-sm text-slate-400">미정</span>
+              )}
+              {targetGrade?.fixed && (
+                <span className="rounded-md bg-goal-4/10 px-1.5 py-0.5 text-[11px] font-medium text-goal-4">
+                  인사팀 확정
+                  {targetGrade.computed &&
+                    targetGrade.computed !== targetGrade.grade &&
+                    ` · 표대로는 ${targetGrade.computed}`}
+                </span>
+              )}
+              {targetGrade?.needsReview && (
+                <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium break-keep text-amber-800">
+                  반올림 확인 · {targetGrade.reviewReason}
+                </span>
+              )}
+              <span className="text-[11px] break-keep text-slate-500">
+                {gradeBasis}
+              </span>
+            </div>
+            {targetGrade?.fixedNote && (
+              <p className="pl-24 text-[11px] break-keep text-slate-500">
+                확정 사유 · {targetGrade.fixedNote}
+              </p>
+            )}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="w-24 shrink-0 text-xs font-semibold text-slate-500">
                 주요 강점 역량

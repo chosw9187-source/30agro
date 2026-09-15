@@ -142,6 +142,8 @@ model User {
   competencyLeadRatings    CompetencyScore[]              @relation("CompetencyLeadRater")
   competencyJobOverride    CompetencyJobAssignment[]      @relation("CompetencyJobUser")
   competencyTargetRows     CompetencyTarget[]             @relation("CompetencyTargetUser")
+  finalGrades              FinalGrade[]                   @relation("FinalGradeUser")
+  finalGradesFixed         FinalGrade[]                   @relation("FinalGradeFixedBy")
 }
 
 model AppointmentRecord {
@@ -1553,4 +1555,89 @@ model CompetencyTarget {
   @@unique([formId, teamId])
   @@unique([formId, userId])
   @@index([formId, included])
+}
+
+
+/**
+ * 조직등급별 개인등급 분포표 한 줄 — 「조직이 A면 개인은 S 30% · A 60% · B 5% · C 5%」.
+ *
+ * 우리 회사 인사평가는 **상대평가**다. 종합점수가 몇 점이냐로 등급이 정해지지
+ * 않고, 업무단위 안에서 몇 등이냐와 그 업무단위에 몇 자리가 있느냐로 정해진다.
+ * 그 «몇 자리»를 적어 두는 표가 이것이다.
+ *
+ * 표를 코드에 박지 않고 DB에 두는 이유는 해마다 바뀌기 때문이다 — 회사 사정에
+ * 따라 S 자리를 줄이는 해가 있고, 그때마다 개발자를 찾아오게 둘 수 없다.
+ *
+ * 배분율은 JSON 한 칸에 담는다(`{"S":30,"A+":0,"A":60,"B":5,"C":5}`). 등급마다
+ * 칸을 따로 두면 등급을 하나 더 만들 때 스키마를 고쳐야 하고, 이 값은 늘 «다섯
+ * 개를 한 덩어리로» 읽고 쓴다(합이 100이어야 하므로 한 칸만 보는 일이 없다).
+ * 사내 목표 양식의 등급 기준(`TemplateItem.gradeCriteria`)도 같은 방식이다.
+ */
+model GradeQuota {
+  id       String @id @default(cuid())
+  year     Int
+  /**
+   * 조직(업무단위)의 등급 — S · A+ · A · B · C.
+   */
+  orgGrade String
+  /**
+   * 개인등급별 배분율(%)을 담은 JSON. 합이 100이 아니면 화면이 경고한다.
+   */
+  ratios   String
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, orgGrade])
+}
+
+/**
+ * 그 해 업무단위 하나에 매겨진 조직등급.
+ *
+ * 업무단위는 사람·팀에 이미 적혀 있는 값(`User.businessUnit` · `Team.businessUnit`)을
+ * 쓴다 — 영업고객관리 · 재무경영관리 · 연구생산 · 제품사업. 따로 조직표를 만들지
+ * 않는 이유는 그러면 조직이 바뀔 때마다 두 곳을 맞춰야 하기 때문이다.
+ *
+ * 등급이 비어 있으면(`orgGrade = null`) 그 업무단위는 아직 등급을 배분하지 않는다
+ * — 몇 자리가 있는지 모르는 채로 순위만 보고 등급을 매기지 않는다.
+ */
+model GradeUnitPlan {
+  id           String  @id @default(cuid())
+  year         Int
+  businessUnit String
+  orgGrade     String?
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, businessUnit])
+}
+
+/**
+ * 인사팀이 **직접 확정한** 개인 등급. 계산값을 덮어쓴다.
+ *
+ * 정원을 사람 수로 나누면 소수가 남는다(스물한 명에게 5%면 1.05자리). 경계에
+ * 걸린 사람과 동점자는 표만 보고는 가를 수 없어서, 그런 자리는 화면이 「반올림
+ * 확인」으로 표시하고 인사팀이 직접 정한다 — 이 줄이 그 결정이다.
+ *
+ * 줄이 없으면 계산값을 쓴다. 덮어쓴 줄만 남기므로, 사람이 들어오고 나가도 명단을
+ * 따로 관리할 필요가 없다.
+ */
+model FinalGrade {
+  id     String @id @default(cuid())
+  year   Int
+  userId String
+  user   User   @relation("FinalGradeUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  grade String
+  /**
+   * 왜 계산값과 다르게 정했는지. 등급은 사람의 보상으로 이어지므로 근거를 남긴다.
+   */
+  note  String?
+
+  fixedById String?
+  fixedBy   User?   @relation("FinalGradeFixedBy", fields: [fixedById], references: [id])
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, userId])
+  @@index([year])
 }

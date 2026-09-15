@@ -1,0 +1,114 @@
+/**
+ * 등급 정원 계산 검사 — `npm run grade:check`.
+ *
+ * 이 셈은 사람의 등급을 정하고 등급은 보상으로 이어진다. 화면을 눌러 보는 것으로는
+ * «21명에게 30%면 몇 자리인가»나 «동점자가 경계를 넘으면 어떻게 되는가»를 확인할
+ * 수 없어서, 순수 함수만 따로 돌려 본다. DB도 서버도 필요 없다.
+ */
+import {
+  assignGrades,
+  parseRatios,
+  ratioSum,
+  theoreticalSeats,
+  type GradeRatios,
+} from "../src/lib/final-grade";
+
+const R = (
+  S: number,
+  APlus: number,
+  A: number,
+  B: number,
+  C: number,
+): GradeRatios => ({ S, "A+": APlus, A, B, C });
+
+let fail = 0;
+function eq(label: string, got: unknown, want: unknown) {
+  const g = JSON.stringify(got);
+  const w = JSON.stringify(want);
+  if (g !== w) {
+    console.log(`✗ ${label}\n   나온 값 ${g}\n   기댓값  ${w}`);
+    fail += 1;
+  } else {
+    console.log(`✓ ${label} = ${g}`);
+  }
+}
+
+/** 조직등급 A의 정원 — S 30% · A 60% · B 5% · C 5%. */
+const orgA = R(30, 0, 60, 5, 5);
+const count = (rows: { grade: string }[]) =>
+  rows.reduce<Record<string, number>>((m, r) => {
+    m[r.grade] = (m[r.grade] ?? 0) + 1;
+    return m;
+  }, {});
+
+eq("배분율 합", ratioSum(orgA), 100);
+
+// 21명 — 6.3 / 12.6 / 1.05 / 1.05자리. 자리 합은 반드시 21이어야 한다.
+const n21 = Array.from({ length: 21 }, (_, i) => ({
+  userId: `u${i}`,
+  score: 100 - i,
+}));
+const a21 = assignGrades(n21, orgA);
+eq("21명 배분 합", a21.length, 21);
+eq("21명 등급 분포", count(a21), { S: 6, A: 13, B: 1, C: 1 });
+eq("21명 S 이론 정원", theoreticalSeats(21, orgA).S, { exact: 6.3, seats: 6 });
+eq("1등은 S", a21[0].grade, "S");
+eq("꼴찌는 C", a21[20].grade, "C");
+eq(
+  "순위가 1부터 이어진다",
+  a21.map((r) => r.rank).join(","),
+  Array.from({ length: 21 }, (_, i) => i + 1).join(","),
+);
+
+// 동점자 — 6등과 7등이 같은 점수다.
+const tie = [100, 99, 98, 97, 96, 95, 95, 94, 93, 92].map((score, i) => ({
+  userId: `t${i}`,
+  score,
+}));
+const at = assignGrades(tie, orgA);
+eq("동점 배분 합", at.length, 10);
+eq(
+  "동점자는 같은 순위",
+  at.map((r) => r.rank).join(","),
+  "1,2,3,4,5,6,6,8,9,10",
+);
+const flagged = at.filter((r) => r.needsReview);
+eq("경계에 걸린 사람이 표시된다", flagged.length > 0, true);
+console.log(
+  `   확인 필요 · ${flagged
+    .map((r) => `${r.userId} ${r.grade} (${r.reviewReason})`)
+    .join(" / ")}`,
+);
+
+// 경계를 사이에 둔 동점 — 3등과 4등이 같으면 S/A가 갈린다.
+const edge = [100, 99, 95, 95, 94, 93, 92, 91, 90, 89].map((score, i) => ({
+  userId: `e${i}`,
+  score,
+}));
+const ae = assignGrades(edge, orgA);
+eq(
+  "경계 동점은 양쪽 모두 표시",
+  ae.filter((r) => r.reviewReason?.includes("동점")).map((r) => r.userId),
+  ["e2", "e3"],
+);
+
+eq("빈 표로는 배분하지 않는다", assignGrades(n21, R(0, 0, 0, 0, 0)).length, 0);
+eq(
+  "한 명이면 잉여가 큰 등급으로",
+  assignGrades([{ userId: "x", score: 90 }], orgA)[0].grade,
+  "A",
+);
+// 합이 90%인 표 — 남는 몫이 S를 6.3자리보다 크게 만들면 안 된다.
+eq(
+  "합 90%: 남는 몫은 맨 아래 등급으로",
+  count(assignGrades(n21, R(30, 0, 60, 0, 0))),
+  { S: 6, A: 15 },
+);
+eq("JSON 읽기", parseRatios('{"S":30,"A":60,"B":5,"C":5}'), orgA);
+eq("깨진 JSON은 전부 0", parseRatios("{nope"), R(0, 0, 0, 0, 0));
+
+if (fail > 0) {
+  console.log(`\n${fail}건 실패`);
+  process.exit(1);
+}
+console.log("\n모두 통과");

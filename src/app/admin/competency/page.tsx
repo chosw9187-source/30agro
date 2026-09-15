@@ -31,7 +31,7 @@ import {
   setTeamCompetencyExcluded,
   setUserCompetencyExcluded,
 } from "./actions";
-import { InstantSelect } from "./job-set-select";
+import { InstantSelect } from "@/components/instant-select";
 
 export const dynamic = "force-dynamic";
 
