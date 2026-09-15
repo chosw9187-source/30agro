@@ -85,6 +85,7 @@ import {
   saveCompetencyScores,
 } from "./actions";
 import {
+  COMPETENCY_MAX,
   COMPETENCY_NOTES,
   COMPETENCY_SCALE,
   competencyAverage,
@@ -1661,59 +1662,163 @@ export default async function Evaluation2Page({
     }));
 
     const chain = evaluatorByPerson.get(target.id) ?? null;
+
+    /*
+      점수 한 칸. 숫자를 크게 두는 이유는 이 세 칸이 결과지에서 제일 먼저 읽혀야
+      하는 것이기 때문이다 — 나머지는 이 숫자가 어디서 나왔는지에 대한 설명이다.
+
+      숫자 아래에 100점 자리를 채우는 눈금을 깐다. 「86」이라는 숫자만으로는
+      높은지 낮은지 가늠하는 데 한 번 더 생각이 필요한데, 눈금은 그걸 보는 즉시
+      알려 준다. 눈금은 값을 대신하지 않고 옆에 거들 뿐이라 이름도 달지 않는다.
+
+      `hero`는 종합점수 칸이다. 셋 중 하나만 색을 채워 둔다 — 셋 다 강조하면
+      아무것도 강조되지 않는다.
+    */
     const scoreCell = (
       label: string,
       value: number | null,
       note: string,
-      strong = false,
+      hero = false,
       warn: string | null = null,
     ) => (
       <div
-        className={`flex flex-col gap-0.5 px-4 py-3 ${strong ? "bg-goal-4/5" : ""}`}
+        className={`flex flex-col gap-1 px-4 py-4 ${
+          hero ? "bg-goal-4 text-white" : ""
+        }`}
       >
-        <span className="text-xs font-medium text-slate-500">{label}</span>
         <span
-          className={`text-2xl leading-none font-semibold tabular-nums ${
-            value == null ? "text-slate-300" : "text-slate-900"
+          className={`text-xs font-semibold tracking-wide ${
+            hero ? "text-white/80" : "text-slate-500"
           }`}
         >
-          {value ?? "–"}
+          {label}
         </span>
-        <span className="text-[11px] break-keep text-slate-500">{note}</span>
+        <span className="flex items-baseline gap-1">
+          <span
+            className={`text-[2.5rem] leading-none font-bold tabular-nums ${
+              value == null
+                ? hero
+                  ? "text-white/40"
+                  : "text-slate-300"
+                : hero
+                  ? "text-white"
+                  : "text-slate-900"
+            }`}
+          >
+            {value ?? "–"}
+          </span>
+          <span
+            className={`text-sm font-medium ${
+              hero ? "text-white/70" : "text-slate-400"
+            }`}
+          >
+            점
+          </span>
+        </span>
+        {/* 눈금 — 100점을 채운 만큼. 100을 넘는 값은 눈금이 꽉 찬 것으로 둔다. */}
+        <span
+          className={`mt-0.5 block h-1.5 w-full overflow-hidden rounded-full ${
+            hero ? "bg-white/25" : "bg-slate-100"
+          }`}
+          aria-hidden="true"
+        >
+          {value != null && (
+            <span
+              className={`block h-full rounded-full ${
+                hero ? "bg-white" : "bg-goal-4/70"
+              }`}
+              style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+            />
+          )}
+        </span>
+        <span
+          className={`text-[11px] break-keep ${
+            hero ? "text-white/75" : "text-slate-500"
+          }`}
+        >
+          {note}
+        </span>
         {warn && (
-          <span className="text-[11px] font-medium break-keep text-status-critical">
+          <span
+            className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium break-keep ${
+              hero
+                ? "bg-white/15 text-white"
+                : "bg-status-critical/10 text-status-critical"
+            }`}
+          >
             {warn}
           </span>
         )}
       </div>
     );
 
-    const pickList = (list: CompetencyResultRow[], empty: string) =>
-      list.length === 0 ? (
+    /*
+      강점·약점 딱지. 강점은 브랜드 초록, 약점은 호박색이다 — 빨강은 쓰지 않는다:
+      이 앱에서 빨강은 «지연·미입력» 같은 «잘못됐다»는 뜻이고, 본인이 받는
+      결과지에서 약점이 그렇게 읽히면 안 된다. 표의 「1:1 미팅 추천」 딱지와 같은
+      색을 써서 «챙겨 볼 자리»라는 뜻을 맞춰 둔다.
+    */
+    const pickList = (
+      list: CompetencyResultRow[],
+      empty: string,
+      tone: "good" | "watch" | "plain" = "plain",
+    ) => {
+      const cls =
+        tone === "good"
+          ? "border-brand-green/30 bg-brand-green-light text-brand-green-dark"
+          : tone === "watch"
+            ? "border-amber-300/60 bg-amber-50 text-amber-800"
+            : "border-slate-200 bg-slate-50 text-slate-700";
+      const numCls =
+        tone === "good"
+          ? "bg-brand-green/15"
+          : tone === "watch"
+            ? "bg-amber-200/60"
+            : "bg-slate-200/70";
+      return list.length === 0 ? (
         <span className="text-sm text-slate-400">{empty}</span>
       ) : (
         <span className="flex flex-wrap gap-1.5">
           {list.map((r) => (
             <span
               key={r.itemKey}
-              className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-sm break-keep text-slate-700"
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm font-medium break-keep ${cls}`}
             >
               {r.area}
-              <span className="ml-1 text-xs tabular-nums text-slate-400">
+              <span
+                className={`rounded px-1 text-xs font-semibold tabular-nums ${numCls}`}
+              >
                 {r.avg}
               </span>
             </span>
           ))}
         </span>
       );
+    };
+
+    /** 절 머리 — 왼쪽에 색 막대를 세워 세 절의 시작을 눈에 걸리게 한다. */
+    const sectionHead = (title: string, hint: string) => (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+        <span className="flex items-center gap-2">
+          <span className="h-4 w-1 rounded-full bg-goal-4" aria-hidden="true" />
+          <h2 className="text-base font-bold whitespace-nowrap text-slate-900">
+            {title}
+          </h2>
+        </span>
+        <span className="text-xs break-keep text-slate-500">{hint}</span>
+      </div>
+    );
 
     return (
       <div className="flex flex-col gap-2">
-        {/* 머리 — 어느 해, 누구의 결과지인가. */}
+        {/*
+          머리 — 어느 해, 누구의 결과지인가. 위에 색 띠를 한 줄 둘러 이 화면이
+          목록이 아니라 «한 장의 결과지»로 읽히게 한다. 최종결과 탭과 같은 색이다.
+        */}
         <section
-          className={`${CARD_CLASS} flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2`}
+          className={`${CARD_CLASS} flex flex-wrap items-center gap-x-3 gap-y-2 border-t-4 border-t-goal-4 px-4 py-2.5`}
         >
-          <h1 className="text-sm font-bold whitespace-nowrap text-slate-900">
+          <h1 className="text-base font-bold whitespace-nowrap text-slate-900">
             {selectedYear}년 인사평가 결과지
           </h1>
           {yearLinks}
@@ -1746,14 +1851,14 @@ export default async function Evaluation2Page({
 
         {/* 1. 결과 요약 */}
         <section className={CARD_CLASS}>
-          <div className="flex flex-wrap items-baseline gap-x-3 px-4 py-2">
-            <h2 className="text-sm font-bold text-slate-900">1. 결과 요약</h2>
-            <span className="text-xs break-keep text-slate-500">
-              성과 {Math.round(PERFORMANCE_WEIGHT * 100)}% + 역량{" "}
-              {Math.round(COMPETENCY_WEIGHT * 100)}% = 종합점수
-            </span>
-          </div>
-          <div className="grid divide-y divide-slate-100 border-t border-slate-100 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          {sectionHead(
+            "1. 결과 요약",
+            `성과 ${Math.round(PERFORMANCE_WEIGHT * 100)}% + 역량 ${Math.round(
+              COMPETENCY_WEIGHT * 100,
+            )}% = 종합점수`,
+          )}
+          {/* 종합점수 칸을 넓게 둔다 — 셋 중 하나만 크면 어느 것이 결론인지 보인다. */}
+          <div className="grid divide-y divide-slate-100 border-t border-slate-100 sm:grid-cols-[1fr_1fr_1.15fr] sm:divide-x sm:divide-y-0">
             {scoreCell(
               "성과평가",
               perfScore,
@@ -1783,17 +1888,21 @@ export default async function Evaluation2Page({
           </div>
           <div className="flex flex-col gap-2 border-t border-slate-100 px-4 py-3">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="w-24 shrink-0 text-xs font-medium text-slate-500">
+              <span className="w-24 shrink-0 text-xs font-semibold text-slate-500">
                 주요 강점 역량
               </span>
-              {pickList(strengths, "평균 3점을 넘는 역량이 아직 없습니다")}
+              {pickList(
+                strengths,
+                "평균 3점을 넘는 역량이 아직 없습니다",
+                "good",
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="w-24 shrink-0 text-xs font-medium text-slate-500">
+              <span className="w-24 shrink-0 text-xs font-semibold text-slate-500">
                 주요 약점 역량
               </span>
               {weaknesses.length > 0 ? (
-                pickList(weaknesses, "")
+                pickList(weaknesses, "", "watch")
               ) : relativelyLow.length > 0 ? (
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="text-sm text-slate-400">
@@ -1802,7 +1911,7 @@ export default async function Evaluation2Page({
                   <span className="text-xs text-slate-400">
                     · 상대적으로 낮은 역량
                   </span>
-                  {pickList(relativelyLow, "")}
+                  {pickList(relativelyLow, "", "watch")}
                 </span>
               ) : (
                 <span className="text-sm text-slate-400">해당 없음</span>
@@ -1822,90 +1931,134 @@ export default async function Evaluation2Page({
 
         {/* 2. 역량별 결과 */}
         <section className={CARD_CLASS}>
-          <div className="flex flex-wrap items-baseline gap-x-3 px-4 py-2">
-            <h2 className="text-sm font-bold text-slate-900">2. 역량별 결과</h2>
-            <span className="text-xs break-keep text-slate-500">
-              자기평가와 팀장평가가 전체적으로 맞는지는 왼쪽 방사형 차트의 두
-              모양이 포개지는지로 봅니다.
-            </span>
-          </div>
+          {sectionHead(
+            "2. 역량별 결과",
+            "자기평가와 팀장평가가 전체적으로 맞는지는 왼쪽 방사형 차트의 두 모양이 포개지는지로 봅니다.",
+          )}
           {rows.length === 0 ? (
             <p className="border-t border-slate-100 px-4 py-8 text-center text-sm break-keep text-slate-500">
               {selectedYear}년 역량평가 양식이나 배정이 아직 없습니다 — 목표
               고르개에서 「역량평가」를 열어 확인해 주세요.
             </p>
           ) : (
-            <div className="grid gap-3 border-t border-slate-100 p-3 lg:grid-cols-[minmax(0,420px)_1fr]">
-              <CompetencyRadar axes={axes} />
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[420px] text-sm">
-                  <thead className="bg-slate-100 text-slate-600">
-                    <tr>
-                      <th className="w-20 px-2 py-1 text-left text-xs font-semibold">
-                        구분
-                      </th>
-                      <th className="px-2 py-1 text-left text-xs font-semibold">
-                        역량 영역
-                      </th>
-                      <th className="w-12 px-2 py-1 text-right text-xs font-semibold">
-                        자기
-                      </th>
-                      <th className="w-12 px-2 py-1 text-right text-xs font-semibold">
-                        팀장
-                      </th>
-                      <th className="w-12 px-2 py-1 text-right text-xs font-semibold">
-                        평균
-                      </th>
-                      <th className="w-28 px-2 py-1 text-right text-xs font-semibold">
-                        차이
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r, i) => {
-                      const note = gapNote(r.gap);
-                      const prevGroup = i > 0 ? rows[i - 1].group : null;
-                      return (
-                        <tr
-                          key={r.itemKey}
-                          className={`border-t border-slate-100 ${
-                            i % 2 === 1 ? "bg-slate-50/70" : ""
-                          }`}
-                        >
-                          <td className="px-2 py-1 text-xs whitespace-nowrap text-slate-500">
-                            {r.group === prevGroup ? "" : r.group}
-                          </td>
-                          <td className="px-2 py-1 text-xs break-keep text-slate-800">
-                            {r.area}
-                          </td>
-                          <td className="px-2 py-1 text-right text-xs tabular-nums text-slate-600">
-                            {r.self ?? "–"}
-                          </td>
-                          <td className="px-2 py-1 text-right text-xs tabular-nums text-slate-600">
-                            {r.lead ?? "–"}
-                          </td>
-                          <td className="px-2 py-1 text-right text-xs font-semibold tabular-nums text-slate-900">
-                            {r.avg ?? "–"}
-                          </td>
-                          <td className="px-2 py-1 text-right text-xs whitespace-nowrap">
-                            <span className="tabular-nums text-slate-600">
-                              {r.gap == null
-                                ? "–"
-                                : r.gap > 0
-                                  ? `+${r.gap}`
-                                  : r.gap}
-                            </span>
-                            {note && (
-                              <span className="ml-1 rounded bg-amber-50 px-1 py-0.5 text-[10px] font-medium text-amber-700">
-                                {note}
+            <div className="grid gap-4 border-t border-slate-100 p-4 lg:grid-cols-[minmax(0,38%)_minmax(0,1fr)]">
+              {/* 표가 길어 칸이 위아래로 남는다 — 차트를 가운데 세워 균형을 맞춘다. */}
+              <CompetencyRadar axes={axes} className="self-center" />
+              {/*
+                `min-w-0` — 이 칸이 표의 최소 너비(520px)만큼 벌어지지 않게
+                막는다. 안쪽 스크롤 상자가 격자 칸 자신이었을 때는 저절로 0이
+                됐지만, 한 겹 감싸는 순간 이 칸이 내용만큼 벌어져서 휴대폰에서
+                페이지 전체가 옆으로 165px 밀렸다.
+              */}
+              <div className="min-w-0">
+                {/*
+                  표는 차트와 나란히 서지만 대충 거드는 자리가 아니다 — 값을
+                  읽는 것은 여기서만 된다. 그래서 글자를 줄이지 않고(본문 크기),
+                  줄 높이를 손가락 하나만큼 주고, 머리를 색으로 채워 어느 칸이
+                  무엇인지 한 번에 보이게 한다.
+                */}
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full min-w-[520px] text-sm">
+                    <thead className="bg-goal-4 text-white">
+                      <tr>
+                        <th className="w-20 px-2 py-2.5 text-left text-xs font-semibold whitespace-nowrap">
+                          구분
+                        </th>
+                        {/* 역량 이름이 두 줄로 접히지 않을 만큼은 쥐고 있게 한다. */}
+                        <th className="min-w-[8rem] px-3 py-2.5 text-left text-xs font-semibold">
+                          역량 영역
+                        </th>
+                        <th className="w-16 px-2 py-2.5 text-right text-xs font-semibold whitespace-nowrap">
+                          자기
+                        </th>
+                        <th className="w-16 px-2 py-2.5 text-right text-xs font-semibold whitespace-nowrap">
+                          팀장
+                        </th>
+                        <th className="w-24 px-2 py-2.5 text-right text-xs font-semibold whitespace-nowrap">
+                          평균
+                        </th>
+                        <th className="w-28 px-2 py-2.5 text-right text-xs font-semibold whitespace-nowrap">
+                          차이
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((r, i) => {
+                        const note = gapNote(r.gap);
+                        const prevGroup = i > 0 ? rows[i - 1].group : null;
+                        const newGroup = r.group !== prevGroup;
+                        return (
+                          <tr
+                            key={r.itemKey}
+                            className={`${
+                              newGroup
+                                ? "border-t-2 border-slate-300"
+                                : "border-t border-slate-100"
+                            } ${i % 2 === 1 ? "bg-slate-50/70" : ""}`}
+                          >
+                            <td className="px-2 py-2.5 align-middle whitespace-nowrap">
+                              {newGroup && (
+                                <span className="rounded-md bg-goal-4/10 px-1.5 py-0.5 text-xs font-semibold text-goal-4">
+                                  {r.group}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 text-sm font-medium break-keep text-slate-900">
+                              {r.area}
+                            </td>
+                            <td className="px-2 py-2.5 text-right text-sm tabular-nums text-slate-600">
+                              {r.self ?? "–"}
+                            </td>
+                            <td className="px-2 py-2.5 text-right text-sm tabular-nums text-slate-600">
+                              {r.lead ?? "–"}
+                            </td>
+                            {/* 평균은 이 표의 결론이다 — 숫자를 한 급 키우고 눈금을 붙인다. */}
+                            <td className="px-2 py-2.5 align-middle">
+                              <span className="flex items-center justify-end gap-2">
+                                {r.avg != null && (
+                                  <span
+                                    className="hidden h-1.5 w-10 shrink-0 overflow-hidden rounded-full bg-slate-200 sm:block"
+                                    aria-hidden="true"
+                                  >
+                                    <span
+                                      className="block h-full rounded-full bg-goal-4"
+                                      style={{
+                                        width: `${(r.avg / COMPETENCY_MAX) * 100}%`,
+                                      }}
+                                    />
+                                  </span>
+                                )}
+                                <span
+                                  className={`text-base leading-none font-bold tabular-nums ${
+                                    r.avg == null
+                                      ? "text-slate-300"
+                                      : "text-slate-900"
+                                  }`}
+                                >
+                                  {r.avg ?? "–"}
+                                </span>
                               </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                            </td>
+                            <td className="px-2 py-2.5 text-right whitespace-nowrap">
+                              <span className="text-sm tabular-nums text-slate-600">
+                                {r.gap == null
+                                  ? "–"
+                                  : r.gap > 0
+                                    ? `+${r.gap}`
+                                    : r.gap}
+                              </span>
+                              {note && (
+                                <span className="ml-1.5 rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
+                                  {note}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
                 <p className="mt-2 text-[11px] break-keep text-slate-400">
                   차이는 팀장평가 − 자기평가입니다. 자기평가가 팀장보다 1점 이상
                   높으면 셀프 피드백을, 팀장이 2점 이상 높으면 팀장과의 1:1
@@ -1918,10 +2071,7 @@ export default async function Evaluation2Page({
 
         {/* 3. 주관적 서술 */}
         <section className={CARD_CLASS}>
-          <div className="flex flex-wrap items-baseline gap-x-3 px-4 py-2">
-            <h2 className="text-sm font-bold text-slate-900">3. 주관적 서술</h2>
-            <span className="text-xs text-slate-500">팀장의 코멘트</span>
-          </div>
+          {sectionHead("3. 주관적 서술", "팀장의 코멘트")}
           <div className="border-t border-slate-100 px-4 py-3">
             {competencyReview?.leadComment ? (
               <p className="text-sm leading-relaxed break-keep whitespace-pre-wrap text-slate-700">

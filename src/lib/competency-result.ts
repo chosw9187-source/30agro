@@ -137,10 +137,13 @@ export function strengthsAndWeaknesses(rows: CompetencyResultRow[]): {
  * 1:1 미팅을 통한 셀프 피드백을 추천드립니다.」
  *
  * 여기서 «-1 이상»은 자기가 팀장보다 1점 이상 높게 본 경우를 말한다(차이 ≤ -1).
+ *
+ * 딱지는 «필요 · 추천»을 떼고 짧게 둔다 — 표의 한 칸에 열 줄이 나란히 붙는 자리라
+ * 길면 칸을 밀어 내고, 무엇을 권하는지는 표 아래 한 줄이 그대로 적어 준다.
  */
 export function gapNote(gap: number | null): string | null {
   if (gap == null) return null;
-  if (gap <= -1) return "셀프 피드백 필요";
-  if (gap >= GAP_EXCLUDE) return "1:1 미팅 추천";
+  if (gap <= -1) return "셀프 피드백";
+  if (gap >= GAP_EXCLUDE) return "1:1 미팅";
   return null;
 }
