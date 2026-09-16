@@ -166,7 +166,7 @@ const TAB_CLASS = {
  *   - 목표설정 · 중간평가 · 최종평가: 전사 · 팀 · 개인목표. 대시보드는 두지
  *     않는다 — 이 단계들은 목표를 세우고 매기는 자리이고, 요약은 진행현황이 맡는다.
  *
- * 최종결과와 HR REPORT는 탭에서 뺐다. 그 둘은 «어느 층을 보나»가 아니라 «한 해의
+ * 평가결과와 HR REPORT는 탭에서 뺐다. 그 둘은 «어느 층을 보나»가 아니라 «한 해의
  * 결과»라서 단계와 나란히 놓이는 것이 맞다 — 단계 고르개로 옮겼다. 탭에 두었더니
  * 단계를 바꿔도 같은 화면이 남아 있어서 눌러도 안 넘어가는 것처럼 읽혔다.
  *
@@ -582,7 +582,7 @@ export default async function Evaluation2Page({
   */
   const COMPETENCY_PHASE = "competency";
   /*
-    최종결과와 HR REPORT도 사이클이 없는 «다른 축»이다 — 한 해의 결과를 읽는
+    평가결과와 HR REPORT도 사이클이 없는 «다른 축»이다 — 한 해의 결과를 읽는
     자리라 목표설정·중간평가·최종평가와 나란히 고르는 것이 맞다. 탭에 두었을
     때는 단계를 바꿔도 같은 화면이 남아서 눌러도 안 넘어가는 것처럼 읽혔다.
   */
@@ -907,7 +907,7 @@ export default async function Evaluation2Page({
    * 열어 보게 된다.
    */
   /*
-    역량평가 화면과 「최종결과」 결과지는 같은 데이터를 본다 — 그 해 양식, 그
+    역량평가 화면과 「평가결과」 결과지는 같은 데이터를 본다 — 그 해 양식, 그
     사람의 점수, 팀장 코멘트. 그래서 읽는 조건도 하나로 묶는다. 다른 단계·탭에서는
     이 쿼리가 돌지 않는다.
   */
@@ -1001,7 +1001,7 @@ export default async function Evaluation2Page({
     끝낸 사람 전부의 종합점수를 모아 순위를 내고, 그 업무단위의 조직등급에
     배정된 정원만큼 위에서부터 끊는다. 결과지 한 장을 그리는 데 업무단위 사람
     전부를 읽는 것이 무거워 보이지만, 상대평가에서 «몇 등»은 그것 말고 나올
-    길이 없다. 「최종결과」 탭에서만 읽는다.
+    길이 없다. 「평가결과」에서만 읽는다.
 
     업무단위가 적혀 있지 않은 사람은 등급을 매기지 않는다 — 어느 정원에서 몇
     등인지 말할 수 없기 때문이다. 화면이 «업무단위가 비어 있습니다»라고 알린다.
@@ -1172,7 +1172,9 @@ export default async function Evaluation2Page({
   function cycleBar() {
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-1 shadow-sm">
-        <span className="text-xs font-medium text-slate-500">연도 · 목표</span>
+        <span className="text-xs font-medium text-slate-500">
+          연도 · 인사평가
+        </span>
         {cycles.length > 0 ? (
           <YearPhaseSelect
             years={years.map((y) => ({ value: String(y), label: `${y}년` }))}
@@ -1180,11 +1182,15 @@ export default async function Evaluation2Page({
             groups={[
               {
                 /*
-                  목표 쪽 넷. 진행현황이 맨 위이자 기본값이다 — 평가2에 들어오는
-                  사람 대부분은 무엇을 고치러 오는 게 아니라 «지금 어디까지
-                  왔나»를 보러 온다.
+                  한 해의 인사평가가 흘러가는 차례 그대로다 — 진행현황을 맨 위이자
+                  기본값으로 둔다. 평가2에 들어오는 사람 대부분은 무엇을 고치러
+                  오는 게 아니라 «지금 어디까지 왔나»를 보러 온다.
+
+                  역량평가도 이 묶음에 든다. 사이클(목표)이 없는 화면이지만 «올해
+                  치러야 하는 평가» 한 가지이고, 진행 띠가 그리는 차례도 최종평가
+                  다음이 역량평가다. 아래 묶음은 평가가 끝난 **뒤에** 읽는 자리다.
                 */
-                label: "목표",
+                label: "인사평가",
                 options: [
                   { value: PROGRESS_PHASE, label: "목표진행현황" },
                   ...yearCycles.map((c) => ({
@@ -1193,18 +1199,14 @@ export default async function Evaluation2Page({
                       GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]
                     })`,
                   })),
+                  { value: COMPETENCY_PHASE, label: "역량평가" },
                 ],
               },
               {
-                /*
-                  결과 쪽. 목표 층으로 갈리지 않는 화면들이라 묶음을 갈라 둔다 —
-                  한 줄로 늘어놓으면 어디까지가 목표 이야기인지 안 읽힌다.
-                  차례는 진행 띠와 같다(… 최종평가 → 역량평가 → 최종결과).
-                */
-                label: "역량 · 결과",
+                /* 다 치른 뒤에 읽는 자리 둘. 사람 한 장(평가결과)과 조직 전체(HR REPORT). */
+                label: "결과",
                 options: [
-                  { value: COMPETENCY_PHASE, label: "역량평가" },
-                  { value: RESULT_PHASE, label: "최종결과" },
+                  { value: RESULT_PHASE, label: "평가결과" },
                   ...(isAdmin
                     ? [{ value: REPORT_PHASE, label: "HR REPORT" }]
                     : []),
@@ -1213,7 +1215,7 @@ export default async function Evaluation2Page({
             ]}
             phase={selectedPhase}
             /*
-              결과 쪽 단계를 고르면 고르개에 색이 든다 — 최종결과는 보라(결과지와
+              결과 쪽 단계를 고르면 고르개에 색이 든다 — 평가결과는 보라(결과지와
               같은 색), HR REPORT는 진회색, 역량평가는 브랜드 초록이다. 한 칸짜리
               고르개에서 «지금 무엇을 보는 중인가»를 말할 수 있는 자리가 거기뿐이다.
             */
@@ -1675,7 +1677,7 @@ export default async function Evaluation2Page({
   }
 
   /**
-   * 「최종결과」 — 사내 「인사평가 결과지」 한 장.
+   * 「평가결과」 — 사내 「인사평가 결과지」 한 장.
    *
    * 세 토막이다: ① 결과 요약(성과·역량·종합과 강점·약점) ② 역량별 결과(방사형
    * 차트와 표) ③ 주관적 서술(팀장의 코멘트). 종이 양식을 그대로 옮긴 것이라
@@ -1686,14 +1688,14 @@ export default async function Evaluation2Page({
    */
   function resultBoard() {
     /*
-      해를 고르는 칸은 여기 두지 않는다. 「최종결과」가 단계 고르개로 올라간 뒤로는
-      화면 맨 위 「연도 · 목표」 줄이 해를 고르는 자리이고, 결과지 머리에 같은
+      해를 고르는 칸은 여기 두지 않는다. 「평가결과」가 단계 고르개로 올라간 뒤로는
+      화면 맨 위 「연도 · 인사평가」 줄이 해를 고르는 자리이고, 결과지 머리에 같은
       고르개를 또 두면 나란히 두 개가 뜬다.
     */
     if (!competencyTarget) {
       return (
         <div className="flex flex-col gap-2">
-          {comingUp("최종결과", null, [
+          {comingUp("평가결과", null, [
             "결과지는 담당과 팀장에게 나옵니다 — 담당은 그 팀의 팀장이, 팀장은 부문의 책임이 평가합니다.",
             "본인이 대상이 아니고, 볼 수 있는 사람도 없습니다.",
           ])}
@@ -1977,7 +1979,7 @@ export default async function Evaluation2Page({
       <div className="flex flex-col gap-2">
         {/*
           머리 — 어느 해, 누구의 결과지인가. 위에 색 띠를 한 줄 둘러 이 화면이
-          목록이 아니라 «한 장의 결과지»로 읽히게 한다. 최종결과 탭과 같은 색이다.
+          목록이 아니라 «한 장의 결과지»로 읽히게 한다. 고르개의 평가결과와 같은 색이다.
         */}
         <section
           className={`${CARD_CLASS} flex flex-wrap items-center gap-x-3 gap-y-2 border-t-4 border-t-goal-4 px-4 py-2.5`}
@@ -4728,7 +4730,7 @@ export default async function Evaluation2Page({
       {cycleBar()}
 
       {/*
-        역량평가 · 최종결과 · HR REPORT는 목표 층(전사·팀·개인)으로 갈리지 않아
+        역량평가 · 평가결과 · HR REPORT는 목표 층(전사·팀·개인)으로 갈리지 않아
         탭 줄을 띄우지 않는다 — 단계 자체가 그 화면이다.
       */}
       {!offCycleView && tabBar()}
@@ -4855,7 +4857,7 @@ export default async function Evaluation2Page({
           그래서 앞 단계를 마감하기 전까지는 목록을 열지 않고 무엇을 해야 하는지만
           적는다 — 그냥 비워 두면 화면이 고장 난 것처럼 보인다.
 
-          「최종결과」·「HR REPORT」는 이 기다림에서 뺀다. 결과지는 목표 목록이
+          「평가결과」·「HR REPORT」는 이 기다림에서 뺀다. 결과지는 목표 목록이
           아니라 **한 해의 결과** 한 장이라, 앞 단계의 마감 여부와 상관이 없다.
           같이 막아 두면 역량평가 점수가 다 들어와 있는데도 결과지 대신 「목표를
           마감해 주세요」가 떠서, 단계를 고르는 것만으로 결과지가 사라진다.

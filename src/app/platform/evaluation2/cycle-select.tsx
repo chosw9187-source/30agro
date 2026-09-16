@@ -70,8 +70,9 @@ export function CycleSelect({
  * 해를 바꿨다고 개인목표에서 대시보드로 튕겨 나갈 이유가 없다. 그 단계에 없는
  * 탭이면 화면이 그 단계의 첫 탭으로 되돌린다.
  *
- * 단계 목록은 묶음으로 받는다(`groups`). 「목표」 넷과 「역량 · 결과」 셋이 한 줄로
- * 늘어서면 어디까지가 목표 이야기인지 글자만으로는 안 읽힌다. 고른 단계가 결과
+ * 단계 목록은 묶음으로 받는다(`groups`). 「인사평가」 다섯과 「결과」 둘이 한 줄로
+ * 늘어서면 어디까지가 치르는 이야기이고 어디부터 읽는 이야기인지 글자만으로는 안
+ * 읽힌다. 고른 단계가 결과
  * 쪽이면 고르개 자체에 색이 든다(`toneClass`) — 한 칸짜리 고르개에서 «지금 결과를
  * 보는 중»이라고 말할 수 있는 자리가 거기뿐이다(브라우저마다 option에 색을 넣는
  * 방법이 달라서 믿을 수 없다).
@@ -130,7 +131,7 @@ export function YearPhaseSelect({
       </select>
       <select
         value={phase}
-        aria-label="목표 선택"
+        aria-label="인사평가 선택"
         onChange={(e) => go({ phase: e.target.value })}
         className={`${selectClass} ${toneOrDefault}`}
       >
