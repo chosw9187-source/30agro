@@ -389,6 +389,191 @@ async function resolveShareSource(
 }
 
 /**
+ * 복사본을 가진 평가 단계를 **원본의 목표를 이어받는** 쪽으로 되돌린다.
+ *
+ * 이 앱의 기본은 «목표 한 벌을 단계들이 함께 본다»다. 그런데 관리 화면에 목표를
+ * 다른 사이클로 베껴 오는 자리가 있어서(「이 사이클의 목표 가져오기」), 그걸 쓰면
+ * 단계마다 목표가 따로 생긴다. 그때부터 같은 상반기 목표가 중간평가와 최종평가에서
+ * 서로 다른 값으로 굴러간다 — 한쪽에서 고쳐도 다른 쪽은 그대로다.
+ *
+ * 되돌릴 때 두 가지를 한꺼번에 한다.
+ *   ① 복사본에 적힌 **평가 칸을 원본으로 옮긴다** — 그냥 이어받게만 바꾸면 복사본에
+ *      적어 둔 점수가 화면에서 사라진다.
+ *   ② 이어받기로 바꾼다(`sourceCycleId`).
+ *
+ * **원본에 이미 적힌 값은 덮어쓰지 않는다.** 상반기 점수는 중간평가에서 매긴 것이
+ * 정답이고, 복사본 쪽 값으로 덮으면 확정된 성적이 조용히 바뀐다. 건너뛴 자리는
+ * 몇 건인지 돌려주어 사람이 알 수 있게 한다.
+ *
+ * 복사본은 **지우지 않는다.** 이어받기로 바꾸면 화면에서는 원본만 보이므로 복사본은
+ * 숨은 채로 남고, 공유를 풀면 그대로 다시 나온다 — 되돌릴 수 있는 작업으로 둔다.
+ *
+ * 짝은 «같은 층 · 같은 사람(팀·책임) · 같은 제목»으로 찾는다. 반기는 짝을 찾는
+ * 조건에 넣지 않는다 — 한쪽 단계에서만 반기를 고쳐 둔 경우가 있어서, 넣으면 같은
+ * 목표인데 짝이 없다고 나온다. 제목이 같은 줄이 여럿이면 그중 반기가 같은 것을
+ * 고르고, 그래도 가릴 수 없으면 건드리지 않는다.
+ *
+ * 짝을 못 찾은 줄은 옮기지 않고 몇 건인지 알려 준다(그 단계에서만 새로 만든 목표다).
+ */
+export async function useSourceGoals(formData: FormData) {
+  await requireGoalModule();
+  if (!(await isAdmin()))
+    throw new Error("목표 공유는 관리자만 바꿀 수 있습니다.");
+
+  const cycleId = str(formData.get("cycleId"));
+  if (!cycleId) return;
+  const sourceId = await resolveShareSource(
+    str(formData.get("sourceCycleId")),
+    cycleId,
+  );
+  if (!sourceId) throw new Error("이어받을 인사평가를 골라 주세요.");
+
+  const dependents = await prisma.goalCycle.count({
+    where: { sourceCycleId: cycleId },
+  });
+  if (dependents > 0) {
+    throw new Error(
+      "다른 평가가 이 평가의 목표를 빌려 쓰고 있어 바꿀 수 없습니다.",
+    );
+  }
+
+  const pick = {
+    id: true,
+    level: true,
+    ownerId: true,
+    teamId: true,
+    division: true,
+    half: true,
+    title: true,
+    progress: true,
+    selfScore: true,
+    selfComment: true,
+    firstProgress: true,
+    firstScore: true,
+    firstComment: true,
+    evalDoneAt: true,
+    evalDoneById: true,
+  } as const;
+  const [copies, origins] = await Promise.all([
+    prisma.goal.findMany({ where: { cycleId }, select: pick }),
+    prisma.goal.findMany({ where: { cycleId: sourceId }, select: pick }),
+  ]);
+
+  type Row = (typeof copies)[number];
+  const keyOf = (g: Row) =>
+    [
+      g.level,
+      g.ownerId ?? "",
+      g.teamId ?? "",
+      g.division ?? "",
+      g.title.trim(),
+    ].join("|");
+  const originsByKey = new Map<string, Row[]>();
+  for (const o of origins) {
+    const k = keyOf(o);
+    originsByKey.set(k, [...(originsByKey.get(k) ?? []), o]);
+  }
+  /*
+    제목이 같은 줄이 여럿일 수 있다(반기마다 「기타 목표」가 따로 있는 경우). 그때는
+    반기가 같은 것을 고르고, 그래도 하나로 가려지지 않으면 건드리지 않는다 — 잘못
+    짚어 남의 점수를 옮기는 것보다 «못 옮겼다»고 알리는 편이 낫다.
+  */
+  const matchFor = (c: Row): Row | null => {
+    const found = originsByKey.get(keyOf(c)) ?? [];
+    if (found.length === 1) return found[0];
+    const half = (c.half ?? "").trim();
+    const sameHalf = found.filter((o) => (o.half ?? "").trim() === half);
+    return sameHalf.length === 1 ? sameHalf[0] : null;
+  };
+
+  /** 적힌 칸이 하나라도 있는가 — 옮길 것이 있는 복사본만 센다. */
+  const hasEval = (g: Row) =>
+    g.selfScore != null ||
+    g.selfComment != null ||
+    g.firstProgress != null ||
+    g.firstScore != null ||
+    g.firstComment != null ||
+    g.evalDoneAt != null ||
+    g.progress > 0;
+
+  let moved = 0;
+  let skipped = 0;
+  let unmatched = 0;
+  const writes: { id: string; data: Record<string, unknown> }[] = [];
+
+  for (const c of copies) {
+    const o = matchFor(c);
+    if (!o) {
+      if (hasEval(c)) unmatched += 1;
+      continue;
+    }
+    const data: Record<string, unknown> = {};
+    let blocked = false;
+    const carry = <K extends keyof Row>(field: K) => {
+      if (c[field] == null) return;
+      if (o[field] != null) {
+        blocked = true;
+        return;
+      }
+      data[field as string] = c[field];
+    };
+    carry("selfScore");
+    carry("selfComment");
+    carry("firstProgress");
+    carry("firstScore");
+    carry("firstComment");
+    // 완료 표시는 누가 찍었는지와 함께 옮긴다 — 한쪽만 옮기면 «누가»가 빈다.
+    if (c.evalDoneAt != null) {
+      if (o.evalDoneAt != null) blocked = true;
+      else {
+        data.evalDoneAt = c.evalDoneAt;
+        data.evalDoneById = c.evalDoneById;
+      }
+    }
+    /*
+      달성률은 «비었다»는 상태가 없다(0이 기본값). 원본이 0이고 복사본에 값이
+      있을 때만 옮긴다 — 원본에 이미 올려 둔 진척을 복사본의 0으로 지우지 않는다.
+    */
+    if (c.progress > 0) {
+      if (o.progress > 0) blocked = true;
+      else data.progress = c.progress;
+    }
+
+    if (Object.keys(data).length > 0) {
+      writes.push({ id: o.id, data });
+      moved += 1;
+    } else if (blocked) {
+      skipped += 1;
+    }
+  }
+
+  await prisma.$transaction([
+    ...writes.map((w) =>
+      prisma.goal.update({ where: { id: w.id }, data: w.data }),
+    ),
+    prisma.goalCycle.update({
+      where: { id: cycleId },
+      data: { sourceCycleId: sourceId },
+    }),
+  ]);
+
+  revalidatePath(PATH);
+  revalidatePath(ADMIN_PATH);
+  revalidatePath(TARGETS_PATH);
+
+  const parts = [`목표 ${copies.length}건 중 ${moved}건의 평가값을 옮겼습니다`];
+  if (skipped > 0) {
+    parts.push(`${skipped}건은 원본에 이미 값이 있어 그대로 뒀습니다`);
+  }
+  if (unmatched > 0) {
+    parts.push(
+      `${unmatched}건은 원본에 짝이 없어 옮기지 못했습니다 (공유를 풀면 다시 보입니다)`,
+    );
+  }
+  return { message: `${parts.join(" · ")}.` };
+}
+
+/**
  * 인사평가 목록에서 한 칸 위(아래)로 옮긴다.
  *
  * 옮길 때마다 전체 순번을 1부터 다시 매긴다. 두 줄만 맞바꾸면 아직 순서를

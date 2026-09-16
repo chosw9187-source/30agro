@@ -5,6 +5,7 @@ import {
   GOAL_CYCLE_ORDER,
   GOAL_CYCLE_STATUS_LABEL,
   cyclePhaseLabel,
+  cyclePhaseRank,
   cycleStateLabel,
   groupCyclesByYear,
   GOAL_STATUSES,
@@ -29,6 +30,7 @@ import {
   seedCompanyGoalTemplate,
   setGoalCycleStatus,
   unlockGoalSetting,
+  useSourceGoals,
 } from "@/app/platform/evaluation2/actions";
 import {
   addDivisionGoal,
@@ -69,6 +71,16 @@ export default async function OrgGoalsAdminPage({
     orderBy: GOAL_CYCLE_ORDER,
   });
   const cycle = cycles.find((c) => c.id === params.cycleId) ?? cycles[0] ?? null;
+  /*
+    사이클마다 **자기 목표를 몇 건 갖고 있나**. 목록에서 "이 단계에 목표가 따로
+    있다"를 알려 주는 데 쓴다 — 단계마다 복사본이 따로 있으면 같은 목표가 두
+    화면에서 서로 다른 값으로 굴러간다.
+  */
+  const ownGoalCounts = await prisma.goal.groupBy({
+    by: ["cycleId"],
+    _count: { _all: true },
+  });
+  const ownCountByCycle = new Map(ownGoalCounts.map((g) => [g.cycleId, g._count._all]));
   // 목표를 가져올 수 있는 다른 사이클 — 최근 것부터.
   const otherCycles = cycles.filter((c) => c.id !== cycle?.id);
   // 목표를 실제로 담고 있는 사이클. 남의 목표를 빌려 쓰는 평가라면 그쪽을 본다.
@@ -865,6 +877,66 @@ export default async function OrgGoalsAdminPage({
                     <span className="rounded-full bg-slate-700 px-2 py-0.5 text-[11px] text-white">
                       목표 마감 · {formatKSTDate(c.goalsLockedAt)}
                     </span>
+                  )}
+                  {/*
+                    목표를 어디서 가져오는지. 이어받는 단계는 그 말을 적고, 자기
+                    목표를 따로 가진 평가 단계에는 되돌릴 자리를 함께 둔다 —
+                    복사본이 따로 있으면 같은 상반기 목표가 중간평가와 최종평가에서
+                    서로 다른 값으로 굴러가는데, 화면에는 아무 표시가 없었다.
+                  */}
+                  {c.sourceCycleId ? (
+                    <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-[11px] text-brand-green-dark">
+                      「{cycles.find((x) => x.id === c.sourceCycleId)?.name ?? "다른 평가"}」의 목표를 이어받음
+                    </span>
+                  ) : (
+                    (() => {
+                      const own = ownCountByCycle.get(c.id) ?? 0;
+                      if (own === 0 || cyclePhaseRank(c) < 2) return null;
+                      /*
+                        이어받을 후보 — 같은 해에서 자기 목표를 갖고 있고 남의
+                        목표를 빌리지 않는 앞 단계. 사슬(빌린 것을 또 빌리기)은
+                        서버가 막으므로 애초에 고르게 두지 않는다.
+                      */
+                      const sources = group.items.filter(
+                        (x) =>
+                          x.id !== c.id &&
+                          !x.sourceCycleId &&
+                          cyclePhaseRank(x) < cyclePhaseRank(c) &&
+                          (ownCountByCycle.get(x.id) ?? 0) > 0
+                      );
+                      return (
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span className="rounded-full bg-status-critical/10 px-2 py-0.5 text-[11px] break-keep text-status-critical">
+                            이 단계에 목표가 따로 {own}건 — 다른 단계와 값이 따로 갑니다
+                          </span>
+                          {sources.length > 0 && (
+                            <ActionForm
+                              action={useSourceGoals}
+                              successMessage="이어받기로 바꿨습니다."
+                              confirmMessage="이 단계의 목표를 지우지 않고, 적혀 있는 평가값을 원본으로 옮긴 뒤 원본을 이어받게 바꿉니다. 원본에 이미 값이 있는 자리는 그대로 둡니다. 진행할까요?"
+                              className="flex items-center gap-1"
+                            >
+                              <input type="hidden" name="cycleId" value={c.id} />
+                              <select
+                                name="sourceCycleId"
+                                defaultValue={sources[0].id}
+                                aria-label="이어받을 인사평가"
+                                className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px]"
+                              >
+                                {sources.map((x) => (
+                                  <option key={x.id} value={x.id}>
+                                    {cyclePhaseLabel(x)}
+                                  </option>
+                                ))}
+                              </select>
+                              <button className="rounded-md border border-status-critical/40 bg-white px-2 py-0.5 text-[11px] text-status-critical hover:bg-status-critical/5">
+                                이어받기로 바꾸기
+                              </button>
+                            </ActionForm>
+                          )}
+                        </span>
+                      );
+                    })()
                   )}
                   <div className="ml-auto flex gap-2">
                     {c.goalsLockedAt ? (
