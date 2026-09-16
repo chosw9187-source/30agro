@@ -1572,6 +1572,34 @@ export async function updateGoal(formData: FormData) {
   const admin = await isAdmin();
 
   /*
+    어느 단계를 통해 손대고 있는지 먼저 안다 — 최종평가면 목표의 정의가 잠기고,
+    잠긴 칸은 폼에 실려 오지 않으므로 «필수»로 요구할 수도 없다.
+  */
+  const acting = await actingCycle(formData, existing.cycleId);
+  const defLocked = locksGoalDefinition(level, acting);
+
+  /*
+    「평가완료」 단추가 같은 폼으로 함께 보내는 표시.
+
+    예전에는 평가완료가 **따로 있는 폼**이었다. 폼 안에 폼을 넣을 수 없어서 밖에
+    숨겨 두고 `form` 속성으로 이었는데, 그 폼에는 평가 칸이 없다 — 그래서 달성률
+    110%와 점수 22점을 적고 「평가완료」를 누르면 적은 값이 **한 줄도 저장되지
+    않고** 완료 표시만 찍혔다. «저장했는데 반영이 안 된다»가 여기서 나왔다.
+
+    이제 저장과 같은 폼에서 같이 온다 — 적은 값을 저장한 **뒤에** 완료로 찍는다.
+  */
+  const finishEval =
+    str(formData.get("finishEval")) === "1" &&
+    usesEvaluation(level, acting) &&
+    (admin || isFirstEvaluator);
+  const finishData = finishEval
+    ? { evalDoneAt: new Date(), evalDoneById: session.user.id }
+    : {};
+  const finishMessage = finishEval
+    ? { message: "평가를 완료했습니다." }
+    : undefined;
+
+  /*
     내용은 못 고치고 **평가 칸만** 적는 사람(1차 평가자)은 여기서 끝낸다. 아래로
     내려보내면 폼에 없는 칸(제목·가중치·상위 목표)을 요구하거나 빈 값으로
     덮어쓴다 — 그 사람 화면에서는 그 칸들이 잠겨 있어 아예 넘어오지 않는다.
@@ -1586,10 +1614,11 @@ export async function updateGoal(formData: FormData) {
         firstProgress: progressField(formData, "firstProgress"),
         firstScore: scoreField(formData, "firstScore", existing.weight),
         firstComment: str(formData.get("firstComment")) || null,
+        ...finishData,
       },
     });
     revalidatePath(PATH);
-    return;
+    return finishMessage;
   }
 
   /*
@@ -1597,13 +1626,6 @@ export async function updateGoal(formData: FormData) {
     아예 없고, 검증도 지금 저장돼 있는 값을 그대로 통과시킨다 — 화면에 없는
     칸을 요구하면 저장이 안 되는 이유를 아무도 알 수 없다.
   */
-  /*
-    어느 단계를 통해 손대고 있는지 먼저 안다 — 최종평가면 목표의 정의가 잠기고,
-    잠긴 칸은 폼에 실려 오지 않으므로 «필수»로 요구할 수도 없다.
-  */
-  const acting = await actingCycle(formData, existing.cycleId);
-  const defLocked = locksGoalDefinition(level, acting);
-
   const scope = admin
     ? await (async () => {
         const s = scopeFieldsFor(level, formData);
@@ -1678,16 +1700,24 @@ export async function updateGoal(formData: FormData) {
     throw new Error(lock.message ?? "지금은 고칠 수 없습니다.");
 
   if (!lock.canEditGoals) {
+    /*
+      목표를 확정(마감)한 뒤에는 내용을 그대로 두고 진척과 상태만 받는다. **평가
+      칸은 함께 받는다** — 목표 마감은 «목표를 더 못 고친다»는 뜻이고, 평가는 그
+      마감된 목표를 놓고 매기는 일이라 그 뒤에 적는 것이 오히려 정상이다. 예전에는
+      이 분기가 평가 점수를 조용히 버려서, 저장은 됐다는데 점수만 사라졌다.
+    */
     await prisma.goal.update({
       where: { id: goalId },
       data: {
         currentValue: str(formData.get("currentValue")) || null,
         ...(canWriteProgress ? { progress: synced.progress } : {}),
         status: synced.status,
+        ...evalData,
+        ...finishData,
       },
     });
     revalidatePath(PATH);
-    return;
+    return finishMessage;
   }
 
   /*
@@ -1745,12 +1775,14 @@ export async function updateGoal(formData: FormData) {
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
       ...definitionFields,
+      ...finishData,
       progress: synced.progress,
       status: synced.status,
       dueDate: parseDate(formData.get("dueDate")),
     },
   });
   revalidatePath(PATH);
+  return finishMessage;
 }
 
 export async function deleteGoal(goalId: string, formData?: FormData) {
