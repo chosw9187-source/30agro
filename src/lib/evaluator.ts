@@ -181,16 +181,24 @@ export function buildEvaluatorMap(
     const first = step(p);
     const second = first.person ? step(first.person) : { person: null, missing: [] };
     /*
-      사장이 1차 평가자로 나왔는데 중간에 빈 자리가 있었다면, 조직도에 그 자리가
-      비어 있다는 뜻이다. 화면에 그 말을 적어야 «왜 우리 팀장 평가자가 사장이지»가
-      «조직도에 부문 책임이 비어 있구나»로 읽힌다.
+      중간에 빈 자리를 건너뛰었으면 그 말을 적는다. 조직도에 그 자리가 비어 있다는
+      뜻이고, 화면에 적어야 «왜 우리 팀장이 아니지»가 «인사팀에 팀장이 지정돼 있지
+      않구나»로 읽힌다.
+
+      처음에는 사장까지 올라간 경우만 알렸다. 그런데 한 칸만 건너뛴 경우 — 팀에
+      팀장이 없어 부문 책임이나 본부 운영책임이 1차 평가자가 되는 경우 — 가 훨씬
+      흔하고, 그때는 아무 말도 없었다. 폼에 뜨는 것은 「1차 평가자」라는 머리글
+      뿐이라 «평가자가 왜 저 사람이지»를 화면만 보고는 풀 수 없었다.
     */
-    const note =
-      first.person && first.person.position === "CEO" && first.missing.length > 0
-        ? `조직도에 ${first.missing.join(", ")}이(가) 없어 사장으로 올라갔습니다`
-        : !first.person && p.position !== "CEO"
-          ? "조직도에서 평가자를 찾지 못했습니다 (사장이 등록되어 있는지 확인해 주세요)"
-          : null;
+    const note = !first.person
+      ? p.position !== "CEO"
+        ? "조직도에서 평가자를 찾지 못했습니다 (사장이 등록되어 있는지 확인해 주세요)"
+        : null
+      : first.missing.length > 0
+        ? first.person.position === "CEO"
+          ? `조직도에 ${first.missing.join(", ")}이(가) 없어 사장으로 올라갔습니다`
+          : `조직도에 ${first.missing.join(", ")}이(가) 없어 그 윗자리가 1차 평가자가 되었습니다`
+        : null;
     map.set(p.id, { first: first.person, second: second.person, note });
   }
   return map;

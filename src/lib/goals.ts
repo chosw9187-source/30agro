@@ -934,6 +934,36 @@ export function usesEvaluation(
 }
 
 /**
+ * 이 단계에서 목표의 **정의**를 잠그는가 — 상위 목표 · 목표 구분 · 목표 유형 ·
+ * Objective · Key Results · 가중치.
+ *
+ * 최종평가에서는 잠근다. 점수를 매기는 자리에서 목표 자체가 바뀌면 그 점수가
+ * 무엇에 대한 점수인지 알 수 없게 된다 — 가중치를 30에서 10으로 내리면 이미 매긴
+ * 점수의 뜻이 달라지고, Objective를 고치면 «무엇을 평가했는가»가 사라진다.
+ * 상대평가로 등급까지 매기는 값이라 더 그렇다.
+ *
+ * 달성률 · 상태 · 마감일 · 설명 · 평가 칸은 그대로 열어 둔다. 그건 «목표가
+ * 무엇인가»가 아니라 «그 목표가 어떻게 됐는가»라서, 최종평가에서 적는 것이
+ * 오히려 맞다.
+ *
+ * 개인목표에만 건다. 팀·책임·전사 목표는 아래에서 굴러 올라온 값이라 사람이
+ * 점수를 매기는 자리가 아니다.
+ *
+ * 고쳐야 할 일이 생기면 「목표설정」 단계에서 고친다 — 목표는 거기 한 벌만 있고
+ * 최종평가는 그것을 빌려 본다(`sourceCycleId`).
+ */
+export function locksGoalDefinition(
+  level: string,
+  cycle: { name: string } | null | undefined
+): boolean {
+  return level === "INDIVIDUAL" && !!cycle && cyclePhaseRank(cycle) === 3;
+}
+
+/** 최종평가에서 잠기는 칸 이름 — 화면 안내와 서버 검증이 같은 목록을 쓴다. */
+export const GOAL_DEFINITION_LABEL =
+  "상위 목표 · 목표 구분 · 목표 유형 · Objective · Key Results · 가중치";
+
+/**
  * 그 평가가 어느 반기를 매기는지 — 화면의 「상반기 평가」·「하반기 평가」.
  * 단계 이름을 못 알아보면 그냥 「평가」다.
  */
