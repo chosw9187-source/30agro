@@ -61,6 +61,8 @@ import {
   usesDerivedWeight,
   usesFixedActiveStatus,
   usesHalf,
+  currentGoalHalf,
+  inGoalHalf,
   evaluatesHalfHere,
   evalStageNameForHalf,
   usesWeightSubtotal,
@@ -1080,6 +1082,12 @@ export default async function Evaluation2Page({
   }
 
   const now = new Date();
+  /*
+    대시보드가 앞세울 반기. 상반기 평가를 완료했거나 7월이 지났으면 하반기다
+    (`currentGoalHalf`) — 반기마다 목표를 따로 세우므로 둘을 한 덩어리로 세면
+    «개인목표 10건»과 «두 반기를 섞은 평균»이 나온다.
+  */
+  const shownHalf = currentGoalHalf(yearCycles, now);
   const counted = allNodes.filter(countsTowardProgress);
   const overallProgress =
     companyGoals.length > 0
@@ -2768,22 +2776,82 @@ export default async function Evaluation2Page({
       셈이다. 담당은 자기 것, 팀장은 자기 팀, 관리자는 전부 — 아래 탭에서 실제로
       열리는 목록과 같은 범위여야 두 화면이 한 이야기를 한다.
     */
-    const nodes = visibleRows(byLevel(level));
+    const all = visibleRows(byLevel(level));
+
+    /*
+      **반기 하나가 대시보드의 단위다.**
+
+      한 사람은 상반기 다섯 · 하반기 다섯처럼 반기마다 목표를 따로 세우므로, 둘을
+      한 덩어리로 세면 «개인목표 10건»이 되고 평균 달성률도 «끝난 상반기 102%와
+      갓 시작한 하반기 0%»를 섞은 51%가 되어 아무것도 뜻하지 않는다. 지금 굴러가는
+      반기(`currentGoalHalf`)를 앞세우고, 지난 반기는 아래 한 줄로 남긴다 — 감추면
+      «상반기는 어떻게 됐지»를 다른 화면에서 찾아야 한다.
+
+      팀목표에는 반기 칸이 없다(`usesHalf`). 그 달성률은 딸린 개인목표에서 굴러
+      올라오는 값이라, 반기를 가르려면 그 반기의 개인목표만으로 다시 굴린다 —
+      그러지 않으면 개인목표 카드는 하반기 0%인데 팀목표 카드는 두 반기를 섞은
+      51%가 되어, 나란한 두 장이 서로 다른 이야기를 한다.
+    */
+    const halfSplit = level === "TEAM" || level === "INDIVIDUAL";
+
+    /**
+     * 그 반기의 개인목표만으로 굴린 팀목표 달성률. 그 반기에 딸린 목표가 없으면
+     * null이다 — 0%로 세면 «그 반기에 할 일이 없던 팀»이 평균을 끌어내린다.
+     */
+    const teamRollupIn = (team: GoalNode, half: string) => {
+      const kids = team.children.filter((c) => inGoalHalf(c, half));
+      return kids.some(countsTowardProgress) ? weightedProgress(kids) : null;
+    };
+    /*
+      팀목표 줄도 반기로 가린다. 딸린 개인목표가 다른 반기 것뿐인 팀목표는 이
+      반기의 «전체»에 들 이유가 없다. 하위가 **하나도 없는** 팀목표는 남긴다 —
+      아직 개인목표가 안 붙은 것이라 어느 반기에도 속하지 않고, 빼 버리면
+      «하위 목표가 없어 0%입니다»라고 알려 줄 자리까지 사라진다.
+    */
+    const teamInHalf = (team: GoalNode, half: string) =>
+      team.children.length === 0 || teamRollupIn(team, half) !== null;
+
+    const rowsIn = (half: string) =>
+      !halfSplit
+        ? all
+        : all.filter((g) =>
+            usesHalf(level) ? inGoalHalf(g, half) : teamInHalf(g, half),
+          );
+    /** 그 반기로 본 달성률 — 팀목표는 그 반기 개인목표만으로 다시 굴린다. */
+    const percentIn = (half: string) => {
+      if (level === "COMPANY")
+        return all.length > 0 ? weightedProgress(all) : 0;
+      if (level !== "TEAM") return averageProgress(rowsIn(half));
+      const per = all
+        .map((t) => teamRollupIn(t, half))
+        .filter((v): v is number => v !== null);
+      if (per.length === 0) return 0;
+      return Math.round(per.reduce((a, b) => a + b, 0) / per.length);
+    };
+    /** 그 반기로 본 «완료» — 팀목표는 그 반기 달성률이 100%를 채웠는지로 본다. */
+    const doneIn = (half: string) =>
+      level === "TEAM"
+        ? all.filter((t) => !t.excluded && (teamRollupIn(t, half) ?? 0) >= 100)
+            .length
+        : rowsIn(half).filter((g) => g.rollupStatus === "DONE" && !g.excluded)
+            .length;
+
+    const nodes = rowsIn(shownHalf);
     const counted = nodes.filter(countsTowardProgress);
-    const done = nodes.filter(
-      (g) => g.rollupStatus === "DONE" && !g.excluded,
-    ).length;
+    const done = doneIn(shownHalf);
     const overdue = nodes.filter(
       (g) => isOverdue(g, now) && !g.excluded,
     ).length;
-    // 전사 목표는 사이클 전체를 대표하는 값이라 가중평균, 나머지 층은 그 층에
-    // 속한 목표들의 평균을 쓴다.
-    const percent =
-      level === "COMPANY"
-        ? nodes.length > 0
-          ? weightedProgress(nodes)
-          : 0
-        : averageProgress(nodes);
+    const percent = percentIn(shownHalf);
+
+    /** 다른 반기 한 줄. 그 반기에 목표가 있을 때만 적는다. */
+    const otherHalf =
+      shownHalf === GOAL_HALVES[0] ? GOAL_HALVES[1] : GOAL_HALVES[0];
+    const otherHasGoals = usesHalf(level)
+      ? all.some((g) => goalHalf(g) === otherHalf)
+      : all.some((t) => t.children.some((c) => goalHalf(c) === otherHalf));
+    const otherCount = rowsIn(otherHalf).filter(countsTowardProgress).length;
+    const otherPercent = percentIn(otherHalf);
 
     const href =
       level === "COMPANY"
@@ -2823,11 +2891,21 @@ export default async function Evaluation2Page({
         )}
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <LevelDot level={level} />
             <h2 className="text-base font-semibold text-slate-800">
               {GOAL_LEVEL_LABEL[level]}
             </h2>
+            {/* 어느 반기의 숫자인지 이름 옆에 적는다 — 숫자만으로는 알 수 없다. */}
+            {halfSplit && (
+              <span
+                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                  HALF_TONE[shownHalf]?.badge ?? "bg-slate-500 text-white"
+                }`}
+              >
+                {shownHalf}
+              </span>
+            )}
           </div>
 
           <dl className="mt-2 grid grid-cols-3 gap-1 border-t border-slate-100 pt-2 text-center">
@@ -2854,6 +2932,18 @@ export default async function Evaluation2Page({
               </dd>
             </div>
           </dl>
+
+          {/*
+            다른 반기는 한 줄로 남긴다. 상반기가 끝난 뒤에도 «상반기는 102%였다»가
+            이 카드에서 읽혀야 한다 — 감추면 지난 반기를 찾아 다른 화면을 돌게 된다.
+          */}
+          {halfSplit && showsProgress && otherHasGoals && (
+            <p className="mt-1.5 text-[11px] break-keep text-slate-500">
+              {otherHalf}{" "}
+              <b className="font-medium text-slate-600">{otherCount}건</b> ·{" "}
+              <b className="font-medium text-slate-600">{otherPercent}%</b>
+            </p>
+          )}
         </div>
       </div>
     );
