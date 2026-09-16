@@ -64,7 +64,19 @@ export function ActionForm({
         }
       }
 
-      showToast(successMessage, true);
+      /*
+        액션이 `{ message }`를 돌려주면 그 말을 띄운다 — 같은 폼이 두 가지 일을
+        할 때(저장 / 평가완료) 결과를 구별해 알려야 한다. 「수정되었습니다」만
+        뜨면 완료로 찍혔는지 알 수 없다.
+      */
+      const notice =
+        result && typeof result === "object" && "message" in result
+          ? (result as { message?: unknown }).message
+          : null;
+      showToast(
+        typeof notice === "string" && notice ? notice : successMessage,
+        true,
+      );
       if (collapseOnSuccess) {
         formRef.current?.reset();
         const box = formRef.current?.closest("details");

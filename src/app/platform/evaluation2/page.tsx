@@ -4255,42 +4255,63 @@ export default async function Evaluation2Page({
                 {/*
                 평가완료는 저장과 다른 일이라 색을 달리한다 — 저장은 적은 것을
                 남기는 일이고, 이건 «이 평가는 여기서 끝»이라고 못을 박는 일이다.
-                폼 안에 폼을 넣을 수 없어서 아래에 따로 둔 폼을 `form` 속성으로
-                잇는다.
+
+                그래도 **같은 폼**으로 보낸다. 예전에는 폼 안에 폼을 넣을 수 없어
+                밖에 숨겨 둔 폼을 `form` 속성으로 이었는데, 그 폼에는 평가 칸이
+                없어서 달성률 110%와 점수 22점을 적고 이 단추를 누르면 적은 값이
+                한 줄도 저장되지 않고 완료 표시만 찍혔다 — «저장했는데 반영이 안
+                된다»가 그것이었다. 이제 이 단추는 폼의 제출 단추이고, 서버가
+                적은 값을 저장한 뒤에 완료로 찍는다(`finishEval`).
               */}
-                {usesEvaluation(level, cycle) && canFinishEval && (
+                {usesEvaluation(level, cycle) && canFinishEval && !evalDone && (
+                  <button
+                    type="submit"
+                    name="finishEval"
+                    value="1"
+                    className="rounded-md bg-goal-3 px-4 py-2 text-sm font-medium text-white hover:brightness-95"
+                  >
+                    평가완료
+                  </button>
+                )}
+                {/*
+                  되돌리기는 저장할 것이 없다 — 완료 상태에서는 모든 칸이 잠겨
+                  있어서 폼에 실려 올 값도 없다. 그래서 이것만 따로 둔 폼으로
+                  보낸다.
+                */}
+                {usesEvaluation(level, cycle) && canFinishEval && evalDone && (
                   <button
                     type="submit"
                     form={`evaldone-${goal.id}`}
-                    className={`rounded-md px-4 py-2 text-sm font-medium ${
-                      evalDone
-                        ? "border border-status-critical text-status-critical hover:bg-red-50"
-                        : "bg-goal-3 text-white hover:brightness-95"
-                    }`}
+                    className="rounded-md border border-status-critical px-4 py-2 text-sm font-medium text-status-critical hover:bg-red-50"
                   >
-                    {evalDone ? "평가완료 취소" : "평가완료"}
+                    평가완료 취소
                   </button>
                 )}
               </div>
             </ActionForm>
           )}
           {/*
-          위 폼의 «평가완료» 단추가 눌러 보내는 폼. 폼끼리 겹칠 수 없어 밖에 둔다.
-          누르고 나면 폼은 닫는다 — 결과는 목록의 붉은 «완료»로 읽힌다.
+          위 폼의 «평가완료 취소» 단추가 눌러 보내는 폼. 폼끼리 겹칠 수 없어 밖에
+          둔다. 누르고 나면 폼은 닫는다.
         */}
-          {isEditing && usesEvaluation(level, cycle) && canFinishEval && (
-            <ActionForm
-              id={`evaldone-${goal.id}`}
-              action={setGoalEvalDone.bind(null, goal.id, !evalDone)}
-              successMessage={
-                evalDone ? "평가완료를 취소했습니다." : "평가를 완료했습니다."
-              }
-              successHref={buildHref({ edit: null })}
-              className="hidden"
-            >
-              <input type="hidden" name="viewCycleId" value={cycle?.id ?? ""} />
-            </ActionForm>
-          )}
+          {isEditing &&
+            usesEvaluation(level, cycle) &&
+            canFinishEval &&
+            evalDone && (
+              <ActionForm
+                id={`evaldone-${goal.id}`}
+                action={setGoalEvalDone.bind(null, goal.id, false)}
+                successMessage="평가완료를 취소했습니다."
+                successHref={buildHref({ edit: null })}
+                className="hidden"
+              >
+                <input
+                  type="hidden"
+                  name="viewCycleId"
+                  value={cycle?.id ?? ""}
+                />
+              </ActionForm>
+            )}
         </div>
       </details>
     );
