@@ -50,6 +50,8 @@ import {
   evalPeriodLabel,
   maxScore,
   usesEvaluation,
+  locksGoalDefinition,
+  GOAL_DEFINITION_LABEL,
   keyResultLines,
   scaleValues,
   toDateInputValue,
@@ -3294,6 +3296,16 @@ export default async function Evaluation2Page({
     // 내용(제목·가중치·상위)을 고칠 수 있는 사람. 평가만 하는 사람은 못 고친다.
     const canEditContent = !evalLocked && (!goal || canManage(goal));
     /*
+      최종평가에서는 목표의 **정의**를 잠근다 — 상위 목표 · 목표 구분 · 목표
+      유형 · Objective · Key Results · 가중치. 점수를 매기는 자리에서 목표가
+      바뀌면 그 점수가 무엇에 대한 점수인지 알 수 없게 된다. 서버도 같은
+      기준으로 한 번 더 막는다(`locksGoalDefinition`).
+
+      새로 만드는 자리(`!goal`)는 잠그지 않는다 — 최종평가에서 빠진 목표를
+      추가하는 일은 여전히 있다.
+    */
+    const defLocked = !!goal && locksGoalDefinition(level, cycle);
+    /*
       점수 상한은 가중치의 110%다 — 가중치 30짜리 목표는 33점이 최고다. 상한이
       없으면 가중치 10짜리에 100점을 적어 두고 «다 했다»가 되어 비중을 나눠 놓은
       뜻이 사라진다. 가중치를 아직 안 적었으면 막지 않는다.
@@ -3371,9 +3383,15 @@ export default async function Evaluation2Page({
         </div>
 
         <div className="rounded-lg border border-goal-3/40 bg-amber-50/70 p-3">
+          {/*
+            직책을 괄호로 붙이지 않는다. 사슬이 팀장을 건너뛴 경우(그 팀에 팀장이
+            지정돼 있지 않을 때)에는 「1차 평가자(운영책임)」처럼 떠서, 실제
+            평가자가 누구인지 모른 채 «왜 운영책임이지»만 남는다. 누구인지는
+            폼 위쪽 「1차 평가자」 칸이 이름으로 적어 주고, 건너뛴 이유는 바로
+            아래 `evalNote`가 적는다.
+          */}
           <p className="mb-2 block text-xs font-semibold text-goal-3">
             1차 평가자
-            {evalFirst ? `(${POSITION_LABEL[evalFirst.position]})` : ""}
           </p>
           {/*
             사슬이 팀장을 건너뛰었으면 왜 건너뛰었는지 적는다 — 대개 그 팀에
@@ -3530,28 +3548,46 @@ export default async function Evaluation2Page({
             fieldset 자체는 자리를 차지하지 않아 격자가 그대로 유지된다.
           */}
           <fieldset disabled={!canEditContent} className="contents">
-            {line("parent", parent)}
-            {line(
-              "kind",
-              <>
-                {half}
-                {goalType}
-              </>,
+            {/*
+              왜 잠겼는지 잠긴 칸 바로 위에 적는다. 이 말이 없으면 «왜 안
+              고쳐지지»가 화면만 보고는 풀리지 않는다.
+            */}
+            {defLocked && (
+              <p className="rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-xs break-keep text-slate-600 md:col-span-2">
+                최종평가에서는 목표 내용({GOAL_DEFINITION_LABEL})을 고칠 수
+                없습니다 — 점수를 매기는 단계라 목표는 그대로 둡니다. 고쳐야
+                하면 「목표설정」 단계에서 고쳐 주세요. 달성률 · 상태 · 마감일 ·
+                설명과 평가 칸은 그대로 적을 수 있습니다.
+              </p>
             )}
-            {line("objective", title)}
-            {line("kr", keyResults)}
-            {/* 달성률은 평가 칸으로 올라갔다 — 같은 칸을 두 번 두지 않는다. */}
-            {line(
-              "weight",
-              showEval ? (
-                weight
-              ) : (
+            {/*
+              목표의 «정의»만 따로 잠근다. 달성률 · 상태 · 마감일 · 설명은
+              «그 목표가 어떻게 됐는가»라서 최종평가에서 적는 것이 맞다.
+            */}
+            <fieldset disabled={defLocked} className="contents">
+              {line("parent", parent)}
+              {line(
+                "kind",
                 <>
-                  {weight}
-                  {progress}
-                </>
-              ),
-            )}
+                  {half}
+                  {goalType}
+                </>,
+              )}
+              {line("objective", title)}
+              {line("kr", keyResults)}
+              {/* 달성률은 평가 칸으로 올라갔다 — 같은 칸을 두 번 두지 않는다. */}
+              {line(
+                "weight",
+                showEval ? (
+                  weight
+                ) : (
+                  <>
+                    {weight}
+                    {progress}
+                  </>
+                ),
+              )}
+            </fieldset>
             {line(
               "state",
               <>

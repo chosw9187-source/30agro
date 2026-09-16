@@ -8,6 +8,7 @@ import { checkModuleAccess } from "@/lib/permissions";
 import {
   GOAL_CYCLE_ORDER,
   allowsProgressInput,
+  locksGoalDefinition,
   usesDerivedWeight,
   usesFixedActiveStatus,
   usesHalf,
@@ -1224,17 +1225,26 @@ function requireGoalFields(
   level: GoalLevel,
   formData: FormData,
   scope: { teamId?: string | null; ownerId?: string | null },
+  /*
+    최종평가처럼 목표의 정의가 잠긴 단계인가. 잠긴 칸은 화면에서 제출되지
+    않으므로 «비어 있다»고 막으면 저장이 아예 안 된다 — 요구 목록에서 뺀다.
+    그 칸들은 지금 저장된 값을 그대로 다시 쓰므로 비는 일이 없다.
+  */
+  definitionLocked = false,
 ) {
   if (level === "COMPANY") return;
 
-  const need: [string, string][] = [
-    ["title", "목표명"],
-    ["parentId", `상위 ${GOAL_LEVEL_LABEL[GOAL_PARENT_LEVEL[level]!]}`],
-  ];
+  const need: [string, string][] = definitionLocked
+    ? []
+    : [
+        ["title", "목표명"],
+        ["parentId", `상위 ${GOAL_LEVEL_LABEL[GOAL_PARENT_LEVEL[level]!]}`],
+      ];
   if (level === "DIVISION") need.push(["division", "책임"]);
-  if (level !== "DIVISION" && !usesDerivedWeight(level))
+  if (!definitionLocked && level !== "DIVISION" && !usesDerivedWeight(level))
     need.push(["weight", "가중치"]);
-  if (usesHalf(level)) need.push(["half", "목표 구분(상반기·하반기)"]);
+  if (!definitionLocked && usesHalf(level))
+    need.push(["half", "목표 구분(상반기·하반기)"]);
   /*
     지표·목표수준·현재수준은 팀목표에만 있다. 책임목표는 아래 팀목표가 굴러
     올라온 값이고, 개인목표는 Key Results가 그 자리를 대신한다(사내 「개인목표
@@ -1249,7 +1259,7 @@ function requireGoalFields(
   }
   need.push(["status", "상태"], ["dueDate", "마감일"]);
   // 책임·팀 목표의 달성률은 하위에서 자동 계산되므로 입력칸 자체가 없다.
-  if (level === "INDIVIDUAL") {
+  if (!definitionLocked && level === "INDIVIDUAL") {
     need.push(["goalType", "목표 유형"], ["keyResults", "Key Results"]);
   }
 
@@ -1499,6 +1509,14 @@ export async function updateGoal(formData: FormData) {
       evalDoneAt: true,
       teamId: true,
       ownerId: true,
+      /*
+        최종평가에서 잠기는 칸들. 잠긴 칸은 화면에서 폼에 실려 오지 않으므로
+        (`disabled`된 칸은 제출되지 않는다) 지금 저장된 값을 그대로 다시 써야
+        한다 — 폼에서 읽으면 목표명이 빈 값이 되고 가중치가 0으로 지워진다.
+      */
+      half: true,
+      goalType: true,
+      keyResults: true,
     },
   });
   if (!existing) return;
@@ -1569,6 +1587,13 @@ export async function updateGoal(formData: FormData) {
     아예 없고, 검증도 지금 저장돼 있는 값을 그대로 통과시킨다 — 화면에 없는
     칸을 요구하면 저장이 안 되는 이유를 아무도 알 수 없다.
   */
+  /*
+    어느 단계를 통해 손대고 있는지 먼저 안다 — 최종평가면 목표의 정의가 잠기고,
+    잠긴 칸은 폼에 실려 오지 않으므로 «필수»로 요구할 수도 없다.
+  */
+  const acting = await actingCycle(formData, existing.cycleId);
+  const defLocked = locksGoalDefinition(level, acting);
+
   const scope = admin
     ? await (async () => {
         const s = scopeFieldsFor(level, formData);
@@ -1578,23 +1603,27 @@ export async function updateGoal(formData: FormData) {
         return s;
       })()
     : { teamId: existing.teamId, ownerId: existing.ownerId };
-  requireGoalFields(level, formData, scope);
+  requireGoalFields(level, formData, scope, defLocked);
 
   /*
     목표설정 단계에는 달성률 칸이 없다. 그때 폼에서 온 빈 값을 그대로 믿으면
     (parseNumber가 0을 준다) 이미 올려둔 진척이 저장할 때마다 0으로 지워진다.
     적을 수 없는 단계에서는 지금 값을 그대로 둔다.
   */
-  const acting = await actingCycle(formData, existing.cycleId);
   const canWriteProgress = allowsProgressInput(acting);
   /*
     평가 칸. 본인 칸은 피평가자만, 1차 평가자 칸은 조직도가 정한 그 사람만 적는다
     (관리자는 둘 다). 적을 수 없는 사람 화면에서는 그 칸이 잠겨 있어 폼에 실려
     오지도 않지만, 폼을 믿지 않고 여기서 한 번 더 가린다.
   */
-  // 점수 상한은 **이번에 저장할 가중치**를 따른다 — 같은 폼에서 가중치를 올리며
-  // 점수도 같이 올리는 게 자연스럽다.
-  const weightValue = weightFor(level, formData);
+  /*
+    점수 상한은 **이번에 저장할 가중치**를 따른다 — 같은 폼에서 가중치를 올리며
+    점수도 같이 올리는 게 자연스럽다.
+
+    최종평가에서는 가중치 칸이 잠겨 폼에 실려 오지 않는다. 그때 폼에서 읽으면 0이
+    되고, 상한이 0이 되어 그날 매긴 점수가 통째로 0으로 잘린다 — 지금 값을 쓴다.
+  */
+  const weightValue = defLocked ? existing.weight : weightFor(level, formData);
   const evalData = usesEvaluation(level, acting)
     ? {
         ...(admin || existing.ownerId === session.user.id
@@ -1651,10 +1680,22 @@ export async function updateGoal(formData: FormData) {
     return;
   }
 
+  /*
+    최종평가에서 잠긴 칸은 폼에 없다. `undefined`를 주면 프리즈마가 그 칸을
+    건드리지 않으므로, 폼에서 읽은 빈 값으로 덮어쓰는 일이 없다.
+  */
+  const definitionFields = defLocked
+    ? {
+        half: existing.half,
+        goalType: existing.goalType,
+        keyResults: existing.keyResults,
+      }
+    : formFields(formData, level);
+
   await prisma.goal.update({
     where: { id: goalId },
     data: {
-      title: str(formData.get("title")) || undefined,
+      title: defLocked ? undefined : str(formData.get("title")) || undefined,
       description: str(formData.get("description")) || null,
       ...(admin ? scope : {}),
       /*
@@ -1677,13 +1718,15 @@ export async function updateGoal(formData: FormData) {
         못 찾아 하나 더 만든다 — 목표를 고칠 때마다 「기타 목표」가 한 줄씩
         늘어나던 원인이 이것이었다.
       */
-      parentId: await resolveParentId(
-        level,
-        str(formData.get("parentId")),
-        existing.cycleId,
-        await resolveOtherScope(scope),
-        session.user.id,
-      ),
+      parentId: defLocked
+        ? undefined
+        : await resolveParentId(
+            level,
+            str(formData.get("parentId")),
+            existing.cycleId,
+            await resolveOtherScope(scope),
+            session.user.id,
+          ),
       ...evalData,
       ...(admin
         ? { sortOrder: parseNumber(formData.get("sortOrder"), 0) }
@@ -1691,7 +1734,7 @@ export async function updateGoal(formData: FormData) {
       metric: str(formData.get("metric")) || null,
       targetValue: str(formData.get("targetValue")) || null,
       currentValue: str(formData.get("currentValue")) || null,
-      ...formFields(formData, level),
+      ...definitionFields,
       progress: synced.progress,
       status: synced.status,
       dueDate: parseDate(formData.get("dueDate")),
