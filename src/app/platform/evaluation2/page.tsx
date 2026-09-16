@@ -50,6 +50,7 @@ import {
   evalPeriodLabel,
   maxScore,
   usesEvaluation,
+  PROGRESS_MAX,
   locksGoalDefinition,
   GOAL_DEFINITION_LABEL,
   keyResultLines,
@@ -313,6 +314,11 @@ function ProgressDonut({
   stroke?: number;
   className?: string;
 }) {
+  /*
+    호는 100%에서 멈춘다 — 링을 한 바퀴 넘겨 그으면 겹친 부분이 어디까지가
+    값인지 알 수 없다. 달성률은 110%까지 올라가므로(`PROGRESS_MAX`) 읽어 주는
+    값과 그리는 값을 따로 둔다: 가운데 숫자와 아리아 라벨은 실제 값이다.
+  */
   const v = Math.min(100, Math.max(0, value));
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
@@ -326,7 +332,7 @@ function ProgressDonut({
       viewBox={`0 0 ${size} ${size}`}
       className={className}
       role="img"
-      aria-label={`달성률 ${v}퍼센트`}
+      aria-label={`달성률 ${Math.max(0, Math.round(value))}퍼센트`}
     >
       <circle
         cx={center}
@@ -3214,7 +3220,7 @@ export default async function Evaluation2Page({
             type="number"
             name="progress"
             min={0}
-            max={100}
+            max={PROGRESS_MAX}
             step={1}
             defaultValue={goal?.progress ?? 0}
             required
@@ -3312,6 +3318,13 @@ export default async function Evaluation2Page({
     */
     const scoreCeiling =
       goal && goal.weight > 0 ? maxScore(goal.weight) : undefined;
+    /*
+      달성률 상한을 화면에 적어 둔다. 110%는 «넘겨 해냈다»는 뜻이고 그만큼 점수로
+      가는 값이라, 숫자만 막아 두면 «왜 100에서 안 올라가지»가 된다.
+    */
+    const progressHelp =
+      `달성률은 ${PROGRESS_MAX}%까지 적을 수 있습니다 — 목표를 넘겨 해낸 만큼은` +
+      ` 점수로도 인정합니다(가중치의 110%까지).`;
     const scoreHelp =
       `점수는 가중치의 110%까지입니다.` +
       (scoreCeiling
@@ -3340,12 +3353,15 @@ export default async function Evaluation2Page({
           </p>
           <div className="grid gap-3 md:grid-cols-4">
             <div>
-              <label className={LABEL_CLASS}>달성률(%)</label>
+              <label className={LABEL_CLASS}>
+                달성률(%)
+                <HelpMark text={progressHelp} />
+              </label>
               <input
                 type="number"
                 name="progress"
                 min={0}
-                max={100}
+                max={PROGRESS_MAX}
                 step={1}
                 defaultValue={goal?.progress ?? 0}
                 disabled={!canEditContent}
@@ -3405,13 +3421,15 @@ export default async function Evaluation2Page({
             <div>
               <label className={LABEL_CLASS}>
                 달성률(%)
-                <HelpMark text="1차 평가자가 본 달성률입니다. 여기에 적으면 이 값이 그 목표의 달성률이 되어 팀·책임·전사 목표로 굴러 올라갑니다. 비워 두면 본인이 적은 달성률을 그대로 씁니다." />
+                <HelpMark
+                  text={`1차 평가자가 본 달성률입니다. 여기에 적으면 이 값이 그 목표의 달성률이 되어 팀·책임·전사 목표로 굴러 올라갑니다. 비워 두면 본인이 적은 달성률을 그대로 씁니다. ${progressHelp}`}
+                />
               </label>
               <input
                 type="number"
                 name="firstProgress"
                 min={0}
-                max={100}
+                max={PROGRESS_MAX}
                 step={1}
                 defaultValue={goal?.firstProgress ?? ""}
                 disabled={!canWriteFirst}

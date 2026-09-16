@@ -98,21 +98,31 @@ function reconcileProgressAndStatus(
   next: { progress: number; status: GoalStatus },
   prev: { progress: number; status: GoalStatus },
 ): { progress: number; status: GoalStatus } {
-  // 상태를 완료로 바꿨다 → 달성률은 100.
+  /*
+    «완료»가 곧 100%는 아니다 — 달성률은 110%까지 올라간다(`PROGRESS_MAX`).
+    그래서 완료를 채울 때도 이미 100을 넘겨 적어 둔 값이 있으면 그 값을 남긴다.
+    110%를 적고 상태를 완료로 바꾸는 순간 100으로 깎이면, 넘겨 해낸 10%가
+    조용히 사라지고 점수에 반영할 근거도 없어진다.
+  */
+  const doneProgress = (p: number) => (p >= 100 ? p : 100);
+
+  // 상태를 완료로 바꿨다 → 달성률은 최소 100.
   if (next.status !== prev.status && next.status === "DONE") {
-    return { progress: 100, status: "DONE" };
+    return { progress: doneProgress(next.progress), status: "DONE" };
   }
   // 달성률을 건드렸다 → 달성률이 기준. 100 미만으로 내렸는데 상태가 완료로
   // 남아 있으면 화면이 계속 100%가 되므로 진행중으로 되돌린다.
   if (next.progress !== prev.progress) {
-    if (next.progress >= 100) return { progress: 100, status: "DONE" };
+    if (next.progress >= 100)
+      return { progress: next.progress, status: "DONE" };
     return {
       progress: next.progress,
       status: next.status === "DONE" ? "ACTIVE" : next.status,
     };
   }
-  // 둘 다 그대로 → 완료면 100을 유지한다.
-  if (next.status === "DONE") return { progress: 100, status: "DONE" };
+  // 둘 다 그대로 → 완료면 100 이상을 유지한다.
+  if (next.status === "DONE")
+    return { progress: doneProgress(next.progress), status: "DONE" };
   return next;
 }
 

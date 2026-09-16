@@ -200,17 +200,23 @@ export function isAutoCalculated(level: string): boolean {
 }
 
 /**
- * 하위가 없는 목표의 달성률. "완료"로 표시된 목표는 입력된 달성률과 무관하게
- * 100%로 본다 — 상태만 완료로 바꾸고 달성률 칸은 그대로 둔 경우가 흔한데,
- * 그때 완료 건수는 올라가는데 달성률은 0%에 머물러 "달성했는데 반영이 안
- * 된다"로 보인다. 완료면 100%가 사람이 기대하는 값이다.
+ * 하위가 없는 목표의 달성률. "완료"로 표시된 목표는 **최소 100%**로 본다 —
+ * 상태만 완료로 바꾸고 달성률 칸은 그대로 둔 경우가 흔한데, 그때 완료 건수는
+ * 올라가는데 달성률은 0%에 머물러 "달성했는데 반영이 안 된다"로 보인다.
+ * 완료면 100%가 사람이 기대하는 값이다.
+ *
+ * «최소»인 것이 중요하다. 예전에는 완료면 무조건 100으로 못 박았는데, 달성률이
+ * 110%까지 올라가게 되면서(`PROGRESS_MAX`) 110%를 적으면 상태가 완료로 바뀌고
+ * 그 순간 100으로 깎여 버렸다 — 넘겨 해낸 10%가 화면에서도, 위로 굴러 올라가는
+ * 값에서도 사라졌다.
  */
 export function leafProgress(goal: {
   status: string;
   progress: number;
   firstProgress?: number | null;
 }): number {
-  return goal.status === "DONE" ? 100 : effectiveProgress(goal);
+  const value = effectiveProgress(goal);
+  return goal.status === "DONE" ? Math.max(100, value) : value;
 }
 
 /**
@@ -376,9 +382,22 @@ export function averageProgress(nodes: GoalNode[]): number {
   return Math.round(counted.reduce((s, n) => s + n.rollupProgress, 0) / counted.length);
 }
 
+/**
+ * 달성률의 상한 — **110%**다.
+ *
+ * 목표를 넘겨 해낸 것을 100%에서 잘라 버리면 점수에 반영할 길이 없다. 점수
+ * 상한이 가중치의 110%(`maxScore`)인 것과 짝이 맞는 값이다: 가중치 20짜리
+ * 목표를 110% 해내면 22점까지 줄 수 있고, 달성률을 100에서 막아 두면 그 10%를
+ * 어디에도 적을 수 없다.
+ *
+ * 110을 넘기지는 않는다. 그 위는 사내 평가척도에 자리가 없어서(탁월 = 110점),
+ * 200%를 적어 두면 점수로 옮길 수 없는 숫자가 된다.
+ */
+export const PROGRESS_MAX = 110;
+
 export function clampProgress(value: number): number {
   if (Number.isNaN(value)) return 0;
-  return Math.min(100, Math.max(0, Math.round(value)));
+  return Math.min(PROGRESS_MAX, Math.max(0, Math.round(value)));
 }
 
 /**
