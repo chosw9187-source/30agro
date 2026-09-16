@@ -151,47 +151,42 @@ const TAB_TO_LEVEL: Record<string, GoalLevel> = {
   individual: "INDIVIDUAL",
 };
 
-/**
- * 탭의 색깔 갈래. 목표 탭은 브랜드 초록, 결과는 보라, 관리자용 리포트는
- * 진회색이다. 탭이 예닐곱 개가 되면 «어디까지가 목표 이야기인지»가 글자만으로는
- * 안 읽혀서, 줄은 하나로 두되 색으로 가른다.
- */
-type TabTone = "goal" | "result" | "report";
-
-const TAB_TONE_CLASS: Record<TabTone, { on: string; off: string }> = {
-  goal: {
-    on: "bg-brand-green text-white",
-    off: "border border-slate-300 text-slate-600 hover:bg-slate-50",
-  },
-  result: {
-    on: "bg-goal-4 text-white",
-    off: "border border-goal-4/40 text-goal-4 hover:bg-goal-4/5",
-  },
-  report: {
-    on: "bg-slate-700 text-white",
-    off: "border border-slate-400 text-slate-700 hover:bg-slate-100",
-  },
+/** 탭 한 줄의 색 — 목표 층은 브랜드 초록 하나로 쓴다. */
+const TAB_CLASS = {
+  on: "bg-brand-green text-white",
+  off: "border border-slate-300 text-slate-600 hover:bg-slate-50",
 };
 
-function tabsFor(levels: GoalLevel[], isAdmin: boolean) {
-  return [
-    { key: "dashboard", label: "대시보드", tone: "goal" as TabTone },
-    ...levels.map((level) => ({
+/**
+ * 그 단계에서 볼 수 있는 층 탭.
+ *
+ * 단계마다 볼 것이 다르다.
+ *   - 목표진행현황: 대시보드 + 전사목표. «지금 어디까지 왔나»를 훑는 자리라
+ *     층별 목록이 아니라 요약과 회사 목표를 읽는다.
+ *   - 목표설정 · 중간평가 · 최종평가: 전사 · 팀 · 개인목표. 대시보드는 두지
+ *     않는다 — 이 단계들은 목표를 세우고 매기는 자리이고, 요약은 진행현황이 맡는다.
+ *
+ * 최종결과와 HR REPORT는 탭에서 뺐다. 그 둘은 «어느 층을 보나»가 아니라 «한 해의
+ * 결과»라서 단계와 나란히 놓이는 것이 맞다 — 단계 고르개로 옮겼다. 탭에 두었더니
+ * 단계를 바꿔도 같은 화면이 남아 있어서 눌러도 안 넘어가는 것처럼 읽혔다.
+ *
+ * 실제로 보이는 층은 보는 사람의 직책이 정한다(`visibleGoalLevels`) — 팀원에게는
+ * 전사목표가 뜨지 않는다.
+ */
+const PROGRESS_TAB_LEVELS: GoalLevel[] = ["COMPANY"];
+const STAGE_TAB_LEVELS: GoalLevel[] = ["COMPANY", "TEAM", "INDIVIDUAL"];
+
+function tabsFor(levels: GoalLevel[], progressView: boolean) {
+  const allowed = progressView ? PROGRESS_TAB_LEVELS : STAGE_TAB_LEVELS;
+  const levelTabs = levels
+    .filter((level) => allowed.includes(level))
+    .map((level) => ({
       key: level.toLowerCase(),
       label: GOAL_LEVEL_LABEL[level],
-      tone: "goal" as TabTone,
-    })),
-    /*
-      여기서부터는 «무엇을 하기로 했나»(목표)가 아니라 «얼마나 했나»(결과)다.
-      최종결과는 누구나, HR REPORT는 관리자만 본다 — 사람 하나하나의 점수가
-      아니라 조직 전체의 분포를 읽는 자리라서, 자기 평가를 보러 온 사람에게는
-      띄우지 않는다.
-    */
-    { key: "result", label: "최종결과", tone: "result" as TabTone },
-    ...(isAdmin
-      ? [{ key: "hrreport", label: "HR REPORT", tone: "report" as TabTone }]
-      : []),
-  ];
+    }));
+  return progressView
+    ? [{ key: "dashboard", label: "대시보드" }, ...levelTabs]
+    : levelTabs;
 }
 
 /**
@@ -514,11 +509,6 @@ export default async function Evaluation2Page({
     businessUnit: me?.team?.businessUnit ?? me?.businessUnit ?? null,
   };
   const myLevels = visibleGoalLevels(viewer);
-  const TABS = tabsFor(myLevels, isAdmin);
-  // 볼 수 없는 층을 URL로 직접 치고 들어와도 대시보드로 되돌린다.
-  const tab = TABS.some((t) => t.key === params.tab)
-    ? params.tab!
-    : "dashboard";
 
   const cycles = await prisma.goalCycle.findMany({
     orderBy: GOAL_CYCLE_ORDER,
@@ -591,6 +581,13 @@ export default async function Evaluation2Page({
     «다음은 여기»를 가리키는 안내판 노릇을 한다.
   */
   const COMPETENCY_PHASE = "competency";
+  /*
+    최종결과와 HR REPORT도 사이클이 없는 «다른 축»이다 — 한 해의 결과를 읽는
+    자리라 목표설정·중간평가·최종평가와 나란히 고르는 것이 맞다. 탭에 두었을
+    때는 단계를 바꿔도 같은 화면이 남아서 눌러도 안 넘어가는 것처럼 읽혔다.
+  */
+  const RESULT_PHASE = "result";
+  const REPORT_PHASE = "hrreport";
   const phaseKey = (c: { name: string; year: number }) =>
     String(cyclePhaseRank(c));
   const selectedPhase = legacyCycle
@@ -598,6 +595,20 @@ export default async function Evaluation2Page({
     : (params.phase ?? PROGRESS_PHASE);
   const progressView = selectedPhase === PROGRESS_PHASE;
   const competencyView = selectedPhase === COMPETENCY_PHASE;
+  const resultView = selectedPhase === RESULT_PHASE;
+  const reportView = selectedPhase === REPORT_PHASE && isAdmin;
+  /** 사이클(목표) 없이 도는 단계 — 탭 줄도, 목표 목록도 띄우지 않는다. */
+  const offCycleView = competencyView || resultView || reportView;
+
+  /*
+    층 탭은 단계가 정한다(`tabsFor`). 볼 수 없는 층이나 이 단계에 없는 탭을
+    주소로 직접 치고 들어와도 그 단계의 첫 탭으로 되돌린다 — 목표진행현황은
+    대시보드, 평가 단계들은 전사목표다.
+  */
+  const TABS = tabsFor(myLevels, progressView);
+  const tab = TABS.some((t) => t.key === params.tab)
+    ? params.tab!
+    : (TABS[0]?.key ?? "dashboard");
 
   /*
     진행현황이 읽을 사이클 — 그 해에서 **자기 목표를 가진 가장 앞선 단계**다.
@@ -900,7 +911,7 @@ export default async function Evaluation2Page({
     사람의 점수, 팀장 코멘트. 그래서 읽는 조건도 하나로 묶는다. 다른 단계·탭에서는
     이 쿼리가 돌지 않는다.
   */
-  const personView = competencyView || params.tab === "result";
+  const personView = competencyView || resultView;
   const competencyFormEarly = personView
     ? await loadCompetencyForm(selectedYear)
     : null;
@@ -1003,7 +1014,7 @@ export default async function Evaluation2Page({
         ? { businessUnit: teamUnitById.get(p.teamId) ?? null }
         : null,
     });
-  const gradeView = params.tab === "result" && !!competencyTarget;
+  const gradeView = resultView && !!competencyTarget;
   const targetUnit = competencyTarget ? unitOf(competencyTarget) : null;
   /*
     정원의 «모집단»은 역량평가 대상과 같게 둔다 — 담당·팀장이고 평가에서 빠지지
@@ -1166,29 +1177,54 @@ export default async function Evaluation2Page({
           <YearPhaseSelect
             years={years.map((y) => ({ value: String(y), label: `${y}년` }))}
             year={String(selectedYear)}
-            phases={[
-              /*
-                진행현황이 맨 위이자 기본값이다. 평가2에 들어오는 사람 대부분은
-                무엇을 고치러 오는 게 아니라 «지금 어디까지 왔나»를 보러 온다.
-              */
-              { value: PROGRESS_PHASE, label: "목표진행현황" },
-              ...yearCycles.map((c) => ({
-                value: phaseKey(c),
-                label: `${cyclePhaseLabel(c)} (${
-                  GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]
-                })`,
-              })),
-              { value: COMPETENCY_PHASE, label: "역량평가" },
+            groups={[
+              {
+                /*
+                  목표 쪽 넷. 진행현황이 맨 위이자 기본값이다 — 평가2에 들어오는
+                  사람 대부분은 무엇을 고치러 오는 게 아니라 «지금 어디까지
+                  왔나»를 보러 온다.
+                */
+                label: "목표",
+                options: [
+                  { value: PROGRESS_PHASE, label: "목표진행현황" },
+                  ...yearCycles.map((c) => ({
+                    value: phaseKey(c),
+                    label: `${cyclePhaseLabel(c)} (${
+                      GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]
+                    })`,
+                  })),
+                ],
+              },
+              {
+                /*
+                  결과 쪽. 목표 층으로 갈리지 않는 화면들이라 묶음을 갈라 둔다 —
+                  한 줄로 늘어놓으면 어디까지가 목표 이야기인지 안 읽힌다.
+                  차례는 진행 띠와 같다(… 최종평가 → 역량평가 → 최종결과).
+                */
+                label: "역량 · 결과",
+                options: [
+                  { value: COMPETENCY_PHASE, label: "역량평가" },
+                  { value: RESULT_PHASE, label: "최종결과" },
+                  ...(isAdmin
+                    ? [{ value: REPORT_PHASE, label: "HR REPORT" }]
+                    : []),
+                ],
+              },
             ]}
             phase={selectedPhase}
             /*
-              「최종결과」·「HR REPORT」는 단계와 상관없는 화면이다 — 한 해의
-              결과를 읽는 자리라 목표설정·중간평가·최종평가를 골라도 본문이
-              똑같다. 그대로 두면 «눌러도 안 넘어간다»로 읽히므로, 단계를 바꿀
-              때는 그 단계의 목표 화면으로 옮긴다.
+              결과 쪽 단계를 고르면 고르개에 색이 든다 — 최종결과는 보라(결과지와
+              같은 색), HR REPORT는 진회색, 역량평가는 브랜드 초록이다. 한 칸짜리
+              고르개에서 «지금 무엇을 보는 중인가»를 말할 수 있는 자리가 거기뿐이다.
             */
-            phaseChangeTab={
-              tab === "result" || tab === "hrreport" ? "dashboard" : null
+            toneClass={
+              resultView
+                ? "border-goal-4 bg-goal-4/10 font-semibold text-goal-4"
+                : reportView
+                  ? "border-slate-500 bg-slate-100 font-semibold text-slate-700"
+                  : competencyView
+                    ? "border-brand-green bg-brand-green-light font-semibold text-brand-green-dark"
+                    : ""
             }
           />
         ) : (
@@ -1245,20 +1281,17 @@ export default async function Evaluation2Page({
   function tabBar() {
     return (
       <nav className="flex flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs shadow-sm">
-        {TABS.map((t) => {
-          const tone = TAB_TONE_CLASS[t.tone];
-          return (
-            <Link
-              key={t.key}
-              href={buildHref({ tab: t.key })}
-              className={`rounded-full px-3 py-1.5 transition-colors sm:py-0.5 ${
-                tab === t.key ? tone.on : tone.off
-              }`}
-            >
-              {t.label}
-            </Link>
-          );
-        })}
+        {TABS.map((t) => (
+          <Link
+            key={t.key}
+            href={buildHref({ tab: t.key })}
+            className={`rounded-full px-3 py-1.5 transition-colors sm:py-0.5 ${
+              tab === t.key ? TAB_CLASS.on : TAB_CLASS.off
+            }`}
+          >
+            {t.label}
+          </Link>
+        ))}
       </nav>
     );
   }
@@ -1653,33 +1686,13 @@ export default async function Evaluation2Page({
    */
   function resultBoard() {
     /*
-      해는 고르개로 고른다 — 화면 맨 위 「연도 · 목표」와 같은 모양이다.
-
-      처음에는 해마다 동글 단추를 늘어놓았는데, 해가 쌓이면 그 줄이 계속 길어져서
-      머리글의 절반을 차지한다. 고르개는 몇 해가 되어도 한 칸이고, 같은 화면에서
-      이미 해를 고르는 방법이라 두 번 배울 것이 없다.
-
-      `ParamSelect`는 지금 주소의 다른 값(탭 · 단계 · 피평가자)을 그대로 두고
-      `year`만 바꾼다.
+      해를 고르는 칸은 여기 두지 않는다. 「최종결과」가 단계 고르개로 올라간 뒤로는
+      화면 맨 위 「연도 · 목표」 줄이 해를 고르는 자리이고, 결과지 머리에 같은
+      고르개를 또 두면 나란히 두 개가 뜬다.
     */
-    const yearPicker = (
-      <ParamSelect
-        param="year"
-        value={String(selectedYear)}
-        ariaLabel="결과지 연도 선택"
-        options={years.map((y) => ({ value: String(y), label: `${y}년` }))}
-      />
-    );
-
     if (!competencyTarget) {
       return (
         <div className="flex flex-col gap-2">
-          <section
-            className={`${CARD_CLASS} flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2`}
-          >
-            <span className="text-xs font-medium text-slate-500">연도</span>
-            {yearPicker}
-          </section>
           {comingUp("최종결과", null, [
             "결과지는 담당과 팀장에게 나옵니다 — 담당은 그 팀의 팀장이, 팀장은 부문의 책임이 평가합니다.",
             "본인이 대상이 아니고, 볼 수 있는 사람도 없습니다.",
@@ -1972,9 +1985,6 @@ export default async function Evaluation2Page({
           <h1 className="text-base font-bold whitespace-nowrap text-slate-900">
             {selectedYear}년 인사평가 결과지
           </h1>
-          <span className="text-xs font-medium text-slate-500">연도</span>
-          {yearPicker}
-          <span className="text-xs text-slate-300">|</span>
           <span className="text-xs font-medium text-slate-500">피평가자</span>
           {competencyPeople.length > 1 ? (
             <ParamSelect
@@ -4400,8 +4410,19 @@ export default async function Evaluation2Page({
       관리·상단 표·이 탭)에서 고칠 수 있게 두면 어디서 고친 것이 진짜인지가
       흐려진다. 여기서는 굴러 올라온 달성률을 읽기만 한다.
     */
+    /*
+      목표를 **새로 만드는 자리는 중간평가 하나**로 모았다.
+
+      네 단계에 같은 등록 폼을 띄워 두면 같은 목표를 어디서 만든 것이 진짜인지
+      흐려진다 — 목표는 한 벌이고 단계들이 그것을 빌려 보기 때문에(`sourceCycleId`)
+      어디서 만들어도 같은 줄이 생기는데, 화면이 네 군데면 «저기서 만든 게 여기
+      안 보인다»는 말이 나온다. 인사팀이 실제로 목표를 손보는 자리가 중간평가라
+      거기만 남긴다. 이미 있는 목표를 고치는 「수정」은 그대로다.
+    */
     const canCreate =
       lock.canEditGoals &&
+      !!cycle &&
+      cyclePhaseRank(cycle) === 2 &&
       level !== "COMPANY" &&
       (isAdmin ||
         level === "INDIVIDUAL" ||
@@ -4655,9 +4676,6 @@ export default async function Evaluation2Page({
   }
 
   const isDashboard = tab === "dashboard";
-  /* 결과 쪽 탭에서는 목표 목록도, 위의 전사목표 표도 띄우지 않는다 — 여기는
-     목표를 세우는 자리가 아니라 다 세우고 난 뒤의 숫자를 읽는 자리다. */
-  const isResultTab = tab === "result" || tab === "hrreport";
 
   /**
    * 아직 만들지 않은 자리. 그냥 «준비 중»만 적어 두면 눌러 본 사람이 무엇을
@@ -4709,12 +4727,15 @@ export default async function Evaluation2Page({
       */}
       {cycleBar()}
 
-      {/* 역량평가는 목표 층(전사·팀·개인)으로 갈리지 않아 탭 줄을 띄우지 않는다. */}
-      {!competencyView && tabBar()}
+      {/*
+        역량평가 · 최종결과 · HR REPORT는 목표 층(전사·팀·개인)으로 갈리지 않아
+        탭 줄을 띄우지 않는다 — 단계 자체가 그 화면이다.
+      */}
+      {!offCycleView && tabBar()}
 
       {/* 마감 안내 — 왜 수정 버튼이 사라졌는지 화면에서 바로 읽히게 한다.
           결과 쪽 탭에는 고칠 것이 없으니 띄우지 않는다. */}
-      {lock.message && !isResultTab && (
+      {lock.message && !offCycleView && (
         <div className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-600">
           <span className="font-medium text-slate-800">
             {cycle?.status === "CLOSED" ? "완료됨" : "목표 확정됨"}
@@ -4766,7 +4787,7 @@ export default async function Evaluation2Page({
       {isAdmin &&
         cycle &&
         !progressView &&
-        !isResultTab &&
+        !offCycleView &&
         !waitingForSource &&
         !cycle.goalsLockedAt &&
         cycle.status !== "CLOSED" && (
@@ -4800,6 +4821,13 @@ export default async function Evaluation2Page({
 
       {competencyView ? (
         competencyBoard()
+      ) : resultView ? (
+        resultBoard()
+      ) : reportView ? (
+        comingUp("HR REPORT", "관리자 전용", [
+          "평가 결과를 사람 하나하나가 아니라 조직 단위로 읽는 자리입니다.",
+          "부문·팀별 등급 분포, 목표 달성률과 최종 점수의 관계, 평가자별 점수 성향, 미제출 현황.",
+        ])
       ) : !cycle ? (
         // 인사평가를 고르기 전에는 어느 탭이든 비워 둔다. 어느 해 숫자인지
         // 모르는 채로 목표를 읽게 두지 않는다.
@@ -4819,7 +4847,7 @@ export default async function Evaluation2Page({
             </p>
           )}
         </section>
-      ) : waitingForSource && !isResultTab ? (
+      ) : waitingForSource ? (
         /*
           중간평가·최종평가는 앞 단계에서 확정된 목표를 이어받아 평가하는
           자리다. 목표설정이 아직 마감되지 않았는데 열어 두면, 평가하는 동안
@@ -4860,7 +4888,7 @@ export default async function Evaluation2Page({
             화면을 열 때마다 회사 목표 여섯 줄을 지나야 자기 숫자에 닿는다.
             다른 탭에서는 상위 목표를 참고하며 목표를 세우므로 표가 먼저다.
           */}
-          {!isDashboard && !isResultTab && companyGoalBoard()}
+          {!isDashboard && companyGoalBoard()}
 
           {isDashboard ? (
             /*
@@ -4881,13 +4909,6 @@ export default async function Evaluation2Page({
               )}
               {companyGoalBoard()}
             </>
-          ) : tab === "result" ? (
-            resultBoard()
-          ) : tab === "hrreport" ? (
-            comingUp("HR REPORT", "관리자 전용", [
-              "평가 결과를 사람 하나하나가 아니라 조직 단위로 읽는 자리입니다.",
-              "부문·팀별 등급 분포, 목표 달성률과 최종 점수의 관계, 평가자별 점수 성향, 미제출 현황.",
-            ])
           ) : (
             // key에 탭을 넣어 탭을 옮길 때마다 이 안을 새로 그린다. 안 그러면
             // React가 같은 자리의 등록 폼을 재사용해서, 개인목표에 쳐 넣던
