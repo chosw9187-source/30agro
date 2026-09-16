@@ -790,6 +790,22 @@ export default async function Evaluation2Page({
   */
   const waitingForSource = !!sharedFrom && !sharedFrom.goalsLockedAt;
   /*
+    평가 단계가 **자기 목표를 따로 갖고 있는가**.
+
+    이 앱의 기본은 «목표 한 벌을 단계들이 함께 본다»다(`sourceCycleId`) — 그래야
+    최종평가에서 고친 값이 중간평가에도 그대로 있다. 그런데 관리 화면에는 목표를
+    다른 사이클로 베껴 오는 자리도 있어서(「목표 복사」), 그걸 쓰면 단계마다 목표가
+    **따로** 생긴다. 그때부터 같은 상반기 목표가 중간평가와 최종평가에서 서로 다른
+    값으로 굴러가는데, 화면에는 아무 표시가 없어서 왜 다른지 알 수 없었다.
+
+    목표설정은 원본이니 «따로 있다»가 정상이라 세지 않는다.
+  */
+  const ownGoalsInStage =
+    !!cycle &&
+    !cycle.sourceCycleId &&
+    cyclePhaseRank(cycle) >= 2 &&
+    (countByCycle.get(cycle.id) ?? 0) > 0;
+  /*
     마감하면 무엇이 이어받는지 — 같은 해의 뒤 단계(중간평가·최종평가)다. 마감은
     돌이키기 어려운 일처럼 느껴지므로, 무슨 일이 일어나는지를 누르기 전에 적어
     둔다. 이 목표를 이미 이어받고 있는 단계와, 마감할 때 이어 붙일 단계를 함께
@@ -1279,6 +1295,20 @@ export default async function Evaluation2Page({
                 · 아직 마감 전이라 내용이 바뀔 수 있습니다
               </span>
             )}
+          </span>
+        )}
+        {/*
+          이어받지 않고 자기 목표를 따로 가진 단계에는 그 말을 적는다. 이어받는
+          쪽만 표시하고 있었더니, 단계마다 목표가 따로 있는 경우에 «같은 상반기
+          목표인데 중간평가와 최종평가의 값이 다르다»는 것을 화면만 보고는 알
+          수 없었다.
+        */}
+        {ownGoalsInStage && (
+          <span className="rounded-full bg-status-critical/10 px-2 py-0.5 text-[11px] break-keep text-status-critical">
+            이 단계에 목표가 <b className="font-semibold">따로</b> 있습니다 —
+            다른 단계와 값이 따로 갑니다
+            {isAdmin &&
+              " · 「조직 목표 관리」의 목표 공유에서 이어받게 바꿀 수 있습니다"}
           </span>
         )}
 
