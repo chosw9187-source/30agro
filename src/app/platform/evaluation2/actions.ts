@@ -9,6 +9,9 @@ import {
   GOAL_CYCLE_ORDER,
   allowsProgressInput,
   locksGoalDefinition,
+  evaluatesHalfHere,
+  evalStageNameForHalf,
+  goalHalf,
   usesDerivedWeight,
   usesFixedActiveStatus,
   usesHalf,
@@ -1577,6 +1580,13 @@ export async function updateGoal(formData: FormData) {
   */
   const acting = await actingCycle(formData, existing.cycleId);
   const defLocked = locksGoalDefinition(level, acting);
+  /*
+    **반기가 다른 목표의 평가 칸은 이 단계에서 받지 않는다.** 상반기 목표는
+    중간평가에서 매기고 하반기 목표는 최종평가에서 매긴다 — 목표는 한 벌이고 두
+    단계가 함께 보기 때문에(`sourceCycleId`), 막아 두지 않으면 최종평가에서 상반기
+    성적이 덮인다. 화면에서도 잠그지만 폼은 믿지 않는다.
+  */
+  const halfHere = evaluatesHalfHere({ half: existing.half }, acting);
 
   /*
     「평가완료」 단추가 같은 폼으로 함께 보내는 표시.
@@ -1591,6 +1601,7 @@ export async function updateGoal(formData: FormData) {
   const finishEval =
     str(formData.get("finishEval")) === "1" &&
     usesEvaluation(level, acting) &&
+    halfHere &&
     (admin || isFirstEvaluator);
   const finishData = finishEval
     ? { evalDoneAt: new Date(), evalDoneById: session.user.id }
@@ -1608,6 +1619,18 @@ export async function updateGoal(formData: FormData) {
     const { lock: evalLock } = await actingLock(formData, existing.cycleId);
     if (!evalLock.canEditGoals)
       throw new Error(evalLock.message ?? "지금은 고칠 수 없습니다.");
+    /*
+      이 사람은 평가 칸만 적을 수 있다. 그 칸을 받지 않는 단계라면 할 일이 없으니
+      조용히 넘기지 않고 왜 안 되는지 알려 준다.
+    */
+    if (!halfHere) {
+      const stage = evalStageNameForHalf(goalHalf({ half: existing.half }));
+      throw new Error(
+        `${goalHalf({ half: existing.half })} 목표는 ${
+          stage ? `「${stage}」` : "그 반기의 평가"
+        }에서 매깁니다.`,
+      );
+    }
     await prisma.goal.update({
       where: { id: goalId },
       data: {
@@ -1642,7 +1665,13 @@ export async function updateGoal(formData: FormData) {
     (parseNumber가 0을 준다) 이미 올려둔 진척이 저장할 때마다 0으로 지워진다.
     적을 수 없는 단계에서는 지금 값을 그대로 둔다.
   */
-  const canWriteProgress = allowsProgressInput(acting);
+  /*
+    반기가 다른 목표는 달성률도 받지 않는다. 달성률은 칸이 하나뿐이라(`progress`)
+    최종평가에서 상반기 목표의 달성률을 고치면 중간평가에서 확정한 값이 덮인다.
+    화면에서 그 칸을 잠갔으므로 폼에 실려 오지도 않는데, 그때 폼에서 읽으면 0이
+    되어 **저장할 때마다 달성률이 0으로 지워진다** — 지금 값을 그대로 둔다.
+  */
+  const canWriteProgress = allowsProgressInput(acting) && halfHere;
   /*
     평가 칸. 본인 칸은 피평가자만, 1차 평가자 칸은 조직도가 정한 그 사람만 적는다
     (관리자는 둘 다). 적을 수 없는 사람 화면에서는 그 칸이 잠겨 있어 폼에 실려
@@ -1656,23 +1685,24 @@ export async function updateGoal(formData: FormData) {
     되고, 상한이 0이 되어 그날 매긴 점수가 통째로 0으로 잘린다 — 지금 값을 쓴다.
   */
   const weightValue = defLocked ? existing.weight : weightFor(level, formData);
-  const evalData = usesEvaluation(level, acting)
-    ? {
-        ...(admin || existing.ownerId === session.user.id
-          ? {
-              selfScore: scoreField(formData, "selfScore", weightValue),
-              selfComment: str(formData.get("selfComment")) || null,
-            }
-          : {}),
-        ...(admin || isFirstEvaluator
-          ? {
-              firstProgress: progressField(formData, "firstProgress"),
-              firstScore: scoreField(formData, "firstScore", weightValue),
-              firstComment: str(formData.get("firstComment")) || null,
-            }
-          : {}),
-      }
-    : {};
+  const evalData =
+    usesEvaluation(level, acting) && halfHere
+      ? {
+          ...(admin || existing.ownerId === session.user.id
+            ? {
+                selfScore: scoreField(formData, "selfScore", weightValue),
+                selfComment: str(formData.get("selfComment")) || null,
+              }
+            : {}),
+          ...(admin || isFirstEvaluator
+            ? {
+                firstProgress: progressField(formData, "firstProgress"),
+                firstScore: scoreField(formData, "firstScore", weightValue),
+                firstComment: str(formData.get("firstComment")) || null,
+              }
+            : {}),
+        }
+      : {};
   const synced = canWriteProgress
     ? reconcileProgressAndStatus(
         {
@@ -1964,7 +1994,7 @@ export async function setGoalEvalDone(
 
   const goal = await prisma.goal.findUnique({
     where: { id: goalId },
-    select: { cycleId: true, ownerId: true },
+    select: { cycleId: true, ownerId: true, half: true },
   });
   if (!goal) throw new Error("목표를 찾을 수 없습니다.");
 
@@ -1972,9 +2002,22 @@ export async function setGoalEvalDone(
   const allowed = (await isAdmin()) || firstEvaluatorId === session.user.id;
   if (!allowed) throw new Error("평가완료는 1차 평가자만 누를 수 있습니다.");
 
-  const { lock } = await actingLock(formData ?? new FormData(), goal.cycleId);
+  const form = formData ?? new FormData();
+  const { lock } = await actingLock(form, goal.cycleId);
   if (!lock.canEditGoals)
     throw new Error(lock.message ?? "지금은 고칠 수 없습니다.");
+  /*
+    반기가 다른 목표의 완료 표시는 이 단계에서 건드리지 않는다 — 최종평가에서
+    상반기 목표의 완료를 풀어 버리면 중간평가에서 확정한 성적이 다시 열린다.
+  */
+  if (!evaluatesHalfHere(goal, await actingCycle(form, goal.cycleId))) {
+    const stage = evalStageNameForHalf(goalHalf(goal));
+    throw new Error(
+      `${goalHalf(goal)} 목표의 평가완료는 ${
+        stage ? `「${stage}」` : "그 반기의 평가"
+      }에서 다룹니다.`,
+    );
+  }
 
   await prisma.goal.update({
     where: { id: goalId },

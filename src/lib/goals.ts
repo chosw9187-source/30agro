@@ -865,6 +865,39 @@ export function groupByHalf<T extends { half?: string | null }>(
     .filter((g) => g.items.length > 0);
 }
 
+/**
+ * 이 목표의 **평가 칸을 이 단계에서 적는가** — 반기가 같아야 한다.
+ *
+ * 사내 양식이 「개인목표 평가(상반기)」와 「(하반기)」 두 장으로 나뉘어 있고,
+ * 상반기 목표는 중간평가에서, 하반기 목표는 최종평가에서 매긴다. 그런데 목표는
+ * 한 벌이고 중간·최종평가가 그것을 함께 보기 때문에(`sourceCycleId`), 막아 두지
+ * 않으면 최종평가 화면에서 상반기 목표의 점수까지 고칠 수 있다 — 중간평가에서
+ * 확정한 성적이 최종평가에서 조용히 바뀐다.
+ *
+ * 반기를 정하지 않은 예전 목표(`HALF_UNSET`)는 막지 않는다. 어느 단계에도
+ * 속하지 않는다고 보면 평가할 자리가 영영 없어진다.
+ *
+ * 어느 반기를 매기는 단계인지는 사이클 이름이 정한다(`evalPeriodLabel`).
+ * 목표설정처럼 평가하지 않는 단계는 애초에 평가 칸이 없다(`usesEvaluation`).
+ */
+export function evaluatesHalfHere(
+  goal: { half?: string | null },
+  cycle: { name: string } | null | undefined
+): boolean {
+  const stage = evalPeriodLabel(cycle);
+  if (!stage) return true; // 반기를 매기지 않는 단계 — 여기서 가릴 것이 없다.
+  const half = goalHalf(goal);
+  if (half === HALF_UNSET) return true;
+  return half === stage;
+}
+
+/** 그 목표의 평가를 적는 단계 이름 — 안내 문구에 쓴다(「중간평가」·「최종평가」). */
+export function evalStageNameForHalf(half: string): string | null {
+  if (half === GOAL_HALVES[0]) return "중간평가";
+  if (half === GOAL_HALVES[1]) return "최종평가";
+  return null;
+}
+
 export function usesWeightSubtotal(level: string): boolean {
   // 팀목표는 가중치를 아래에서 굴려 올리므로(`usesDerivedWeight`) 사람이 맞출
   // 소계가 없다. 100%로 맞추라는 말이 붙어 있으면 고칠 수 없는 숫자를 붙들고

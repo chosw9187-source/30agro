@@ -61,6 +61,8 @@ import {
   usesDerivedWeight,
   usesFixedActiveStatus,
   usesHalf,
+  evaluatesHalfHere,
+  evalStageNameForHalf,
   usesWeightSubtotal,
   visibleGoalLevels,
   weightedProgress,
@@ -3313,10 +3315,22 @@ export default async function Evaluation2Page({
       서버(updateGoal)도 같은 기준으로 한 번 더 막는다.
     */
     const evalLocked = showEval && !!goal?.evalDoneAt;
+    /*
+      **반기가 다른 목표는 이 단계에서 매기지 않는다.** 사내 양식이 「개인목표
+      평가(상반기)」와 「(하반기)」 두 장이고, 상반기 목표는 중간평가에서 매긴다.
+      목표는 한 벌이고 중간·최종평가가 함께 보기 때문에, 막아 두지 않으면 최종평가
+      화면에서 상반기 점수까지 고칠 수 있다 — 중간평가에서 확정한 성적이 여기서
+      조용히 바뀐다. 값은 그대로 보여 준다(중간평가에서 매긴 그 값이다).
+    */
+    const halfHere = !goal || evaluatesHalfHere(goal, cycle);
+    const otherHalfStage = goal ? evalStageNameForHalf(goalHalf(goal)) : null;
     const canWriteSelf =
-      !evalLocked && (isAdmin || evalSubjectId === session!.user.id);
+      !evalLocked &&
+      halfHere &&
+      (isAdmin || evalSubjectId === session!.user.id);
     const canWriteFirst =
       !evalLocked &&
+      halfHere &&
       (isAdmin || (!!evalFirst && evalFirst.id === session!.user.id));
     // 내용(제목·가중치·상위)을 고칠 수 있는 사람. 평가만 하는 사람은 못 고친다.
     const canEditContent = !evalLocked && (!goal || canManage(goal));
@@ -3365,6 +3379,14 @@ export default async function Evaluation2Page({
             평가완료된 목표입니다. 수정하려면 「평가완료 취소」를 눌러 주세요.
           </p>
         )}
+        {!halfHere && (
+          <p className="rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-xs break-keep text-slate-600">
+            {goalHalf(goal!)} 목표는{" "}
+            {otherHalfStage ? `「${otherHalfStage}」` : "그 반기의 평가"}에서
+            매깁니다 — 여기 보이는 점수는 그때 매긴 값이고, 이 화면에서는 고칠
+            수 없습니다.
+          </p>
+        )}
 
         <div className="rounded-lg border border-brand-green/40 bg-brand-green-light/50 p-3">
           <p className="mb-2 block text-xs font-semibold text-brand-green-dark">
@@ -3383,7 +3405,11 @@ export default async function Evaluation2Page({
                 max={PROGRESS_MAX}
                 step={1}
                 defaultValue={goal?.progress ?? 0}
-                disabled={!canEditContent}
+                /*
+                  달성률도 그 반기의 평가다 — 한 칸에 담기는 값이라, 최종평가에서
+                  상반기 목표의 달성률을 고치면 중간평가에서 확정한 값이 덮인다.
+                */
+                disabled={!canEditContent || !halfHere}
                 className={INPUT_CLASS}
               />
             </div>
@@ -3713,9 +3739,17 @@ export default async function Evaluation2Page({
     const evalDone = !!goal.evalDoneAt;
     // 평가완료는 1차 평가자와 관리자만 누른다 — 피평가자가 스스로 «다 됐다»고
     // 할 수 있으면 그 표시가 아무것도 뜻하지 않는다.
-    const canFinishEval = isAdmin || evaluator?.id === session!.user.id;
+    const canFinishEval =
+      (isAdmin || evaluator?.id === session!.user.id) &&
+      evaluatesHalfHere(goal, cycle);
+    /*
+      반기가 다른 목표(최종평가에서 보는 상반기 목표)에는 평가를 여는 단추를
+      띄우지 않는다. 열어도 칸이 다 잠겨 있고, 무엇보다 단추 이름이 그 단계의
+      반기를 달고 나와(「하반기 평가」) 상반기 목표를 하반기에 매긴 것처럼 읽힌다.
+    */
     const showEvalEntry =
       usesEvaluation(level, cycle) &&
+      evaluatesHalfHere(goal, cycle) &&
       lock.canEditGoals &&
       !isEditing &&
       (canManage(goal) || evaluator?.id === session!.user.id);
@@ -4490,13 +4524,36 @@ export default async function Evaluation2Page({
           <div className="flex flex-col gap-6">
             {groupByHalf(rows).map((group) => {
               const tone = HALF_TONE[group.half] ?? HALF_TONE[HALF_UNSET];
+              /*
+                이 단계에서 매기는 반기만 펼쳐 둔다.
+
+                최종평가는 하반기를 매기는 자리다. 상반기 묶음이 펼쳐진 채 위에
+                쌓여 있으면 정작 매겨야 하는 하반기 목표가 화면 밖으로 밀려나서,
+                한 건 매길 때마다 스크롤을 한참 내려야 한다. 상반기 값은 중간평가
+                에서 확정된 것이라 여기서는 «확인하려면 펼쳐 보는» 자리다.
+
+                반기를 매기지 않는 단계(목표설정·목표진행현황)에서는 둘 다
+                펼친다 — 그때는 어느 쪽이 주인공이라고 할 것이 없다.
+              */
+              const openByDefault = evaluatesHalfHere(
+                { half: group.half === HALF_UNSET ? null : group.half },
+                cycle,
+              );
+              /*
+                접힌 묶음 안의 목표를 고치는 중이면 그 묶음은 열어 둔다. 접어 둔
+                채로 폼을 열면 화면에 아무 일도 안 일어난 것처럼 보인다.
+              */
+              const editingHere = group.items.some(
+                (g) => g.id === editingGoal?.id,
+              );
               return (
-                <section
+                <details
                   key={group.half}
+                  open={openByDefault || editingHere}
                   className={`overflow-hidden rounded-xl border ${tone.border} ${tone.panel}`}
                 >
-                  <header
-                    className={`flex flex-wrap items-center gap-2 border-b ${tone.border} ${tone.head} px-4 py-2.5`}
+                  <summary
+                    className={`flex cursor-pointer flex-wrap items-center gap-2 border-b ${tone.border} ${tone.head} px-4 py-2.5`}
                   >
                     <h3 className={`text-sm font-semibold ${tone.text}`}>
                       {group.half === HALF_UNSET
@@ -4513,13 +4570,24 @@ export default async function Evaluation2Page({
                         평균 달성률 {averageProgress(group.items)}%
                       </span>
                     )}
-                  </header>
+                    {/* 접힌 줄에서도 무엇을 누르면 되는지 적어 둔다. */}
+                    <span className="text-[11px] text-slate-500">
+                      · 눌러서 접기 / 펼치기
+                    </span>
+                    {!openByDefault && (
+                      <span className="text-[11px] break-keep text-slate-500">
+                        {evalStageNameForHalf(group.half)
+                          ? `「${evalStageNameForHalf(group.half)}」에서 매긴 값입니다`
+                          : ""}
+                      </span>
+                    )}
+                  </summary>
                   <div className="flex flex-col gap-3 p-3">
                     {group.items.map((g) => (
                       <GoalRowCard key={g.id} goal={g} />
                     ))}
                   </div>
-                </section>
+                </details>
               );
             })}
           </div>
