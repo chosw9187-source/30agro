@@ -1179,6 +1179,15 @@ export default async function Evaluation2Page({
               { value: COMPETENCY_PHASE, label: "역량평가" },
             ]}
             phase={selectedPhase}
+            /*
+              「최종결과」·「HR REPORT」는 단계와 상관없는 화면이다 — 한 해의
+              결과를 읽는 자리라 목표설정·중간평가·최종평가를 골라도 본문이
+              똑같다. 그대로 두면 «눌러도 안 넘어간다»로 읽히므로, 단계를 바꿀
+              때는 그 단계의 목표 화면으로 옮긴다.
+            */
+            phaseChangeTab={
+              tab === "result" || tab === "hrreport" ? "dashboard" : null
+            }
           />
         ) : (
           <span className="text-xs text-slate-400">
@@ -4711,13 +4720,18 @@ export default async function Evaluation2Page({
             </p>
           )}
         </section>
-      ) : waitingForSource ? (
+      ) : waitingForSource && !isResultTab ? (
         /*
           중간평가·최종평가는 앞 단계에서 확정된 목표를 이어받아 평가하는
           자리다. 목표설정이 아직 마감되지 않았는데 열어 두면, 평가하는 동안
           목표가 바뀔 수 있어서 «무엇을 기준으로 매긴 점수인지»가 남지 않는다.
           그래서 앞 단계를 마감하기 전까지는 목록을 열지 않고 무엇을 해야 하는지만
           적는다 — 그냥 비워 두면 화면이 고장 난 것처럼 보인다.
+
+          「최종결과」·「HR REPORT」는 이 기다림에서 뺀다. 결과지는 목표 목록이
+          아니라 **한 해의 결과** 한 장이라, 앞 단계의 마감 여부와 상관이 없다.
+          같이 막아 두면 역량평가 점수가 다 들어와 있는데도 결과지 대신 「목표를
+          마감해 주세요」가 떠서, 단계를 고르는 것만으로 결과지가 사라진다.
         */
         <section className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white py-20 text-center">
           <p className="text-base font-semibold text-slate-700">
