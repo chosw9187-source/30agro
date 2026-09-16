@@ -12,6 +12,8 @@ import {
   theoreticalSeats,
   type GradeRatios,
 } from "../src/lib/final-grade";
+import { competencyAverage } from "../src/lib/competency";
+import { competencyScore100, overallScore } from "../src/lib/competency-result";
 
 const R = (
   S: number,
@@ -106,6 +108,59 @@ eq(
 );
 eq("JSON 읽기", parseRatios('{"S":30,"A":60,"B":5,"C":5}'), orgA);
 eq("깨진 JSON은 전부 0", parseRatios("{nope"), R(0, 0, 0, 0, 0));
+
+/*
+  역량 100점 환산 — 사람이 칸을 다 더해 맞춰 볼 수 있어야 한다.
+
+  스무 칸 합 83점이면 83점이다. 화면에 적는 평균(4.2)으로 곱하면 84점이 되는데,
+  그 한 점은 어디서 왔는지 설명할 수 없다 — 실제로 «다 더하면 83점 아니야?»라는
+  말을 들었다.
+*/
+console.log("\n[역량 점수 환산]");
+const sheet: [number, number][] = [
+  [5, 5],
+  [5, 4],
+  [4, 3],
+  [5, 4],
+  [4, 1],
+  [5, 5],
+  [3, 5],
+  [2, 4],
+  [5, 4],
+  [5, 5],
+];
+const scores = sheet.map(([selfScore, leadScore], i) => ({
+  itemKey: `i${i}`,
+  selfScore,
+  leadScore,
+}));
+const avg = competencyAverage(scores);
+eq("스무 칸 합", avg.sum, 83);
+eq("칸 수", avg.count, 20);
+eq("화면에 적는 평균(끊은 값)", avg.overall, 4.2);
+eq("환산에 쓰는 평균(안 끊은 값)", avg.overallExact, 4.15);
+eq("100점 환산 = 칸 합", competencyScore100(avg.overallExact), 83);
+eq(
+  "끊은 평균으로 곱하면 한 점이 붙는다(그래서 쓰지 않는다)",
+  competencyScore100(avg.overall),
+  84,
+);
+eq("종합점수 = 성과 95×60% + 역량 83×40%", overallScore(95, 83), 90.2);
+// 한 칸도 안 적힌 사람은 0점이 아니라 «아직 없음»이다.
+const blank = competencyAverage([
+  { itemKey: "a", selfScore: null, leadScore: null },
+]);
+eq(
+  "빈 평가는 null",
+  [blank.overallExact, competencyScore100(null)],
+  [null, null],
+);
+// 적은 칸만 센다 — 안 적은 칸을 0으로 채우면 점수가 반 토막 난다.
+const half = competencyAverage([
+  { itemKey: "a", selfScore: 4, leadScore: null },
+  { itemKey: "b", selfScore: 4, leadScore: null },
+]);
+eq("적힌 칸만 센다", [half.sum, half.count, half.overallExact], [8, 2, 4]);
 
 if (fail > 0) {
   console.log(`\n${fail}건 실패`);

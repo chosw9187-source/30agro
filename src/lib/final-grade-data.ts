@@ -75,7 +75,8 @@ export async function loadUnitScores(
   const comp = new Map<string, number>();
   for (const r of reviews) {
     const avg = competencyAverage(r.competencyScores);
-    const score = competencyScore100(avg.overall);
+    // 끊지 않은 평균으로 환산한다 — 결과지와 한 점도 다르면 안 된다.
+    const score = competencyScore100(avg.overallExact);
     if (score != null) comp.set(r.userId, score);
   }
 
