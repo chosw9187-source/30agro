@@ -5,6 +5,7 @@ import {
   GOAL_CYCLE_ORDER,
   GOAL_CYCLE_STATUS_LABEL,
   cyclePhaseLabel,
+  cycleStateLabel,
   groupCyclesByYear,
   GOAL_STATUSES,
   GOAL_STATUS_LABEL,
@@ -194,9 +195,7 @@ export default async function OrgGoalsAdminPage({
                 label: `${g.year}년`,
                 options: g.items.map((c) => ({
                   value: c.id,
-                  label: `${cyclePhaseLabel(c)} (${
-                    GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]
-                  })`,
+                  label: `${cyclePhaseLabel(c)} (${cycleStateLabel(c)})`,
                 })),
               }))}
             />

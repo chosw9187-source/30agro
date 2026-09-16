@@ -95,6 +95,27 @@ export const GOAL_CYCLE_STATUS_LABEL: Record<GoalCycleStatus, string> = {
   CLOSED: "완료",
 };
 
+/**
+ * 고르개에 적는 사이클 상태 — 「준비중 · 진행중 · **마감** · 완료」.
+ *
+ * `status`만 읽으면 「전체 마감」을 누른 뒤에도 「진행중」으로 남는다. 마감은
+ * status가 아니라 `goalsLockedAt`을 찍는 일이라서다 — «목표를 더 못 고친다»는
+ * 뜻이고, 사이클을 「완료」로 닫는 것은 그 뒤의 별개 동작이다(완료는 진척까지
+ * 읽기 전용이 된다). 두 가지를 한 칸에 적어야 고르개만 보고 «여기는 이미
+ * 마감했구나»를 안다.
+ *
+ * 완료가 마감을 이긴다. 완료된 사이클은 마감도 되어 있는 것이 보통이고, 그때
+ * 「마감」이라고 적으면 아직 평가가 굴러가는 중으로 읽힌다.
+ */
+export function cycleStateLabel(cycle: {
+  status: string;
+  goalsLockedAt?: Date | null;
+}): string {
+  if (cycle.status === "CLOSED") return GOAL_CYCLE_STATUS_LABEL.CLOSED;
+  if (cycle.goalsLockedAt) return "마감";
+  return GOAL_CYCLE_STATUS_LABEL[cycle.status as GoalCycleStatus] ?? cycle.status;
+}
+
 /** 화면에서 다루는 목표 한 건의 최소 형태 — Prisma 조회 결과를 그대로 받는다. */
 export type GoalRow = {
   id: string;

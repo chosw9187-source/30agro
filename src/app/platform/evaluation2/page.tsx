@@ -15,7 +15,6 @@ import {
   GOAL_AGREEMENT_LABEL,
   GOAL_CYCLE_ORDER,
   allowsProgressInput,
-  GOAL_CYCLE_STATUS_LABEL,
   GOAL_SCALES,
   GOAL_LEVEL_LABEL,
   GOAL_LEVEL_RAMP,
@@ -44,6 +43,7 @@ import {
   GOAL_TYPES,
   GOAL_TYPE_BADGE_CLASS,
   cyclePhaseLabel,
+  cycleStateLabel,
   cyclePhaseRank,
   cycleYear,
   divisionOptions,
@@ -68,7 +68,6 @@ import {
   usesWeightSubtotal,
   visibleGoalLevels,
   weightedProgress,
-  type GoalCycleStatus,
   type GoalViewer,
   type GoalLevel,
   type GoalNode,
@@ -1203,9 +1202,7 @@ export default async function Evaluation2Page({
                   { value: PROGRESS_PHASE, label: "목표진행현황" },
                   ...yearCycles.map((c) => ({
                     value: phaseKey(c),
-                    label: `${cyclePhaseLabel(c)} (${
-                      GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]
-                    })`,
+                    label: `${cyclePhaseLabel(c)} (${cycleStateLabel(c)})`,
                   })),
                   { value: COMPETENCY_PHASE, label: "역량평가" },
                 ],

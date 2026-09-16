@@ -4,13 +4,12 @@ import { activePrismaWhere, regularOrExceptionTeamWhere } from "@/lib/hr-analyti
 import { POSITION_LABEL, type Position } from "@/lib/permission-constants";
 import {
   GOAL_CYCLE_ORDER,
-  GOAL_CYCLE_STATUS_LABEL,
   cyclePhaseLabel,
+  cycleStateLabel,
   groupCyclesByYear,
   evalTargetState,
   toDateInputValue,
   type EvalTargetState,
-  type GoalCycleStatus,
 } from "@/lib/goals";
 import { buildEvaluatorMap, evaluatorLabel, type EvaluatorResult } from "@/lib/evaluator";
 import { setGoalCycleHireCutoff } from "@/app/platform/evaluation2/actions";
@@ -214,9 +213,7 @@ export default async function EvalTargetsPage({
                 label: `${g.year}년`,
                 options: g.items.map((c) => ({
                   value: c.id,
-                  label: `${cyclePhaseLabel(c)} (${
-                    GOAL_CYCLE_STATUS_LABEL[c.status as GoalCycleStatus]
-                  })`,
+                  label: `${cyclePhaseLabel(c)} (${cycleStateLabel(c)})`,
                 })),
               }))}
             />
