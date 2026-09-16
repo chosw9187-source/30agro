@@ -891,6 +891,56 @@ export function evaluatesHalfHere(
   return half === stage;
 }
 
+/**
+ * 지금 굴러가고 있는 반기 — 대시보드가 어느 반기의 숫자를 앞세울지 정한다.
+ *
+ * 한 사람은 상반기 다섯 · 하반기 다섯처럼 반기마다 목표를 따로 세우고, 가중치도
+ * 반기마다 100%로 맞춘다. 그래서 둘을 한 덩어리로 세면 «개인목표 10건»이 되고
+ * 평균 달성률도 «끝난 상반기 102%와 갓 시작한 하반기 0%»를 섞은 51%가 되어
+ * 아무것도 뜻하지 않는다. 지금 하고 있는 반기 하나가 대시보드의 단위다.
+ *
+ * 두 가지 중 **먼저 오는 것**을 신호로 쓴다.
+ *   ① 상반기 평가(중간평가)를 완료했다 — 상반기가 끝났다는 가장 분명한 표시다.
+ *   ② 7월이 됐다 — 평가가 아직 안 끝났어도 하반기는 이미 굴러가고 있다.
+ *
+ * 둘 다 쓰는 이유는 어느 하나만으로는 어긋나기 때문이다. 완료 처리를 깜빡하면
+ * 12월까지 상반기로 남고, 달력만 보면 8월에도 상반기 평가를 하는 중인데 화면이
+ * 하반기로 넘어가 버린다. 어느 쪽이든 «하반기가 시작됐다»는 말이라 먼저 오는
+ * 쪽을 따른다.
+ *
+ * 한 해가 다 끝난(최종평가까지 완료) 해를 열어 보면 하반기다 — 마지막으로 치른
+ * 반기를 보여 주는 것이 맞다.
+ *
+ * 날짜는 한국 시간으로 읽는다. 서버가 다른 시간대에서 돌면 6월 30일 밤에 이미
+ * 하반기로 넘어가 버린다.
+ */
+export function currentGoalHalf(
+  cycles: { name: string; year: number; status: string }[],
+  now: Date
+): GoalHalf {
+  const closed = (rank: number) =>
+    cycles.some((c) => cyclePhaseRank(c) === rank && c.status === "CLOSED");
+  if (closed(2) || closed(3)) return GOAL_HALVES[1];
+  const month = Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Seoul",
+      month: "numeric",
+    }).format(now)
+  );
+  return month <= 6 ? GOAL_HALVES[0] : GOAL_HALVES[1];
+}
+
+/**
+ * 이 목표를 그 반기의 숫자에 넣을지.
+ *
+ * 반기를 정하지 않은 목표는 **어느 반기에나** 넣는다. 한 해를 통째로 보는 목표로
+ * 보는 것이고, 빼 버리면 반기를 안 적었다는 이유로 목표가 대시보드에서 사라진다.
+ */
+export function inGoalHalf(goal: { half?: string | null }, half: string): boolean {
+  const own = goalHalf(goal);
+  return own === half || own === HALF_UNSET;
+}
+
 /** 그 목표의 평가를 적는 단계 이름 — 안내 문구에 쓴다(「중간평가」·「최종평가」). */
 export function evalStageNameForHalf(half: string): string | null {
   if (half === GOAL_HALVES[0]) return "중간평가";
