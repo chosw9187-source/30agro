@@ -68,17 +68,28 @@ export function CycleSelect({
  *
  * 고르는 즉시 주소가 바뀐다(`year`, `phase`). 보고 있는 층(tab)은 그대로 둔다 —
  * 해를 바꿨다고 개인목표에서 대시보드로 튕겨 나갈 이유가 없다.
+ *
+ * 단계를 바꿀 때는 한 가지 예외가 있다. 「최종결과」·「HR REPORT」는 단계와 상관
+ * 없는 화면이라(한 해의 결과를 읽는 자리다) 탭을 그대로 두면 단계를 골라도 같은
+ * 화면이 그대로 남는다 — 주소의 `phase`만 바뀌고 본문은 한 글자도 안 바뀌어서
+ * «눌러도 안 넘어간다»로 읽힌다. 그때는 `phaseChangeTab`으로 돌아간다.
  */
 export function YearPhaseSelect({
   years,
   year,
   phases,
   phase,
+  phaseChangeTab = null,
 }: {
   years: Option[];
   year: string;
   phases: Option[];
   phase: string;
+  /**
+   * 단계를 바꿀 때 옮겨 갈 탭. 지금 탭이 단계와 상관없는 화면일 때만 넘겨받고,
+   * null이면 탭을 그대로 둔다.
+   */
+  phaseChangeTab?: string | null;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -92,6 +103,13 @@ export function YearPhaseSelect({
     params.delete("cycleId");
     // 고치던 목표를 열어 둔 채 다른 평가로 넘어가면 없는 목표를 편집하게 된다.
     params.delete("edit");
+    /*
+      단계를 **바꿀 때만** 탭을 옮긴다. 해를 바꾸는 것은 그 화면 안에서 해를
+      고르는 일이라(결과지도 해마다 한 장이다) 탭을 건드릴 이유가 없다.
+    */
+    if (next.phase && next.phase !== phase && phaseChangeTab) {
+      params.set("tab", phaseChangeTab);
+    }
     router.push(`${pathname}?${params.toString()}`);
   };
 
