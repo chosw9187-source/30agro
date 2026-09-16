@@ -256,24 +256,64 @@ export default async function CompetencyFormAdminPage({
                     )}
                 </>
               )}
-              {editable ? (
+              {/*
+                상태를 옮기는 단추들. 이름은 상태 이름 그대로 쓴다 —
+                준비중 → 진행중 → 완료, 그리고 되돌리기.
+
+                예전 단추는 「평가 시작 (문항 잠금)」이었는데 이제 문항은 잠기지
+                않는다(종료 전까지 고칠 수 있게 풀었다). 사실이 아닌 괄호를 떼고,
+                「완료」로 닫는 자리를 새로 뒀다 — 그 자리가 없어서 역량평가는
+                영영 「진행중」에 머물렀다.
+              */}
+              {form.status === "DRAFT" && (
                 <ActionForm
                   action={setCompetencyFormStatus.bind(null, form.id, "OPEN")}
-                  successMessage="평가를 시작했습니다. 이제 문항은 잠깁니다."
-                  confirmMessage="평가를 시작하면 문항을 고칠 수 없습니다. 진행할까요?"
+                  successMessage="평가를 시작했습니다."
+                  confirmMessage="평가를 시작하면 평가자들이 점수를 적을 수 있습니다. 진행할까요?"
                 >
                   <button type="submit" className={BTN}>
-                    평가 시작 (문항 잠금)
+                    평가 시작
                   </button>
                 </ActionForm>
-              ) : (
+              )}
+              {form.status === "OPEN" && (
+                <>
+                  <ActionForm
+                    action={setCompetencyFormStatus.bind(
+                      null,
+                      form.id,
+                      "DRAFT",
+                    )}
+                    successMessage="준비중으로 되돌렸습니다."
+                    confirmMessage="평가자들이 점수를 적을 수 없게 됩니다. 진행할까요?"
+                  >
+                    <button type="submit" className={BTN_GHOST}>
+                      준비중으로 되돌리기
+                    </button>
+                  </ActionForm>
+                  <ActionForm
+                    action={setCompetencyFormStatus.bind(
+                      null,
+                      form.id,
+                      "CLOSED",
+                    )}
+                    successMessage="역량평가를 완료했습니다."
+                    confirmMessage="완료하면 문항과 점수가 모두 잠깁니다 — 그 해 성적의 근거가 됩니다. 진행할까요?"
+                  >
+                    <button type="submit" className={BTN}>
+                      평가 완료
+                    </button>
+                  </ActionForm>
+                </>
+              )}
+              {form.status === "CLOSED" && (
                 <ActionForm
-                  action={setCompetencyFormStatus.bind(null, form.id, "DRAFT")}
-                  successMessage="작성 중으로 되돌렸습니다."
-                  confirmMessage="문항을 다시 고칠 수 있게 됩니다. 평가 중이라면 사람마다 다른 양식으로 평가받을 수 있습니다. 진행할까요?"
+                  action={setCompetencyFormStatus.bind(null, form.id, "OPEN")}
+                  successMessage="다시 진행중으로 열었습니다."
+                  confirmMessage="완료를 풀면 문항과 점수를 다시 고칠 수 있습니다. 진행할까요?"
                 >
                   <button type="submit" className={BTN_GHOST}>
-                    작성 중으로 되돌리기
+                    완료 풀기
                   </button>
                 </ActionForm>
               )}
@@ -327,13 +367,13 @@ export default async function CompetencyFormAdminPage({
               </span>
               {form.status === "CLOSED" && (
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
-                  종료된 양식이라 잠겨 있습니다
+                  완료한 양식이라 잠겨 있습니다
                 </span>
               )}
               {form.status === "OPEN" && (
                 <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] break-keep text-amber-700">
-                  평가 중입니다 — 문항을 고치면 이미 매긴 점수가 그 문항에
-                  그대로 남습니다
+                  진행중입니다 — 문항을 고치면 이미 매긴 점수가 그 문항에 그대로
+                  남습니다
                 </span>
               )}
               {editable && (
