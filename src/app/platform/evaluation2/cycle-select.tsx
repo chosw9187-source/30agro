@@ -53,7 +53,7 @@ export function CycleSelect({
               </option>
             ))}
           </optgroup>
-        )
+        ),
       )}
     </select>
   );
@@ -67,29 +67,29 @@ export function CycleSelect({
  * 그 안에서 단계를 고르면 두 물음이 각자 자리를 갖는다.
  *
  * 고르는 즉시 주소가 바뀐다(`year`, `phase`). 보고 있는 층(tab)은 그대로 둔다 —
- * 해를 바꿨다고 개인목표에서 대시보드로 튕겨 나갈 이유가 없다.
+ * 해를 바꿨다고 개인목표에서 대시보드로 튕겨 나갈 이유가 없다. 그 단계에 없는
+ * 탭이면 화면이 그 단계의 첫 탭으로 되돌린다.
  *
- * 단계를 바꿀 때는 한 가지 예외가 있다. 「최종결과」·「HR REPORT」는 단계와 상관
- * 없는 화면이라(한 해의 결과를 읽는 자리다) 탭을 그대로 두면 단계를 골라도 같은
- * 화면이 그대로 남는다 — 주소의 `phase`만 바뀌고 본문은 한 글자도 안 바뀌어서
- * «눌러도 안 넘어간다»로 읽힌다. 그때는 `phaseChangeTab`으로 돌아간다.
+ * 단계 목록은 묶음으로 받는다(`groups`). 「목표」 넷과 「역량 · 결과」 셋이 한 줄로
+ * 늘어서면 어디까지가 목표 이야기인지 글자만으로는 안 읽힌다. 고른 단계가 결과
+ * 쪽이면 고르개 자체에 색이 든다(`toneClass`) — 한 칸짜리 고르개에서 «지금 결과를
+ * 보는 중»이라고 말할 수 있는 자리가 거기뿐이다(브라우저마다 option에 색을 넣는
+ * 방법이 달라서 믿을 수 없다).
  */
 export function YearPhaseSelect({
   years,
   year,
-  phases,
+  groups,
   phase,
-  phaseChangeTab = null,
+  toneClass = "",
 }: {
   years: Option[];
   year: string;
-  phases: Option[];
+  /** 단계 묶음. label이 null인 묶음은 제목 없이 그대로 펼친다. */
+  groups: { label: string | null; options: Option[] }[];
   phase: string;
-  /**
-   * 단계를 바꿀 때 옮겨 갈 탭. 지금 탭이 단계와 상관없는 화면일 때만 넘겨받고,
-   * null이면 탭을 그대로 둔다.
-   */
-  phaseChangeTab?: string | null;
+  /** 고른 단계에 맞춘 고르개 색. 결과 쪽 단계에서 눈에 걸리게 한다. */
+  toneClass?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -103,17 +103,16 @@ export function YearPhaseSelect({
     params.delete("cycleId");
     // 고치던 목표를 열어 둔 채 다른 평가로 넘어가면 없는 목표를 편집하게 된다.
     params.delete("edit");
-    /*
-      단계를 **바꿀 때만** 탭을 옮긴다. 해를 바꾸는 것은 그 화면 안에서 해를
-      고르는 일이라(결과지도 해마다 한 장이다) 탭을 건드릴 이유가 없다.
-    */
-    if (next.phase && next.phase !== phase && phaseChangeTab) {
-      params.set("tab", phaseChangeTab);
-    }
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  const selectClass = "rounded-md border border-slate-300 px-3 py-1 text-xs";
+  /*
+    테두리 색은 `toneClass` 쪽에만 둔다. 기본값과 색조가 둘 다 `border-*`를 들고
+    있으면 어느 쪽이 이기는지는 만들어진 CSS 순서가 정하므로(같은 특이도),
+    색조를 줘도 테두리만 회색으로 남는 일이 생긴다.
+  */
+  const selectClass = "rounded-md border px-3 py-1 text-xs";
+  const toneOrDefault = toneClass || "border-slate-300";
 
   return (
     <>
@@ -121,7 +120,7 @@ export function YearPhaseSelect({
         value={year}
         aria-label="평가 연도 선택"
         onChange={(e) => go({ year: e.target.value })}
-        className={selectClass}
+        className={`${selectClass} border-slate-300`}
       >
         {years.map((o) => (
           <option key={o.value} value={o.value}>
@@ -133,13 +132,25 @@ export function YearPhaseSelect({
         value={phase}
         aria-label="목표 선택"
         onChange={(e) => go({ phase: e.target.value })}
-        className={selectClass}
+        className={`${selectClass} ${toneOrDefault}`}
       >
-        {phases.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
+        {groups.map((g, i) =>
+          g.label === null ? (
+            g.options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))
+          ) : (
+            <optgroup key={`${g.label}-${i}`} label={g.label}>
+              {g.options.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </optgroup>
+          ),
+        )}
       </select>
     </>
   );
