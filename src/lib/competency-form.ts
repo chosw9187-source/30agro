@@ -68,10 +68,21 @@ export function competencyFormOpen(status: string): boolean {
   return status === "OPEN";
 }
 
+/**
+ * 연도판의 상태 이름 — 목표 쪽 단계와 **같은 말**을 쓴다.
+ *
+ * 예전에는 「작성 중 · 평가 중 · 종료」였다. 같은 고르개에 「목표설정 (진행중)」과
+ * 「역량평가 (평가 중)」이 나란히 뜨면 두 가지가 서로 다른 것처럼 읽힌다 — 같은
+ * 한 해의 같은 진행 상태를 가리키는 말이라 이름도 같아야 한다.
+ *
+ * 「마감」은 없다. 목표 쪽의 마감은 «목표 내용은 확정하고 진척은 계속 올린다»는
+ * 중간 상태(`goalsLockedAt`)인데, 역량평가에는 그런 자리가 없다 — 문항은 종료
+ * 전까지 고칠 수 있고, 종료하면 점수까지 함께 잠긴다.
+ */
 export const COMPETENCY_FORM_STATUS_LABEL: Record<string, string> = {
-  DRAFT: "작성 중",
-  OPEN: "평가 중",
-  CLOSED: "종료",
+  DRAFT: "준비중",
+  OPEN: "진행중",
+  CLOSED: "완료",
 };
 
 export const COMPETENCY_SET_KIND_LABEL: Record<string, string> = {

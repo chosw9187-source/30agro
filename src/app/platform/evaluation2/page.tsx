@@ -1087,6 +1087,15 @@ export default async function Evaluation2Page({
     «개인목표 10건»과 «두 반기를 섞은 평균»이 나온다.
   */
   const shownHalf = currentGoalHalf(yearCycles, now);
+  /*
+    고르개에 적을 역량평가 상태. 양식 전체(`loadCompetencyForm`)는 문항·배정까지
+    끌어오는 무거운 조회라, 이름에 붙일 상태 한 칸만 따로 읽는다 — 이 고르개는
+    어느 단계에서든 늘 뜨기 때문이다. 그 해 양식이 없으면 「미개설」이다.
+  */
+  const competencyFormState = await prisma.competencyForm.findUnique({
+    where: { year: selectedYear },
+    select: { status: true },
+  });
   const counted = allNodes.filter(countsTowardProgress);
   const overallProgress =
     companyGoals.length > 0
@@ -1204,7 +1213,16 @@ export default async function Evaluation2Page({
                     value: phaseKey(c),
                     label: `${cyclePhaseLabel(c)} (${cycleStateLabel(c)})`,
                   })),
-                  { value: COMPETENCY_PHASE, label: "역량평가" },
+                  {
+                    value: COMPETENCY_PHASE,
+                    label: `역량평가 (${
+                      competencyFormState
+                        ? (COMPETENCY_FORM_STATUS_LABEL[
+                            competencyFormState.status
+                          ] ?? competencyFormState.status)
+                        : "미개설"
+                    })`,
+                  },
                 ],
               },
               {
