@@ -1721,7 +1721,7 @@ export default async function Evaluation2Page({
         leadScore: r.lead,
       })),
     );
-    const compScore = competencyScore100(compAvg.overall);
+    const compScore = competencyScore100(compAvg.overallExact);
 
     /*
       성과평가 점수 — 최종평가에서 목표마다 1차 평가자가 매긴 점수의 합. 한 칸도
@@ -2023,9 +2023,19 @@ export default async function Evaluation2Page({
             {scoreCell(
               "역량평가",
               compScore,
-              compAvg.overall == null
+              /*
+                «다 더하면 몇 점»을 그대로 적는다. 예전에는 「평균 4.2 × 20」처럼
+                적었는데, 평균은 화면용으로 끊은 값이라 그 곱셈이 실제 점수와
+                맞지 않았다(스무 칸 합 83 → 4.15 × 20 = 83인데 4.2 × 20 = 84).
+                합과 만점은 정수라 사람이 칸을 더해 그대로 맞춰 볼 수 있다.
+              */
+              compAvg.count === 0
                 ? "아직 점수가 없습니다"
-                : `평균 ${compAvg.overall} × 20 · 자기 ${compAvg.self ?? "–"} / 팀장 ${compAvg.lead ?? "–"}`,
+                : `자기·팀장 ${compAvg.count}칸 합 ${compAvg.sum}점 / 만점 ${
+                    compAvg.count * COMPETENCY_MAX
+                  }점 · 자기 평균 ${compAvg.self ?? "–"} / 팀장 평균 ${
+                    compAvg.lead ?? "–"
+                  }`,
             )}
             {scoreCell(
               "종합점수",

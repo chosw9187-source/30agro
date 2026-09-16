@@ -24,6 +24,11 @@ export const COMPETENCY_WEIGHT = 0.4;
  * 사내 결과지의 셈이 그렇다(평균 4.3 → 86점). 역량평가 스케일 표의 «점수환산
  * (참고용)»은 110점까지 올라가지만 그건 읽는 눈금이고, 결과지에 실리는 값은
  * 5점 만점을 100점으로 편 것이다.
+ *
+ * 넘겨주는 평균은 **반올림하지 않은 값**이어야 한다(`competencyAverage`의
+ * `overallExact`). 화면에 적는 평균은 소수 한 자리로 끊는데, 그 끊은 값으로
+ * 곱하면 스무 칸 합 83점(평균 4.15)이 84점으로 올라간다 — 칸을 다 더해 맞춰
+ * 보는 사람에게 설명할 수 없는 한 점이 붙는다.
  */
 export function competencyScore100(average: number | null): number | null {
   if (average == null) return null;

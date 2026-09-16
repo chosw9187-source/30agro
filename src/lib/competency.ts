@@ -225,8 +225,23 @@ export type CompetencyScoreRow = {
 export function competencyAverage(rows: CompetencyScoreRow[]): {
   self: number | null;
   lead: number | null;
-  /** 자기평가·팀장평가를 한 덩어리로 본 평균. 결과 화면의 「역량평가 점수」 자리다. */
+  /**
+   * 자기평가·팀장평가를 한 덩어리로 본 평균. **화면에 적는 값**이라 소수 한
+   * 자리로 끊는다.
+   */
   overall: number | null;
+  /**
+   * 반올림하지 않은 평균. 100점 환산은 **이 값**으로 한다.
+   *
+   * 끊은 평균으로 곱하면 점수가 틀어진다. 스무 칸의 합이 83이면 평균은 4.15이고
+   * 100점 환산은 83점인데, 평균을 4.2로 끊어 놓고 20을 곱하면 84점이 된다 —
+   * 한 점이 어디서 왔는지 아무도 설명할 수 없는 점수다. 사람이 칸을 다 더해
+   * 맞춰 볼 수 있는 숫자여야 한다.
+   */
+  overallExact: number | null;
+  /** 적힌 칸의 점수 합과 칸 수. 화면이 «다 더하면 몇 점»을 그대로 적는 데 쓴다. */
+  sum: number;
+  count: number;
   selfCount: number;
   leadCount: number;
 } {
@@ -237,15 +252,20 @@ export function competencyAverage(rows: CompetencyScoreRow[]): {
   const leadVals = rows
     .map((r) => r.leadScore)
     .filter((v): v is number => v != null);
-  const mean = (vals: number[]) =>
-    vals.length > 0
-      ? round1(vals.reduce((a, b) => a + b, 0) / vals.length)
-      : null;
+  const exactMean = (vals: number[]) =>
+    vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  const mean = (vals: number[]) => {
+    const m = exactMean(vals);
+    return m == null ? null : round1(m);
+  };
   const both = [...selfVals, ...leadVals];
   return {
     self: mean(selfVals),
     lead: mean(leadVals),
     overall: mean(both),
+    overallExact: exactMean(both),
+    sum: both.reduce((a, b) => a + b, 0),
+    count: both.length,
     selfCount: selfVals.length,
     leadCount: leadVals.length,
   };
