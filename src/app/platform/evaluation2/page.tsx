@@ -1056,6 +1056,8 @@ export default async function Evaluation2Page({
             title: true,
             weight: true,
             firstScore: true,
+            firstProgress: true,
+            progress: true,
             half: true,
           },
         })
@@ -2609,9 +2611,96 @@ export default async function Evaluation2Page({
           )}
         </section>
 
-        {/* 3. 주관적 서술 */}
+        {/*
+          3. 성과평가 상세 — **합이 어디서 나왔는지** 목표별로 펼친다.
+
+          성과평가 칸에는 합계 한 숫자만 떠 있어서, 손으로 센 값과 다르면 어느
+          목표가 다른지 알 수 없었다(94와 96의 2점 차이가 그랬다). 목표마다
+          가중치·달성률·점수를 나란히 두면 그 줄을 찾는 데 한 번만 보면 된다.
+          만점도 적는다 — 점수 상한은 가중치의 110%라(`maxScore`) 22점이 20점
+          만점을 넘은 것이 아니라는 게 그 자리에서 읽혀야 한다.
+        */}
+        {performanceGoals.length > 0 && (
+          <section className={CARD_CLASS}>
+            {sectionHead(
+              "3. 성과평가 상세",
+              `${
+                finalCycle ? cycleTitle(finalCycle) : "성과평가"
+              }에서 1차 평가자가 매긴 점수`,
+            )}
+            <div className="overflow-x-auto border-t border-slate-100">
+              <table className="w-full min-w-[34rem] border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-50 text-left text-xs text-slate-500">
+                    <th className="px-4 py-1.5 font-medium">목표</th>
+                    <th className="px-3 py-1.5 text-right font-medium">
+                      가중치
+                    </th>
+                    <th className="px-3 py-1.5 text-right font-medium">
+                      달성률
+                    </th>
+                    <th className="px-3 py-1.5 text-right font-medium">점수</th>
+                    <th className="px-4 py-1.5 text-right font-medium">만점</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {performanceGoals.map((g) => (
+                    <tr key={g.title} className="border-t border-slate-100">
+                      <td className="px-4 py-1.5 break-keep text-slate-800">
+                        {g.title}
+                      </td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-slate-600">
+                        {Math.round(g.weight)}%
+                      </td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-slate-600">
+                        {g.firstProgress ?? g.progress ?? "–"}%
+                      </td>
+                      <td
+                        className={`px-3 py-1.5 text-right font-semibold tabular-nums ${
+                          g.firstScore == null
+                            ? "text-status-critical"
+                            : "text-slate-900"
+                        }`}
+                      >
+                        {g.firstScore ?? "미입력"}
+                      </td>
+                      <td className="px-4 py-1.5 text-right tabular-nums text-slate-400">
+                        {maxScore(g.weight)}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="border-t-2 border-slate-200 bg-slate-50">
+                    <td className="px-4 py-1.5 font-medium text-slate-800">
+                      합계
+                    </td>
+                    <td className="px-3 py-1.5 text-right font-medium tabular-nums text-slate-700">
+                      {perfWeightSum}%
+                    </td>
+                    <td className="px-3 py-1.5" />
+                    <td className="px-3 py-1.5 text-right text-base font-bold tabular-nums text-slate-900">
+                      {perfScore ?? "–"}
+                    </td>
+                    <td className="px-4 py-1.5 text-right tabular-nums text-slate-400">
+                      {performanceGoals.reduce(
+                        (n, g) => n + maxScore(g.weight),
+                        0,
+                      )}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="border-t border-slate-100 px-4 py-2 text-xs break-keep text-slate-500">
+              성과점수는 이 합계입니다 — 달성률에서 자동으로 계산하지 않고, 1차
+              평가자가 「하반기 평가점수」 칸에 적은 값을 그대로 더합니다.
+              손으로 센 값과 다르면 그 줄의 점수 칸을 확인해 주세요.
+            </p>
+          </section>
+        )}
+
+        {/* 4. 주관적 서술 */}
         <section className={CARD_CLASS}>
-          {sectionHead("3. 주관적 서술", "팀장의 코멘트")}
+          {sectionHead("4. 주관적 서술", "팀장의 코멘트")}
           <div className="border-t border-slate-100 px-4 py-3">
             {competencyReview?.leadComment ? (
               <p className="text-sm leading-relaxed break-keep whitespace-pre-wrap text-slate-700">
