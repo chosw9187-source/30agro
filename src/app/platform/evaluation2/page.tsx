@@ -1049,7 +1049,6 @@ export default async function Evaluation2Page({
             cycleId: { in: yearCycles.map((c) => c.id) },
             level: "INDIVIDUAL",
             ownerId: competencyTarget.id,
-            excluded: false,
           },
           select: {
             cycleId: true,
@@ -1059,6 +1058,14 @@ export default async function Evaluation2Page({
             firstProgress: true,
             progress: true,
             half: true,
+            /*
+              집계에서 빼 둔 목표도 읽는다. 세지는 않지만 표에 흐리게 남겨야
+              «다섯 건인데 왜 네 건만 세지고 가중치가 90%인가»가 화면에서
+              풀린다 — 예전에는 빠진 줄이 아예 안 보여서 어디를 봐야 할지
+              알 수 없었다.
+            */
+            excluded: true,
+            excludeReason: true,
           },
         })
       : [];
@@ -1076,6 +1083,7 @@ export default async function Evaluation2Page({
     const best = new Map<string, (typeof performanceRows)[number]>();
     for (const row of performanceRows) {
       if (finalCycle && !evaluatesHalfHere(row, finalCycle)) continue;
+      if (row.excluded) continue;
       const key = row.title.trim();
       const kept = best.get(key);
       if (!kept) {
@@ -2018,6 +2026,13 @@ export default async function Evaluation2Page({
       performanceGoals.reduce((n, g) => n + (g.weight > 0 ? g.weight : 0), 0),
     );
     const perfWeightOff = performanceGoals.length > 0 && perfWeightSum !== 100;
+    /*
+      집계에서 빠진 그 반기의 목표. 가중치 합이 100%가 아닌 까닭이 거의 언제나
+      이것이라, 표 아래에 흐리게 붙여 둔다.
+    */
+    const perfDropped = performanceRows.filter(
+      (g) => g.excluded && (!finalCycle || evaluatesHalfHere(g, finalCycle)),
+    );
     const total = overallScore(perfScore, compScore);
 
     const { strengths, weaknesses, relativelyLow } =
@@ -2354,7 +2369,13 @@ export default async function Evaluation2Page({
                         .filter(Boolean)
                         .join(" · ")}`
                 : perfWeightOff
-                  ? `가중치 합이 ${perfWeightSum}%입니다 — 100%가 아니면 점수를 다른 사람과 나란히 놓을 수 없습니다`
+                  ? `가중치 합이 ${perfWeightSum}%입니다 — 100%가 아니면 점수를 다른 사람과 나란히 놓을 수 없습니다${
+                      perfDropped.length > 0
+                        ? `. 「집계 제외」한 목표 ${perfDropped.length}건(가중치 ${Math.round(
+                            perfDropped.reduce((n, g) => n + g.weight, 0),
+                          )}%)이 빠져 있습니다 — 아래 「성과평가 상세」에서 확인해 주세요`
+                        : ""
+                    }`
                   : null,
             )}
             {scoreCell(
@@ -2666,6 +2687,36 @@ export default async function Evaluation2Page({
                       </td>
                       <td className="px-4 py-1.5 text-right tabular-nums text-slate-400">
                         {maxScore(g.weight)}
+                      </td>
+                    </tr>
+                  ))}
+                  {/*
+                    집계에서 빼 둔 줄. 세지 않으므로 합계 위에 흐리게 붙인다 —
+                    «다섯 건인데 왜 네 건만 세지는가»는 이 줄을 보면 끝난다.
+                  */}
+                  {perfDropped.map((g) => (
+                    <tr
+                      key={`off-${g.title}`}
+                      className="border-t border-slate-100 bg-slate-50/60 text-slate-400"
+                    >
+                      <td className="px-4 py-1.5 break-keep">
+                        {g.title}
+                        <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                          집계 제외
+                          {g.excludeReason ? ` · ${g.excludeReason}` : ""}
+                        </span>
+                      </td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">
+                        {Math.round(g.weight)}%
+                      </td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">
+                        {g.firstProgress ?? g.progress ?? "–"}%
+                      </td>
+                      <td className="px-3 py-1.5 text-right tabular-nums">
+                        {g.firstScore ?? "–"}
+                      </td>
+                      <td className="px-4 py-1.5 text-right tabular-nums">
+                        세지 않음
                       </td>
                     </tr>
                   ))}

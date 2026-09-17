@@ -53,6 +53,8 @@ export default async function EvalTargetsPage({
   searchParams: Promise<{ cycleId?: string; team?: string; sort?: string }>;
 }) {
   const params = await searchParams;
+  // 정렬 주소를 다시 만들 때 지금 보고 있는 사이클을 잃지 않으려고 들고 둔다.
+  const cycleIdParam = params.cycleId ?? "";
 
   const cycles = await prisma.goalCycle.findMany({
     orderBy: GOAL_CYCLE_ORDER,
@@ -132,9 +134,37 @@ export default async function EvalTargetsPage({
     두기, 이름을 오름·내림으로 세우기. 상태는 주소에 적어 둔다(`?team=…&sort=…`):
     제외 단추를 누르면 화면이 새로 그려지는데, 그때 보고 있던 팀으로 돌아와야 한다.
   */
-  const sortDesc = params.sort === "desc";
+  /*
+    정렬은 «어느 칸을, 어느 방향으로»다 — `?sort=team-desc`처럼 한 칸에 적는다.
+    「이름」과 「소속」 머리글을 눌러 바꾸고, 같은 칸을 다시 누르면 방향이 뒤집힌다.
+    화살표를 머리글에 붙여, 지금 무엇으로 세워져 있는지 표만 보고 알 수 있게 한다.
+  */
+  const [sortKey, sortDir] = (params.sort ?? "name").split("-");
+  const sortDesc = sortDir === "desc";
+  const teamTextOf = (p: Person) =>
+    [p.division, p.teamName].filter(Boolean).join(" / ");
   const byName = (a: Person, b: Person) =>
     sortDesc ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name);
+  /** 표에 쓰는 정렬 — 고른 칸을 먼저 보고, 같으면 이름으로 가린다. */
+  const bySort = (a: Person, b: Person) => {
+    if (sortKey === "team") {
+      const t = teamTextOf(a).localeCompare(teamTextOf(b));
+      if (t !== 0) return sortDesc ? -t : t;
+      return a.name.localeCompare(b.name);
+    }
+    return byName(a, b);
+  };
+  /** 머리글에 붙는 화살표와 다음에 눌렀을 때 갈 주소. */
+  const sortHref = (key: string) => {
+    const next = sortKey === key && !sortDesc ? `${key}-desc` : key;
+    const qs = new URLSearchParams();
+    if (cycleIdParam) qs.set("cycleId", cycleIdParam);
+    if (params.team) qs.set("team", params.team);
+    qs.set("sort", next);
+    return `/admin/eval-targets?${qs.toString()}`;
+  };
+  const sortMark = (key: string) =>
+    sortKey === key ? (sortDesc ? " ↓" : " ↑") : "";
 
   const manualByUser = new Map(targets.map((t) => [t.userId, t]));
   const goalCountByUser = new Map(
@@ -335,15 +365,33 @@ export default async function EvalTargetsPage({
               <table className="w-full min-w-[52rem] border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-50 text-left text-slate-500">
-                    <th className="px-4 py-1.5 font-medium">이름</th>
-                    <th className="px-4 py-1.5 font-medium">소속</th>
+                    {/*
+                      머리글을 눌러 세운다. 같은 칸을 다시 누르면 뒤집히고,
+                      지금 기준인 칸에만 화살표가 붙는다.
+                    */}
+                    <th className="px-4 py-1.5 font-medium">
+                      <Link
+                        href={sortHref("name")}
+                        className="hover:text-slate-800 hover:underline"
+                      >
+                        이름{sortMark("name")}
+                      </Link>
+                    </th>
+                    <th className="px-4 py-1.5 font-medium">
+                      <Link
+                        href={sortHref("team")}
+                        className="hover:text-slate-800 hover:underline"
+                      >
+                        소속{sortMark("team")}
+                      </Link>
+                    </th>
                     <th className="px-4 py-1.5 font-medium">1차 평가자</th>
                     <th className="px-4 py-1.5 font-medium">2차 평가자</th>
                     <th className="px-4 py-1.5 font-medium">확인</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {[...people].sort(byName).map((p) => (
+                  {[...people].sort(bySort).map((p) => (
                     <tr key={p.id} className="border-t border-slate-100">
                       <td className="px-4 py-1.5 font-medium text-slate-800">
                         {p.name} {POSITION_LABEL[p.position]}
@@ -393,11 +441,11 @@ export default async function EvalTargetsPage({
             <span className="ml-auto text-sm font-medium text-slate-800">이름순</span>
             <ParamSelect
               param="sort"
-              value={sortDesc ? "desc" : ""}
+              value={sortKey === "name" && sortDesc ? "name-desc" : "name"}
               ariaLabel="이름 정렬"
               options={[
-                { value: "", label: "가나다순 (ㄱ→ㅎ)" },
-                { value: "desc", label: "거꾸로 (ㅎ→ㄱ)" },
+                { value: "name", label: "가나다순 (ㄱ→ㅎ)" },
+                { value: "name-desc", label: "거꾸로 (ㅎ→ㄱ)" },
               ]}
             />
           </div>
