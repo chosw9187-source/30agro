@@ -11,6 +11,7 @@
     "demo:accounts:remove": "tsx scripts/demo-accounts.ts --remove",
     "goals:fix-other": "tsx scripts/fix-other-goals.ts",
     "grade:check": "tsx scripts/check-grade-math.ts",
+    "progress:check": "tsx scripts/check-progress-math.ts",
     "lint": "eslint"
   },
   "dependencies": {

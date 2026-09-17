@@ -25,6 +25,7 @@ import {
   OTHER_GOAL_TITLE,
   OTHER_PARENT_VALUE,
   averageProgress,
+  ownerAverageProgress,
   buildGoalTree,
   countsTowardProgress,
   flattenGoalTree,
@@ -60,6 +61,8 @@ import {
   usesScales,
   usesDerivedWeight,
   usesFixedActiveStatus,
+  usesStatusField,
+  usesDueDateField,
   usesHalf,
   currentGoalHalf,
   inGoalHalf,
@@ -459,6 +462,23 @@ const HALF_TONE: Record<
     badge: "bg-slate-400 text-white",
   },
 };
+
+/**
+ * 그 층의 «평균 달성률». 개인목표만 사람 단위로 굴린다(`ownerAverageProgress`).
+ *
+ * 개인목표는 사람마다 가중치 합이 100%가 되게 나눠 놓은 값이라, 여러 사람의
+ * 목표를 한 줄로 늘어놓고 평균하면 20%짜리 목표와 60%짜리 목표가 같은 무게로
+ * 들어간다. 사람 단위로 한 번 굴리면 손으로 세는 값과 맞는다 — 다섯 목표가
+ * 20%씩일 때 «1~4번 100% · 5번 90%»는 98%다.
+ *
+ * 나머지 층은 그대로 둔다. 전사·책임·팀목표의 달성률은 이미 아래에서 가중치로
+ * 굴려 올린 값이고, 그 층에서는 목표 하나가 사람 하나가 아니라 조직 하나다.
+ */
+function levelAverage(level: GoalLevel, nodes: GoalNode[]): number {
+  return level === "INDIVIDUAL"
+    ? ownerAverageProgress(nodes)
+    : averageProgress(nodes);
+}
 
 function goalTitle(goal: { title: string; isOther?: boolean }): string {
   return goal.isOther ? OTHER_GOAL_TITLE : goal.title;
@@ -2866,7 +2886,7 @@ export default async function Evaluation2Page({
     const percentIn = (half: string) => {
       if (level === "COMPANY")
         return all.length > 0 ? weightedProgress(all) : 0;
-      if (level !== "TEAM") return averageProgress(rowsIn(half));
+      if (level !== "TEAM") return levelAverage(level, rowsIn(half));
       const per = all
         .map((t) => teamRollupIn(t, half))
         .filter((v): v is number => v !== null);
@@ -3342,7 +3362,16 @@ export default async function Evaluation2Page({
       목표가 사람마다 다른 상태로 남아 목록이 들쭉날쭉해진다. 무엇이 끝났고
       무엇이 접혔는지는 중간평가·최종평가에서 갈린다.
     */
-    const status = usesFixedActiveStatus(level, cycle) ? (
+    /*
+      **팀·개인목표에는 상태 칸을 두지 않는다**(`usesStatusField`). 개인목표의
+      달성률은 1차 평가자가 매기는데, 그 옆에 «완료»를 고를 칸이 있으면 평가자가
+      70%로 본 목표가 «완료»라는 이유로 100%로 올라간다(`leafProgress`). 완료는
+      달성률이 100%를 채우면 저절로 붙고, 중단은 아래 「중단 처리」가 찍는다.
+    */
+    const status = !usesStatusField(level) ? null : usesFixedActiveStatus(
+        level,
+        cycle,
+      ) ? (
       <div>
         <label className={LABEL_CLASS}>상태</label>
         <input type="hidden" name="status" value="ACTIVE" />
@@ -3402,8 +3431,11 @@ export default async function Evaluation2Page({
       마감일은 그 해 12월 31일이 기본값이되 고칠 수 있다. 목표는 한 해
       단위로 세우고 연말에 결산하므로 열에 아홉은 12월 31일인데, 연중에
       끝나는 목표도 있으니 못박지는 않는다.
+
+      팀·개인목표에는 칸을 두지 않는다(`usesDueDateField`) — 어느 화면에도 나오지
+      않는 값이라 열에 아홉은 기본값 그대로였다. 서버가 그 해 말일을 넣는다.
     */
-    const dueDate = (
+    const dueDate = !usesDueDateField(level) ? null : (
       <div>
         <label className={LABEL_CLASS}>마감일</label>
         <input
@@ -3702,7 +3734,7 @@ export default async function Evaluation2Page({
               {progress}
             </>,
           )}
-          {line("due", dueDate)}
+          {dueDate && line("due", dueDate)}
           {line("evaluator", evaluatorLine)}
           {assignment}
           {line("desc", description)}
@@ -3766,13 +3798,13 @@ export default async function Evaluation2Page({
               <p className="rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-xs break-keep text-slate-600 md:col-span-2">
                 최종평가에서는 목표 내용({GOAL_DEFINITION_LABEL})을 고칠 수
                 없습니다 — 점수를 매기는 단계라 목표는 그대로 둡니다. 고쳐야
-                하면 「목표설정」 단계에서 고쳐 주세요. 달성률 · 상태 · 마감일 ·
-                설명과 평가 칸은 그대로 적을 수 있습니다.
+                하면 「목표설정」 단계에서 고쳐 주세요. 달성률 · 설명과 평가
+                칸은 그대로 적을 수 있습니다.
               </p>
             )}
             {/*
-              목표의 «정의»만 따로 잠근다. 달성률 · 상태 · 마감일 · 설명은
-              «그 목표가 어떻게 됐는가»라서 최종평가에서 적는 것이 맞다.
+              목표의 «정의»만 따로 잠근다. 달성률 · 설명은 «그 목표가 어떻게
+              됐는가»라서 최종평가에서 적는 것이 맞다.
             */}
             <fieldset disabled={defLocked} className="contents">
               {line("parent", parent)}
@@ -3798,13 +3830,14 @@ export default async function Evaluation2Page({
                 ),
               )}
             </fieldset>
-            {line(
-              "state",
-              <>
-                {status}
-                {dueDate}
-              </>,
-            )}
+            {(status || dueDate) &&
+              line(
+                "state",
+                <>
+                  {status}
+                  {dueDate}
+                </>,
+              )}
             {line("desc", description)}
             {assignment}
           </fieldset>
@@ -4574,7 +4607,7 @@ export default async function Evaluation2Page({
           <span className="text-sm text-slate-500">{rows.length}건</span>
           {showsProgress && (
             <span className="text-sm text-slate-500">
-              평균 달성률 {averageProgress(rows)}%
+              평균 달성률 {levelAverage(level, rows)}%
             </span>
           )}
           {/*
@@ -4725,7 +4758,7 @@ export default async function Evaluation2Page({
                     </span>
                     {showsProgress && (
                       <span className="text-xs text-slate-600">
-                        평균 달성률 {averageProgress(group.items)}%
+                        평균 달성률 {levelAverage(level, group.items)}%
                       </span>
                     )}
                     {/* 접힌 줄에서도 무엇을 누르면 되는지 적어 둔다. */}

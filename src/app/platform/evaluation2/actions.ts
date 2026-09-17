@@ -14,6 +14,8 @@ import {
   goalHalf,
   usesDerivedWeight,
   usesFixedActiveStatus,
+  usesStatusField,
+  usesDueDateField,
   usesHalf,
   GOAL_CYCLE_STATUSES,
   GOAL_SCALES,
@@ -109,6 +111,15 @@ function reconcileProgressAndStatus(
   */
   const doneProgress = (p: number) => (p >= 100 ? p : 100);
 
+  /*
+    중단은 «이 목표를 접었다»는 사람의 판단이라 달성률로 뒤집지 않는다. 팀·개인
+    목표에는 상태 칸이 없어서(`usesStatusField`) 저장할 때마다 지금 상태가 그대로
+    들어오는데, 그때 달성률이 100%를 채우면 아래 규칙이 중단을 «완료»로 바꿔
+    버린다 — 「중단 처리」해 둔 목표가 평가 한 번에 되살아난다.
+  */
+  if (next.status === "DROPPED")
+    return { progress: next.progress, status: "DROPPED" };
+
   // 상태를 완료로 바꿨다 → 달성률은 최소 100.
   if (next.status !== prev.status && next.status === "DONE") {
     return { progress: doneProgress(next.progress), status: "DONE" };
@@ -153,8 +164,16 @@ function statusFor(
   level: GoalLevel,
   value: FormDataEntryValue | null,
   cycle: { name: string } | null,
+  current: GoalStatus = "ACTIVE",
 ): GoalStatus {
-  // 목표설정 단계의 팀·개인 목표는 전부 진행중이다 — 폼에도 고를 칸이 없다.
+  /*
+    팀·개인목표에는 상태 칸이 아예 없다(`usesStatusField`). 그때 폼에서 읽으면
+    값이 안 실려 와서 «진행중»으로 떨어지고, 「중단 처리」해 둔 목표가 저장 한
+    번에 되살아난다 — 지금 저장된 상태를 그대로 두고, 완료는 달성률에서 따라온다
+    (`reconcileProgressAndStatus` · `deriveStatus`).
+  */
+  if (!usesStatusField(level)) return current;
+  // 목표설정 단계의 책임목표는 전부 진행중이다 — 폼에도 고를 칸이 없다.
   if (usesFixedActiveStatus(level, cycle)) return "ACTIVE";
   const status = asStatus(value);
   if (isAutoCalculated(level) && status === "DONE") return "ACTIVE";
@@ -1487,7 +1506,13 @@ function requireGoalFields(
       ["currentValue", "목표수준 · 현수준"],
     );
   }
-  need.push(["status", "상태"], ["dueDate", "마감일"]);
+  /*
+    상태·마감일은 전사·책임목표에만 칸이 있다(`usesStatusField`·`usesDueDateField`).
+    칸이 없는 층에 요구하면 저장이 아예 안 된다 — 팀·개인목표의 상태는 지금 값을
+    그대로 두고, 마감일은 서버가 그 해 말일을 넣는다.
+  */
+  if (usesStatusField(level)) need.push(["status", "상태"]);
+  if (usesDueDateField(level)) need.push(["dueDate", "마감일"]);
   // 책임·팀 목표의 달성률은 하위에서 자동 계산되므로 입력칸 자체가 없다.
   if (!definitionLocked && level === "INDIVIDUAL") {
     need.push(["goalType", "목표 유형"], ["keyResults", "Key Results"]);
@@ -1574,6 +1599,24 @@ async function resolveGoalScope(
  * 갈렸다. 그러면 방금 등록한 목표가 예전에 적어 둔 목표들 사이에 끼어 들어가서,
  * 등록을 누르고도 어디에 붙었는지 찾아 헤매게 된다. 새로 적은 것은 늘 맨 뒤다.
  */
+/**
+ * 새 목표의 마감일. 전사·책임목표는 폼에서 받고, 팀·개인목표는 그 해 말일이다
+ * (`usesDueDateField`) — 칸을 없앤 층에서 비워 두면 「지연」 배지가 읽는 값이
+ * 사라져 뜻이 달라진다. 예전 폼의 기본값과 같은 날짜다.
+ */
+async function dueDateFor(
+  level: GoalLevel,
+  formData: FormData,
+  cycleId: string,
+): Promise<Date | null> {
+  if (usesDueDateField(level)) return parseDate(formData.get("dueDate"));
+  const cycle = await prisma.goalCycle.findUnique({
+    where: { id: cycleId },
+    select: { year: true },
+  });
+  return new Date(Date.UTC(cycle?.year ?? new Date().getFullYear(), 11, 31));
+}
+
 async function nextSortOrder(
   cycleId: string,
   level: GoalLevel,
@@ -1649,7 +1692,7 @@ export async function createGoal(formData: FormData) {
           )
         : 0,
       status: statusFor(level, formData.get("status"), acting),
-      dueDate: parseDate(formData.get("dueDate")),
+      dueDate: await dueDateFor(level, formData, cycleId),
       sortOrder: parseNumber(
         formData.get("sortOrder"),
         await nextSortOrder(cycleId, level),
@@ -1924,13 +1967,23 @@ export async function updateGoal(formData: FormData) {
     ? reconcileProgressAndStatus(
         {
           progress: clampProgress(parseNumber(formData.get("progress"), 0)),
-          status: statusFor(level, formData.get("status"), acting),
+          status: statusFor(
+            level,
+            formData.get("status"),
+            acting,
+            existing.status as GoalStatus,
+          ),
         },
         { progress: existing.progress, status: existing.status as GoalStatus },
       )
     : {
         progress: existing.progress,
-        status: statusFor(level, formData.get("status"), acting),
+        status: statusFor(
+          level,
+          formData.get("status"),
+          acting,
+          existing.status as GoalStatus,
+        ),
       };
 
   // 목표 확정(마감) 이후에는 내용은 그대로 두고 진척과 상태만 받는다. 여기서
@@ -2025,7 +2078,14 @@ export async function updateGoal(formData: FormData) {
       ...finishData,
       progress: synced.progress,
       status: synced.status,
-      dueDate: parseDate(formData.get("dueDate")),
+      /*
+        팀·개인목표에는 마감일 칸이 없다. 폼에서 읽으면 늘 빈 값이라 저장할
+        때마다 적혀 있던 날짜가 null로 지워진다 — `undefined`를 주면 프리즈마가
+        그 칸을 건드리지 않는다.
+      */
+      dueDate: usesDueDateField(level)
+        ? parseDate(formData.get("dueDate"))
+        : undefined,
     },
   });
   revalidatePath(PATH);
