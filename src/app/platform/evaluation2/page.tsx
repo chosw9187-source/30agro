@@ -44,6 +44,7 @@ import {
   GOAL_TYPES,
   GOAL_TYPE_BADGE_CLASS,
   cyclePhaseLabel,
+  cycleTitle,
   cycleStateLabel,
   cyclePhaseRank,
   cycleYear,
@@ -68,6 +69,8 @@ import {
   inGoalHalf,
   evaluatesHalfHere,
   evalStageNameForHalf,
+  FINAL_PHASE_LABEL,
+  MID_PHASE_LABEL,
   usesWeightSubtotal,
   visibleGoalLevels,
   weightedProgress,
@@ -1309,7 +1312,7 @@ export default async function Evaluation2Page({
         */}
         {sharedFrom && (
           <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
-            「{sharedFrom.name}」의 목표를 이어받습니다{" "}
+            「{cycleTitle(sharedFrom)}」의 목표를 이어받습니다{" "}
             {!sharedFrom.goalsLockedAt && (
               <span className="text-status-critical">
                 · 아직 마감 전이라 내용이 바뀔 수 있습니다
@@ -2099,8 +2102,8 @@ export default async function Evaluation2Page({
               "성과평가",
               perfScore,
               finalCycle
-                ? `${finalCycle.name}의 목표 ${performanceGoals.length}건 중 ${perfFilled.length}건 평가됨 · 가중치 합 ${perfWeightSum}%`
-                : `${selectedYear}년 최종평가가 없습니다`,
+                ? `${cycleTitle(finalCycle)}의 목표 ${performanceGoals.length}건 중 ${perfFilled.length}건 평가됨 · 가중치 합 ${perfWeightSum}%`
+                : `${selectedYear}년 성과평가가 없습니다`,
               false,
               perfWeightOff
                 ? `가중치 합이 ${perfWeightSum}%입니다 — 100%가 아니면 점수를 다른 사람과 나란히 놓을 수 없습니다`
@@ -2638,19 +2641,21 @@ export default async function Evaluation2Page({
     type Stage = {
       label: string;
       rank?: 1 | 2 | 3;
+      /** 역량평가 마디 — 사이클이 아니라 그 해 양식의 상태를 읽는다. */
+      competency?: boolean;
       end?: boolean;
     };
     const PLAN: Stage[] = [
       { label: "목표설정", rank: 1 },
       { label: "합의" },
-      { label: "중간평가", rank: 2 },
+      { label: MID_PHASE_LABEL, rank: 2 },
       { label: "피드백" },
       { label: "합의" },
-      /* 성과평가는 따로 두지 않는다 — 목표별 평가점수의 합이 곧 성과점수라,
-         「최종평가」가 그 자리다. 마디를 하나 더 그리면 같은 일을 두 번
+      /* 성과점수는 목표별 평가점수의 합이라, 세 번째 단계가 곧 성과평가다
+         (`FINAL_PHASE_LABEL`). 마디를 따로 하나 더 그리면 같은 일을 두 번
          하는 것처럼 읽히고, 영영 «준비 중»으로 남는 칸이 된다. */
-      { label: "최종평가", rank: 3 },
-      { label: "역량평가" },
+      { label: FINAL_PHASE_LABEL, rank: 3 },
+      { label: "역량평가", competency: true },
       { label: "합의" },
       { label: "종료", end: true },
     ];
@@ -2675,8 +2680,14 @@ export default async function Evaluation2Page({
         d.getDate(),
       ).padStart(2, "0")}`;
 
+    /*
+      「종료」는 그 해 치러야 하는 것이 전부 닫혔을 때 켠다 — 성과평가까지 끝났는데
+      역량평가가 진행중이면 그 해는 끝난 것이 아니다.
+    */
     const allClosed =
-      yearCycles.length > 0 && yearCycles.every((c) => c.status === "CLOSED");
+      yearCycles.length > 0 &&
+      yearCycles.every((c) => c.status === "CLOSED") &&
+      (!competencyFormState || competencyFormState.status === "CLOSED");
 
     const nodes = PLAN.map((st) => {
       if (st.end) {
@@ -2684,6 +2695,25 @@ export default async function Evaluation2Page({
           ...st,
           state: allClosed ? ("done" as const) : ("todo" as const),
           period: null as string | null,
+          cycle: null as (typeof yearCycles)[number] | null,
+        };
+      }
+      /*
+        역량평가는 사이클이 아니라 그 해 양식 한 줄이다(`CompetencyForm`). 상태
+        읽는 규칙은 사이클과 같게 둔다 — 「전체 마감」을 눌렀으면 지나간 마디다.
+      */
+      if (st.competency) {
+        const f = competencyFormState;
+        return {
+          ...st,
+          state: !f
+            ? ("todo" as const)
+            : f.status === "CLOSED" || f.lockedAt
+              ? ("done" as const)
+              : f.status === "OPEN"
+                ? ("current" as const)
+                : ("todo" as const),
+          period: f ? competencyFormStateLabel(f) : null,
           cycle: null as (typeof yearCycles)[number] | null,
         };
       }
@@ -2699,13 +2729,17 @@ export default async function Evaluation2Page({
       }
       const mine = myStageStat.get(c.id) ?? { total: 0, done: 0 };
       /*
-        목표설정은 «목표를 확정(마감)했나»가 끝난 표시다 — 평가완료라는 개념이
-        없다. 중간·최종평가는 내 개인목표가 모두 평가완료여야 끝난 것이다.
+        지나간 마디로 보는 두 가지 — **관리자가 「전체 마감」을 눌렀거나**, 내
+        개인목표가 모두 평가완료거나.
+
+        마감이 곧 끝이다. 마감은 «이 단계는 여기서 닫는다»고 관리자가 못을 박는
+        일이라, 그걸 눌러 놓고도 띠가 계속 「진행중」으로 빛나면 띠가 화면의 다른
+        곳과 다른 이야기를 한다(고르개는 이미 「(마감)」으로 적는다). 목표설정에는
+        평가완료라는 개념이 없어 마감만 본다.
       */
       const mineDone =
-        st.rank === 1
-          ? !!c.goalsLockedAt
-          : mine.total > 0 && mine.done === mine.total;
+        !!c.goalsLockedAt ||
+        (st.rank !== 1 && mine.total > 0 && mine.done === mine.total);
       const state: "done" | "current" | "todo" =
         c.status === "CLOSED" || mineDone
           ? "done"
@@ -2763,7 +2797,7 @@ export default async function Evaluation2Page({
                 : `(남은 기간 ${remainDays}일)`}
             </span>
           )}
-          <HelpMark text="기간과 남은 날짜는 관리자가 「조직 목표 관리」의 목표 사이클에 적어 둔 시작일·마감일을 그대로 읽습니다. 사이클 날짜를 고치면 이 줄도 같이 바뀝니다. 합의·피드백은 아직 준비 중이라 자리만 잡아 두었습니다. 성과평가는 「최종평가」가 그 자리이고, 역량평가는 위의 목표 고르개에서 「역량평가」를 고르면 적을 수 있습니다." />
+          <HelpMark text="기간과 남은 날짜는 관리자가 「조직 목표 관리」의 목표 사이클에 적어 둔 시작일·마감일을 그대로 읽습니다. 사이클 날짜를 고치면 이 줄도 같이 바뀝니다. 마디는 관리자가 「전체 마감」을 누르거나 내 개인목표가 모두 평가완료되면 지나간 것으로 바뀝니다. 합의·피드백은 아직 준비 중이라 자리만 잡아 두었습니다." />
           {activeCycle && (
             <span className="ml-auto text-xs text-slate-500 tabular-nums">
               {fmtFull(activeCycle.startDate)} ~ {fmtFull(activeCycle.endDate)}
@@ -3405,7 +3439,8 @@ export default async function Evaluation2Page({
         <label className={LABEL_CLASS}>달성률(%)</label>
         {!canWriteProgress ? (
           <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
-            목표설정 단계에서는 적지 않습니다 (중간평가·최종평가에서 입력)
+            목표설정 단계에서는 적지 않습니다 ({MID_PHASE_LABEL}·
+            {FINAL_PHASE_LABEL}에서 입력)
           </p>
         ) : isAutoCalculated(level) ? (
           <p className="rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
@@ -3795,10 +3830,10 @@ export default async function Evaluation2Page({
             */}
             {defLocked && (
               <p className="rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-xs break-keep text-slate-600 md:col-span-2">
-                최종평가에서는 목표 내용({GOAL_DEFINITION_LABEL})을 고칠 수
-                없습니다 — 점수를 매기는 단계라 목표는 그대로 둡니다. 고쳐야
-                하면 「목표설정」 단계에서 고쳐 주세요. 달성률 · 설명과 평가
-                칸은 그대로 적을 수 있습니다.
+                {FINAL_PHASE_LABEL}에서는 목표 내용({GOAL_DEFINITION_LABEL})을
+                고칠 수 없습니다 — 점수를 매기는 단계라 목표는 그대로 둡니다.
+                고쳐야 하면 「목표설정」 단계에서 고쳐 주세요. 달성률 · 설명과
+                평가 칸은 그대로 적을 수 있습니다.
               </p>
             )}
             {/*
@@ -4813,7 +4848,7 @@ export default async function Evaluation2Page({
           <p className="text-sm text-slate-600">
             등록된 목표 사이클이 없습니다.{" "}
             {isAdmin
-              ? "연도를 넣으면 목표설정 · 중간평가 · 최종평가 세 단계가 한 번에 만들어집니다. 그 안에 전사 · 책임 · 팀 · 개인목표를 등록합니다."
+              ? `연도를 넣으면 목표설정 · ${MID_PHASE_LABEL} · ${FINAL_PHASE_LABEL} 세 단계가 한 번에 만들어집니다. 그 안에 전사 · 책임 · 팀 · 개인목표를 등록합니다.`
               : "관리자가 사이클을 열면 목표를 등록할 수 있습니다."}
           </p>
           {isAdmin && (
@@ -4835,7 +4870,7 @@ export default async function Evaluation2Page({
                 />
               </div>
               <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-                목표설정 · 중간평가 · 최종평가 만들기
+                목표설정 · {MID_PHASE_LABEL} · {FINAL_PHASE_LABEL} 만들기
               </button>
             </ActionForm>
           )}
@@ -4969,7 +5004,7 @@ export default async function Evaluation2Page({
               포함해 아무도 목표를 고칠 수 없습니다
               {!sharedFrom &&
                 followUps.length > 0 &&
-                ` — 「${followUps.map((c) => c.name).join("」 · 「")}」가 이 목표를 그대로 이어받고, 거기서는 계속 고칠 수 있습니다`}
+                ` — 「${followUps.map((c) => cycleTitle(c)).join("」 · 「")}」가 이 목표를 그대로 이어받고, 거기서는 계속 고칠 수 있습니다`}
               . 마감을 풀면 다시 고칠 수 있습니다.
             </span>
             <ActionForm

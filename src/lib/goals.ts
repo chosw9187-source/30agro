@@ -997,8 +997,8 @@ export function inGoalHalf(goal: { half?: string | null }, half: string): boolea
 
 /** 그 목표의 평가를 적는 단계 이름 — 안내 문구에 쓴다(「중간평가」·「최종평가」). */
 export function evalStageNameForHalf(half: string): string | null {
-  if (half === GOAL_HALVES[0]) return "중간평가";
-  if (half === GOAL_HALVES[1]) return "최종평가";
+  if (half === GOAL_HALVES[0]) return MID_PHASE_LABEL;
+  if (half === GOAL_HALVES[1]) return FINAL_PHASE_LABEL;
   return null;
 }
 
@@ -1032,14 +1032,54 @@ export function cycleYear(cycle: { name: string; year: number }): number {
 }
 
 /**
+ * 평가 단계를 화면에 적는 이름 — **성과평가_중간 · 성과평가_최종**.
+ *
+ * 저장된 이름은 「2026년 중간평가」·「2026년 최종평가」일 수도 있고, 더 예전에
+ * 적어 둔 「2026년 상반기」·「2026년 하반기」일 수도 있다. 사내에서 쓰는 말은
+ * «성과평가»(역량평가와 짝을 이루는 말)이고, 결과지도 「성과평가 60% + 역량평가
+ * 40%」로 적는다 — 같은 것을 두 가지 이름으로 부르면 「최종평가 점수」와
+ * 「성과평가 점수」가 다른 숫자처럼 읽힌다. 두 단계는 한 성과평가를 중간과
+ * 최종으로 나눈 것이라 접미사로 가른다.
+ *
+ * 저장된 이름을 고치지 않고 **화면에서만** 바꾼다. 이름은 관리자가 손으로 고칠
+ * 수 있는 값이라, 이미 적어 둔 이름을 코드가 뒤에서 바꿔 버리면 다시 고칠 때마다
+ * 되돌아간다.
+ */
+export const MID_PHASE_LABEL = "성과평가_중간";
+export const FINAL_PHASE_LABEL = "성과평가_최종";
+
+/** 저장된 이름에서 연도만 떼어 낸 것. 단계를 가리는 셈(아래)의 재료다. */
+function rawPhaseLabel(cycle: { name: string }): string {
+  const rest = cycle.name.trim().replace(/^\d{4}\s*년\s*/, "").trim();
+  return rest || cycle.name;
+}
+
+/**
  * 연도 묶음 안에서 보여 줄 이름. "2026년 중간평가" → "중간평가".
  *
  * 묶음 제목이 이미 "2026년"이라 안에서 해를 한 번 더 읽을 이유가 없다. 연도만
  * 떼고 남는 게 없으면(이름이 "2026년"뿐이면) 원래 이름을 그대로 쓴다.
+ *
+ * 평가 단계 둘은 저장된 이름이 무엇이든 「성과평가_중간」·「성과평가_최종」으로
+ * 적는다(`MID_PHASE_LABEL`·`FINAL_PHASE_LABEL`). 목표설정은 그대로다 — 평가가
+ * 아니라 목표를 세우는 자리다.
  */
 export function cyclePhaseLabel(cycle: { name: string }): string {
-  const rest = cycle.name.trim().replace(/^\d{4}\s*년\s*/, "").trim();
-  return rest || cycle.name;
+  const rank = cyclePhaseRank(cycle);
+  if (rank === 2) return MID_PHASE_LABEL;
+  if (rank === 3) return FINAL_PHASE_LABEL;
+  return rawPhaseLabel(cycle);
+}
+
+/**
+ * 해까지 붙인 이름 — 「2026년 성과평가_최종」.
+ *
+ * 저장된 이름(`name`)을 그대로 적으면 화면 한쪽은 「성과평가_최종」인데 다른
+ * 쪽은 「2026년 최종평가」가 되어 서로 다른 단계처럼 읽힌다. 사람에게 보이는
+ * 이름은 한 군데서 만든다.
+ */
+export function cycleTitle(cycle: { name: string; year: number }): string {
+  return `${cycleYear(cycle)}년 ${cyclePhaseLabel(cycle)}`;
 }
 
 /**
@@ -1055,11 +1095,15 @@ export function cyclePhaseLabel(cycle: { name: string }): string {
  */
 const CYCLE_PHASE_RANK: [RegExp, number][] = [
   [/목표\s*설정|목표수립/, 1],
+  /*
+    차례가 중요하다. 새 이름이 「성과평가_중간」·「성과평가_최종」이라 둘 다 «성과»를
+    품고 있어서, 중간을 먼저 가려내지 않으면 중간평가가 3번 자리로 떨어진다.
+  */
   [/중간|상반기/, 2],
-  [/최종|하반기|연말/, 3],
+  [/최종|하반기|연말|성과/, 3],
 ];
 export function cyclePhaseRank(cycle: { name: string }): number {
-  const label = cyclePhaseLabel(cycle);
+  const label = rawPhaseLabel(cycle);
   for (const [re, r] of CYCLE_PHASE_RANK) if (re.test(label)) return r;
   return 9;
 }

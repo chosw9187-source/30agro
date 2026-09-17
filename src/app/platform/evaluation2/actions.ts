@@ -11,6 +11,8 @@ import {
   locksGoalDefinition,
   evaluatesHalfHere,
   evalStageNameForHalf,
+  FINAL_PHASE_LABEL,
+  MID_PHASE_LABEL,
   goalHalf,
   usesDerivedWeight,
   usesFixedActiveStatus,
@@ -309,8 +311,12 @@ export async function createGoalYear(formData: FormData) {
 
   const phases = [
     { phase: "목표설정", start: `${year}-01-01`, end: `${year}-06-30` },
-    { phase: "중간평가", start: `${year}-07-01`, end: `${year}-12-31` },
-    { phase: "최종평가", start: `${year + 1}-01-01`, end: `${year + 1}-01-31` },
+    { phase: "성과평가_중간", start: `${year}-07-01`, end: `${year}-12-31` },
+    {
+      phase: "성과평가_최종",
+      start: `${year + 1}-01-01`,
+      end: `${year + 1}-01-31`,
+    },
   ];
 
   const all = await prisma.goalCycle.findMany({
@@ -2431,7 +2437,7 @@ export async function addGoalCheckIn(formData: FormData) {
   }
   if (!allowsProgressInput(await actingCycle(formData, current.cycleId))) {
     throw new Error(
-      "목표설정 단계에서는 달성률을 적지 않습니다. 중간평가·최종평가에서 올려 주세요.",
+      `목표설정 단계에서는 달성률을 적지 않습니다. ${MID_PHASE_LABEL}·${FINAL_PHASE_LABEL}에서 올려 주세요.`,
     );
   }
 
