@@ -1091,16 +1091,36 @@ export default async function Evaluation2Page({
     0건이 된 경우를 이 줄이 드러낸다.
   */
   const goalSpots =
-    personView && competencyTarget && yearCycles.length > 0
+    personView && competencyTarget
       ? await prisma.goal.findMany({
-          where: {
-            cycleId: { in: yearCycles.map((c) => c.id) },
-            level: "INDIVIDUAL",
-            ownerId: competencyTarget.id,
-          },
+          where: { level: "INDIVIDUAL", ownerId: competencyTarget.id },
           select: { cycleId: true, firstScore: true, excluded: true },
         })
       : [];
+  /*
+    그 해 밖에 있는 목표도 함께 알려 준다.
+
+    결과지는 연도를 따로 고르는 화면이라, 목표를 2027년 단계에 등록해 놓고
+    2026년 결과지를 보고 있으면 «어느 단계에도 없습니다»가 뜬다 — 그 말만으로는
+    목표를 잘못 등록한 것인지 연도를 잘못 고른 것인지 알 수 없다. 어느 해 어느
+    단계에 몇 건 있는지 적어 주면 둘이 바로 갈린다.
+  */
+  const cycleById = new Map(cycles.map((c) => [c.id, c]));
+  const elsewhere = (() => {
+    const inYear = new Set(yearCycles.map((c) => c.id));
+    const byCycle = new Map<string, number>();
+    for (const g of goalSpots) {
+      if (inYear.has(g.cycleId)) continue;
+      byCycle.set(g.cycleId, (byCycle.get(g.cycleId) ?? 0) + 1);
+    }
+    return [...byCycle.entries()]
+      .map(([id, n]) => {
+        const c = cycleById.get(id);
+        return c ? `${cycleTitle(c)} ${n}건` : null;
+      })
+      .filter(Boolean)
+      .join(" · ");
+  })();
 
   /*
     최종등급 — **상대평가**라서 그 사람만 봐서는 알 수 없다.
@@ -2178,23 +2198,27 @@ export default async function Evaluation2Page({
               */
               perfScore == null
                 ? goalSpots.length === 0
-                  ? `${selectedYear}년 어느 단계에도 이 사람의 개인목표가 없습니다 — 「${MID_PHASE_LABEL}」의 개인목표 탭에서 등록해 주세요`
-                  : `단계별 개인목표 — ${yearCycles
-                      .map((c) => {
-                        const rows = goalSpots.filter(
-                          (g) => g.cycleId === c.id,
-                        );
-                        if (rows.length === 0) return null;
-                        const scored = rows.filter(
-                          (g) => g.firstScore != null,
-                        ).length;
-                        const off = rows.filter((g) => g.excluded).length;
-                        return `${cyclePhaseLabel(c)} ${rows.length}건(점수 ${scored}건${
-                          off > 0 ? ` · 집계 제외 ${off}건` : ""
-                        })`;
-                      })
-                      .filter(Boolean)
-                      .join(" · ")}`
+                  ? `이 사람의 개인목표가 아직 없습니다 — 「${MID_PHASE_LABEL}」의 개인목표 탭에서 등록해 주세요`
+                  : !yearCycles.some((c) =>
+                        goalSpots.some((g) => g.cycleId === c.id),
+                      )
+                    ? `${selectedYear}년에는 이 사람의 개인목표가 없습니다 — ${elsewhere}에 있습니다. 위에서 연도를 바꿔 주세요`
+                    : `단계별 개인목표 — ${yearCycles
+                        .map((c) => {
+                          const rows = goalSpots.filter(
+                            (g) => g.cycleId === c.id,
+                          );
+                          if (rows.length === 0) return null;
+                          const scored = rows.filter(
+                            (g) => g.firstScore != null,
+                          ).length;
+                          const off = rows.filter((g) => g.excluded).length;
+                          return `${cyclePhaseLabel(c)} ${rows.length}건(점수 ${scored}건${
+                            off > 0 ? ` · 집계 제외 ${off}건` : ""
+                          })`;
+                        })
+                        .filter(Boolean)
+                        .join(" · ")}`
                 : perfWeightOff
                   ? `가중치 합이 ${perfWeightSum}%입니다 — 100%가 아니면 점수를 다른 사람과 나란히 놓을 수 없습니다`
                   : null,
@@ -2774,10 +2798,14 @@ export default async function Evaluation2Page({
       「종료」는 그 해 치러야 하는 것이 전부 닫혔을 때 켠다 — 성과평가까지 끝났는데
       역량평가가 진행중이면 그 해는 끝난 것이 아니다.
     */
+    const shut = (c: { status: string; goalsLockedAt?: Date | null }) =>
+      c.status === "CLOSED" || !!c.goalsLockedAt;
     const allClosed =
       yearCycles.length > 0 &&
-      yearCycles.every((c) => c.status === "CLOSED") &&
-      (!competencyFormState || competencyFormState.status === "CLOSED");
+      yearCycles.every(shut) &&
+      (!competencyFormState ||
+        competencyFormState.status === "CLOSED" ||
+        !!competencyFormState.lockedAt);
 
     const nodes = PLAN.map((st) => {
       if (st.end) {
