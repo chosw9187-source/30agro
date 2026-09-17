@@ -1105,6 +1105,46 @@ export default async function Evaluation2Page({
     목표를 잘못 등록한 것인지 연도를 잘못 고른 것인지 알 수 없다. 어느 해 어느
     단계에 몇 건 있는지 적어 주면 둘이 바로 갈린다.
   */
+  /*
+    개인목표가 **한 건도** 없을 때 남는 두 가지를 가려낸다.
+
+    ① 같은 이름의 다른 계정에 달려 있다. 사람이 두 줄로 들어와 있으면(예전
+       가져온 줄과 지금 쓰는 줄) 화면에서는 같은 「박성훈 담당」인데 목표는 한쪽에,
+       결과지가 고른 사람은 다른 쪽이 된다. 이름만 같고 id가 다르면 어떤 쿼리로도
+       만나지 않는다.
+    ② 개인목표가 아니라 **팀목표**다. 팀의 일을 팀장이 아니라 담당 이름으로
+       적어 두면 목록에서는 그 사람 일로 보이지만, 성과점수는 개인목표만 센다
+       (가중치 합이 100이 되는 층이 거기다).
+
+    둘 다 «없다»는 말로는 구별되지 않아서 사람이 다음에 무엇을 해야 할지 알 수
+    없었다. 개인목표가 있을 때는 이 쿼리를 돌리지 않는다.
+  */
+  const lookAlike =
+    personView && competencyTarget && goalSpots.length === 0
+      ? await prisma.goal.findMany({
+          where: {
+            OR: [
+              { ownerId: competencyTarget.id },
+              {
+                level: "INDIVIDUAL",
+                owner: { name: competencyTarget.name },
+              },
+            ],
+          },
+          select: {
+            level: true,
+            ownerId: true,
+            owner: { select: { name: true, email: true } },
+          },
+        })
+      : [];
+  const sameName = lookAlike.filter(
+    (g) => g.level === "INDIVIDUAL" && g.ownerId !== competencyTarget?.id,
+  );
+  const otherLevels = lookAlike.filter(
+    (g) => g.ownerId === competencyTarget?.id && g.level !== "INDIVIDUAL",
+  );
+
   const cycleById = new Map(cycles.map((c) => [c.id, c]));
   const elsewhere = (() => {
     const inYear = new Set(yearCycles.map((c) => c.id));
@@ -2198,7 +2238,38 @@ export default async function Evaluation2Page({
               */
               perfScore == null
                 ? goalSpots.length === 0
-                  ? `이 사람의 개인목표가 아직 없습니다 — 「${MID_PHASE_LABEL}」의 개인목표 탭에서 등록해 주세요`
+                  ? [
+                      "이 사람 이름으로 된 개인목표가 한 건도 없습니다",
+                      sameName.length > 0
+                        ? `같은 이름의 다른 계정(${[
+                            ...new Set(
+                              sameName.map(
+                                (g) => g.owner?.email ?? g.ownerId ?? "?",
+                              ),
+                            ),
+                          ].join(
+                            " · ",
+                          )})에 개인목표 ${sameName.length}건이 달려 있습니다 — 계정이 두 개인지 확인해 주세요`
+                        : null,
+                      otherLevels.length > 0
+                        ? `이 사람이 책임자인 ${[
+                            ...new Set(
+                              otherLevels.map(
+                                (g) =>
+                                  GOAL_LEVEL_LABEL[g.level as GoalLevel] ??
+                                  g.level,
+                              ),
+                            ),
+                          ].join(
+                            " · ",
+                          )}는 ${otherLevels.length}건 있습니다 — 성과점수는 개인목표만 셉니다`
+                        : null,
+                      sameName.length === 0 && otherLevels.length === 0
+                        ? `「${MID_PHASE_LABEL}」의 개인목표 탭에서 등록해 주세요`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(". ")
                   : !yearCycles.some((c) =>
                         goalSpots.some((g) => g.cycleId === c.id),
                       )
