@@ -4519,8 +4519,17 @@ export default async function Evaluation2Page({
                 {goal.goalType}
               </span>
             )}
-            {goal.excluded && <ExcludedBadge reason={goal.excludeReason} />}
-            {!goal.excluded && goal.targetExcluded && (
+            {/*
+              **집계 제외 표시도 관리자만 본다.** 제외는 인사팀이 내리는 판단이고
+              (`canExclude`), 그 판단을 담당자 화면에 배지로 띄우면 «내 목표가
+              성적에서 빠졌다»는 말을 설명 없이 읽게 된다 — 물어볼 곳은 화면이
+              아니라 사람이다. 단추는 이미 관리자만 볼 수 있었는데 배지만 모두에게
+              떠 있었다.
+            */}
+            {isAdmin && goal.excluded && (
+              <ExcludedBadge reason={goal.excludeReason} />
+            )}
+            {isAdmin && !goal.excluded && goal.targetExcluded && (
               <ExcludedBadge
                 reason={goal.targetExcludeReason ?? "평가대상 아님"}
               />
