@@ -1061,9 +1061,17 @@ export default async function Evaluation2Page({
   const rankOfCycle = new Map(
     yearCycles.map((c) => [c.id, cyclePhaseRank(c)] as const),
   );
+  /*
+    성과점수는 **성과평가(최종)이 매기는 반기의 목표만** 센다 — 하반기다
+    (`evaluatesHalfHere`). 사내 양식이 「개인목표 평가(상반기)」와 「(하반기)」 두
+    장이고 가중치 합이 장마다 100%이므로, 두 반기를 함께 더하면 가중치 합이
+    200%가 되어 100점 자리 점수가 아니게 된다. 상반기 성적은 성과평가(중간)에서
+    매긴 그 화면의 값이다. 반기를 안 적어 둔 옛 목표는 함께 센다.
+  */
   const performanceGoals = (() => {
     const best = new Map<string, (typeof performanceRows)[number]>();
     for (const row of performanceRows) {
+      if (finalCycle && !evaluatesHalfHere(row, finalCycle)) continue;
       const key = row.title.trim();
       const kept = best.get(key);
       if (!kept) {
@@ -1145,6 +1153,43 @@ export default async function Evaluation2Page({
           },
         })
       : [];
+  /*
+    **같은 팀에서 개인목표를 가진 사람들.** 이름으로 찾는 것만으로는 부족하다 —
+    동명이인을 「박성훈(인사)」처럼 한쪽만 고쳐 두면 이름이 더는 같지 않아서
+    이름으로는 만나지 않는데, 목표는 여전히 다른 쪽 계정에 달려 있다. 그때 결과지는
+    «개인목표가 한 건도 없다»고만 말하고, 사람은 눈앞의 화면에서 그 목표를 보고
+    있으니 믿을 수가 없다.
+
+    그래서 «이 팀에서 개인목표를 가진 사람은 누구누구인가»를 그대로 적는다. 목록에
+    비슷한 이름이 하나 더 있으면 그것이 답이고, 없으면 정말 목표가 없는 것이다.
+  */
+  const teamOwners =
+    personView && competencyTarget?.teamId && goalSpots.length === 0
+      ? await prisma.goal.groupBy({
+          by: ["ownerId"],
+          where: {
+            level: "INDIVIDUAL",
+            teamId: competencyTarget.teamId,
+            ownerId: { not: null },
+          },
+          _count: { _all: true },
+        })
+      : [];
+  const teamOwnerNames = await (async () => {
+    if (teamOwners.length === 0) return "";
+    const ids = teamOwners
+      .map((r) => r.ownerId)
+      .filter((id): id is string => !!id);
+    const people = await prisma.user.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, name: true },
+    });
+    const nameOf = new Map(people.map((u) => [u.id, u.name]));
+    return teamOwners
+      .map((r) => `${nameOf.get(r.ownerId!) ?? "?"} ${r._count._all}건`)
+      .join(" · ");
+  })();
+
   const sameName = lookAlike.filter(
     (g) => g.level === "INDIVIDUAL" && g.ownerId !== competencyTarget?.id,
   );
@@ -2235,7 +2280,9 @@ export default async function Evaluation2Page({
               "성과평가",
               perfScore,
               finalCycle
-                ? `${cycleTitle(finalCycle)}의 목표 ${performanceGoals.length}건 중 ${perfFilled.length}건 평가됨 · 가중치 합 ${perfWeightSum}%`
+                ? `${cycleTitle(finalCycle)}의 ${
+                    evalPeriodLabel(finalCycle) || "그 단계"
+                  } 목표 ${performanceGoals.length}건 중 ${perfFilled.length}건 평가됨 · 가중치 합 ${perfWeightSum}%`
                 : `${selectedYear}년 성과평가가 없습니다`,
               false,
               /*
@@ -2271,7 +2318,12 @@ export default async function Evaluation2Page({
                             " · ",
                           )}는 ${otherLevels.length}건 있습니다 — 성과점수는 개인목표만 셉니다`
                         : null,
-                      sameName.length === 0 && otherLevels.length === 0
+                      teamOwnerNames
+                        ? `같은 팀에서 개인목표를 가진 사람 — ${teamOwnerNames}. 이름이 비슷한 다른 사람이 있으면 그 목표의 「피평가자」를 이 사람으로 바꿔 주세요`
+                        : null,
+                      sameName.length === 0 &&
+                      otherLevels.length === 0 &&
+                      !teamOwnerNames
                         ? `「${MID_PHASE_LABEL}」의 개인목표 탭에서 등록해 주세요`
                         : null,
                     ]
