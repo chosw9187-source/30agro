@@ -5,6 +5,9 @@ import {
   GOAL_CYCLE_ORDER,
   GOAL_CYCLE_STATUS_LABEL,
   cyclePhaseLabel,
+  cycleTitle,
+  FINAL_PHASE_LABEL,
+  MID_PHASE_LABEL,
   cyclePhaseRank,
   cycleStateLabel,
   groupCyclesByYear,
@@ -223,7 +226,7 @@ export default async function OrgGoalsAdminPage({
 
       {sharedFrom && (
         <div className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-600">
-          이 평가는 <b className="text-slate-800">「{sharedFrom.name}」</b>의 목표를 그대로 씁니다 —
+          이 평가는 <b className="text-slate-800">「{cycleTitle(sharedFrom)}」</b>의 목표를 그대로 씁니다 —
           여기서 고치면 두 화면에 함께 반영됩니다.
         </div>
       )}
@@ -232,7 +235,7 @@ export default async function OrgGoalsAdminPage({
         <section className={`${CARD_CLASS} p-5`}>
           <h2 className="text-base font-semibold">먼저 목표 사이클을 만드세요</h2>
           <p className="mt-1 text-sm text-slate-600">
-            한 해의 평가는 목표설정 · 중간평가 · 최종평가 세 단계가 한 벌입니다. 연도만 넣으면 세 단계가 한 번에 만들어지고, 중간·최종평가는 목표설정의 목표를 이어받습니다. 기간은 만든 뒤 사이클 줄에서 고칠 수 있습니다.
+            한 해의 평가는 목표설정 · {MID_PHASE_LABEL} · {FINAL_PHASE_LABEL} 세 단계가 한 벌입니다. 연도만 넣으면 세 단계가 한 번에 만들어지고, 평가 두 단계는 목표설정의 목표를 이어받습니다. 기간은 만든 뒤 사이클 줄에서 고칠 수 있습니다.
           </p>
           <ActionForm
             action={createGoalYear}
@@ -252,7 +255,7 @@ export default async function OrgGoalsAdminPage({
               />
             </div>
             <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-              목표설정 · 중간평가 · 최종평가 만들기
+              목표설정 · {MID_PHASE_LABEL} · {FINAL_PHASE_LABEL} 만들기
             </button>
           </ActionForm>
         </section>
@@ -277,7 +280,7 @@ export default async function OrgGoalsAdminPage({
             <div className="flex flex-wrap items-baseline gap-3">
               <h2 className="text-base font-semibold">
                 {cycle.year}년 전사 목표
-                <span className="ml-2 text-sm font-normal text-slate-400">{cycle.name}</span>
+                <span className="ml-2 text-sm font-normal text-slate-400">{cyclePhaseLabel(cycle)}</span>
               </h2>
               <span className="text-xs text-slate-500">
                 {formatKSTDate(cycle.startDate)} ~ {formatKSTDate(cycle.endDate)}
@@ -323,7 +326,7 @@ export default async function OrgGoalsAdminPage({
                       >
                         {otherCycles.map((c) => (
                           <option key={c.id} value={c.id}>
-                            {c.name}
+                            {cycleTitle(c)}
                           </option>
                         ))}
                       </select>
@@ -886,7 +889,7 @@ export default async function OrgGoalsAdminPage({
                   */}
                   {c.sourceCycleId ? (
                     <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-[11px] text-brand-green-dark">
-                      「{cycles.find((x) => x.id === c.sourceCycleId)?.name ?? "다른 평가"}」의 목표를 이어받음
+                      「{(() => { const src = cycles.find((x) => x.id === c.sourceCycleId); return src ? cycleTitle(src) : "다른 평가"; })()}」의 목표를 이어받음
                     </span>
                   ) : (
                     (() => {
@@ -1014,7 +1017,7 @@ export default async function OrgGoalsAdminPage({
                 />
               </div>
               <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-                목표설정 · 중간평가 · 최종평가 만들기
+                목표설정 · {MID_PHASE_LABEL} · {FINAL_PHASE_LABEL} 만들기
               </button>
               <span className="text-xs text-slate-500">
                 이미 있는 단계는 그대로 두고 빠진 것만 만듭니다.
