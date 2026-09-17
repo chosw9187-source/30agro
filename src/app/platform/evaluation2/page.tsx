@@ -892,6 +892,8 @@ export default async function Evaluation2Page({
   */
   const evaluatorByPerson = buildEvaluatorMap(people, teams);
 
+  /** 사람 → 그 사람의 팀. 팀장이 고를 수 있는 피평가자를 가리는 데 쓴다. */
+  const teamIdOfPerson = new Map(people.map((p) => [p.id, p.teamId ?? null]));
   const personOptions = people.map((p) => ({
     value: p.id,
     label: `${p.name} ${POSITION_LABEL[p.position]}`,
@@ -2319,7 +2321,7 @@ export default async function Evaluation2Page({
                           )}는 ${otherLevels.length}건 있습니다 — 성과점수는 개인목표만 셉니다`
                         : null,
                       teamOwnerNames
-                        ? `같은 팀에서 개인목표를 가진 사람 — ${teamOwnerNames}. 이름이 비슷한 다른 사람이 있으면 그 목표의 「피평가자」를 이 사람으로 바꿔 주세요`
+                        ? `같은 팀에서 개인목표를 가진 사람 — ${teamOwnerNames}. 한 사람에게 몰려 있으면 팀장이 팀원 목표를 자기 이름으로 적어 둔 것입니다 — 「${MID_PHASE_LABEL}」의 개인목표 탭에서 그 목표를 열어 「피평가자」를 사람별로 바꿔 주세요`
                         : null,
                       sameName.length === 0 &&
                       otherLevels.length === 0 &&
@@ -3342,7 +3344,21 @@ export default async function Evaluation2Page({
     */
     const showTeam =
       level === "TEAM" && (isAdmin || viewer.ledTeamIds.length > 1);
-    const showOwner = isAdmin;
+    /*
+      **개인목표의 피평가자 칸은 팀장에게도 띄운다.**
+
+      예전에는 관리자만 볼 수 있었고, 팀장이 팀원 목표를 적으면 서버가 조용히
+      로그인한 사람으로 바꿔 저장했다 — 인사팀 개인목표 서른 건이 팀장 한 사람에게
+      몰려 있었고, 팀원들의 결과지는 성과점수가 영영 비었다. 고를 수 있는 사람은
+      자기 팀원뿐이다(서버도 같은 규칙으로 막는다).
+    */
+    const showOwner =
+      isAdmin || (level === "INDIVIDUAL" && viewer.ledTeamIds.length > 0);
+    const ownerChoices = isAdmin
+      ? personOptions
+      : personOptions.filter((o) =>
+          viewer.ledTeamIds.includes(teamIdOfPerson.get(o.value) ?? "__none__"),
+        );
     // 「담당자」가 아니라 「피평가자」다 — 이 목표로 평가받는 사람이고, 위의
     // 평가자와 짝이 맞는 말이라야 누가 누구를 보는지가 한 번에 읽힌다.
     const ownerLabel = level === "INDIVIDUAL" ? "피평가자" : "책임자";
@@ -3407,7 +3423,7 @@ export default async function Evaluation2Page({
               </label>
               <SearchableSelect
                 name="ownerId"
-                options={personOptions}
+                options={ownerChoices}
                 defaultValue={goal?.ownerId ?? ""}
                 placeholder="이름 검색"
                 required={req}
