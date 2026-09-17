@@ -815,6 +815,13 @@ export default async function Evaluation2Page({
   */
   const waitingForSource = !!sharedFrom && !sharedFrom.goalsLockedAt;
   /*
+    마감 카드를 띄우는 화면인가. 위쪽 마감 안내 줄이 이 카드와 같은 말을 하므로,
+    카드가 뜨는 화면에서는 그 줄을 띄우지 않는다 — 둘 다 뜨면 마감을 누른 순간
+    안내 줄이 새로 생겨서 카드가 한 칸 아래로 밀린다.
+  */
+  const lockCardShown =
+    isAdmin && !!cycle && !progressView && !offCycleView && !waitingForSource;
+  /*
     평가 단계가 **자기 목표를 따로 갖고 있는가**.
 
     이 앱의 기본은 «목표 한 벌을 단계들이 함께 본다»다(`sourceCycleId`) — 그래야
@@ -4114,6 +4121,14 @@ export default async function Evaluation2Page({
     // 전사목표는 「조직 목표 관리」에서만 고친다 — 아래 참조.
     const editable =
       canManage(goal) && lock.canEditGoals && level !== "COMPANY";
+    /*
+      **성과평가(최종)에서는 지울 수 없다.** 그 단계는 점수를 매기는 자리이고,
+      목표는 한 벌이라 세 단계가 같이 본다(`sourceCycleId`) — 거기서 한 줄을
+      지우면 성과평가(중간)에서 확정한 상반기 성적까지 함께 사라지고 되돌릴 수도
+      없다. 상반기든 하반기든 마찬가지다. 지워야 할 목표는 등록하는 자리에서
+      지운다. 서버도 같은 규칙으로 막는다.
+    */
+    const deletable = editable && (!cycle || cyclePhaseRank(cycle) !== 3);
     const isEditing = editingGoal?.id === goal.id;
     const parentLevel = GOAL_PARENT_LEVEL[level];
     // 상위 목표 후보도 볼 수 있는 범위 안에서만 고르게 한다.
@@ -4381,7 +4396,7 @@ export default async function Evaluation2Page({
                 한 건 지우려고 카드를 펴고, 긴 폼을 지나 맨 아래까지 내려가야
                 했다. 되돌릴 수 없는 일이라 한 번 되묻는다.
               */}
-              {editable && (
+              {deletable && (
                 <ActionForm
                   action={deleteGoal.bind(null, goal.id)}
                   successMessage="삭제되었습니다."
@@ -4621,7 +4636,7 @@ export default async function Evaluation2Page({
                   </button>
                 </ActionForm>
               )}
-              {editable && (
+              {deletable && (
                 <ActionForm
                   action={deleteGoal.bind(null, goal.id)}
                   successMessage="삭제되었습니다."
@@ -5127,9 +5142,15 @@ export default async function Evaluation2Page({
       */}
       {!offCycleView && tabBar()}
 
-      {/* 마감 안내 — 왜 수정 버튼이 사라졌는지 화면에서 바로 읽히게 한다.
-          결과 쪽 탭에는 고칠 것이 없으니 띄우지 않는다. */}
-      {lock.message && !offCycleView && (
+      {/*
+        마감 안내 — 왜 수정 버튼이 사라졌는지 화면에서 바로 읽히게 한다. 결과 쪽
+        탭에는 고칠 것이 없으니 띄우지 않는다.
+
+        아래 마감 카드가 뜨는 화면(관리자)에는 띄우지 않는다. 같은 말을 두 줄로
+        적는 셈인데, 마감을 누르는 순간 이 줄이 새로 생겨서 카드가 한 칸 아래로
+        밀려 내려간다 — 누른 단추가 눈앞에서 움직인다.
+      */}
+      {lock.message && !offCycleView && !lockCardShown && (
         <div className="rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-600">
           <span className="font-medium text-slate-800">
             {cycle?.status === "CLOSED" ? "완료됨" : "목표 확정됨"}
@@ -5141,75 +5162,78 @@ export default async function Evaluation2Page({
             </span>
           )}
           {/*
-            마감을 푸는 자리는 마감 안내 바로 옆이다 — «왜 못 고치지»를 읽은 그
-            자리에서 풀 수 있어야 한다. 관리 화면까지 건너가게 하면 그 사이에
-            무엇을 하러 갔는지를 잊는다.
+            여기에는 «왜 못 고치는지»만 적는다. 마감을 풀는 단추는 아래 마감
+            카드에 있다 — 예전에는 이 줄에도 하나 있어서, 마감을 누른 뒤 단추가
+            카드에서 사라지고 이 줄의 글 옆에 다시 나타났다. 누른 자리에 그대로
+            있지 않으면 «내가 뭘 눌렀지»가 된다.
           */}
-          {isAdmin && cycle?.status !== "CLOSED" && cycle?.goalsLockedAt && (
-            <ActionForm
-              action={unlockGoalSetting.bind(null, cycle.id)}
-              successMessage="마감을 풀었습니다. 다시 목표를 고칠 수 있습니다."
-              confirmMessage="마감을 풀면 이 평가의 목표를 다시 고칠 수 있게 됩니다. 진행할까요?"
-              className="ml-2 inline-block align-middle"
-            >
-              <button
-                type="submit"
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs sm:py-1 text-slate-700 hover:bg-slate-50"
-              >
-                마감 해제
-              </button>
-            </ActionForm>
-          )}
-          {isAdmin && cycle?.status === "CLOSED" && (
-            <Link
-              href="/admin/org-goals"
-              className="ml-2 text-xs text-brand-green-dark underline"
-            >
-              관리 화면에서 되돌리기
-            </Link>
-          )}
         </div>
       )}
 
       {/*
-        전체 마감. 목표를 다 세우고 나면 «이 목표로 평가한다»고 못을 박는 자리가
+        마감 카드. 목표를 다 세우고 나면 «이 목표로 평가한다»고 못을 박는 자리가
         있어야 한다. 마감 전에는 누구든 목표를 고칠 수 있어서, 평가하는 도중에
         목표가 바뀌면 그 점수가 무엇을 기준으로 매겨진 것인지 남지 않는다.
-        관리자에게만 보인다. 목표를 빌려다 보는 단계(중간평가·최종평가)에는
-        띄우지 않는다 — 마감할 것은 원본 한 벌뿐이다.
+
+        **마감한 뒤에도 이 카드는 그 자리에 남는다.** 예전에는 마감을 누르면 카드가
+        사라지고 위쪽 안내 줄에 「마감 해제」가 나타났다 — 누른 자리에 아무것도
+        없고 단추가 왼쪽 위로 옮겨 가 있으니, 무엇이 눌렸는지 화면으로는 알 수
+        없었다. 이제 안쪽 글과 단추만 바뀌고 자리는 그대로다.
       */}
-      {isAdmin &&
-        cycle &&
-        !progressView &&
-        !offCycleView &&
-        !waitingForSource &&
-        !cycle.goalsLockedAt &&
-        cycle.status !== "CLOSED" && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-            <span className="text-sm font-medium text-slate-800">마감</span>
-            <span className="text-xs text-slate-500">
-              마감하면 <b className="font-medium">이 단계에서는</b> 관리자를
-              포함해 아무도 목표를 고칠 수 없습니다
-              {!sharedFrom &&
-                followUps.length > 0 &&
-                ` — 「${followUps.map((c) => cycleTitle(c)).join("」 · 「")}」가 이 목표를 그대로 이어받고, 거기서는 계속 고칠 수 있습니다`}
-              . 마감을 풀면 다시 고칠 수 있습니다.
-            </span>
-            <ActionForm
-              action={lockGoalSetting.bind(null, cycle.id)}
-              successMessage="목표를 마감했습니다."
-              confirmMessage="이 평가의 목표를 전체 마감할까요? 마감하면 아무도 목표를 고칠 수 없습니다."
-              className="ml-auto"
-            >
-              <button
-                type="submit"
-                className="rounded-md bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark"
+      {lockCardShown && cycle && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <span className="shrink-0 text-sm font-medium text-slate-800">
+            마감
+          </span>
+          <span className="min-w-0 flex-1 text-xs break-keep text-slate-500">
+            {cycle.status === "CLOSED"
+              ? "완료로 닫힌 인사평가입니다 — 목표와 점수 모두 읽기 전용입니다. 마감을 풀면 다시 적을 수 있습니다."
+              : cycle.goalsLockedAt
+                ? `${formatKSTDate(cycle.goalsLockedAt)} 마감 — 이 단계에서는 목표를 고칠 수 없습니다. 달성률과 점수는 그대로 적을 수 있습니다.`
+                : `마감하면 이 단계에서는 관리자를 포함해 아무도 목표를 고칠 수 없습니다${
+                    !sharedFrom && followUps.length > 0
+                      ? ` — 「${followUps
+                          .map((c) => cyclePhaseLabel(c))
+                          .join("」 · 「")}」가 이 목표를 그대로 이어받습니다`
+                      : ""
+                  }. 달성률과 점수는 그대로 적을 수 있고, 마감을 풀면 목표도 다시 고칠 수 있습니다.`}
+          </span>
+          {/*
+              단추는 늘 오른쪽 끝 같은 칸에 있다. 글의 길이가 바뀌어도 자리가
+              밀리지 않게 설명 칸이 남는 폭을 다 먹고(`flex-1`), 단추는 줄어들지
+              않는다(`shrink-0`).
+            */}
+          <div className="ml-auto shrink-0">
+            {cycle.goalsLockedAt || cycle.status === "CLOSED" ? (
+              <ActionForm
+                action={unlockGoalSetting.bind(null, cycle.id)}
+                successMessage="마감을 풀었습니다. 다시 목표를 고칠 수 있습니다."
+                confirmMessage="마감을 풀면 이 평가의 목표를 다시 고칠 수 있게 됩니다. 진행할까요?"
               >
-                전체 마감
-              </button>
-            </ActionForm>
+                <button
+                  type="submit"
+                  className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  마감 해제
+                </button>
+              </ActionForm>
+            ) : (
+              <ActionForm
+                action={lockGoalSetting.bind(null, cycle.id)}
+                successMessage="마감했습니다."
+                confirmMessage="이 평가를 전체 마감할까요? 마감하면 아무도 목표를 고칠 수 없습니다."
+              >
+                <button
+                  type="submit"
+                  className="rounded-md bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark"
+                >
+                  전체 마감
+                </button>
+              </ActionForm>
+            )}
           </div>
-        )}
+        </div>
+      )}
 
       {/*
         역량평가의 「전체 마감」. 목표 쪽과 같은 자리에 같은 모양으로 둔다 —
@@ -5221,12 +5245,12 @@ export default async function Evaluation2Page({
       */}
       {competencyView && isAdmin && competencyFormState && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-          <span className="text-sm font-medium text-slate-800">
+          <span className="shrink-0 text-sm font-medium text-slate-800">
             역량평가 마감
           </span>
           {competencyFormState.status === "CLOSED" ? (
             <>
-              <span className="text-xs text-slate-500">
+              <span className="min-w-0 flex-1 text-xs break-keep text-slate-500">
                 이 해의 역량평가는 완료되었습니다 — 점수는 읽기 전용입니다.
               </span>
               <Link
@@ -5238,7 +5262,7 @@ export default async function Evaluation2Page({
             </>
           ) : competencyFormState.lockedAt ? (
             <>
-              <span className="text-xs text-slate-500">
+              <span className="min-w-0 flex-1 text-xs break-keep text-slate-500">
                 {formatKSTDate(competencyFormState.lockedAt)} 마감 — 자기평가 ·
                 팀장평가를 더 적을 수 없습니다. 마감을 풀면 다시 적을 수
                 있습니다.
@@ -5247,11 +5271,11 @@ export default async function Evaluation2Page({
                 action={unlockCompetencyForm.bind(null, selectedYear)}
                 successMessage="마감을 풀었습니다. 다시 점수를 적을 수 있습니다."
                 confirmMessage="마감을 풀면 자기평가·팀장평가를 다시 적을 수 있게 됩니다. 진행할까요?"
-                className="ml-auto"
+                className="ml-auto shrink-0"
               >
                 <button
                   type="submit"
-                  className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                  className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   마감 해제
                 </button>
@@ -5259,7 +5283,7 @@ export default async function Evaluation2Page({
             </>
           ) : competencyFormState.status === "OPEN" ? (
             <>
-              <span className="text-xs text-slate-500">
+              <span className="min-w-0 flex-1 text-xs break-keep text-slate-500">
                 마감하면 관리자를 포함해 아무도 자기평가 · 팀장평가를 고칠 수
                 없습니다. 마감을 풀면 다시 적을 수 있습니다.
               </span>
@@ -5267,7 +5291,7 @@ export default async function Evaluation2Page({
                 action={lockCompetencyForm.bind(null, selectedYear)}
                 successMessage="역량평가를 마감했습니다."
                 confirmMessage="이 해의 역량평가를 전체 마감할까요? 마감하면 아무도 점수를 고칠 수 없습니다."
-                className="ml-auto"
+                className="ml-auto shrink-0"
               >
                 <button
                   type="submit"
