@@ -885,7 +885,7 @@ export default async function OrgGoalsAdminPage({
                   </span>
                   {c.goalsLockedAt && (
                     <span className="rounded-full bg-slate-700 px-2 py-0.5 text-[11px] text-white">
-                      목표 마감 · {formatKSTDate(c.goalsLockedAt)}
+                      마감 · {formatKSTDate(c.goalsLockedAt)}
                     </span>
                   )}
                   {/*
@@ -997,19 +997,19 @@ export default async function OrgGoalsAdminPage({
                     {c.goalsLockedAt || c.status !== "OPEN" ? (
                       <ActionForm
                         action={unlockGoalSetting.bind(null, c.id)}
-                        successMessage="목표 마감을 풀었습니다."
+                        successMessage="마감을 풀었습니다."
                       >
                         <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">
-                          목표 마감 해제
+                          마감 해제
                         </button>
                       </ActionForm>
                     ) : (
                       <ActionForm
                         action={lockGoalSetting.bind(null, c.id)}
-                        successMessage="목표를 마감했습니다."
+                        successMessage="마감했습니다."
                       >
                         <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">
-                          목표 마감
+                          마감
                         </button>
                       </ActionForm>
                     )}

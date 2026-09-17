@@ -1072,8 +1072,7 @@ export async function setGoalCycleHireCutoff(formData: FormData) {
  */
 export async function lockGoalSetting(cycleId: string) {
   const session = await requireGoalModule();
-  if (!(await isAdmin()))
-    throw new Error("목표 마감은 관리자만 할 수 있습니다.");
+  if (!(await isAdmin())) throw new Error("마감은 관리자만 할 수 있습니다.");
 
   await prisma.goalCycle.update({
     where: { id: cycleId },
@@ -1166,7 +1165,7 @@ async function handOffToNextPhase(cycleId: string, actorId: string) {
 export async function unlockGoalSetting(cycleId: string) {
   await requireGoalModule();
   if (!(await isAdmin()))
-    throw new Error("목표 마감 해제는 관리자만 할 수 있습니다.");
+    throw new Error("마감 해제는 관리자만 할 수 있습니다.");
 
   /*
     「완료」로 닫아 둔 단계도 함께 되돌린다.
