@@ -401,9 +401,22 @@ async function resolveShareSource(
  *      적어 둔 점수가 화면에서 사라진다.
  *   ② 이어받기로 바꾼다(`sourceCycleId`).
  *
- * **원본에 이미 적힌 값은 덮어쓰지 않는다.** 상반기 점수는 중간평가에서 매긴 것이
- * 정답이고, 복사본 쪽 값으로 덮으면 확정된 성적이 조용히 바뀐다. 건너뛴 자리는
- * 몇 건인지 돌려주어 사람이 알 수 있게 한다.
+ * 옮기는 범위를 두 가지로 좁힌다.
+ *
+ * **그 단계에서 매기는 반기의 값만 옮긴다**(`evaluatesHalfHere`). 최종평가의 복사본
+ * 이라면 하반기 목표의 점수만 옮기고, 상반기 목표는 건드리지 않는다 — 상반기는
+ * 중간평가에서 매기는 것이 정답이고, 최종평가에서 적힌 상반기 값은 애초에 여기서
+ * 매길 자리가 아니었다. 실제로 한쪽에서는 50 · 10 · 60 · 0 · 0이고 다른 쪽에서는
+ * 100 · 110 · 100 · 100 · 100으로 갈려 있었다.
+ *
+ * **달성률은 그 반기에 한해, 적혀 있을 때만 옮긴다.** 달성률은 «비었다»는 상태가
+ * 없어서(0이 기본값) 반기를 가리지 않고 옮기면 원본의 «아직 0%»를 복사본의 100%로
+ * 덮어 버린다 — 위의 50 · 10 · 60 · 0 · 0이 그렇게 망가졌다. 반기를 가리고 나면
+ * 복사본 쪽이 그 반기의 기록이므로 옮기는 편이 맞고, 0은 «안 적음»과 구별할 수
+ * 없으니 옮기지 않는다. 그래야 최종평가에서 적어 둔 하반기 달성률이 사라지지 않는다.
+ *
+ * **원본에 이미 적힌 값도 덮어쓰지 않는다.** 확정된 성적이 조용히 바뀌면 안 된다.
+ * 건너뛴 자리는 몇 건인지 돌려주어 사람이 알 수 있게 한다.
  *
  * 복사본은 **지우지 않는다.** 이어받기로 바꾸면 화면에서는 원본만 보이므로 복사본은
  * 숨은 채로 남고, 공유를 풀면 그대로 다시 나온다 — 되돌릴 수 있는 작업으로 둔다.
@@ -427,6 +440,13 @@ export async function useSourceGoals(formData: FormData) {
     cycleId,
   );
   if (!sourceId) throw new Error("이어받을 인사평가를 골라 주세요.");
+
+  /* 반기 규칙을 걸려면 이 단계가 어느 반기를 매기는지 알아야 한다(사이클 이름). */
+  const stage = await prisma.goalCycle.findUnique({
+    where: { id: cycleId },
+    select: { name: true },
+  });
+  if (!stage) throw new Error("인사평가를 찾을 수 없습니다.");
 
   const dependents = await prisma.goalCycle.count({
     where: { sourceCycleId: cycleId },
@@ -499,9 +519,18 @@ export async function useSourceGoals(formData: FormData) {
   let moved = 0;
   let skipped = 0;
   let unmatched = 0;
+  let otherHalf = 0;
   const writes: { id: string; data: Record<string, unknown> }[] = [];
 
   for (const c of copies) {
+    /*
+      이 단계에서 매기는 반기가 아니면 건드리지 않는다 — 그 반기의 값은 제 단계
+      (상반기는 중간평가)가 정답이다.
+    */
+    if (!evaluatesHalfHere(c, stage)) {
+      if (hasEval(c)) otherHalf += 1;
+      continue;
+    }
     const o = matchFor(c);
     if (!o) {
       if (hasEval(c)) unmatched += 1;
@@ -531,13 +560,11 @@ export async function useSourceGoals(formData: FormData) {
       }
     }
     /*
-      달성률은 «비었다»는 상태가 없다(0이 기본값). 원본이 0이고 복사본에 값이
-      있을 때만 옮긴다 — 원본에 이미 올려 둔 진척을 복사본의 0으로 지우지 않는다.
+      달성률은 이 반기의 기록이 복사본 쪽에 있으므로 원본에 값이 있어도 옮긴다.
+      0은 «안 적음»과 구별할 수 없어 옮기지 않는다 — 원본의 진척을 0으로 지우는
+      쪽이 더 나쁘다.
     */
-    if (c.progress > 0) {
-      if (o.progress > 0) blocked = true;
-      else data.progress = c.progress;
-    }
+    if (c.progress > 0 && c.progress !== o.progress) data.progress = c.progress;
 
     if (Object.keys(data).length > 0) {
       writes.push({ id: o.id, data });
@@ -562,6 +589,11 @@ export async function useSourceGoals(formData: FormData) {
   revalidatePath(TARGETS_PATH);
 
   const parts = [`목표 ${copies.length}건 중 ${moved}건의 평가값을 옮겼습니다`];
+  if (otherHalf > 0) {
+    parts.push(
+      `${otherHalf}건은 이 단계에서 매기는 반기가 아니라 원본 값을 그대로 씁니다`,
+    );
+  }
   if (skipped > 0) {
     parts.push(`${skipped}건은 원본에 이미 값이 있어 그대로 뒀습니다`);
   }
