@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { evaluatesHalfHere } from "@/lib/goals";
 import { competencyAverage } from "@/lib/competency";
 import { competencyScore100, overallScore } from "@/lib/competency-result";
 import {
@@ -22,8 +23,141 @@ import {
 export type ScorePair = {
   performance: number | null;
   competency: number | null;
+  /** 운영(책임) 가산점. 없으면 0이다. */
+  bonus: number;
+  bonusNote: string | null;
+  /** 성과 60% + 역량 40% + 가산점. 한쪽이라도 비면 null. */
   total: number | null;
 };
+
+/** 성과점수를 이루는 목표 한 줄. 결과지의 「성과평가 상세」 표가 이것을 그린다. */
+export type PerfRow = {
+  cycleId: string;
+  ownerId: string | null;
+  title: string;
+  weight: number;
+  firstScore: number | null;
+  firstProgress: number | null;
+  progress: number;
+  half: string | null;
+  excluded: boolean;
+  excludeReason: string | null;
+};
+
+export type PerfResult = {
+  /** 점수의 합. 한 칸도 안 적혀 있으면 null이다(0이 아니다). */
+  score: number | null;
+  /** 집계에 든 목표들 — 목표 하나당 한 줄. */
+  goals: PerfRow[];
+  /** 집계에서 빠진 그 반기의 목표들. 세지 않고 화면에만 적는다. */
+  dropped: PerfRow[];
+  weightSum: number;
+  filled: number;
+};
+
+/**
+ * 성과점수 — **그 해 그 사람의 개인목표 중, 성과평가(최종)이 매기는 반기의 것**을
+ * 모아 1차 평가자가 매긴 점수를 더한다.
+ *
+ * 결과지와 HR REPORT가 **같은 이 함수**를 쓴다. 두 화면이 각자 세던 때에는 한쪽이
+ * 96점, 다른 쪽이 비어 있는 일이 실제로 있었고, 어느 쪽이 맞는지 아무도 몰랐다.
+ *
+ * 규칙이 세 겹이다.
+ *   ① 그 해 **네 단계를 한꺼번에** 읽는다. 성과평가(최종)이 앞 단계의 목표를
+ *      이어받으면 자기 id로는 0건이고, 개인목표를 등록하는 자리는 성과평가(중간)
+ *      하나라 목표설정에는 개인목표가 없다 — 한 사이클만 보면 0건이 된다.
+ *   ② 같은 목표(담당 + 목표명)는 **한 줄만** 센다. 점수가 적힌 줄이 이기고, 둘 다
+ *      적혀 있으면 뒤 단계가 이긴다(성과평가(최종)에서 매긴 것이 그 해 성적이다).
+ *   ③ **그 단계가 매기는 반기만** 센다. 사내 양식이 「개인목표 평가(상반기)」와
+ *      「(하반기)」 두 장이고 가중치 합이 장마다 100%라, 섞어 더하면 200%가 된다.
+ */
+export async function loadPerformanceScores(
+  userIds: string[],
+  cycleIds: string[],
+  finalCycle: { name: string } | null,
+  rank: (cycleId: string) => number,
+): Promise<Map<string, PerfResult>> {
+  const out = new Map<string, PerfResult>();
+  if (userIds.length === 0 || cycleIds.length === 0) return out;
+
+  const rows = await prisma.goal.findMany({
+    where: {
+      cycleId: { in: cycleIds },
+      level: "INDIVIDUAL",
+      ownerId: { in: userIds },
+    },
+    select: {
+      cycleId: true,
+      ownerId: true,
+      title: true,
+      weight: true,
+      firstScore: true,
+      firstProgress: true,
+      progress: true,
+      half: true,
+      excluded: true,
+      excludeReason: true,
+    },
+  });
+
+  const here = (r: PerfRow) =>
+    !finalCycle || evaluatesHalfHere({ half: r.half }, finalCycle);
+
+  for (const id of userIds) {
+    const mine = rows.filter((r) => r.ownerId === id && here(r));
+    const best = new Map<string, PerfRow>();
+    for (const row of mine) {
+      if (row.excluded) continue;
+      const key = row.title.trim();
+      const kept = best.get(key);
+      if (!kept) {
+        best.set(key, row);
+        continue;
+      }
+      const wins =
+        (row.firstScore != null && kept.firstScore == null) ||
+        (row.firstScore != null &&
+          kept.firstScore != null &&
+          rank(row.cycleId) > rank(kept.cycleId)) ||
+        (row.firstScore == null &&
+          kept.firstScore == null &&
+          rank(row.cycleId) > rank(kept.cycleId));
+      if (wins) best.set(key, row);
+    }
+    const goals = [...best.values()];
+    const filled = goals.filter((g) => g.firstScore != null);
+    out.set(id, {
+      goals,
+      dropped: mine.filter((r) => r.excluded),
+      weightSum: Math.round(
+        goals.reduce((n, g) => n + (g.weight > 0 ? g.weight : 0), 0),
+      ),
+      filled: filled.length,
+      score:
+        filled.length > 0
+          ? Math.round(
+              filled.reduce((n, g) => n + (g.firstScore ?? 0), 0) * 10,
+            ) / 10
+          : null,
+    });
+  }
+  return out;
+}
+
+/** 그 해 운영(책임) 가산점. 줄이 없으면 0점이다. */
+export async function loadBonuses(
+  year: number,
+  userIds: string[],
+): Promise<Map<string, { points: number; note: string | null }>> {
+  if (userIds.length === 0) return new Map();
+  const rows = await prisma.gradeBonus.findMany({
+    where: { year, userId: { in: userIds } },
+    select: { userId: true, points: true, note: true },
+  });
+  return new Map(
+    rows.map((r) => [r.userId, { points: r.points, note: r.note }]),
+  );
+}
 
 /**
  * 사람마다 성과 · 역량 · 종합점수.
@@ -39,28 +173,22 @@ export type ScorePair = {
 export async function loadUnitScores(
   year: number,
   userIds: string[],
-  finalGoalCycleId: string | null,
+  cycles: { id: string; name: string }[],
+  finalCycle: { name: string } | null,
+  rank: (cycleId: string) => number,
 ): Promise<Map<string, ScorePair>> {
   const out = new Map<string, ScorePair>();
   if (userIds.length === 0) return out;
 
-  const goals = finalGoalCycleId
-    ? await prisma.goal.findMany({
-        where: {
-          cycleId: finalGoalCycleId,
-          level: "INDIVIDUAL",
-          excluded: false,
-          ownerId: { in: userIds },
-        },
-        select: { ownerId: true, firstScore: true },
-      })
-    : [];
-
-  const perf = new Map<string, number>();
-  for (const g of goals) {
-    if (g.firstScore == null || !g.ownerId) continue;
-    perf.set(g.ownerId, (perf.get(g.ownerId) ?? 0) + g.firstScore);
-  }
+  const [perfByUser, bonuses] = await Promise.all([
+    loadPerformanceScores(
+      userIds,
+      cycles.map((c) => c.id),
+      finalCycle,
+      rank,
+    ),
+    loadBonuses(year, userIds),
+  ]);
 
   const reviews = await prisma.competencyReview.findMany({
     where: { year, userId: { in: userIds } },
@@ -81,9 +209,23 @@ export async function loadUnitScores(
   }
 
   for (const id of userIds) {
-    const p = perf.has(id) ? Math.round((perf.get(id) ?? 0) * 10) / 10 : null;
+    const p = perfByUser.get(id)?.score ?? null;
     const c = comp.get(id) ?? null;
-    out.set(id, { performance: p, competency: c, total: overallScore(p, c) });
+    const b = bonuses.get(id);
+    const base = overallScore(p, c);
+    out.set(id, {
+      performance: p,
+      competency: c,
+      bonus: b?.points ?? 0,
+      bonusNote: b?.note ?? null,
+      /*
+        가산점은 **종합점수가 나온 뒤에** 더한다. 성과·역량 중 하나라도 비어 있으면
+        종합점수는 null이고, 그때 가산점만 남겨 두면 «2점»이 순위에 들어가 평가를
+        아직 안 받은 사람이 자리를 깔고 앉는다.
+      */
+      total:
+        base == null ? null : Math.round((base + (b?.points ?? 0)) * 10) / 10,
+    });
   }
   return out;
 }

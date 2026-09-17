@@ -85,9 +85,6 @@ export default async function GradePlanAdminPage({
 
   const yearCycles = cycles.filter((c) => cycleYear(c) === year);
   const finalCycle = yearCycles.find((c) => cyclePhaseRank(c) === 3) ?? null;
-  const finalGoalCycleId = finalCycle
-    ? (finalCycle.sourceCycleId ?? finalCycle.id)
-    : null;
 
   const [quotaRows, unitRows, teams, people, form] = await Promise.all([
     prisma.gradeQuota.findMany({
@@ -142,10 +139,21 @@ export default async function GradePlanAdminPage({
       !(form && competencyExcluded(p, form.targets).excluded),
   );
 
+  /*
+    점수는 결과지·HR REPORT와 **같은 함수**에서 읽는다(`loadUnitScores`). 그 해 네
+    단계를 한꺼번에 보고 목표 하나당 한 줄만 세므로, 어느 사이클에 목표가 놓여
+    있어도 같은 숫자가 나온다.
+  */
+  const rankOfCycle = (cycleId: string) => {
+    const c = yearCycles.find((x) => x.id === cycleId);
+    return c ? cyclePhaseRank(c) : 0;
+  };
   const scores = await loadUnitScores(
     year,
     targets.map((p) => p.id),
-    finalGoalCycleId,
+    yearCycles,
+    finalCycle,
+    rankOfCycle,
   );
   const fixed = await loadFixedGrades(
     year,
