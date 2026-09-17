@@ -16,6 +16,7 @@ export async function loadCompetencyForm(year: number) {
       id: true,
       year: true,
       status: true,
+      lockedAt: true,
       sets: {
         orderBy: [{ kind: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
         select: {
@@ -63,9 +64,18 @@ export function competencyFormEditable(status: string): boolean {
   return status !== "CLOSED";
 }
 
-/** 점수를 받을 수 있는 상태인가. */
-export function competencyFormOpen(status: string): boolean {
-  return status === "OPEN";
+/**
+ * 점수를 받을 수 있는 상태인가 — 진행중이고 **아직 마감하지 않았을 때**다.
+ *
+ * 마감(`lockedAt`)은 목표 쪽의 「전체 마감」과 같은 자리다. 상태를 CLOSED로
+ * 닫는 것과 나눠 둔 이유는 둘이 다른 일이기 때문이다 — 마감은 «제출 기한이
+ * 끝났다»라서 인사팀이 「마감 해제」로 되돌리고, 완료는 «그 해 평가가 끝났다»다.
+ */
+export function competencyFormOpen(form: {
+  status: string;
+  lockedAt?: Date | null;
+}): boolean {
+  return form.status === "OPEN" && !form.lockedAt;
 }
 
 /**
@@ -75,15 +85,34 @@ export function competencyFormOpen(status: string): boolean {
  * 「역량평가 (평가 중)」이 나란히 뜨면 두 가지가 서로 다른 것처럼 읽힌다 — 같은
  * 한 해의 같은 진행 상태를 가리키는 말이라 이름도 같아야 한다.
  *
- * 「마감」은 없다. 목표 쪽의 마감은 «목표 내용은 확정하고 진척은 계속 올린다»는
- * 중간 상태(`goalsLockedAt`)인데, 역량평가에는 그런 자리가 없다 — 문항은 종료
- * 전까지 고칠 수 있고, 종료하면 점수까지 함께 잠긴다.
+ * 「마감」은 `status`가 아니라 `lockedAt`에 적힌다(목표 쪽과 같다) — 그래서 이
+ * 표만으로는 나오지 않고 `competencyFormStateLabel`이 합쳐 준다.
  */
 export const COMPETENCY_FORM_STATUS_LABEL: Record<string, string> = {
   DRAFT: "준비중",
   OPEN: "진행중",
   CLOSED: "완료",
 };
+
+/**
+ * 고르개에 적는 역량평가 상태 — 「준비중 · 진행중 · **마감** · 완료」.
+ *
+ * `status`만 읽으면 「전체 마감」을 누른 뒤에도 「진행중」으로 남는다. 마감은
+ * status가 아니라 `lockedAt`을 찍는 일이라서다. 목표 쪽 `cycleStateLabel`과
+ * 같은 규칙으로 읽는다 — 같은 고르개에 나란히 뜨는 값이라 한쪽만 다르면
+ * 「(진행중)」이 두 가지 뜻을 갖는다.
+ *
+ * 완료가 마감을 이긴다. 완료된 양식은 마감도 되어 있는 것이 보통이고, 그때
+ * 「마감」이라고 적으면 아직 점수를 받는 중으로 읽힌다.
+ */
+export function competencyFormStateLabel(form: {
+  status: string;
+  lockedAt?: Date | null;
+}): string {
+  if (form.status === "CLOSED") return COMPETENCY_FORM_STATUS_LABEL.CLOSED;
+  if (form.lockedAt) return "마감";
+  return COMPETENCY_FORM_STATUS_LABEL[form.status] ?? form.status;
+}
 
 export const COMPETENCY_SET_KIND_LABEL: Record<string, string> = {
   CORE_STAFF: "핵심가치 · 팀원용",

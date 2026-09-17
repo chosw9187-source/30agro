@@ -81,9 +81,11 @@ import {
   createGoal,
   createGoalYear,
   deleteGoal,
+  lockCompetencyForm,
   lockGoalSetting,
   reopenGoalAgreement,
   requestGoalAgreement,
+  unlockCompetencyForm,
   unlockGoalSetting,
   returnGoalAgreement,
   seedCompanyGoalTemplate,
@@ -134,7 +136,7 @@ import {
 import {
   loadCompetencyForm,
   competencyFormOpen,
-  COMPETENCY_FORM_STATUS_LABEL,
+  competencyFormStateLabel,
 } from "@/lib/competency-form";
 import { YearPhaseSelect, ParamSelect } from "./cycle-select";
 import { ActionForm } from "@/components/action-form";
@@ -1130,7 +1132,7 @@ export default async function Evaluation2Page({
   */
   const competencyFormState = await prisma.competencyForm.findUnique({
     where: { year: selectedYear },
-    select: { status: true },
+    select: { status: true, lockedAt: true },
   });
   const counted = allNodes.filter(countsTowardProgress);
   const overallProgress =
@@ -1253,9 +1255,7 @@ export default async function Evaluation2Page({
                     value: COMPETENCY_PHASE,
                     label: `역량평가 (${
                       competencyFormState
-                        ? (COMPETENCY_FORM_STATUS_LABEL[
-                            competencyFormState.status
-                          ] ?? competencyFormState.status)
+                        ? competencyFormStateLabel(competencyFormState)
                         : "미개설"
                     })`,
                   },
@@ -1426,7 +1426,7 @@ export default async function Evaluation2Page({
     */
     /* 양식이 「평가 중」일 때만 점수를 받는다 — 작성 중인 문항에 점수를 남기면
        문항이 바뀌는 순간 그 점수가 무엇에 대한 것인지 사라진다. */
-    const formOpen = competencyFormOpen(competencyForm.status);
+    const formOpen = competencyFormOpen(competencyForm);
     const canWriteSelf = (isAdmin || isSelf) && formOpen;
     const canWriteLead = (isAdmin || isFirstEvaluator) && formOpen;
     const canWrite = (canWriteSelf || canWriteLead) && itemCount > 0;
@@ -1566,8 +1566,7 @@ export default async function Evaluation2Page({
           <span className="text-xs text-slate-500">
             {selectedYear}년 양식{" "}
             <b className="font-medium text-slate-700">
-              {COMPETENCY_FORM_STATUS_LABEL[competencyForm.status] ??
-                competencyForm.status}
+              {competencyFormStateLabel(competencyForm)}
             </b>{" "}
             · 1차 평가자{" "}
             <b className="font-medium text-slate-700">
@@ -4988,6 +4987,81 @@ export default async function Evaluation2Page({
             </ActionForm>
           </div>
         )}
+
+      {/*
+        역량평가의 「전체 마감」. 목표 쪽과 같은 자리에 같은 모양으로 둔다 —
+        고르개에는 「목표설정 (마감)」과 「역량평가 (진행중)」이 나란히 뜨는데
+        한쪽만 마감할 길이 있으면 나머지는 관리 화면을 찾아다녀야 한다.
+
+        마감은 «제출 기한이 끝났다»라서 되돌리는 것이 보통이고, 「완료」는 그
+        해 평가를 닫는 별개 동작이다(관리 화면의 「평가 완료」).
+      */}
+      {competencyView && isAdmin && competencyFormState && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <span className="text-sm font-medium text-slate-800">
+            역량평가 마감
+          </span>
+          {competencyFormState.status === "CLOSED" ? (
+            <>
+              <span className="text-xs text-slate-500">
+                이 해의 역량평가는 완료되었습니다 — 점수는 읽기 전용입니다.
+              </span>
+              <Link
+                href="/admin/competency"
+                className="ml-auto text-xs text-brand-green-dark underline"
+              >
+                관리 화면에서 되돌리기
+              </Link>
+            </>
+          ) : competencyFormState.lockedAt ? (
+            <>
+              <span className="text-xs text-slate-500">
+                {formatKSTDate(competencyFormState.lockedAt)} 마감 — 자기평가 ·
+                팀장평가를 더 적을 수 없습니다. 마감을 풀면 다시 적을 수
+                있습니다.
+              </span>
+              <ActionForm
+                action={unlockCompetencyForm.bind(null, selectedYear)}
+                successMessage="마감을 풀었습니다. 다시 점수를 적을 수 있습니다."
+                confirmMessage="마감을 풀면 자기평가·팀장평가를 다시 적을 수 있게 됩니다. 진행할까요?"
+                className="ml-auto"
+              >
+                <button
+                  type="submit"
+                  className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                >
+                  마감 해제
+                </button>
+              </ActionForm>
+            </>
+          ) : competencyFormState.status === "OPEN" ? (
+            <>
+              <span className="text-xs text-slate-500">
+                마감하면 관리자를 포함해 아무도 자기평가 · 팀장평가를 고칠 수
+                없습니다. 마감을 풀면 다시 적을 수 있습니다.
+              </span>
+              <ActionForm
+                action={lockCompetencyForm.bind(null, selectedYear)}
+                successMessage="역량평가를 마감했습니다."
+                confirmMessage="이 해의 역량평가를 전체 마감할까요? 마감하면 아무도 점수를 고칠 수 없습니다."
+                className="ml-auto"
+              >
+                <button
+                  type="submit"
+                  className="rounded-md bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark"
+                >
+                  전체 마감
+                </button>
+              </ActionForm>
+            </>
+          ) : (
+            <span className="text-xs text-slate-500">
+              아직 준비중입니다 — 관리 화면에서 「평가 시작」을 누르면 점수를
+              받습니다.
+            </span>
+          )}
+        </div>
+      )}
 
       {competencyView ? (
         competencyBoard()

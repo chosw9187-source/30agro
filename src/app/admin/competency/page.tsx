@@ -14,7 +14,7 @@ import {
 import {
   loadCompetencyForm,
   competencyFormEditable,
-  COMPETENCY_FORM_STATUS_LABEL,
+  competencyFormStateLabel,
   COMPETENCY_SET_KIND_LABEL,
 } from "@/lib/competency-form";
 import {
@@ -31,6 +31,10 @@ import {
   setTeamCompetencyExcluded,
   setUserCompetencyExcluded,
 } from "./actions";
+import {
+  lockCompetencyForm,
+  unlockCompetencyForm,
+} from "@/app/platform/evaluation2/actions";
 import { InstantSelect } from "@/components/instant-select";
 
 export const dynamic = "force-dynamic";
@@ -63,7 +67,7 @@ export default async function CompetencyFormAdminPage({
 
   const forms = await prisma.competencyForm.findMany({
     orderBy: { year: "desc" },
-    select: { id: true, year: true, status: true },
+    select: { id: true, year: true, status: true, lockedAt: true },
   });
   const thisYear = new Date().getFullYear();
   const year = params.year ? Number(params.year) : (forms[0]?.year ?? thisYear);
@@ -173,7 +177,7 @@ export default async function CompetencyFormAdminPage({
             >
               {f.year}년
               <span className="ml-1 opacity-75">
-                {COMPETENCY_FORM_STATUS_LABEL[f.status]}
+                {competencyFormStateLabel(f)}
               </span>
             </Link>
           ))}
@@ -206,7 +210,7 @@ export default async function CompetencyFormAdminPage({
             <span className="text-sm text-slate-600">
               {form.year}년 ·{" "}
               <b className="font-semibold text-slate-900">
-                {COMPETENCY_FORM_STATUS_LABEL[form.status]}
+                {competencyFormStateLabel(form)}
               </b>
               <span className="ml-2 text-xs text-slate-500">
                 직무역량 {jobSets.length}벌 · 문항{" "}
@@ -278,19 +282,47 @@ export default async function CompetencyFormAdminPage({
               )}
               {form.status === "OPEN" && (
                 <>
-                  <ActionForm
-                    action={setCompetencyFormStatus.bind(
-                      null,
-                      form.id,
-                      "DRAFT",
-                    )}
-                    successMessage="준비중으로 되돌렸습니다."
-                    confirmMessage="평가자들이 점수를 적을 수 없게 됩니다. 진행할까요?"
-                  >
-                    <button type="submit" className={BTN_GHOST}>
-                      준비중으로 되돌리기
-                    </button>
-                  </ActionForm>
+                  {!form.lockedAt && (
+                    <ActionForm
+                      action={setCompetencyFormStatus.bind(
+                        null,
+                        form.id,
+                        "DRAFT",
+                      )}
+                      successMessage="준비중으로 되돌렸습니다."
+                      confirmMessage="평가자들이 점수를 적을 수 없게 됩니다. 진행할까요?"
+                    >
+                      <button type="submit" className={BTN_GHOST}>
+                        준비중으로 되돌리기
+                      </button>
+                    </ActionForm>
+                  )}
+                  {/*
+                    전체 마감 — 목표 쪽 사이클의 「전체 마감」과 같은 자리다.
+                    점수 입력만 닫고 「완료」는 그 뒤의 별개 동작이라, 제출
+                    기한을 닫고도 되돌릴 수 있다.
+                  */}
+                  {form.lockedAt ? (
+                    <ActionForm
+                      action={unlockCompetencyForm.bind(null, form.year)}
+                      successMessage="마감을 풀었습니다."
+                      confirmMessage="마감을 풀면 자기평가·팀장평가를 다시 적을 수 있게 됩니다. 진행할까요?"
+                    >
+                      <button type="submit" className={BTN_GHOST}>
+                        마감 해제
+                      </button>
+                    </ActionForm>
+                  ) : (
+                    <ActionForm
+                      action={lockCompetencyForm.bind(null, form.year)}
+                      successMessage="역량평가를 마감했습니다."
+                      confirmMessage="이 해의 역량평가를 전체 마감할까요? 마감하면 아무도 점수를 고칠 수 없습니다."
+                    >
+                      <button type="submit" className={BTN_GHOST}>
+                        전체 마감
+                      </button>
+                    </ActionForm>
+                  )}
                   <ActionForm
                     action={setCompetencyFormStatus.bind(
                       null,

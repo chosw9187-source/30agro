@@ -60,6 +60,7 @@ import { loadCompetencyForm, competencyFormOpen } from "@/lib/competency-form";
 const ALL_ROLES = ["ADMIN", "EVALUATOR", "EMPLOYEE"] as const;
 const PATH = "/platform/evaluation2";
 const ADMIN_PATH = "/admin/org-goals";
+const COMPETENCY_ADMIN_PATH = "/admin/competency";
 const TARGETS_PATH = "/admin/eval-targets";
 
 function str(value: FormDataEntryValue | null): string {
@@ -420,21 +421,21 @@ async function resolveShareSource(
  *      적어 둔 점수가 화면에서 사라진다.
  *   ② 이어받기로 바꾼다(`sourceCycleId`).
  *
- * 옮기는 범위를 두 가지로 좁힌다.
+ * 무엇을 옮기는지가 **점수와 달성률에서 갈린다.**
  *
- * **그 단계에서 매기는 반기의 값만 옮긴다**(`evaluatesHalfHere`). 최종평가의 복사본
- * 이라면 하반기 목표의 점수만 옮기고, 상반기 목표는 건드리지 않는다 — 상반기는
- * 중간평가에서 매기는 것이 정답이고, 최종평가에서 적힌 상반기 값은 애초에 여기서
- * 매길 자리가 아니었다. 실제로 한쪽에서는 50 · 10 · 60 · 0 · 0이고 다른 쪽에서는
- * 100 · 110 · 100 · 100 · 100으로 갈려 있었다.
+ * **점수 · 사유 · 완료 표시는 반기를 가리지 않고 옮긴다**(달성률은 빼고 — 아래를
+ * 보라) — 단, 원본의 **빈 칸에만** 넣는다. 반기로 걸러 버리면 최종평가에서 상반기 목표에 매겨 둔 점수(30 · 18 · 22 ·
+ * 20 · 6 = 96점)가 숨은 복사본에 남아, 이어받기를 누른 순간 결과지의 성과평가가
+ * 통째로 비어 버린다. 빈 칸에만 넣으므로 중간평가에 이미 매긴 점수가 있으면 그것이
+ * 이긴다 — 확정된 성적이 조용히 바뀌는 일은 없다.
  *
- * **달성률은 그 반기에 한해, 적혀 있을 때만 옮긴다.** 달성률은 «비었다»는 상태가
- * 없어서(0이 기본값) 반기를 가리지 않고 옮기면 원본의 «아직 0%»를 복사본의 100%로
- * 덮어 버린다 — 위의 50 · 10 · 60 · 0 · 0이 그렇게 망가졌다. 반기를 가리고 나면
- * 복사본 쪽이 그 반기의 기록이므로 옮기는 편이 맞고, 0은 «안 적음»과 구별할 수
- * 없으니 옮기지 않는다. 그래야 최종평가에서 적어 둔 하반기 달성률이 사라지지 않는다.
+ * **달성률은 그 단계가 매기는 반기만, 적혀 있을 때만 옮긴다**(`evaluatesHalfHere`).
+ * 달성률은 «비었다»는 상태가 없어서(0이 기본값) 반기를 가리지 않고 옮기면 원본의
+ * «아직 0%»를 복사본의 100%로 덮어 버린다 — 상반기 달성도가 한쪽에서는 50 · 10 ·
+ * 60 · 0 · 0이고 다른 쪽에서는 100 · 110 · 100 · 100 · 100으로 갈렸던 것이 그
+ * 때문이다. 상반기는 중간평가가 정답이라 손대지 않고, 하반기는 복사본 쪽이 그
+ * 반기의 기록이라 옮긴다(0은 «안 적음»과 구별할 수 없어 옮기지 않는다).
  *
- * **원본에 이미 적힌 값도 덮어쓰지 않는다.** 확정된 성적이 조용히 바뀌면 안 된다.
  * 건너뛴 자리는 몇 건인지 돌려주어 사람이 알 수 있게 한다.
  *
  * 복사본은 **지우지 않는다.** 이어받기로 바꾸면 화면에서는 원본만 보이므로 복사본은
@@ -542,14 +543,6 @@ export async function useSourceGoals(formData: FormData) {
   const writes: { id: string; data: Record<string, unknown> }[] = [];
 
   for (const c of copies) {
-    /*
-      이 단계에서 매기는 반기가 아니면 건드리지 않는다 — 그 반기의 값은 제 단계
-      (상반기는 중간평가)가 정답이다.
-    */
-    if (!evaluatesHalfHere(c, stage)) {
-      if (hasEval(c)) otherHalf += 1;
-      continue;
-    }
     const o = matchFor(c);
     if (!o) {
       if (hasEval(c)) unmatched += 1;
@@ -567,7 +560,6 @@ export async function useSourceGoals(formData: FormData) {
     };
     carry("selfScore");
     carry("selfComment");
-    carry("firstProgress");
     carry("firstScore");
     carry("firstComment");
     // 완료 표시는 누가 찍었는지와 함께 옮긴다 — 한쪽만 옮기면 «누가»가 빈다.
@@ -579,11 +571,26 @@ export async function useSourceGoals(formData: FormData) {
       }
     }
     /*
-      달성률은 이 반기의 기록이 복사본 쪽에 있으므로 원본에 값이 있어도 옮긴다.
-      0은 «안 적음»과 구별할 수 없어 옮기지 않는다 — 원본의 진척을 0으로 지우는
-      쪽이 더 나쁘다.
+      달성률은 이 단계가 매기는 반기만 옮긴다 — 본인이 적은 칸(`progress`)과 1차
+      평가자가 매긴 칸(`firstProgress`) 둘 다 달성률이라 같은 규칙을 쓴다. 그
+      반기의 기록은 복사본 쪽에 있으므로 원본에 값이 있어도 옮기고, `progress`의
+      0은 «안 적음»과 구별할 수 없어 옮기지 않는다(원본의 진척을 0으로 지우는
+      쪽이 더 나쁘다). 다른 반기는 손대지 않는다 — 상반기 달성도는 중간평가에서
+      매긴 것이 정답이다.
     */
-    if (c.progress > 0 && c.progress !== o.progress) data.progress = c.progress;
+    const moves = (a: number | null, bv: number | null) =>
+      a != null && a !== bv;
+    if (evaluatesHalfHere(c, stage)) {
+      if (c.progress > 0 && c.progress !== o.progress)
+        data.progress = c.progress;
+      if (moves(c.firstProgress, o.firstProgress))
+        data.firstProgress = c.firstProgress;
+    } else if (
+      (c.progress > 0 && c.progress !== o.progress) ||
+      moves(c.firstProgress, o.firstProgress)
+    ) {
+      otherHalf += 1;
+    }
 
     if (Object.keys(data).length > 0) {
       writes.push({ id: o.id, data });
@@ -610,7 +617,7 @@ export async function useSourceGoals(formData: FormData) {
   const parts = [`목표 ${copies.length}건 중 ${moved}건의 평가값을 옮겼습니다`];
   if (otherHalf > 0) {
     parts.push(
-      `${otherHalf}건은 이 단계에서 매기는 반기가 아니라 원본 값을 그대로 씁니다`,
+      `${otherHalf}건은 이 단계에서 매기는 반기가 아니라 달성률은 원본 값을 그대로 씁니다`,
     );
   }
   if (skipped > 0) {
@@ -1133,6 +1140,49 @@ export async function unlockGoalSetting(cycleId: string) {
   });
   revalidatePath(PATH);
   revalidatePath(ADMIN_PATH);
+}
+
+/**
+ * 역량평가를 **전체 마감**한다 — 그 해 양식에 마감 시각을 찍는다.
+ *
+ * 목표 쪽의 「전체 마감」(`lockGoalSetting`)과 같은 자리다. 눌리면 자기평가·
+ * 팀장평가를 더 적을 수 없고, 고르개에 「역량평가 (마감)」으로 뜬다. 상태를
+ * 「완료」로 닫는 것과 나눠 둔 이유는 둘이 다른 일이기 때문이다 — 마감은 «제출
+ * 기한이 끝났다»라서 되돌리는 것이 보통이고, 완료는 «그 해 평가가 끝났다»다.
+ *
+ * 양식이 없는 해는 마감할 것도 없다.
+ */
+export async function lockCompetencyForm(year: number) {
+  const session = await requireGoalModule();
+  if (!(await isAdmin()))
+    throw new Error("역량평가 마감은 관리자만 할 수 있습니다.");
+
+  const form = await prisma.competencyForm.findUnique({
+    where: { year },
+    select: { id: true },
+  });
+  if (!form) throw new Error(`${year}년 역량평가 양식이 아직 없습니다.`);
+
+  await prisma.competencyForm.update({
+    where: { id: form.id },
+    data: { lockedAt: new Date(), lockedById: session.user.id },
+  });
+  revalidatePath(PATH);
+  revalidatePath(COMPETENCY_ADMIN_PATH);
+}
+
+/** 마감을 풀어 다시 점수를 받는다. **관리자만.** */
+export async function unlockCompetencyForm(year: number) {
+  await requireGoalModule();
+  if (!(await isAdmin()))
+    throw new Error("역량평가 마감 해제는 관리자만 할 수 있습니다.");
+
+  await prisma.competencyForm.updateMany({
+    where: { year },
+    data: { lockedAt: null, lockedById: null },
+  });
+  revalidatePath(PATH);
+  revalidatePath(COMPETENCY_ADMIN_PATH);
 }
 
 /**
@@ -2459,9 +2509,11 @@ export async function saveCompetencyScores(formData: FormData) {
   */
   const form = await loadCompetencyForm(year);
   if (!form) throw new Error(`${year}년 역량평가 양식이 아직 없습니다.`);
-  if (!competencyFormOpen(form.status)) {
+  if (!competencyFormOpen(form)) {
     throw new Error(
-      "지금은 점수를 적을 수 없습니다 — 관리자가 「평가 시작」을 눌러야 합니다.",
+      form.lockedAt
+        ? "역량평가가 마감되었습니다 — 고쳐야 하면 관리자에게 「마감 해제」를 요청해 주세요."
+        : "지금은 점수를 적을 수 없습니다 — 관리자가 「평가 시작」을 눌러야 합니다.",
     );
   }
   /* 인사팀이 빼 둔 사람에게는 점수를 남기지 않는다 — 화면에서도 목록에 오지
