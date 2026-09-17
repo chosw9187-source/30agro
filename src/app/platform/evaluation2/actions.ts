@@ -2673,3 +2673,53 @@ export async function saveCompetencyScores(formData: FormData) {
 
   revalidatePath(PATH);
 }
+
+/**
+ * 운영(책임) 가산점을 적는다 — 종합점수에 ±로 얹는 조정 한 줄. **관리자만.**
+ *
+ * 성과·역량 점수를 직접 고치지 않고 따로 한 줄로 두는 이유는 근거가 남아야 하기
+ * 때문이다. 0을 적거나 비우면 줄을 지운다 — «0점 조정»과 «조정 없음»을 구별해
+ * 둘 이유가 없고, 남겨 두면 HR REPORT에 뜻 없는 줄이 쌓인다.
+ */
+export async function setGradeBonus(formData: FormData) {
+  const session = await requireGoalModule();
+  if (!(await isAdmin()))
+    throw new Error("가산점은 관리자만 적을 수 있습니다.");
+
+  const year = parseNumber(formData.get("year"), 0);
+  if (year < 2000 || year > 2999) throw new Error("연도를 확인해 주세요.");
+  const userId = str(formData.get("userId"));
+  if (!userId) throw new Error("사람이 비어 있습니다.");
+
+  const raw = str(formData.get("points"));
+  const points = raw === "" ? 0 : Number(raw);
+  if (!Number.isFinite(points) || points < -50 || points > 50) {
+    throw new Error("가산점은 -50 ~ 50 사이로 적어 주세요.");
+  }
+  const note = str(formData.get("note")) || null;
+
+  if (points === 0) {
+    await prisma.gradeBonus.deleteMany({ where: { year, userId } });
+    revalidatePath(PATH);
+    return { message: "가산점을 지웠습니다." };
+  }
+  await prisma.gradeBonus.upsert({
+    where: { year_userId: { year, userId } },
+    create: {
+      year,
+      userId,
+      points: Math.round(points * 10) / 10,
+      note,
+      setById: session.user.id,
+    },
+    update: {
+      points: Math.round(points * 10) / 10,
+      note,
+      setById: session.user.id,
+    },
+  });
+  revalidatePath(PATH);
+  return {
+    message: `가산점 ${points > 0 ? "+" : ""}${points}점을 적었습니다.`,
+  };
+}

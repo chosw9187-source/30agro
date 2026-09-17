@@ -145,6 +145,8 @@ model User {
   competencyFormsLocked    CompetencyForm[]               @relation("CompetencyFormLockedBy")
   finalGrades              FinalGrade[]                   @relation("FinalGradeUser")
   finalGradesFixed         FinalGrade[]                   @relation("FinalGradeFixedBy")
+  gradeBonuses             GradeBonus[]                   @relation("GradeBonusUser")
+  gradeBonusesSet          GradeBonus[]                   @relation("GradeBonusSetBy")
 }
 
 model AppointmentRecord {
@@ -1632,6 +1634,36 @@ model GradeUnitPlan {
  * 줄이 없으면 계산값을 쓴다. 덮어쓴 줄만 남기므로, 사람이 들어오고 나가도 명단을
  * 따로 관리할 필요가 없다.
  */
+/**
+ * 운영(책임) 가산점 — 종합점수에 더하거나 빼는 조정 한 줄.
+ *
+ * 성과 60% + 역량 40%는 목표와 문항에서 기계적으로 나오는 값이라, 그 해에 어느
+ * 본부가 특별히 무엇을 해냈는지(또는 어긋났는지)를 담지 못한다. 운영책임이
+ * 그것을 ±점으로 얹는 자리다. 점수 자체를 손대지 않고 **따로 한 줄로** 두는
+ * 이유는 근거가 남아야 하기 때문이다 — 성과점수를 96에서 98로 고쳐 두면 왜
+ * 2점이 붙었는지 아무도 모른다.
+ *
+ * 등급은 이 가산점까지 더한 최종점수로 매긴다(HR REPORT 화면이 한 자리다).
+ */
+model GradeBonus {
+  id     String @id @default(cuid())
+  year   Int
+  userId String
+  user   User   @relation("GradeBonusUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  /** ± 점. 종합점수(100점 자리)에 그대로 더한다. */
+  points Float
+  note   String?
+
+  setById String?
+  setBy   User?   @relation("GradeBonusSetBy", fields: [setById], references: [id])
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, userId])
+  @@index([year])
+}
+
 model FinalGrade {
   id     String @id @default(cuid())
   year   Int

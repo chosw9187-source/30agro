@@ -94,6 +94,7 @@ import {
   seedCompanyGoalTemplate,
   setGoalDropped,
   setGoalEvalDone,
+  setGradeBonus,
   setGoalExcluded,
   updateGoal,
   saveCompetencyScores,
@@ -108,8 +109,10 @@ import {
   loadFixedGrades,
   loadQuotaTable,
   loadUnitPlans,
+  loadPerformanceScores,
   loadUnitScores,
   resolveUnitGrades,
+  type PerfResult,
 } from "@/lib/final-grade-data";
 import {
   COMPETENCY_MAX,
@@ -1025,87 +1028,29 @@ export default async function Evaluation2Page({
   */
   const finalCycle = yearCycles.find((c) => cyclePhaseRank(c) === 3) ?? null;
   /*
-    성과점수는 **그 해 그 사람의 개인목표 전부**에서 읽는다.
-
-    사이클 하나만 보면 점수가 영영 비는 짜임이 실제로 여러 가지 생겼다.
-    성과평가(최종)이 앞 단계의 목표를 이어받으면 자기 id로는 목표가 0건이고,
-    이어받기로 바꾼 뒤에도 예전 복사본이 남아 있으면 거기 적은 점수는 원본에
-    없고, 개인목표를 등록하는 자리가 성과평가(중간) 하나라 목표설정에는 애초에
-    개인목표가 없다. 세 가지가 겹치면 어느 한 사이클을 골라도 0건이 된다 —
-    결과지에는 「목표 0건 중 0건 평가됨」만 떴다.
-
-    그래서 그 해 네 단계를 **한꺼번에 읽고 목표 하나당 한 줄만** 센다. 같은
-    목표인지는 사내 양식에서 사람이 읽는 값으로 가린다(목표명). 점수가 적힌 줄이
-    이기고, 둘 다 적혀 있으면 **뒤 단계**가 이긴다 — 성과평가(최종)에서 매긴
-    점수가 그 해의 성적이다(`cyclePhaseRank`).
+    성과점수는 결과지·HR REPORT·등급 관리가 **같은 함수**에서 읽는다
+    (`loadPerformanceScores`). 두 화면이 각자 세던 때에는 한쪽이 96점, 다른 쪽이
+    비어 있는 일이 실제로 있었고 어느 쪽이 맞는지 아무도 몰랐다. 규칙(그 해 네
+    단계를 한꺼번에 · 목표 하나당 한 줄 · 그 단계가 매기는 반기만)은 그 함수에
+    적어 두었다.
   */
-  const finalGoalCycleId = finalCycle
-    ? (finalCycle.sourceCycleId ?? finalCycle.id)
+  const rankOfCycle = (cycleId: string) => {
+    const c = yearCycles.find((x) => x.id === cycleId);
+    return c ? cyclePhaseRank(c) : 0;
+  };
+  const perfByTarget: Map<string, PerfResult> =
+    personView && competencyTarget
+      ? await loadPerformanceScores(
+          [competencyTarget.id],
+          yearCycles.map((c) => c.id),
+          finalCycle,
+          rankOfCycle,
+        )
+      : new Map();
+  const targetPerf = competencyTarget
+    ? (perfByTarget.get(competencyTarget.id) ?? null)
     : null;
-  const performanceRows =
-    personView && competencyTarget && yearCycles.length > 0
-      ? await prisma.goal.findMany({
-          where: {
-            cycleId: { in: yearCycles.map((c) => c.id) },
-            level: "INDIVIDUAL",
-            ownerId: competencyTarget.id,
-          },
-          select: {
-            cycleId: true,
-            title: true,
-            weight: true,
-            firstScore: true,
-            firstProgress: true,
-            progress: true,
-            half: true,
-            /*
-              집계에서 빼 둔 목표도 읽는다. 세지는 않지만 표에 흐리게 남겨야
-              «다섯 건인데 왜 네 건만 세지고 가중치가 90%인가»가 화면에서
-              풀린다 — 예전에는 빠진 줄이 아예 안 보여서 어디를 봐야 할지
-              알 수 없었다.
-            */
-            excluded: true,
-            excludeReason: true,
-          },
-        })
-      : [];
-  const rankOfCycle = new Map(
-    yearCycles.map((c) => [c.id, cyclePhaseRank(c)] as const),
-  );
-  /*
-    성과점수는 **성과평가(최종)이 매기는 반기의 목표만** 센다 — 하반기다
-    (`evaluatesHalfHere`). 사내 양식이 「개인목표 평가(상반기)」와 「(하반기)」 두
-    장이고 가중치 합이 장마다 100%이므로, 두 반기를 함께 더하면 가중치 합이
-    200%가 되어 100점 자리 점수가 아니게 된다. 상반기 성적은 성과평가(중간)에서
-    매긴 그 화면의 값이다. 반기를 안 적어 둔 옛 목표는 함께 센다.
-  */
-  const performanceGoals = (() => {
-    const best = new Map<string, (typeof performanceRows)[number]>();
-    for (const row of performanceRows) {
-      if (finalCycle && !evaluatesHalfHere(row, finalCycle)) continue;
-      if (row.excluded) continue;
-      const key = row.title.trim();
-      const kept = best.get(key);
-      if (!kept) {
-        best.set(key, row);
-        continue;
-      }
-      const rank = (r: typeof row) => rankOfCycle.get(r.cycleId) ?? 0;
-      const wins =
-        // 점수가 적힌 줄이 이긴다.
-        (row.firstScore != null && kept.firstScore == null) ||
-        // 둘 다 적혀 있으면 뒤 단계가 이긴다.
-        (row.firstScore != null &&
-          kept.firstScore != null &&
-          rank(row) > rank(kept)) ||
-        // 둘 다 비어 있으면 가중치가 적힌 줄을 남긴다(가중치 합을 보여 주려고).
-        (row.firstScore == null &&
-          kept.firstScore == null &&
-          rank(row) > rank(kept));
-      if (wins) best.set(key, row);
-    }
-    return [...best.values()];
-  })();
+  const performanceGoals = targetPerf?.goals ?? [];
 
   /*
     성과점수가 비었을 때 **어디를 봐야 하는지**를 화면에 적는다.
@@ -1270,7 +1215,9 @@ export default async function Evaluation2Page({
         loadUnitScores(
           selectedYear,
           unitPeople.map((p) => p.id),
-          finalGoalCycleId,
+          yearCycles,
+          finalCycle,
+          rankOfCycle,
         ),
         loadUnitPlans(selectedYear),
         loadQuotaTable(selectedYear),
@@ -1295,6 +1242,76 @@ export default async function Evaluation2Page({
   const targetGrade = competencyTarget
     ? (unitGrades.get(competencyTarget.id) ?? null)
     : null;
+
+  /*
+    HR REPORT — **전체 인원을 한 표로** 읽는 자리.
+
+    결과지는 사람 한 장이라 «누가 몇 등인지»가 안 보인다. 여기서는 그 해 평가
+    대상 전부를 업무단위별로 묶어 성과 · 역량 · 가산점 · 최종점수 · 등급을 한 줄씩
+    놓는다. 점수는 결과지와 **같은 함수**에서 읽으므로(`loadUnitScores`) 두 화면이
+    다른 숫자를 보일 수 없다.
+
+    등급은 업무단위마다 따로 매긴다 — 상대평가라 «그 단위 안에서 몇 등»이고,
+    단위를 섞어 순위를 내면 정원표가 뜻을 잃는다.
+  */
+  const reportPeople = reportView
+    ? people.filter(
+        (p) =>
+          isCompetencyTarget(p.position) &&
+          !(
+            competencyFormEarly &&
+            competencyExcluded(p, competencyFormEarly.targets).excluded
+          ),
+      )
+    : [];
+  const [reportScores, reportPlans, reportQuota, reportFixed] = reportView
+    ? await Promise.all([
+        loadUnitScores(
+          selectedYear,
+          reportPeople.map((p) => p.id),
+          yearCycles,
+          finalCycle,
+          rankOfCycle,
+        ),
+        loadUnitPlans(selectedYear),
+        loadQuotaTable(selectedYear),
+        loadFixedGrades(
+          selectedYear,
+          reportPeople.map((p) => p.id),
+        ),
+      ])
+    : [new Map(), new Map(), new Map(), new Map()];
+  /** 업무단위 → 그 단위 사람들 · 조직등급 · 정원 · 등급 결과. */
+  const reportUnits = (() => {
+    const byUnit = new Map<string, typeof reportPeople>();
+    for (const p of reportPeople) {
+      const u = unitOf(p) ?? "업무단위 미지정";
+      byUnit.set(u, [...(byUnit.get(u) ?? []), p]);
+    }
+    return [...byUnit.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([unit, members]) => {
+        const orgGrade = reportPlans.get(unit) ?? null;
+        const ratios: GradeRatios | null = orgGrade
+          ? (reportQuota.get(orgGrade) ?? null)
+          : null;
+        const grades = resolveUnitGrades(
+          members.map((p) => ({
+            userId: p.id,
+            total: reportScores.get(p.id)?.total ?? null,
+          })),
+          ratios,
+          reportFixed,
+        );
+        // 점수 높은 순으로 세운다 — 등급이 위에서부터 끊기는 순서와 같다.
+        const rows = [...members].sort(
+          (a, b) =>
+            (reportScores.get(b.id)?.total ?? -1) -
+            (reportScores.get(a.id)?.total ?? -1),
+        );
+        return { unit, orgGrade, ratios, grades, rows };
+      });
+  })();
 
   const editingGoal = params.edit ? (nodeById.get(params.edit) ?? null) : null;
 
@@ -2009,31 +2026,32 @@ export default async function Evaluation2Page({
       성과평가 점수 — 최종평가에서 목표마다 1차 평가자가 매긴 점수의 합. 한 칸도
       안 적혀 있으면 null이다(0이 아니다) — 0점과 «아직 안 매김»은 다른 말이다.
     */
-    const perfFilled = performanceGoals.filter((g) => g.firstScore != null);
-    const perfScore =
-      perfFilled.length > 0
-        ? Math.round(
-            perfFilled.reduce((n, g) => n + (g.firstScore ?? 0), 0) * 10,
-          ) / 10
-        : null;
+    const perfFilledCount = targetPerf?.filled ?? 0;
+    const perfScore = targetPerf?.score ?? null;
+    /*
+      종합점수는 HR REPORT가 매긴 값을 그대로 쓴다(`loadUnitScores`) — 가산점까지
+      더한 숫자다. 여기서 다시 세면 두 화면이 다른 총점을 보일 수 있고, 등급은
+      HR REPORT 쪽 값으로 매겨지므로 «점수는 90.8인데 등급은 92.8 기준»이 된다.
+    */
+    const targetScores = competencyTarget
+      ? (unitScores.get(competencyTarget.id) ?? null)
+      : null;
+    const targetBonus = targetScores?.bonus ?? 0;
     /*
       점수의 합이 100점 자리가 되는 근거는 **가중치 합이 100**이라는 것뿐이다.
       가중치가 120이면 점수도 120점대로 나오고, 그 숫자로 등급을 매기면 가중치를
       덜 채운 사람과 나란히 놓을 수 없다. 그래서 합을 옆에 적고, 100이 아니면
       눈에 걸리게 한다 — 목록의 「가중치 소계」 경고와 같은 기준이다.
     */
-    const perfWeightSum = Math.round(
-      performanceGoals.reduce((n, g) => n + (g.weight > 0 ? g.weight : 0), 0),
-    );
+    const perfWeightSum = targetPerf?.weightSum ?? 0;
     const perfWeightOff = performanceGoals.length > 0 && perfWeightSum !== 100;
     /*
       집계에서 빠진 그 반기의 목표. 가중치 합이 100%가 아닌 까닭이 거의 언제나
       이것이라, 표 아래에 흐리게 붙여 둔다.
     */
-    const perfDropped = performanceRows.filter(
-      (g) => g.excluded && (!finalCycle || evaluatesHalfHere(g, finalCycle)),
-    );
-    const total = overallScore(perfScore, compScore);
+    const perfDropped = targetPerf?.dropped ?? [];
+    const base = overallScore(perfScore, compScore);
+    const total = targetScores?.total ?? base;
 
     const { strengths, weaknesses, relativelyLow } =
       strengthsAndWeaknesses(rows);
@@ -2200,14 +2218,14 @@ export default async function Evaluation2Page({
           <span className="text-[11px] font-medium text-goal-4/70">등급</span>
         </span>
       ) : (
+        /*
+          등급이 없을 때는 «등급 미정»만 적는다. 예전에는 «조직등급 미지정»·
+          «정원 미입력»처럼 까닭을 이 자리에 적었는데, 종합점수 옆은 사람이 제
+          점수를 읽는 자리라 인사팀의 준비 상태가 끼어들 곳이 아니다 — 그 까닭은
+          아래 「최종등급」 줄과 HR REPORT에 그대로 적혀 있다.
+        */
         <span className="ml-1.5 rounded-lg bg-white/15 px-2 py-1 text-[11px] font-medium break-keep text-white">
-          {total == null
-            ? "등급 미정"
-            : targetUnit == null
-              ? "업무단위 미지정"
-              : unitOrgGrade == null
-                ? "조직등급 미지정"
-                : "정원 미입력"}
+          등급 미정
         </span>
       );
 
@@ -2287,12 +2305,42 @@ export default async function Evaluation2Page({
 
         {/* 1. 결과 요약 */}
         <section className={CARD_CLASS}>
-          {sectionHead(
-            "1. 결과 요약",
-            `성과 ${Math.round(PERFORMANCE_WEIGHT * 100)}% + 역량 ${Math.round(
-              COMPETENCY_WEIGHT * 100,
-            )}% = 종합점수`,
-          )}
+          {/*
+            절 머리 오른쪽 끝에 최종등급을 세운다 — 결과지를 열어 가장 먼저 찾는
+            것이 그것이고, 아래 「최종등급」 줄까지 내려가야 보이면 한 번 더
+            찾아야 한다. 아래 줄은 근거(순위 · 정원 · 확정 사유)를 맡는다.
+          */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="min-w-0 flex-1">
+              {sectionHead(
+                "1. 결과 요약",
+                `성과 ${Math.round(PERFORMANCE_WEIGHT * 100)}% + 역량 ${Math.round(
+                  COMPETENCY_WEIGHT * 100,
+                )}%${
+                  targetBonus
+                    ? ` ${targetBonus > 0 ? "+" : "−"} 가산점 ${Math.abs(targetBonus)}점`
+                    : ""
+                } = 종합점수`,
+              )}
+            </span>
+            <span className="ml-auto flex shrink-0 items-center gap-1.5 px-4">
+              <span className="text-xs font-semibold text-slate-500">
+                최종등급
+              </span>
+              {targetGrade ? (
+                <span
+                  className={`rounded-lg px-2.5 py-1 text-base leading-none font-bold ${
+                    PERSON_GRADE_CLASS[targetGrade.grade] ??
+                    "bg-slate-500 text-white"
+                  }`}
+                >
+                  {targetGrade.grade}
+                </span>
+              ) : (
+                <span className="text-sm text-slate-400">미정</span>
+              )}
+            </span>
+          </div>
           {/* 종합점수 칸을 넓게 둔다 — 셋 중 하나만 크면 어느 것이 결론인지 보인다. */}
           <div className="grid divide-y divide-slate-100 border-t border-slate-100 sm:grid-cols-[1fr_1fr_1.15fr] sm:divide-x sm:divide-y-0">
             {scoreCell(
@@ -2301,7 +2349,7 @@ export default async function Evaluation2Page({
               finalCycle
                 ? `${cycleTitle(finalCycle)}의 ${
                     evalPeriodLabel(finalCycle) || "그 단계"
-                  } 목표 ${performanceGoals.length}건 중 ${perfFilled.length}건 평가됨 · 가중치 합 ${perfWeightSum}%`
+                  } 목표 ${performanceGoals.length}건 중 ${perfFilledCount}건 평가됨 · 가중치 합 ${perfWeightSum}%`
                 : `${selectedYear}년 성과평가가 없습니다`,
               false,
               /*
@@ -2400,7 +2448,11 @@ export default async function Evaluation2Page({
               total,
               total == null
                 ? "성과·역량이 모두 있어야 나옵니다"
-                : `${perfScore} × ${Math.round(PERFORMANCE_WEIGHT * 100)}% + ${compScore} × ${Math.round(COMPETENCY_WEIGHT * 100)}%`,
+                : `${perfScore} × ${Math.round(PERFORMANCE_WEIGHT * 100)}% + ${compScore} × ${Math.round(COMPETENCY_WEIGHT * 100)}%${
+                    targetBonus
+                      ? ` ${targetBonus > 0 ? "+" : "−"} 가산점 ${Math.abs(targetBonus)}`
+                      : ""
+                  }`,
               true,
               null,
               gradeBadge,
@@ -2414,20 +2466,8 @@ export default async function Evaluation2Page({
             */}
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="w-24 shrink-0 text-xs font-semibold text-slate-500">
-                최종등급
+                등급 근거
               </span>
-              {targetGrade ? (
-                <span
-                  className={`rounded-lg px-2.5 py-1 text-sm leading-none font-bold ${
-                    PERSON_GRADE_CLASS[targetGrade.grade] ??
-                    "bg-slate-500 text-white"
-                  }`}
-                >
-                  {targetGrade.grade}
-                </span>
-              ) : (
-                <span className="text-sm text-slate-400">미정</span>
-              )}
               {targetGrade?.fixed && (
                 <span className="rounded-md bg-goal-4/10 px-1.5 py-0.5 text-[11px] font-medium text-goal-4">
                   인사팀 확정
@@ -2769,6 +2809,205 @@ export default async function Evaluation2Page({
             당신에게 감사드리며, 한 해 동안 고생하셨습니다.
           </p>
         </section>
+      </div>
+    );
+  }
+
+  /*
+    HR REPORT 화면. 관리자 전용이다(고르개 자체가 관리자에게만 뜬다).
+
+    한 줄에 «이름 · 부서 · 1차 평가자 · 성과(60%) · 역량(40%) · 가산점 · 최종점수 ·
+    등급»을 놓는다. 가산점만 여기서 적는 값이고 나머지는 목표·문항에서 굴러 온
+    값이라, 적는 칸을 한 칸만 두어 어디를 손대는지 헷갈리지 않게 한다.
+  */
+  function reportBoard() {
+    const cell = "px-3 py-1.5 text-right tabular-nums";
+    return (
+      <div className="flex flex-col gap-4">
+        <section className={CARD_CLASS}>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5">
+            <h1 className="text-base font-bold text-slate-900">
+              {selectedYear}년 인사평가 HR REPORT
+            </h1>
+            <span className="text-xs break-keep text-slate-500">
+              성과평가 {Math.round(PERFORMANCE_WEIGHT * 100)}% + 역량평가{" "}
+              {Math.round(COMPETENCY_WEIGHT * 100)}% + 운영(책임) 가산점 =
+              최종점수
+            </span>
+            <span className="ml-auto text-xs text-slate-500">
+              평가 대상 {reportPeople.length}명
+            </span>
+          </div>
+          <p className="border-t border-slate-100 px-4 py-2 text-xs break-keep text-slate-500">
+            성과평가는 「
+            {finalCycle ? cyclePhaseLabel(finalCycle) : FINAL_PHASE_LABEL}
+            」의 {evalPeriodLabel(finalCycle) || "하반기"} 목표에 1차 평가자가
+            매긴 점수의 합이고, 역량평가는 자기·팀장 평가 평균을 100점으로
+            환산한 값입니다 — 결과지와 같은 셈을 씁니다. 가산점만 이 화면에서
+            적습니다.
+          </p>
+        </section>
+
+        {reportUnits.length === 0 ? (
+          <p className={`${CARD_CLASS} p-8 text-center text-sm text-slate-500`}>
+            {selectedYear}년 평가 대상자가 없습니다 — 「평가대상자 관리」에서
+            확인해 주세요.
+          </p>
+        ) : (
+          reportUnits.map((u) => (
+            <section key={u.unit} className={CARD_CLASS}>
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-slate-200 px-4 py-2">
+                <h2 className="text-sm font-bold text-slate-900">{u.unit}</h2>
+                <span className="text-xs text-slate-500">
+                  {u.rows.length}명
+                </span>
+                {u.orgGrade ? (
+                  <span className="text-xs break-keep text-slate-500">
+                    조직등급 {u.orgGrade} · 정원{" "}
+                    {PERSON_GRADES.filter((g) => (u.ratios?.[g] ?? 0) > 0)
+                      .map((g) => `${g} ${u.ratios![g]}%`)
+                      .join(" · ")}
+                  </span>
+                ) : (
+                  <span className="text-xs break-keep text-status-critical">
+                    조직등급이 없어 등급이 매겨지지 않습니다 — 관리 → 등급·정원
+                  </span>
+                )}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[56rem] border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 text-left text-xs text-slate-500">
+                      <th className="px-4 py-1.5 font-medium">이름</th>
+                      <th className="px-3 py-1.5 font-medium">부서</th>
+                      <th className="px-3 py-1.5 font-medium">1차 평가자</th>
+                      <th className="px-3 py-1.5 text-right font-medium">
+                        성과 {Math.round(PERFORMANCE_WEIGHT * 100)}%
+                      </th>
+                      <th className="px-3 py-1.5 text-right font-medium">
+                        역량 {Math.round(COMPETENCY_WEIGHT * 100)}%
+                      </th>
+                      <th className="px-3 py-1.5 font-medium">가산점 ±</th>
+                      <th className="px-3 py-1.5 text-right font-medium">
+                        최종점수
+                      </th>
+                      <th className="px-4 py-1.5 font-medium">등급</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {u.rows.map((p) => {
+                      const sc = reportScores.get(p.id);
+                      const gr = u.grades.get(p.id) ?? null;
+                      const chain = evaluatorByPerson.get(p.id) ?? null;
+                      return (
+                        <tr key={p.id} className="border-t border-slate-100">
+                          <td className="px-4 py-1.5 font-medium whitespace-nowrap text-slate-800">
+                            {p.name} {POSITION_LABEL[p.position]}
+                          </td>
+                          <td className="px-3 py-1.5 whitespace-nowrap text-slate-500">
+                            {p.team?.name ?? p.division ?? "-"}
+                          </td>
+                          <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
+                            {chain?.first ? evaluatorLabel(chain.first) : "-"}
+                          </td>
+                          <td className={cell}>
+                            {sc?.performance ?? (
+                              <span className="text-status-critical">
+                                미입력
+                              </span>
+                            )}
+                          </td>
+                          <td className={cell}>
+                            {sc?.competency ?? (
+                              <span className="text-status-critical">
+                                미입력
+                              </span>
+                            )}
+                          </td>
+                          {/*
+                            가산점만 적는 칸이다. 줄마다 폼을 두지 않고 한 폼에
+                            숨은 값으로 사람을 실어 보낸다 — 표 안에 폼을 넣으면
+                            브라우저가 표 밖으로 밀어낼 수 있다(올바른 HTML이
+                            아니다). 그래서 폼을 칸 안에 둔다.
+                          */}
+                          <td className="px-3 py-1.5">
+                            <ActionForm
+                              action={setGradeBonus}
+                              successMessage="가산점을 적었습니다."
+                              className="flex items-center gap-1"
+                            >
+                              <input
+                                type="hidden"
+                                name="year"
+                                value={selectedYear}
+                              />
+                              <input type="hidden" name="userId" value={p.id} />
+                              <input
+                                type="number"
+                                name="points"
+                                step="0.1"
+                                min={-50}
+                                max={50}
+                                defaultValue={sc?.bonus ? sc.bonus : ""}
+                                placeholder="0"
+                                aria-label={`${p.name} 가산점`}
+                                className="w-16 rounded-md border border-slate-300 px-2 py-1 text-right text-xs tabular-nums"
+                              />
+                              <input
+                                name="note"
+                                defaultValue={sc?.bonusNote ?? ""}
+                                placeholder="사유"
+                                aria-label={`${p.name} 가산점 사유`}
+                                className="w-28 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                              />
+                              <button
+                                type="submit"
+                                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs whitespace-nowrap text-slate-700 hover:bg-slate-50"
+                              >
+                                저장
+                              </button>
+                            </ActionForm>
+                          </td>
+                          <td
+                            className={`${cell} text-base font-bold text-slate-900`}
+                          >
+                            {sc?.total ?? "–"}
+                          </td>
+                          <td className="px-4 py-1.5 whitespace-nowrap">
+                            {gr ? (
+                              <span
+                                className={`rounded-md px-2 py-0.5 text-sm font-bold ${
+                                  PERSON_GRADE_CLASS[gr.grade] ??
+                                  "bg-slate-500 text-white"
+                                }`}
+                              >
+                                {gr.grade}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-400">
+                                미정
+                              </span>
+                            )}
+                            {gr && (
+                              <span className="ml-1.5 text-[11px] text-slate-400">
+                                {gr.of}명 중 {gr.rank}위
+                              </span>
+                            )}
+                            {gr?.fixed && (
+                              <span className="ml-1 rounded bg-goal-4/10 px-1 py-0.5 text-[10px] font-medium text-goal-4">
+                                확정
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ))
+        )}
       </div>
     );
   }
@@ -5532,10 +5771,7 @@ export default async function Evaluation2Page({
       ) : resultView ? (
         resultBoard()
       ) : reportView ? (
-        comingUp("HR REPORT", "관리자 전용", [
-          "평가 결과를 사람 하나하나가 아니라 조직 단위로 읽는 자리입니다.",
-          "부문·팀별 등급 분포, 목표 달성률과 최종 점수의 관계, 평가자별 점수 성향, 미제출 현황.",
-        ])
+        reportBoard()
       ) : !cycle ? (
         // 인사평가를 고르기 전에는 어느 탭이든 비워 둔다. 어느 해 숫자인지
         // 모르는 채로 목표를 읽게 두지 않는다.
