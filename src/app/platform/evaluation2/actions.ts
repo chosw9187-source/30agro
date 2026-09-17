@@ -1524,6 +1524,19 @@ async function resolveOtherScope(scope: {
   return { division, teamId: scope.teamId ?? null };
 }
 
+/** 이 사람이 그 팀의 팀장인가. 팀이 없으면 아니다. */
+async function leadsTeamOf(
+  userId: string,
+  teamId: string | null | undefined,
+): Promise<boolean> {
+  if (!teamId) return false;
+  const team = await prisma.team.findFirst({
+    where: { id: teamId, leaderId: userId },
+    select: { id: true },
+  });
+  return !!team;
+}
+
 /** 상위 목표는 반드시 바로 윗 층이어야 캐스케이드가 어긋나지 않는다. */
 async function resolveParentId(
   level: GoalLevel,
@@ -1656,19 +1669,37 @@ async function resolveGoalScope(
     따로 고르는 값이 아니다. 관리자가 남을 대신 등록할 때도 피평가자만 고르면
     팀이 따라온다. 관리자가 아니면 애초에 자기 목표만 만들 수 있다.
   */
-  if (level === "INDIVIDUAL") {
-    if (!admin) scope.ownerId = userId;
-    scope.teamId = await teamOfOwner(scope.ownerId);
-    return scope;
-  }
-
-  if (admin) return scope;
-
   const me = await prisma.user.findUnique({
     where: { id: userId },
     select: { ledTeams: { select: { id: true } } },
   });
   const led = (me?.ledTeams ?? []).map((t) => t.id);
+
+  if (level === "INDIVIDUAL") {
+    /*
+      **팀장은 자기 팀원의 개인목표를 등록할 수 있다.**
+
+      예전에는 관리자가 아니면 폼에서 온 담당자를 버리고 로그인한 사람으로 바꿨다.
+      그래서 팀장이 팀원 다섯 사람의 목표를 한 번에 적어 넣으면, 아무 말 없이
+      **전부 팀장 자기 목표**로 저장됐다 — 인사팀 개인목표 서른 건이 팀장 한
+      사람에게 몰려 있었고, 팀원들의 결과지는 성과점수가 영영 비어 있었다.
+
+      남의 팀 사람은 통과시키지 않는다. 폼에서 온 값을 그대로 믿는 것이 아니라
+      «내가 이끄는 팀의 사람인가»를 여기서 확인하고, 아니면 본인으로 되돌린다.
+    */
+    if (!admin) {
+      const wanted = scope.ownerId;
+      const mine =
+        !!wanted &&
+        (wanted === userId ||
+          led.includes((await teamOfOwner(wanted)) ?? "__none__"));
+      scope.ownerId = mine ? wanted : userId;
+    }
+    scope.teamId = await teamOfOwner(scope.ownerId);
+    return scope;
+  }
+
+  if (admin) return scope;
 
   if (level === "TEAM") {
     // 팀목표의 책임자는 그 팀의 팀장이고, 여기까지 온 사람이 곧 그 팀장이다.
@@ -1995,12 +2026,29 @@ export async function updateGoal(formData: FormData) {
     아예 없고, 검증도 지금 저장돼 있는 값을 그대로 통과시킨다 — 화면에 없는
     칸을 요구하면 저장이 안 되는 이유를 아무도 알 수 없다.
   */
-  const scope = admin
+  /*
+    소속을 옮기는 것은 관리자와 **그 팀의 팀장**이다.
+
+    팀장을 넣은 이유는 잘못 들어간 담당자를 고칠 사람이 그 사람이기 때문이다 —
+    예전에 팀장이 팀원 목표를 등록하면 전부 팀장 자기 목표로 저장됐고
+    (`resolveGoalScope`), 그걸 사람마다 나눠 주려면 관리자를 찾아가야 했다.
+    남의 팀 사람으로는 바꿀 수 없다.
+  */
+  const canReassign =
+    admin ||
+    (level === "INDIVIDUAL" &&
+      (await leadsTeamOf(session.user.id, existing.teamId)));
+  const scope = canReassign
     ? await (async () => {
         const s = scopeFieldsFor(level, formData);
         // 개인목표의 팀은 피평가자를 따라간다 — 폼에 팀 칸이 없다.
-        if (level === "INDIVIDUAL")
+        if (level === "INDIVIDUAL") {
           s.teamId = (await teamOfOwner(s.ownerId)) ?? existing.teamId;
+          // 관리자가 아니면 자기 팀 안에서만 옮긴다.
+          if (!admin && !(await leadsTeamOf(session.user.id, s.teamId))) {
+            return { teamId: existing.teamId, ownerId: existing.ownerId };
+          }
+        }
         return s;
       })()
     : { teamId: existing.teamId, ownerId: existing.ownerId };
@@ -2123,7 +2171,12 @@ export async function updateGoal(formData: FormData) {
     data: {
       title: defLocked ? undefined : str(formData.get("title")) || undefined,
       description: str(formData.get("description")) || null,
-      ...(admin ? scope : {}),
+      /*
+        소속은 바꿀 수 있는 사람의 값만 쓴다(`canReassign`). 예전에는 관리자만
+        이었는데, 그러면 팀장 화면에서 「피평가자」를 골라 저장해도 아무 말 없이
+        옛 사람 그대로 남았다 — 화면에는 바뀐 이름이 떠 있으니 저장된 줄 안다.
+      */
+      ...(canReassign ? scope : {}),
       /*
         가중치는 목표의 내용이다 — 자기 팀 목표의 비중을 팀장이 못 고치면
         화면에는 새 숫자를 적었는데 저장은 옛날 값 그대로라, 아무 말도 없이
