@@ -21,6 +21,7 @@ import {
   buildGoalTree,
   type GoalCycleStatus,
 } from "@/lib/goals";
+import { competencyFormStateLabel } from "@/lib/competency-form";
 import {
   copyGoalsFromCycle,
   createGoalCheckpoint,
@@ -32,6 +33,8 @@ import {
   renameGoalCycle,
   seedCompanyGoalTemplate,
   setGoalCycleStatus,
+  lockCompetencyForm,
+  unlockCompetencyForm,
   unlockGoalSetting,
   useSourceGoals,
 } from "@/app/platform/evaluation2/actions";
@@ -84,6 +87,11 @@ export default async function OrgGoalsAdminPage({
     _count: { _all: true },
   });
   const ownCountByCycle = new Map(ownGoalCounts.map((g) => [g.cycleId, g._count._all]));
+  /* 한 해의 네 번째 단계 — 역량평가 양식. 목록에 한 줄로 같이 세운다. */
+  const competencyForms = await prisma.competencyForm.findMany({
+    select: { id: true, year: true, status: true, lockedAt: true },
+  });
+  const formByYear = new Map(competencyForms.map((f) => [f.year, f]));
   // 목표를 가져올 수 있는 다른 사이클 — 최근 것부터.
   const otherCycles = cycles.filter((c) => c.id !== cycle?.id);
   // 목표를 실제로 담고 있는 사이클. 남의 목표를 빌려 쓰는 평가라면 그쪽을 본다.
@@ -235,11 +243,11 @@ export default async function OrgGoalsAdminPage({
         <section className={`${CARD_CLASS} p-5`}>
           <h2 className="text-base font-semibold">먼저 목표 사이클을 만드세요</h2>
           <p className="mt-1 text-sm text-slate-600">
-            한 해의 평가는 목표설정 · {MID_PHASE_LABEL} · {FINAL_PHASE_LABEL} 세 단계가 한 벌입니다. 연도만 넣으면 세 단계가 한 번에 만들어지고, 평가 두 단계는 목표설정의 목표를 이어받습니다. 기간은 만든 뒤 사이클 줄에서 고칠 수 있습니다.
+            한 해의 평가는 목표설정 · {MID_PHASE_LABEL} · {FINAL_PHASE_LABEL} · 역량평가 네 가지가 한 벌입니다. 연도만 넣으면 네 가지가 한 번에 만들어지고, 성과평가 두 단계는 목표설정의 목표를 이어받습니다. 기간은 만든 뒤 사이클 줄에서 고칠 수 있습니다.
           </p>
           <ActionForm
             action={createGoalYear}
-            successMessage="그 해의 세 단계를 만들었습니다."
+            successMessage="그 해의 빠진 단계를 만들었습니다."
             className="mt-4 flex flex-wrap items-end gap-3"
           >
             <div>
@@ -255,7 +263,7 @@ export default async function OrgGoalsAdminPage({
               />
             </div>
             <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-              목표설정 · {MID_PHASE_LABEL} · {FINAL_PHASE_LABEL} 만들기
+              목표설정 · {MID_PHASE_LABEL} · {FINAL_PHASE_LABEL} · 역량평가 만들기
             </button>
           </ActionForm>
         </section>
@@ -900,7 +908,16 @@ export default async function OrgGoalsAdminPage({
                         성과평가가 통째로 비는 것이 이것이다. 그때 다시 누를 자리가
                         없었다(단추는 «이어받지 않는» 단계에만 떴다).
                       */
-                      const left = ownCountByCycle.get(c.id) ?? 0;
+                      /*
+                        성과평가_최종에만 띄운다. 성과점수를 매기는 자리가 거기라
+                        (`FINAL_PHASE_LABEL`), 중간 단계의 복사본을 옮기라고 해도
+                        누를 이유가 없다 — 단추가 줄마다 있으면 어느 것을 눌러야
+                        하는지가 흐려진다.
+                      */
+                      const left =
+                        cyclePhaseRank(c) === 3
+                          ? (ownCountByCycle.get(c.id) ?? 0)
+                          : 0;
                       return (
                         <span className="flex flex-wrap items-center gap-1.5">
                           <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-[11px] text-brand-green-dark">
@@ -909,12 +926,12 @@ export default async function OrgGoalsAdminPage({
                           {left > 0 && src && (
                             <>
                               <span className="rounded-full bg-status-warning/20 px-2 py-0.5 text-[11px] break-keep text-amber-900">
-                                이 단계에 예전 복사본 {left}건이 남아 있습니다 — 거기 적힌 점수는 화면에 안 보입니다
+                                예전 복사본 {left}건이 남아 있습니다 — 성과점수는 거기 적힌 점수도 읽지만, 화면에는 이어받은 원본만 보입니다
                               </span>
                               <ActionForm
                                 action={useSourceGoals}
                                 successMessage="점수를 옮겼습니다."
-                                confirmMessage="이 단계의 복사본에 적혀 있는 점수를 원본의 빈 칸으로 옮깁니다. 달성률과 원본에 이미 점수가 적힌 자리는 그대로 둡니다. 진행할까요?"
+                                confirmMessage="복사본에 적혀 있는 점수를 원본의 빈 칸으로 옮겨, 화면과 성과점수가 같은 줄을 보게 합니다. 달성률과 원본에 이미 점수가 적힌 자리는 그대로 둡니다. 진행할까요?"
                               >
                                 <input type="hidden" name="cycleId" value={c.id} />
                                 <input type="hidden" name="sourceCycleId" value={src.id} />
@@ -1025,6 +1042,58 @@ export default async function OrgGoalsAdminPage({
                   </div>
                 </div>
               ))}
+
+              {/*
+                한 해에 치르는 것은 네 가지다 — 목표설정 · 성과평가_중간 ·
+                성과평가_최종 · **역량평가**. 역량평가는 사이클이 아니라 그 해
+                양식 한 줄이라(`CompetencyForm`) 이 목록에 없었고, 그래서 상태를
+                보려면 다른 화면을 찾아가야 했다. 한 해를 한 눈에 보는 자리라
+                여기에 같이 둔다 — 문항 손질은 전용 화면이 맡는다.
+              */}
+              {(() => {
+                const f = formByYear.get(group.year) ?? null;
+                return (
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 p-3 text-sm">
+                    <span className="w-44 px-2 py-1 font-medium text-slate-800">역량평가</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+                      {f ? competencyFormStateLabel(f) : "미개설"}
+                    </span>
+                    <span className="text-xs break-keep text-slate-400">
+                      자기평가 · 팀장평가. 문항과 직무 배정은 「역량평가 문항」에서 손질합니다.
+                    </span>
+                    <div className="ml-auto flex gap-2">
+                      {f && f.status !== "CLOSED" && (
+                        f.lockedAt ? (
+                          <ActionForm
+                            action={unlockCompetencyForm.bind(null, f.year)}
+                            successMessage="역량평가 마감을 풀었습니다."
+                          >
+                            <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">
+                              마감 해제
+                            </button>
+                          </ActionForm>
+                        ) : (
+                          <ActionForm
+                            action={lockCompetencyForm.bind(null, f.year)}
+                            successMessage="역량평가를 마감했습니다."
+                            confirmMessage="이 해의 역량평가를 전체 마감할까요? 마감하면 아무도 점수를 고칠 수 없습니다."
+                          >
+                            <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">
+                              전체 마감
+                            </button>
+                          </ActionForm>
+                        )
+                      )}
+                      <Link
+                        href={`/admin/competency?year=${group.year}`}
+                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                      >
+                        역량평가 문항
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
             </div>
             ))}
@@ -1053,7 +1122,7 @@ export default async function OrgGoalsAdminPage({
                 />
               </div>
               <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-                목표설정 · {MID_PHASE_LABEL} · {FINAL_PHASE_LABEL} 만들기
+                목표설정 · {MID_PHASE_LABEL} · {FINAL_PHASE_LABEL} · 역량평가 만들기
               </button>
               <span className="text-xs text-slate-500">
                 이미 있는 단계는 그대로 두고 빠진 것만 만듭니다.

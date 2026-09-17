@@ -353,7 +353,35 @@ export async function createGoalYear(formData: FormData) {
     made += 1;
   }
 
-  if (made === 0) throw new Error(`${year}년 세 단계가 이미 모두 있습니다.`);
+  /*
+    역량평가 양식도 같이 만든다 — 한 해에 치르는 것이 목표설정 · 성과평가_중간 ·
+    성과평가_최종 · 역량평가 넷인데, 셋만 만들어 주면 역량평가는 관리 화면을 따로
+    찾아가야 열린다. 그래서 「미개설」로 남은 해가 생겼다.
+
+    이미 있으면 건드리지 않는다(문항을 이미 채워 둔 양식을 덮으면 안 된다).
+    묶음 세 벌만 세워 두고 문항은 관리 화면의 「사내 양식으로 채우기」가 맡는다.
+  */
+  const hadForm = await prisma.competencyForm.findUnique({
+    where: { year },
+    select: { id: true },
+  });
+  if (!hadForm) {
+    await prisma.competencyForm.create({
+      data: {
+        year,
+        sets: {
+          create: [
+            { kind: "CORE_STAFF", name: "팀원용", sortOrder: 0 },
+            { kind: "CORE_LEADER", name: "팀장용", sortOrder: 1 },
+            { kind: "LEADERSHIP", name: "리더십역량", sortOrder: 2 },
+          ],
+        },
+      },
+    });
+    made += 1;
+  }
+
+  if (made === 0) throw new Error(`${year}년 네 단계가 이미 모두 있습니다.`);
 
   /*
     그 해 단계를 목표설정 → 중간평가 → 최종평가 차례로 다시 세운다.

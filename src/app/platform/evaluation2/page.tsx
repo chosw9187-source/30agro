@@ -1020,44 +1020,91 @@ export default async function Evaluation2Page({
     (`sourceCycleId`). 그때 최종평가 id로 찾으면 목표가 0건이라 성과점수가 영영
     비어 있다 — 화면 다른 곳과 같은 규칙으로 목표가 실제로 담긴 사이클을 본다.
   */
+  /*
+    성과점수를 읽을 사이클은 **둘**이다 — 성과평가_최종 자신과, 그것이 이어받는
+    앞 단계(`sourceCycleId`).
+
+    한 곳만 보면 점수가 영영 비는 짜임이 실제로 생긴다. 성과평가_최종이 앞 단계의
+    목표를 이어받으면 자기 id로는 목표가 0건이고, 반대로 이어받기로 바꾼 뒤에도
+    예전 복사본이 남아 있으면 그 복사본에 적어 둔 점수는 이어받은 원본에 없다.
+    어느 쪽이든 결과지에는 「0건 평가됨」만 떴고, 사람이 고칠 자리도 보이지 않았다.
+
+    그래서 두 곳을 같이 읽고 **목표 하나당 한 줄만** 센다. 같은 목표인지는 사내
+    양식에서 사람이 읽는 값으로 가린다 — 담당 · 팀 · 목표명. 점수가 적힌 줄이
+    이기고, 둘 다 적혀 있으면 성과평가_최종 쪽이 이긴다(그 단계가 성과점수를
+    매기는 자리다).
+  */
   const finalGoalCycleId = finalCycle
     ? (finalCycle.sourceCycleId ?? finalCycle.id)
     : null;
-  const performanceGoals =
-    personView && competencyTarget && finalGoalCycleId
+  const performanceRows =
+    personView && competencyTarget && finalCycle
       ? await prisma.goal.findMany({
           where: {
-            cycleId: finalGoalCycleId,
+            cycleId: {
+              in: [
+                ...new Set(
+                  [finalCycle.id, finalGoalCycleId].filter(
+                    (id): id is string => !!id,
+                  ),
+                ),
+              ],
+            },
             level: "INDIVIDUAL",
             ownerId: competencyTarget.id,
             excluded: false,
           },
-          select: { title: true, weight: true, firstScore: true, half: true },
+          select: {
+            cycleId: true,
+            title: true,
+            weight: true,
+            firstScore: true,
+            half: true,
+          },
         })
       : [];
-
   /*
-    성과점수가 비어 있을 때 **왜 비었는지**를 찾는다.
+    점수가 비었을 때 **어디에 적혀 있는지**를 그대로 알려 준다.
 
-    가장 흔한 까닭이 하나 있다: 성과평가_최종이 앞 단계의 목표를 이어받고 있는데
-    (`sourceCycleId`) 그 단계에 예전 복사본이 남아 있고, 점수가 거기 적혀 있는
-    경우다. 화면은 이어받은 원본을 읽으므로 점수 칸이 비어 보이고, 결과지에는
-    «0건 평가됨»만 뜬다 — 어디를 눌러야 하는지 알 수 없다. 그 복사본에 점수가
-    실제로 몇 건 적혀 있는지 세어, 눌러야 할 자리를 이름으로 알려 준다.
-
-    점수가 이미 있으면 세지 않는다 — 결과지를 열 때마다 쓸데없이 한 번 더 읽는다.
+    그 해 어느 단계에 점수가 몇 건 적혀 있는지 세기만 한다. 짜임이 어긋나
+    (목표가 두 벌이 되거나, 개인목표를 등록한 단계와 이어받는 단계가 달라서)
+    성과점수가 비면 사람이 볼 수 있는 단서가 아무것도 없었다 — 「0건 평가됨」은
+    «왜»를 말하지 않는다. 이 한 줄이면 어느 단계를 열어야 하는지 바로 안다.
   */
-  const strandedScores =
-    personView && competencyTarget && finalCycle?.sourceCycleId
-      ? await prisma.goal.count({
+  const scoreSpots =
+    personView && competencyTarget && yearCycles.length > 0
+      ? await prisma.goal.groupBy({
+          by: ["cycleId"],
           where: {
-            cycleId: finalCycle.id,
+            cycleId: { in: yearCycles.map((c) => c.id) },
             level: "INDIVIDUAL",
             ownerId: competencyTarget.id,
             firstScore: { not: null },
           },
+          _count: { _all: true },
         })
-      : 0;
+      : [];
+
+  const performanceGoals = (() => {
+    const best = new Map<string, (typeof performanceRows)[number]>();
+    for (const row of performanceRows) {
+      const key = row.title.trim();
+      const kept = best.get(key);
+      if (!kept) {
+        best.set(key, row);
+        continue;
+      }
+      const wins =
+        // 점수가 적힌 줄이 이긴다.
+        (row.firstScore != null && kept.firstScore == null) ||
+        // 둘 다 적혀 있으면 성과평가_최종 쪽이 이긴다.
+        (row.firstScore != null &&
+          kept.firstScore != null &&
+          row.cycleId === finalCycle?.id);
+      if (wins) best.set(key, row);
+    }
+    return [...best.values()];
+  })();
 
   /*
     최종등급 — **상대평가**라서 그 사람만 봐서는 알 수 없다.
@@ -2133,8 +2180,15 @@ export default async function Evaluation2Page({
                 있을 때만 뜻이 있다 — 둘을 같이 띄우면 정작 눌러야 할 자리가
                 덜 읽힌다.
               */
-              perfScore == null && strandedScores > 0
-                ? `점수 ${strandedScores}건이 ${cycleTitle(finalCycle!)}에 남은 예전 복사본에 적혀 있습니다 — 「조직 목표 관리」에서 그 줄의 「점수 옮기기」를 눌러 주세요`
+              perfScore == null && scoreSpots.length > 0
+                ? `점수가 적힌 곳 — ${scoreSpots
+                    .map((s) => {
+                      const c = yearCycles.find((x) => x.id === s.cycleId);
+                      return `${c ? cyclePhaseLabel(c) : "다른 단계"} ${s._count._all}건`;
+                    })
+                    .join(
+                      " · ",
+                    )}. 성과점수는 ${FINAL_PHASE_LABEL}에서 매긴 점수만 셉니다 — 「조직 목표 관리」에서 그 단계가 어느 목표를 보는지 확인해 주세요`
                 : perfWeightOff
                   ? `가중치 합이 ${perfWeightSum}%입니다 — 100%가 아니면 점수를 다른 사람과 나란히 놓을 수 없습니다`
                   : null,
@@ -4878,13 +4932,13 @@ export default async function Evaluation2Page({
           <p className="text-sm text-slate-600">
             등록된 목표 사이클이 없습니다.{" "}
             {isAdmin
-              ? `연도를 넣으면 목표설정 · ${MID_PHASE_LABEL} · ${FINAL_PHASE_LABEL} 세 단계가 한 번에 만들어집니다. 그 안에 전사 · 책임 · 팀 · 개인목표를 등록합니다.`
+              ? `연도를 넣으면 목표설정 · ${MID_PHASE_LABEL} · ${FINAL_PHASE_LABEL} · 역량평가가 한 번에 만들어집니다. 그 안에 전사 · 책임 · 팀 · 개인목표를 등록합니다.`
               : "관리자가 사이클을 열면 목표를 등록할 수 있습니다."}
           </p>
           {isAdmin && (
             <ActionForm
               action={createGoalYear}
-              successMessage="그 해의 세 단계를 만들었습니다."
+              successMessage="그 해의 빠진 단계를 만들었습니다."
               className="mt-4 flex flex-wrap items-end gap-3"
             >
               <div>
@@ -4900,7 +4954,8 @@ export default async function Evaluation2Page({
                 />
               </div>
               <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-                목표설정 · {MID_PHASE_LABEL} · {FINAL_PHASE_LABEL} 만들기
+                목표설정 · {MID_PHASE_LABEL} · {FINAL_PHASE_LABEL} · 역량평가
+                만들기
               </button>
             </ActionForm>
           )}
