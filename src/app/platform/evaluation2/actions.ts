@@ -311,9 +311,9 @@ export async function createGoalYear(formData: FormData) {
 
   const phases = [
     { phase: "목표설정", start: `${year}-01-01`, end: `${year}-06-30` },
-    { phase: "성과평가_중간", start: `${year}-07-01`, end: `${year}-12-31` },
+    { phase: "성과평가(중간)", start: `${year}-07-01`, end: `${year}-12-31` },
     {
-      phase: "성과평가_최종",
+      phase: "성과평가(최종)",
       start: `${year + 1}-01-01`,
       end: `${year + 1}-01-31`,
     },
@@ -354,8 +354,8 @@ export async function createGoalYear(formData: FormData) {
   }
 
   /*
-    역량평가 양식도 같이 만든다 — 한 해에 치르는 것이 목표설정 · 성과평가_중간 ·
-    성과평가_최종 · 역량평가 넷인데, 셋만 만들어 주면 역량평가는 관리 화면을 따로
+    역량평가 양식도 같이 만든다 — 한 해에 치르는 것이 목표설정 · 성과평가(중간) ·
+    성과평가(최종) · 역량평가 넷인데, 셋만 만들어 주면 역량평가는 관리 화면을 따로
     찾아가야 열린다. 그래서 「미개설」로 남은 해가 생겼다.
 
     이미 있으면 건드리지 않는다(문항을 이미 채워 둔 양식을 덮으면 안 된다).

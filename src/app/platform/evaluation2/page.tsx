@@ -1016,40 +1016,28 @@ export default async function Evaluation2Page({
   */
   const finalCycle = yearCycles.find((c) => cyclePhaseRank(c) === 3) ?? null;
   /*
-    최종평가가 자기 목표를 갖지 않고 앞 단계의 목표를 빌려 보는 경우가 있다
-    (`sourceCycleId`). 그때 최종평가 id로 찾으면 목표가 0건이라 성과점수가 영영
-    비어 있다 — 화면 다른 곳과 같은 규칙으로 목표가 실제로 담긴 사이클을 본다.
-  */
-  /*
-    성과점수를 읽을 사이클은 **둘**이다 — 성과평가_최종 자신과, 그것이 이어받는
-    앞 단계(`sourceCycleId`).
+    성과점수는 **그 해 그 사람의 개인목표 전부**에서 읽는다.
 
-    한 곳만 보면 점수가 영영 비는 짜임이 실제로 생긴다. 성과평가_최종이 앞 단계의
-    목표를 이어받으면 자기 id로는 목표가 0건이고, 반대로 이어받기로 바꾼 뒤에도
-    예전 복사본이 남아 있으면 그 복사본에 적어 둔 점수는 이어받은 원본에 없다.
-    어느 쪽이든 결과지에는 「0건 평가됨」만 떴고, 사람이 고칠 자리도 보이지 않았다.
+    사이클 하나만 보면 점수가 영영 비는 짜임이 실제로 여러 가지 생겼다.
+    성과평가(최종)이 앞 단계의 목표를 이어받으면 자기 id로는 목표가 0건이고,
+    이어받기로 바꾼 뒤에도 예전 복사본이 남아 있으면 거기 적은 점수는 원본에
+    없고, 개인목표를 등록하는 자리가 성과평가(중간) 하나라 목표설정에는 애초에
+    개인목표가 없다. 세 가지가 겹치면 어느 한 사이클을 골라도 0건이 된다 —
+    결과지에는 「목표 0건 중 0건 평가됨」만 떴다.
 
-    그래서 두 곳을 같이 읽고 **목표 하나당 한 줄만** 센다. 같은 목표인지는 사내
-    양식에서 사람이 읽는 값으로 가린다 — 담당 · 팀 · 목표명. 점수가 적힌 줄이
-    이기고, 둘 다 적혀 있으면 성과평가_최종 쪽이 이긴다(그 단계가 성과점수를
-    매기는 자리다).
+    그래서 그 해 네 단계를 **한꺼번에 읽고 목표 하나당 한 줄만** 센다. 같은
+    목표인지는 사내 양식에서 사람이 읽는 값으로 가린다(목표명). 점수가 적힌 줄이
+    이기고, 둘 다 적혀 있으면 **뒤 단계**가 이긴다 — 성과평가(최종)에서 매긴
+    점수가 그 해의 성적이다(`cyclePhaseRank`).
   */
   const finalGoalCycleId = finalCycle
     ? (finalCycle.sourceCycleId ?? finalCycle.id)
     : null;
   const performanceRows =
-    personView && competencyTarget && finalCycle
+    personView && competencyTarget && yearCycles.length > 0
       ? await prisma.goal.findMany({
           where: {
-            cycleId: {
-              in: [
-                ...new Set(
-                  [finalCycle.id, finalGoalCycleId].filter(
-                    (id): id is string => !!id,
-                  ),
-                ),
-              ],
-            },
+            cycleId: { in: yearCycles.map((c) => c.id) },
             level: "INDIVIDUAL",
             ownerId: competencyTarget.id,
             excluded: false,
@@ -1063,28 +1051,9 @@ export default async function Evaluation2Page({
           },
         })
       : [];
-  /*
-    점수가 비었을 때 **어디에 적혀 있는지**를 그대로 알려 준다.
-
-    그 해 어느 단계에 점수가 몇 건 적혀 있는지 세기만 한다. 짜임이 어긋나
-    (목표가 두 벌이 되거나, 개인목표를 등록한 단계와 이어받는 단계가 달라서)
-    성과점수가 비면 사람이 볼 수 있는 단서가 아무것도 없었다 — 「0건 평가됨」은
-    «왜»를 말하지 않는다. 이 한 줄이면 어느 단계를 열어야 하는지 바로 안다.
-  */
-  const scoreSpots =
-    personView && competencyTarget && yearCycles.length > 0
-      ? await prisma.goal.groupBy({
-          by: ["cycleId"],
-          where: {
-            cycleId: { in: yearCycles.map((c) => c.id) },
-            level: "INDIVIDUAL",
-            ownerId: competencyTarget.id,
-            firstScore: { not: null },
-          },
-          _count: { _all: true },
-        })
-      : [];
-
+  const rankOfCycle = new Map(
+    yearCycles.map((c) => [c.id, cyclePhaseRank(c)] as const),
+  );
   const performanceGoals = (() => {
     const best = new Map<string, (typeof performanceRows)[number]>();
     for (const row of performanceRows) {
@@ -1094,17 +1063,44 @@ export default async function Evaluation2Page({
         best.set(key, row);
         continue;
       }
+      const rank = (r: typeof row) => rankOfCycle.get(r.cycleId) ?? 0;
       const wins =
         // 점수가 적힌 줄이 이긴다.
         (row.firstScore != null && kept.firstScore == null) ||
-        // 둘 다 적혀 있으면 성과평가_최종 쪽이 이긴다.
+        // 둘 다 적혀 있으면 뒤 단계가 이긴다.
         (row.firstScore != null &&
           kept.firstScore != null &&
-          row.cycleId === finalCycle?.id);
+          rank(row) > rank(kept)) ||
+        // 둘 다 비어 있으면 가중치가 적힌 줄을 남긴다(가중치 합을 보여 주려고).
+        (row.firstScore == null &&
+          kept.firstScore == null &&
+          rank(row) > rank(kept));
       if (wins) best.set(key, row);
     }
     return [...best.values()];
   })();
+
+  /*
+    성과점수가 비었을 때 **어디를 봐야 하는지**를 화면에 적는다.
+
+    그 해 단계마다 그 사람의 개인목표가 몇 건 있고 그중 몇 건에 점수가 적혀
+    있는지 세기만 한다. 한 줄이면 «목표가 아예 없는 것»과 «목표는 있는데 점수가
+    비어 있는 것»이 갈리고, 어느 단계를 열어야 하는지도 같이 읽힌다 — 「0건
+    평가됨」은 그 둘을 구별해 주지 않아서, 다음에 무엇을 눌러야 하는지 알 수
+    없었다. 집계에서 빼 둔 목표(`excluded`)까지 세는 것도 일부러다: 그 때문에
+    0건이 된 경우를 이 줄이 드러낸다.
+  */
+  const goalSpots =
+    personView && competencyTarget && yearCycles.length > 0
+      ? await prisma.goal.findMany({
+          where: {
+            cycleId: { in: yearCycles.map((c) => c.id) },
+            level: "INDIVIDUAL",
+            ownerId: competencyTarget.id,
+          },
+          select: { cycleId: true, firstScore: true, excluded: true },
+        })
+      : [];
 
   /*
     최종등급 — **상대평가**라서 그 사람만 봐서는 알 수 없다.
@@ -2180,15 +2176,25 @@ export default async function Evaluation2Page({
                 있을 때만 뜻이 있다 — 둘을 같이 띄우면 정작 눌러야 할 자리가
                 덜 읽힌다.
               */
-              perfScore == null && scoreSpots.length > 0
-                ? `점수가 적힌 곳 — ${scoreSpots
-                    .map((s) => {
-                      const c = yearCycles.find((x) => x.id === s.cycleId);
-                      return `${c ? cyclePhaseLabel(c) : "다른 단계"} ${s._count._all}건`;
-                    })
-                    .join(
-                      " · ",
-                    )}. 성과점수는 ${FINAL_PHASE_LABEL}에서 매긴 점수만 셉니다 — 「조직 목표 관리」에서 그 단계가 어느 목표를 보는지 확인해 주세요`
+              perfScore == null
+                ? goalSpots.length === 0
+                  ? `${selectedYear}년 어느 단계에도 이 사람의 개인목표가 없습니다 — 「${MID_PHASE_LABEL}」의 개인목표 탭에서 등록해 주세요`
+                  : `단계별 개인목표 — ${yearCycles
+                      .map((c) => {
+                        const rows = goalSpots.filter(
+                          (g) => g.cycleId === c.id,
+                        );
+                        if (rows.length === 0) return null;
+                        const scored = rows.filter(
+                          (g) => g.firstScore != null,
+                        ).length;
+                        const off = rows.filter((g) => g.excluded).length;
+                        return `${cyclePhaseLabel(c)} ${rows.length}건(점수 ${scored}건${
+                          off > 0 ? ` · 집계 제외 ${off}건` : ""
+                        })`;
+                      })
+                      .filter(Boolean)
+                      .join(" · ")}`
                 : perfWeightOff
                   ? `가중치 합이 ${perfWeightSum}%입니다 — 100%가 아니면 점수를 다른 사람과 나란히 놓을 수 없습니다`
                   : null,
