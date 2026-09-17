@@ -237,6 +237,14 @@ export function leafProgress(goal: {
   firstProgress?: number | null;
 }): number {
   const value = effectiveProgress(goal);
+  /*
+    **1차 평가자가 적은 값이 있으면 그 값이 곧 성적이다** — 상태가 «완료»라도
+    올리지 않는다. 평가자가 70%로 매긴 목표를 «완료»라는 이유로 100%로 올리면
+    개인목표 평균이 실제보다 높게 뜨고(그래서 «1~4번 100% · 5번 70%»가 96%가
+    아니라 100%로 읽힌다), 평가자가 매긴 숫자를 화면에서 찾을 수 없다.
+    아래의 «완료면 최소 100%»는 아직 아무도 평가하지 않은 목표에만 쓴다.
+  */
+  if (goal.firstProgress != null) return value;
   return goal.status === "DONE" ? Math.max(100, value) : value;
 }
 
@@ -401,6 +409,31 @@ export function averageProgress(nodes: GoalNode[]): number {
   const counted = nodes.filter(countsTowardProgress);
   if (counted.length === 0) return 0;
   return Math.round(counted.reduce((s, n) => s + n.rollupProgress, 0) / counted.length);
+}
+
+/**
+ * 개인목표의 평균 달성률 — **사람마다 가중평균을 낸 뒤 사람끼리 평균한다.**
+ *
+ * 한 사람의 목표는 가중치로 몫이 나뉘어 있어서(합 100%) 그냥 섞어 평균하면
+ * 20%짜리 목표와 60%짜리 목표가 같은 무게로 들어간다. 사람 단위로 한 번 굴리면
+ * 손으로 세는 값과 맞는다 — 다섯 목표가 20%씩일 때 «1~4번 100% · 5번 90%»는
+ * 98%, «한 건을 110%까지 넘겨 해내고 5번이 70%»면 96%다. 넘겨 해낸 몫이 모자란
+ * 몫을 메우는 것도 여기서 저절로 된다(달성률 상한은 `PROGRESS_MAX`).
+ *
+ * 사람끼리는 한 사람에 한 표다 — 목표를 많이 적은 사람이 평균을 끌고 가면 이
+ * 숫자가 «조직이 얼마나 했나»를 뜻하지 않게 된다.
+ */
+export function ownerAverageProgress(nodes: GoalNode[]): number {
+  const byOwner = new Map<string, GoalNode[]>();
+  for (const n of nodes.filter(countsTowardProgress)) {
+    // 담당자가 아직 안 붙은 목표는 그 한 건을 한 사람처럼 센다.
+    const key = n.ownerId ?? n.id;
+    byOwner.set(key, [...(byOwner.get(key) ?? []), n]);
+  }
+  if (byOwner.size === 0) return 0;
+  let sum = 0;
+  for (const list of byOwner.values()) sum += weightedProgress(list);
+  return Math.round(sum / byOwner.size);
 }
 
 /**
@@ -1116,15 +1149,42 @@ export function clampScore(value: number, max?: number): number {
 }
 
 /**
- * 목표설정 단계에서는 상태를 고르지 않는다 — 전부 «진행중»이다.
+ * 상태(작성중·진행중·완료·중단)를 **사람이 고르는 층** — 전사·책임목표뿐이다.
+ *
+ * 팀·개인목표에서 칸을 뺀 이유는 성적을 정하는 길이 둘이 되기 때문이다.
+ * 개인목표의 달성률은 1차 평가자가 매기는데, 그 옆에 «완료»를 고를 칸이 있으면
+ * 평가자가 70%로 본 목표를 담당자가 완료로 바꿔 100%로 올려 버린다
+ * (`leafProgress`). 칸이 없어도 둘 다 된다 — «완료»는 달성률이 100%를 채우면
+ * 저절로 붙고(`deriveStatus`), «중단»은 관리자의 「중단 처리」 단추가 찍는다.
+ *
+ * 전사·책임목표는 남긴다 — 관리자 화면에서 표를 채워 내려보내는 값이라
+ * «작성중»으로 두고 다듬는 일이 있다.
+ */
+export function usesStatusField(level: string): boolean {
+  return level === "COMPANY" || level === "DIVISION";
+}
+
+/**
+ * 마감일을 적는 층 — 상태와 같다.
+ *
+ * 팀·개인목표의 마감일은 어느 화면에도 나오지 않는다. 그 단계의 기간은 이미
+ * 사이클에 적혀 있고, 목표마다 날짜를 또 받아도 열에 아홉은 기본값인 그 해
+ * 말일 그대로였다. 새로 만드는 팀·개인목표에는 그 말일을 서버가 넣는다 —
+ * 「지연」 배지가 읽는 값이라(`isOverdue`) 비워 두면 뜻이 달라진다.
+ */
+export function usesDueDateField(level: string): boolean {
+  return usesStatusField(level);
+}
+
+/**
+ * 목표설정 단계의 책임목표는 상태를 고르지 않는다 — 전부 «진행중»이다.
  *
  * 목표를 세우는 자리에서 «작성중/진행중/중단»을 고르게 하면, 같은 시점에 세운
  * 목표가 사람마다 다른 상태로 남아 목록이 들쭉날쭉해진다. 무엇이 끝났고 무엇이
  * 접혔는지는 중간평가·최종평가에서 갈린다. 단계 이름을 못 알아본 사이클은
  * 여기서도 막지 않는다(`allowsProgressInput`과 같은 이유).
  *
- * 전사목표는 뺀다 — 관리자 화면에서 표를 채워 내려보내는 값이라 «작성중»으로
- * 두고 다듬는 일이 있다.
+ * 전사목표는 뺀다 — 관리자 화면에서 표를 채워 내려보내는 값이다.
  */
 export function usesFixedActiveStatus(
   level: string,
