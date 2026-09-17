@@ -13,7 +13,7 @@ import {
 } from "@/lib/goals";
 import { buildEvaluatorMap, evaluatorLabel, type EvaluatorResult } from "@/lib/evaluator";
 import { setGoalCycleHireCutoff } from "@/app/platform/evaluation2/actions";
-import { CycleSelect } from "@/app/platform/evaluation2/cycle-select";
+import { CycleSelect, ParamSelect } from "@/app/platform/evaluation2/cycle-select";
 import { ActionForm } from "@/components/action-form";
 import { resetAllEvalTargets, resetEvalTarget, setEvalTarget } from "./actions";
 
@@ -50,7 +50,7 @@ type Group = { unit: string; division: string; team: string; people: Person[] };
 export default async function EvalTargetsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cycleId?: string }>;
+  searchParams: Promise<{ cycleId?: string; team?: string; sort?: string }>;
 }) {
   const params = await searchParams;
 
@@ -124,6 +124,18 @@ export default async function EvalTargetsPage({
       : Promise.resolve([]),
   ]);
 
+  /*
+    이름 정렬과 팀 고르개.
+
+    이 화면은 팀이 스무 개가 넘고 사람이 백 명이 넘어서, 한 사람을 찾으려면 화면을
+    한참 굴려야 했다. 세 가지로 줄인다 — 팀을 골라 그 팀만 보기, 팀 묶음을 접어
+    두기, 이름을 오름·내림으로 세우기. 상태는 주소에 적어 둔다(`?team=…&sort=…`):
+    제외 단추를 누르면 화면이 새로 그려지는데, 그때 보고 있던 팀으로 돌아와야 한다.
+  */
+  const sortDesc = params.sort === "desc";
+  const byName = (a: Person, b: Person) =>
+    sortDesc ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name);
+
   const manualByUser = new Map(targets.map((t) => [t.userId, t]));
   const goalCountByUser = new Map(
     goals.filter((g) => g.ownerId).map((g) => [g.ownerId!, g._count._all])
@@ -175,12 +187,20 @@ export default async function EvalTargetsPage({
     if (a.division !== b.division) return a.division.localeCompare(b.division);
     return a.team.localeCompare(b.team);
   });
-  // 팀장을 맨 앞에 세우고 나머지는 이름순.
+  // 팀장을 맨 앞에 세우고 나머지는 고른 방향의 이름순.
   for (const g of groups) {
     g.people.sort((a, b) =>
-      a.isLeader === b.isLeader ? a.name.localeCompare(b.name) : a.isLeader ? -1 : 1
+      a.isLeader === b.isLeader ? byName(a, b) : a.isLeader ? -1 : 1
     );
   }
+  /** 주소에 적는 팀 열쇠 — 같은 이름의 팀이 본부마다 있을 수 있다. */
+  const keyOfGroup = (g: Group) => `${g.unit}/${g.division}/${g.team}`;
+  const pickedTeam = params.team ?? "";
+  const shownGroups = pickedTeam
+    ? groups.filter((g) => keyOfGroup(g) === pickedTeam)
+    : groups;
+  // 팀을 골라 본다면 그 한 묶음은 펼쳐 둔다 — 골라 놓고 또 눌러야 하면 헛일이다.
+  const openByDefault = !!pickedTeam;
 
   const includedCount = people.filter((p) => p.target.included).length;
   const autoExcluded = people.filter((p) => p.target.source === "hireCutoff").length;
@@ -291,18 +311,26 @@ export default async function EvalTargetsPage({
             올라가는데, 목표 화면에서는 «평가자: 사장»만 보여서 무엇이 비었는지
             알 수 없다. 여기서 빈 자리를 짚어 주면 조직도를 고칠 수 있다.
           */}
-          <section className={CARD_CLASS}>
-            <header className="flex flex-wrap items-baseline gap-x-2 border-b border-slate-200 px-4 py-2">
+          {/*
+            백 명이 넘는 표라 접어 둔다 — 늘 펼쳐 두면 아래 팀별 명단까지
+            내려가는 데만 화면을 한참 굴려야 한다. 고쳐야 할 자리(사장으로 올라간
+            사람 수)는 접힌 줄에도 적어 두어, 펼칠 이유가 있을 때만 펼치게 한다.
+          */}
+          <details className={CARD_CLASS}>
+            <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-2 border-b border-slate-200 px-4 py-2">
               <h2 className="text-sm font-semibold text-slate-900">평가자 확인</h2>
               <span className="text-xs text-slate-500">
                 조직도에서 따라 올라간 값입니다 — 담당→팀장→책임→운영책임→사장
+              </span>
+              <span className="text-xs text-slate-500">
+                · {people.length}명 · 눌러서 펼치기
               </span>
               {evaluatorGaps > 0 && (
                 <span className="ml-auto text-xs font-medium text-status-critical">
                   조직도가 비어 사장으로 올라간 사람 {evaluatorGaps}명
                 </span>
               )}
-            </header>
+            </summary>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[52rem] border-collapse text-xs">
                 <thead>
@@ -315,7 +343,7 @@ export default async function EvalTargetsPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {people.map((p) => (
+                  {[...people].sort(byName).map((p) => (
                     <tr key={p.id} className="border-t border-slate-100">
                       <td className="px-4 py-1.5 font-medium text-slate-800">
                         {p.name} {POSITION_LABEL[p.position]}
@@ -341,18 +369,68 @@ export default async function EvalTargetsPage({
                 </tbody>
               </table>
             </div>
-          </section>
+          </details>
+
+          {/*
+            팀 고르개와 이름 정렬. 팀을 고르면 그 팀만 펼쳐서 보여 주고, 전체를
+            보면 팀마다 접어 둔다 — 스무 개가 넘는 묶음을 다 펼쳐 두면 한 사람을
+            찾는 데 화면을 끝까지 굴려야 한다.
+          */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="text-sm font-medium text-slate-800">팀 고르기</span>
+            <ParamSelect
+              param="team"
+              value={pickedTeam}
+              ariaLabel="팀 고르기"
+              options={[
+                { value: "", label: `전체 ${groups.length}팀 · ${people.length}명` },
+                ...groups.map((g) => ({
+                  value: keyOfGroup(g),
+                  label: `${g.team} (${g.people.length}명)`,
+                })),
+              ]}
+            />
+            <span className="ml-auto text-sm font-medium text-slate-800">이름순</span>
+            <ParamSelect
+              param="sort"
+              value={sortDesc ? "desc" : ""}
+              ariaLabel="이름 정렬"
+              options={[
+                { value: "", label: "가나다순 (ㄱ→ㅎ)" },
+                { value: "desc", label: "거꾸로 (ㅎ→ㄱ)" },
+              ]}
+            />
+          </div>
 
           <div className="flex flex-col gap-4">
-            {groups.map((g) => (
-              <section key={`${g.unit}/${g.division}/${g.team}`} className={CARD_CLASS}>
-                <header className="flex flex-wrap items-baseline gap-x-2 border-b border-slate-200 px-4 py-2">
+            {shownGroups.map((g) => {
+              // 접힌 줄에서도 «챙길 것이 있는 팀»인지 보이게 한다.
+              const missing = g.people.filter(
+                (p) => p.target.included && needsOwnGoal(p) && p.goalCount === 0
+              ).length;
+              const off = g.people.filter((p) => !p.target.included).length;
+              return (
+              <details key={keyOfGroup(g)} open={openByDefault} className={CARD_CLASS}>
+                <summary className="flex cursor-pointer flex-wrap items-baseline gap-x-2 border-b border-slate-200 px-4 py-2">
                   <span className="text-xs text-slate-400">
                     {g.unit} &rsaquo; {g.division}
                   </span>
                   <h2 className="text-sm font-semibold text-slate-900">{g.team}</h2>
                   <span className="text-xs text-slate-500">{g.people.length}명</span>
-                </header>
+                  {missing > 0 && (
+                    <span className="rounded bg-status-warning/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
+                      목표 미등록 {missing}명
+                    </span>
+                  )}
+                  {off > 0 && (
+                    <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                      제외 {off}명
+                    </span>
+                  )}
+                  <span className="ml-auto text-[11px] text-slate-400">
+                    · 눌러서 접기 / 펼치기
+                  </span>
+                </summary>
                 <ul className="divide-y divide-slate-100">
                   {g.people.map((p) => (
                     <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2">
@@ -438,8 +516,9 @@ export default async function EvalTargetsPage({
                     </li>
                   ))}
                 </ul>
-              </section>
-            ))}
+              </details>
+              );
+            })}
           </div>
         </>
       )}
