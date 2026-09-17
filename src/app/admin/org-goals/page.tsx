@@ -888,9 +888,45 @@ export default async function OrgGoalsAdminPage({
                     서로 다른 값으로 굴러가는데, 화면에는 아무 표시가 없었다.
                   */}
                   {c.sourceCycleId ? (
-                    <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-[11px] text-brand-green-dark">
-                      「{(() => { const src = cycles.find((x) => x.id === c.sourceCycleId); return src ? cycleTitle(src) : "다른 평가"; })()}」의 목표를 이어받음
-                    </span>
+                    (() => {
+                      const src = cycles.find((x) => x.id === c.sourceCycleId);
+                      /*
+                        이어받는 중인데 **예전 복사본이 남아 있는** 경우.
+
+                        「이어받기로 바꾸기」는 복사본을 지우지 않는다(되돌릴 수
+                        있게 두려고). 그런데 옮기는 규칙이 한동안 그 단계에서 매기는
+                        반기만 옮겨서, 최종평가에서 상반기 목표에 매겨 둔 점수가
+                        복사본에 남고 화면에는 원본의 빈 칸이 떴다 — 결과지의
+                        성과평가가 통째로 비는 것이 이것이다. 그때 다시 누를 자리가
+                        없었다(단추는 «이어받지 않는» 단계에만 떴다).
+                      */
+                      const left = ownCountByCycle.get(c.id) ?? 0;
+                      return (
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span className="rounded-full bg-brand-green-light px-2 py-0.5 text-[11px] text-brand-green-dark">
+                            「{src ? cycleTitle(src) : "다른 평가"}」의 목표를 이어받음
+                          </span>
+                          {left > 0 && src && (
+                            <>
+                              <span className="rounded-full bg-status-warning/20 px-2 py-0.5 text-[11px] break-keep text-amber-900">
+                                이 단계에 예전 복사본 {left}건이 남아 있습니다 — 거기 적힌 점수는 화면에 안 보입니다
+                              </span>
+                              <ActionForm
+                                action={useSourceGoals}
+                                successMessage="점수를 옮겼습니다."
+                                confirmMessage="이 단계의 복사본에 적혀 있는 점수를 원본의 빈 칸으로 옮깁니다. 달성률과 원본에 이미 점수가 적힌 자리는 그대로 둡니다. 진행할까요?"
+                              >
+                                <input type="hidden" name="cycleId" value={c.id} />
+                                <input type="hidden" name="sourceCycleId" value={src.id} />
+                                <button className="rounded-md border border-status-warning bg-white px-2 py-0.5 text-[11px] text-amber-900 hover:bg-status-warning/10">
+                                  점수 옮기기
+                                </button>
+                              </ActionForm>
+                            </>
+                          )}
+                        </span>
+                      );
+                    })()
                   ) : (
                     (() => {
                       const own = ownCountByCycle.get(c.id) ?? 0;
