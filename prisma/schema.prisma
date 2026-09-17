@@ -142,6 +142,7 @@ model User {
   competencyLeadRatings    CompetencyScore[]              @relation("CompetencyLeadRater")
   competencyJobOverride    CompetencyJobAssignment[]      @relation("CompetencyJobUser")
   competencyTargetRows     CompetencyTarget[]             @relation("CompetencyTargetUser")
+  competencyFormsLocked    CompetencyForm[]               @relation("CompetencyFormLockedBy")
   finalGrades              FinalGrade[]                   @relation("FinalGradeUser")
   finalGradesFixed         FinalGrade[]                   @relation("FinalGradeFixedBy")
 }
@@ -1441,6 +1442,16 @@ model CompetencyForm {
   id     String               @id @default(cuid())
   year   Int                  @unique
   status CompetencyFormStatus @default(DRAFT)
+
+  /**
+   * 전체 마감 시각. 찍히면 자기평가·팀장평가를 **더 적을 수 없다** — 목표 쪽의
+   * 「전체 마감」(`GoalCycle.goalsLockedAt`)과 같은 자리이고, 같은 고르개에
+   * 「(마감)」으로 나란히 뜬다. 인사팀이 제출 기한을 닫는 동작이라 「마감 해제」로
+   * 되돌릴 수 있고, status를 CLOSED(완료)로 닫는 것은 그 뒤의 별개 동작이다.
+   */
+  lockedAt   DateTime?
+  lockedById String?
+  lockedBy   User?     @relation("CompetencyFormLockedBy", fields: [lockedById], references: [id])
 
   sets        CompetencyItemSet[]
   assignments CompetencyJobAssignment[]

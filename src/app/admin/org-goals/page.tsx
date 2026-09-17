@@ -913,7 +913,7 @@ export default async function OrgGoalsAdminPage({
                             <ActionForm
                               action={useSourceGoals}
                               successMessage="이어받기로 바꿨습니다."
-                              confirmMessage="이 단계의 목표를 지우지 않고, 이 단계에서 매기는 반기의 값만 원본으로 옮긴 뒤 원본을 이어받게 바꿉니다. 다른 반기의 값과 원본에 이미 점수가 적힌 자리는 그대로 둡니다. 진행할까요?"
+                              confirmMessage="이 단계의 목표를 지우지 않고, 적혀 있는 점수를 원본의 빈 칸으로 옮긴 뒤 원본을 이어받게 바꿉니다. 달성률은 이 단계가 매기는 반기만 옮기고, 원본에 이미 점수가 적힌 자리는 그대로 둡니다. 진행할까요?"
                               className="flex items-center gap-1"
                             >
                               <input type="hidden" name="cycleId" value={c.id} />
