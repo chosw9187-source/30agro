@@ -5115,9 +5115,7 @@ export default async function Evaluation2Page({
         !cycle.goalsLockedAt &&
         cycle.status !== "CLOSED" && (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-            <span className="text-sm font-medium text-slate-800">
-              목표 마감
-            </span>
+            <span className="text-sm font-medium text-slate-800">마감</span>
             <span className="text-xs text-slate-500">
               마감하면 <b className="font-medium">이 단계에서는</b> 관리자를
               포함해 아무도 목표를 고칠 수 없습니다
@@ -5271,11 +5269,11 @@ export default async function Evaluation2Page({
               href="/admin/org-goals"
               className="mt-5 rounded-md bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark"
             >
-              조직 목표 관리에서 목표 마감하기
+              조직 목표 관리에서 마감하기
             </Link>
           ) : (
             <p className="mt-4 text-xs text-slate-400">
-              목표 마감은 관리자가 합니다. 인사팀에 문의해 주세요.
+              마감은 관리자가 합니다. 인사팀에 문의해 주세요.
             </p>
           )}
         </section>
