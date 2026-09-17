@@ -1037,6 +1037,29 @@ export default async function Evaluation2Page({
       : [];
 
   /*
+    성과점수가 비어 있을 때 **왜 비었는지**를 찾는다.
+
+    가장 흔한 까닭이 하나 있다: 성과평가_최종이 앞 단계의 목표를 이어받고 있는데
+    (`sourceCycleId`) 그 단계에 예전 복사본이 남아 있고, 점수가 거기 적혀 있는
+    경우다. 화면은 이어받은 원본을 읽으므로 점수 칸이 비어 보이고, 결과지에는
+    «0건 평가됨»만 뜬다 — 어디를 눌러야 하는지 알 수 없다. 그 복사본에 점수가
+    실제로 몇 건 적혀 있는지 세어, 눌러야 할 자리를 이름으로 알려 준다.
+
+    점수가 이미 있으면 세지 않는다 — 결과지를 열 때마다 쓸데없이 한 번 더 읽는다.
+  */
+  const strandedScores =
+    personView && competencyTarget && finalCycle?.sourceCycleId
+      ? await prisma.goal.count({
+          where: {
+            cycleId: finalCycle.id,
+            level: "INDIVIDUAL",
+            ownerId: competencyTarget.id,
+            firstScore: { not: null },
+          },
+        })
+      : 0;
+
+  /*
     최종등급 — **상대평가**라서 그 사람만 봐서는 알 수 없다.
 
     같은 업무단위(영업고객관리 · 재무경영관리 · 연구생산 · 제품사업)에서 평가를
@@ -2105,9 +2128,16 @@ export default async function Evaluation2Page({
                 ? `${cycleTitle(finalCycle)}의 목표 ${performanceGoals.length}건 중 ${perfFilled.length}건 평가됨 · 가중치 합 ${perfWeightSum}%`
                 : `${selectedYear}년 성과평가가 없습니다`,
               false,
-              perfWeightOff
-                ? `가중치 합이 ${perfWeightSum}%입니다 — 100%가 아니면 점수를 다른 사람과 나란히 놓을 수 없습니다`
-                : null,
+              /*
+                점수가 비었을 때는 «왜»를 먼저 말한다. 가중치 경고는 점수가
+                있을 때만 뜻이 있다 — 둘을 같이 띄우면 정작 눌러야 할 자리가
+                덜 읽힌다.
+              */
+              perfScore == null && strandedScores > 0
+                ? `점수 ${strandedScores}건이 ${cycleTitle(finalCycle!)}에 남은 예전 복사본에 적혀 있습니다 — 「조직 목표 관리」에서 그 줄의 「점수 옮기기」를 눌러 주세요`
+                : perfWeightOff
+                  ? `가중치 합이 ${perfWeightSum}%입니다 — 100%가 아니면 점수를 다른 사람과 나란히 놓을 수 없습니다`
+                  : null,
             )}
             {scoreCell(
               "역량평가",
