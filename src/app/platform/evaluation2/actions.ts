@@ -1168,9 +1168,16 @@ export async function unlockGoalSetting(cycleId: string) {
   if (!(await isAdmin()))
     throw new Error("목표 마감 해제는 관리자만 할 수 있습니다.");
 
+  /*
+    「완료」로 닫아 둔 단계도 함께 되돌린다.
+
+    관리 화면에서 상태를 고르는 단추(「완료 처리」·「진행중으로」)를 없앴으므로,
+    이 자리가 유일한 되돌리는 길이다. 예전에 완료로 닫아 둔 단계는 점수까지
+    읽기 전용이라(`cycleLock`) 이 단추가 풀어 주지 않으면 빠져나올 수 없다.
+  */
   await prisma.goalCycle.update({
     where: { id: cycleId },
-    data: { goalsLockedAt: null, goalsLockedById: null },
+    data: { goalsLockedAt: null, goalsLockedById: null, status: "OPEN" },
   });
   revalidatePath(PATH);
   revalidatePath(ADMIN_PATH);

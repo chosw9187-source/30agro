@@ -32,7 +32,6 @@ import {
   moveGoalCycle,
   renameGoalCycle,
   seedCompanyGoalTemplate,
-  setGoalCycleStatus,
   lockCompetencyForm,
   unlockCompetencyForm,
   unlockGoalSetting,
@@ -995,7 +994,7 @@ export default async function OrgGoalsAdminPage({
                     })()
                   )}
                   <div className="ml-auto flex gap-2">
-                    {c.goalsLockedAt ? (
+                    {c.goalsLockedAt || c.status !== "OPEN" ? (
                       <ActionForm
                         action={unlockGoalSetting.bind(null, c.id)}
                         successMessage="목표 마감을 풀었습니다."
@@ -1014,26 +1013,14 @@ export default async function OrgGoalsAdminPage({
                         </button>
                       </ActionForm>
                     )}
-                    {c.status !== "OPEN" && (
-                      <ActionForm
-                        action={setGoalCycleStatus.bind(null, c.id, "OPEN")}
-                        successMessage="진행중으로 바꿨습니다."
-                      >
-                        <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">
-                          진행중으로
-                        </button>
-                      </ActionForm>
-                    )}
-                    {c.status !== "CLOSED" && (
-                      <ActionForm
-                        action={setGoalCycleStatus.bind(null, c.id, "CLOSED")}
-                        successMessage="완료로 바꿨습니다."
-                      >
-                        <button className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">
-                          완료 처리
-                        </button>
-                      </ActionForm>
-                    )}
+                    {/*
+                      「완료 처리」·「진행중으로」는 뺐다. 한 단계에 필요한 것은
+                      «지금 적는 중인가, 닫았나» 둘이고 그건 마감이 말한다 —
+                      상태까지 따로 고르게 두면 「마감인데 진행중」·「완료인데
+                      마감 아님」 같은 조합이 생겨서, 화면에 적힌 말이 무엇을
+                      뜻하는지 아무도 모른다. 마감 해제가 예전에 「완료」로 닫아
+                      둔 단계까지 함께 되돌린다.
+                    */}
                     <ActionForm action={deleteGoalCycle.bind(null, c.id)} successMessage="삭제되었습니다.">
                       <button className="rounded-md border border-red-200 bg-white px-2 py-1 text-xs text-status-critical hover:bg-red-50">
                         삭제
