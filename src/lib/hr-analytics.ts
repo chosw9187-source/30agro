@@ -10,7 +10,10 @@ export type AnalyticsUser = {
 const UNCLASSIFIED = "미분류";
 const MS_PER_YEAR = 1000 * 60 * 60 * 24 * 365.25;
 
-export function isActive(u: Pick<AnalyticsUser, "terminationDate">, at = new Date()) {
+export function isActive(
+  u: Pick<AnalyticsUser, "terminationDate">,
+  at = new Date(),
+) {
   return !u.terminationDate || u.terminationDate > at;
 }
 
@@ -29,6 +32,24 @@ export function activePrismaWhere(at = new Date()) {
  * otherwise scoped to 정규직 only.
  */
 const CONTRACT_INCLUDED_TEAMS = ["영업관리팀"];
+
+/**
+ * 인사평가 모수인가 — **정규직, 그리고 영업관리팀의 계약직**뿐이다.
+ *
+ * `regularOrExceptionTeamWhere`와 같은 규칙을 이미 읽어 온 사람 목록에 쓰는
+ * 꼴이다. 쿼리를 한 번만 던지고 화면마다 다르게 거르는 자리가 여럿이라, 규칙을
+ * 두 군데 적어 두면 「평가대상자 관리」와 「HR REPORT」의 사람 수가 어긋난다 —
+ * 실제로 평가2 쪽이 계약직·기능직까지 세고 있었다.
+ */
+export function isEvalPopulation(p: {
+  employmentType?: string | null;
+  hiddenFromDirectory?: boolean | null;
+  team?: { name?: string | null } | null;
+}): boolean {
+  if (p.hiddenFromDirectory) return false;
+  if ((p.employmentType ?? "").trim() === "정규직") return true;
+  return CONTRACT_INCLUDED_TEAMS.includes((p.team?.name ?? "").trim());
+}
 
 /**
  * Prisma `where` fragment for "정규직, or a member of one of the
@@ -83,30 +104,50 @@ const TENURE_BUCKETS = [
   { label: "21년+", test: (t: number) => t >= 21 },
 ];
 
-export function computeAgeDistribution(users: AnalyticsUser[], at = new Date()) {
+export function computeAgeDistribution(
+  users: AnalyticsUser[],
+  at = new Date(),
+) {
   const withAge = users.filter((u) => u.birthDate);
   const buckets = AGE_BUCKETS.map((b) => ({
     label: b.label,
     count: withAge.filter((u) => b.test(ageInYears(u.birthDate!, at))).length,
   }));
-  return { buckets, missing: users.length - withAge.length, total: users.length };
+  return {
+    buckets,
+    missing: users.length - withAge.length,
+    total: users.length,
+  };
 }
 
-export function computeTenureDistribution(users: AnalyticsUser[], at = new Date()) {
+export function computeTenureDistribution(
+  users: AnalyticsUser[],
+  at = new Date(),
+) {
   const withTenure = users.filter((u) => u.hireDate);
   const buckets = TENURE_BUCKETS.map((b) => ({
     label: b.label,
-    count: withTenure.filter((u) => b.test(tenureInYears(u.hireDate!, at))).length,
+    count: withTenure.filter((u) => b.test(tenureInYears(u.hireDate!, at)))
+      .length,
   }));
-  return { buckets, missing: users.length - withTenure.length, total: users.length };
+  return {
+    buckets,
+    missing: users.length - withTenure.length,
+    total: users.length,
+  };
 }
 
 export function computeMonthlyHiresTerminations(
   users: AnalyticsUser[],
   months = 12,
-  at = new Date()
+  at = new Date(),
 ) {
-  const points: { label: string; shortLabel: string; hires: number; terminations: number }[] = [];
+  const points: {
+    label: string;
+    shortLabel: string;
+    hires: number;
+    terminations: number;
+  }[] = [];
   for (let i = months - 1; i >= 0; i--) {
     const d = new Date(at.getFullYear(), at.getMonth() - i, 1);
     const y = d.getFullYear();
@@ -114,13 +155,16 @@ export function computeMonthlyHiresTerminations(
     const label = `${String(y).slice(2)}-${String(m + 1).padStart(2, "0")}`;
     const shortLabel = `${m + 1}월`;
     const hires = users.filter(
-      (u) => u.hireDate && u.hireDate.getFullYear() === y && u.hireDate.getMonth() === m
+      (u) =>
+        u.hireDate &&
+        u.hireDate.getFullYear() === y &&
+        u.hireDate.getMonth() === m,
     ).length;
     const terminations = users.filter(
       (u) =>
         u.terminationDate &&
         u.terminationDate.getFullYear() === y &&
-        u.terminationDate.getMonth() === m
+        u.terminationDate.getMonth() === m,
     ).length;
     points.push({ label, shortLabel, hires, terminations });
   }
@@ -143,7 +187,7 @@ export type JobFamilyRow = {
 
 export function computeJobFamilySummary(
   users: AnalyticsUser[],
-  at = new Date()
+  at = new Date(),
 ): JobFamilyRow[] {
   const groups = new Map<string, AnalyticsUser[]>();
   for (const u of users) {
@@ -160,26 +204,33 @@ export function computeJobFamilySummary(
   for (const [name, allMembers] of groups.entries()) {
     const members = allMembers.filter((m) => isActive(m, at));
     const headcount = members.length;
-    const teamCount = new Set(members.map((m) => m.teamId).filter(Boolean)).size;
+    const teamCount = new Set(members.map((m) => m.teamId).filter(Boolean))
+      .size;
     const avgTeamSize = teamCount > 0 ? headcount / teamCount : null;
 
     const withTenure = members.filter((m) => m.hireDate);
     const avgTenureYears =
       withTenure.length > 0
-        ? withTenure.reduce((s, m) => s + tenureInYears(m.hireDate!, at), 0) / withTenure.length
+        ? withTenure.reduce((s, m) => s + tenureInYears(m.hireDate!, at), 0) /
+          withTenure.length
         : null;
 
     const withAge = members.filter((m) => m.birthDate);
     const pct55 =
       withAge.length > 0
-        ? (withAge.filter((m) => ageInYears(m.birthDate!, at) >= 55).length / withAge.length) * 100
+        ? (withAge.filter((m) => ageInYears(m.birthDate!, at) >= 55).length /
+            withAge.length) *
+          100
         : null;
 
-    const recentHires = allMembers.filter((m) => m.hireDate && m.hireDate >= oneYearAgo).length;
-    const recentTerminations = allMembers.filter(
-      (m) => m.terminationDate && m.terminationDate >= oneYearAgo
+    const recentHires = allMembers.filter(
+      (m) => m.hireDate && m.hireDate >= oneYearAgo,
     ).length;
-    const turnoverRate = headcount > 0 ? (recentTerminations / headcount) * 100 : null;
+    const recentTerminations = allMembers.filter(
+      (m) => m.terminationDate && m.terminationDate >= oneYearAgo,
+    ).length;
+    const turnoverRate =
+      headcount > 0 ? (recentTerminations / headcount) * 100 : null;
 
     const flags: string[] = [];
     let remark: string;
@@ -225,7 +276,8 @@ export function computeAttentionAlerts(rows: JobFamilyRow[]): AttentionAlert[] {
     if (row.pct55 !== null && row.pct55 > 20) {
       alerts.push({
         title: `${row.name}은(는) ${row.headcount}명인데 55세 이상이 ${row.pct55.toFixed(1)}%입니다.`,
-        detail: "20%를 넘으면 다섯에 하나가 5년 안에 정년(만 60세)에 이릅니다 — 승계 준비가 필요합니다.",
+        detail:
+          "20%를 넘으면 다섯에 하나가 5년 안에 정년(만 60세)에 이릅니다 — 승계 준비가 필요합니다.",
       });
     }
     if (row.turnoverRate !== null && row.turnoverRate > 20) {
@@ -234,7 +286,10 @@ export function computeAttentionAlerts(rows: JobFamilyRow[]): AttentionAlert[] {
         detail: "20%를 넘는 퇴사율은 조직 안정성에 위험 신호일 수 있습니다.",
       });
     }
-    if (row.avgTeamSize !== null && (row.avgTeamSize < 4 || row.avgTeamSize > 12)) {
+    if (
+      row.avgTeamSize !== null &&
+      (row.avgTeamSize < 4 || row.avgTeamSize > 12)
+    ) {
       alerts.push({
         title: `${row.name}의 팀당 평균 인원이 ${row.avgTeamSize.toFixed(1)}명입니다.`,
         detail: "적정 범위(4~12명)를 벗어나 조직 재설계가 필요할 수 있습니다.",
