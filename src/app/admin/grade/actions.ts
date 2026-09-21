@@ -112,12 +112,17 @@ export async function saveQuotaTable(formData: FormData) {
   done();
 }
 
-/** 업무단위 하나의 조직등급. 빈 값은 «아직 안 정함»이라 줄을 지운다. */
+/**
+ * 라인 하나의 조직등급. 빈 값은 «아직 안 정함»이라 줄을 지운다.
+ *
+ * 열쇠(`unitKey`)는 그 라인 운영책임의 userId다 — 업무단위 이름이 비어 있거나
+ * 팀마다 다르게 적혀 있어도 묶음이 흩어지지 않는다.
+ */
 export async function setUnitOrgGrade(formData: FormData) {
   await requireRole("ADMIN");
   const y = year(formData);
-  const unit = str(formData.get("businessUnit"));
-  if (!unit) throw new Error("업무단위가 비어 있습니다.");
+  const unit = str(formData.get("unitKey"));
+  if (!unit) throw new Error("평가 라인이 비어 있습니다.");
   const grade = str(formData.get("orgGrade"));
   if (grade && !isOrgGrade(grade)) {
     throw new Error("조직등급이 올바르지 않습니다.");
@@ -125,14 +130,14 @@ export async function setUnitOrgGrade(formData: FormData) {
 
   if (!grade) {
     await prisma.gradeUnitPlan.deleteMany({
-      where: { year: y, businessUnit: unit },
+      where: { year: y, unitKey: unit },
     });
     done();
     return;
   }
   await prisma.gradeUnitPlan.upsert({
-    where: { year_businessUnit: { year: y, businessUnit: unit } },
-    create: { year: y, businessUnit: unit, orgGrade: grade },
+    where: { year_unitKey: { year: y, unitKey: unit } },
+    create: { year: y, unitKey: unit, orgGrade: grade },
     update: { orgGrade: grade },
   });
   done();

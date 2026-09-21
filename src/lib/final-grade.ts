@@ -253,14 +253,3 @@ export const PERSON_GRADE_CLASS: Record<PersonGrade, string> = {
   B: "border border-amber-300 bg-amber-100 text-amber-800",
   C: "bg-amber-500 text-white",
 };
-
-/** 사람의 업무단위 — 본인에게 적힌 값이 먼저고, 없으면 팀의 값을 따른다. */
-export function businessUnitOf(person: {
-  businessUnit?: string | null;
-  team?: { businessUnit?: string | null } | null;
-}): string | null {
-  const own = person.businessUnit?.trim();
-  if (own) return own;
-  const byTeam = person.team?.businessUnit?.trim();
-  return byTeam || null;
-}

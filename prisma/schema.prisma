@@ -1614,14 +1614,24 @@ model GradeQuota {
  * — 몇 자리가 있는지 모르는 채로 순위만 보고 등급을 매기지 않는다.
  */
 model GradeUnitPlan {
-  id           String  @id @default(cuid())
-  year         Int
-  businessUnit String
-  orgGrade     String?
+  id   String @id @default(cuid())
+  year Int
+  /**
+   * 등급을 매기는 **묶음 열쇠** — 그 라인 운영책임의 userId다.
+   *
+   * 예전에는 업무단위 이름(제품사업·연구생산…)이었다. 이름이 비어 있거나 팀마다
+   * 다르게 적혀 있으면 사람들이 「업무단위 미지정」 한 덩어리로 몰려, 상대평가의
+   * 묶음이 뜻을 잃었다. 실제로 굴러가는 단위는 «누가 그 라인을 맡는가»다.
+   *
+   * 칸 이름(`businessUnit`)은 그대로 둔다 — 이름을 바꾸면 `db push`가 칸을 지웠다
+   * 다시 만들어, 이미 골라 둔 조직등급이 말없이 사라진다.
+   */
+  unitKey  String  @map("businessUnit")
+  orgGrade String?
 
   updatedAt DateTime @updatedAt
 
-  @@unique([year, businessUnit])
+  @@unique([year, unitKey])
 }
 
 /**
