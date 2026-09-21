@@ -7,7 +7,11 @@ import { NoModuleAccess } from "@/components/no-module-access";
 import { SearchableSelect } from "@/components/searchable-select";
 import { activePrismaWhere, isEvalPopulation } from "@/lib/hr-analytics";
 import { POSITION_LABEL } from "@/lib/permission-constants";
-import { buildEvaluatorMap, evaluatorLabel } from "@/lib/evaluator";
+import {
+  buildEvaluatorMap,
+  buildUnitHeadMap,
+  evaluatorLabel,
+} from "@/lib/evaluator";
 import { CollapseAllButton } from "./collapse-all";
 import { formatKSTDate } from "@/lib/format-kst";
 import {
@@ -103,7 +107,6 @@ import {
   ORG_GRADES,
   PERSON_GRADES,
   PERSON_GRADE_CLASS,
-  businessUnitOf,
   type GradeRatios,
 } from "@/lib/final-grade";
 import { InstantSelect } from "@/components/instant-select";
@@ -506,7 +509,7 @@ export default async function Evaluation2Page({
     phase?: string;
     /** 역량평가에서 누구 것을 볼지. 비면 본인. */
     who?: string;
-    /** HR REPORT — 어느 본부(업무단위)를 볼지. 비면 전체. */
+    /** HR REPORT — 어느 운영책임 라인을 볼지. 비면 전체. */
     unit?: string;
     /** HR REPORT 표의 정렬. 「칸-방향」(예: perf-desc). */
     rsort?: string;
@@ -1202,23 +1205,33 @@ export default async function Evaluation2Page({
   /*
     최종등급 — **상대평가**라서 그 사람만 봐서는 알 수 없다.
 
-    같은 업무단위(영업고객관리 · 재무경영관리 · 연구생산 · 제품사업)에서 평가를
-    끝낸 사람 전부의 종합점수를 모아 순위를 내고, 그 업무단위의 조직등급에
-    배정된 정원만큼 위에서부터 끊는다. 결과지 한 장을 그리는 데 업무단위 사람
-    전부를 읽는 것이 무거워 보이지만, 상대평가에서 «몇 등»은 그것 말고 나올
-    길이 없다. 「평가결과」에서만 읽는다.
+    같은 **운영책임 라인**에서 평가를 끝낸 사람 전부의 종합점수를 모아 순위를
+    내고, 그 라인의 조직등급에 배정된 정원만큼 위에서부터 끊는다. 결과지 한 장을
+    그리는 데 라인 사람 전부를 읽는 것이 무거워 보이지만, 상대평가에서 «몇 등»은
+    그것 말고 나올 길이 없다. 「평가결과」에서만 읽는다.
 
-    업무단위가 적혀 있지 않은 사람은 등급을 매기지 않는다 — 어느 정원에서 몇
-    등인지 말할 수 없기 때문이다. 화면이 «업무단위가 비어 있습니다»라고 알린다.
+    사슬에 운영책임이 없는 사람은 등급을 매기지 않는다 — 어느 정원에서 몇 등인지
+    말할 수 없기 때문이다. 화면이 «운영책임 미지정»이라고 알린다.
   */
-  const teamUnitById = new Map(teams.map((t) => [t.id, t.businessUnit]));
-  const unitOf = (p: { businessUnit: string | null; teamId: string | null }) =>
-    businessUnitOf({
-      businessUnit: p.businessUnit,
-      team: p.teamId
-        ? { businessUnit: teamUnitById.get(p.teamId) ?? null }
-        : null,
-    });
+  /*
+    등급을 매기는 **묶음은 «운영책임 라인»**이다 — 오동률 이사가 인사 · 구매 ·
+    경영지원 · 재경 · 경영기획을 맡으면 그 다섯 팀이 한 묶음이다.
+
+    예전에는 업무단위 이름으로 묶었는데, 이름이 비어 있거나 팀마다 다르게 적혀
+    있으면 사람들이 「업무단위 미지정」 한 덩어리로 몰려 상대평가의 묶음이 뜻을
+    잃었다. 실제로 회사가 굴러가는 단위는 «누가 그 라인을 맡는가»라서 사람으로
+    묶는다(`buildUnitHeadMap`). 열쇠는 그 운영책임의 id다.
+  */
+  const unitHeadByPerson = buildUnitHeadMap(people, teams);
+  const NO_UNIT = "__no_head__";
+  const unitOf = (p: { id: string }) =>
+    unitHeadByPerson.get(p.id)?.id ?? NO_UNIT;
+  /** 「오동률 운영책임」 — 화면에 적는 묶음 이름. */
+  const unitLabel = (key: string) => {
+    if (key === NO_UNIT) return "운영책임 미지정";
+    const head = people.find((p) => p.id === key);
+    return head ? `${head.name} ${POSITION_LABEL[head.position]}` : "운영책임";
+  };
   const gradeView = resultView && !!competencyTarget;
   const targetUnit = competencyTarget ? unitOf(competencyTarget) : null;
   /*
@@ -1267,12 +1280,12 @@ export default async function Evaluation2Page({
     HR REPORT — **전체 인원을 한 표로** 읽는 자리.
 
     결과지는 사람 한 장이라 «누가 몇 등인지»가 안 보인다. 여기서는 그 해 평가
-    대상 전부를 업무단위별로 묶어 성과 · 역량 · 가산점 · 최종점수 · 등급을 한 줄씩
-    놓는다. 점수는 결과지와 **같은 함수**에서 읽으므로(`loadUnitScores`) 두 화면이
+    대상 전부를 **운영책임 라인**별로 묶어 성과 · 역량 · 가산점 · 최종점수 · 등급을
+    한 줄씩 놓는다. 점수는 결과지와 **같은 함수**에서 읽으므로(`loadUnitScores`) 두 화면이
     다른 숫자를 보일 수 없다.
 
-    등급은 업무단위마다 따로 매긴다 — 상대평가라 «그 단위 안에서 몇 등»이고,
-    단위를 섞어 순위를 내면 정원표가 뜻을 잃는다.
+    등급은 라인마다 따로 매긴다 — 상대평가라 «그 라인 안에서 몇 등»이고, 라인을
+    섞어 순위를 내면 정원표가 뜻을 잃는다.
   */
   const reportPeople = reportView ? people.filter(inEvalPopulation) : [];
   const [reportScores, reportPlans, reportQuota, reportFixed] = reportView
@@ -1292,15 +1305,15 @@ export default async function Evaluation2Page({
         ),
       ])
     : [new Map(), new Map(), new Map(), new Map()];
-  /** 업무단위 → 그 단위 사람들 · 조직등급 · 정원 · 등급 결과. */
+  /** 라인 → 그 라인 사람들 · 조직등급 · 정원 · 등급 결과. */
   const reportUnits = (() => {
     const byUnit = new Map<string, typeof reportPeople>();
     for (const p of reportPeople) {
-      const u = unitOf(p) ?? "업무단위 미지정";
+      const u = unitOf(p);
       byUnit.set(u, [...(byUnit.get(u) ?? []), p]);
     }
     return [...byUnit.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
+      .sort((a, b) => unitLabel(a[0]).localeCompare(unitLabel(b[0])))
       .map(([unit, members]) => {
         const orgGrade = reportPlans.get(unit) ?? null;
         const ratios: GradeRatios | null = orgGrade
@@ -2243,7 +2256,11 @@ export default async function Evaluation2Page({
     /** 등급이 어디서 나왔는지 — 업무단위 · 순위 · 정원. 근거 없는 등급은 두지 않는다. */
     const gradeBasis = (() => {
       const bits: string[] = [];
-      bits.push(targetUnit ? `업무단위 ${targetUnit}` : "업무단위 미지정");
+      bits.push(
+        targetUnit && targetUnit !== NO_UNIT
+          ? unitLabel(targetUnit)
+          : "운영책임 미지정",
+      );
       if (targetGrade) {
         bits.push(`${targetGrade.of}명 중 ${targetGrade.rank}위`);
       } else if (total == null) {
@@ -2869,7 +2886,7 @@ export default async function Evaluation2Page({
       </th>
     );
 
-    /** 그 사람의 등급 — 업무단위마다 따로 매겨져 있어 한 번 찾아 준다. */
+    /** 그 사람의 등급 — 라인마다 따로 매겨져 있어 한 번 찾아 준다. */
     const unitGradeOf = (p: (typeof reportPeople)[number]) => {
       const u = reportUnits.find((x) => x.rows.some((r) => r.id === p.id));
       return u?.grades.get(p.id) ?? null;
@@ -2933,7 +2950,8 @@ export default async function Evaluation2Page({
               최종점수
             </span>
             <span className="ml-auto text-xs text-slate-500">
-              평가 대상 {reportPeople.length}명 · 정규직
+              평가 대상 {reportPeople.length}명 · {reportUnits.length}개 라인 ·
+              정규직
               {" + 영업관리팀 계약직"}
             </span>
           </div>
@@ -2947,16 +2965,18 @@ export default async function Evaluation2Page({
               가산점과 등급 확정 둘뿐입니다.
             </span>
             <span className="ml-auto flex items-center gap-2">
-              <span className="text-xs font-medium text-slate-700">본부</span>
+              <span className="text-xs font-medium text-slate-700">
+                운영책임
+              </span>
               <ParamSelect
                 param="unit"
                 value={pickedUnit}
-                ariaLabel="본부 고르기"
+                ariaLabel="운영책임 라인 고르기"
                 options={[
-                  { value: "", label: `전체 ${reportUnits.length}개 본부` },
+                  { value: "", label: `전체 ${reportUnits.length}개 라인` },
                   ...reportUnits.map((u) => ({
                     value: u.unit,
-                    label: `${u.unit} (${u.rows.length}명)`,
+                    label: `${unitLabel(u.unit)} (${u.rows.length}명)`,
                   })),
                 ]}
               />
@@ -2973,7 +2993,9 @@ export default async function Evaluation2Page({
           shown.map((u) => (
             <section key={u.unit} className={CARD_CLASS}>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-slate-200 px-4 py-2">
-                <h2 className="text-sm font-bold text-slate-900">{u.unit}</h2>
+                <h2 className="text-sm font-bold text-slate-900">
+                  {unitLabel(u.unit)}
+                </h2>
                 <span className="text-xs text-slate-500">
                   {u.rows.length}명
                 </span>
@@ -2990,11 +3012,11 @@ export default async function Evaluation2Page({
                     action={setUnitOrgGrade}
                     hidden={{
                       year: String(selectedYear),
-                      businessUnit: u.unit,
+                      unitKey: u.unit,
                     }}
                     name="orgGrade"
                     value={u.orgGrade ?? ""}
-                    ariaLabel={`${u.unit} 조직등급`}
+                    ariaLabel={`${unitLabel(u.unit)} 조직등급`}
                     tone={u.orgGrade ? "plain" : "warn"}
                     options={[
                       { value: "", label: "미지정" },

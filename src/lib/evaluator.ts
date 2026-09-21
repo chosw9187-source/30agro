@@ -83,6 +83,53 @@ function isEvaluatingCeo(p: EvaluatorPerson): boolean {
   return !grade || !CEO_NOT_EVALUATING.includes(grade);
 }
 
+/**
+ * 사람마다 **그 라인의 운영책임**. 「오동률 운영책임」처럼 사람 하나로 묶는 열쇠다.
+ *
+ * 등급은 상대평가라 «어느 묶음 안에서 몇 등»이 있어야 매길 수 있다. 그 묶음을
+ * 예전에는 업무단위 이름(제품사업·연구생산…)으로 잡았는데, 이름이 비어 있거나
+ * 팀마다 다르게 적혀 있으면 사람들이 「업무단위 미지정」 한 덩어리로 몰렸다.
+ * 실제로 회사가 굴러가는 단위는 «누가 그 라인을 맡고 있는가»다 — 오동률 이사가
+ * 인사 · 구매 · 경영지원 · 재경 · 경영기획을 맡으면 그 다섯 팀이 한 묶음이다.
+ *
+ * 찾는 길은 평가 사다리와 같다(`buildEvaluatorMap`) — 그 사람이 속한 본부의
+ * 운영책임이다. 본인이 운영책임이면 자기 라인의 장이다. 사다리에 운영책임이
+ * 없으면 null이고, 화면이 「운영책임 미지정」으로 적는다.
+ */
+export function buildUnitHeadMap(
+  people: EvaluatorPerson[],
+  teams: EvaluatorTeam[]
+): Map<string, EvaluatorPerson | null> {
+  const teamById = new Map(teams.map((t) => [t.id, t]));
+  const unitOfMember = (p: EvaluatorPerson) => {
+    const team = p.teamId ? teamById.get(p.teamId) : undefined;
+    return clean(team?.businessUnit) ?? clean(p.businessUnit);
+  };
+  // 운영책임이 맡은 본부는 본인 인사카드의 값이 먼저다(`presidesOver`와 같은 이유).
+  const unitOfHead = (p: EvaluatorPerson) => {
+    const team = p.teamId ? teamById.get(p.teamId) : undefined;
+    return clean(p.businessUnit) ?? clean(team?.businessUnit);
+  };
+
+  const headByUnit = new Map<string, EvaluatorPerson>();
+  for (const p of people) {
+    if (p.position !== "OPERATIONS_HEAD") continue;
+    const unit = unitOfHead(p);
+    if (unit && !headByUnit.has(unit)) headByUnit.set(unit, p);
+  }
+
+  const out = new Map<string, EvaluatorPerson | null>();
+  for (const p of people) {
+    if (p.position === "OPERATIONS_HEAD") {
+      out.set(p.id, p);
+      continue;
+    }
+    const unit = unitOfMember(p);
+    out.set(p.id, (unit ? headByUnit.get(unit) : null) ?? null);
+  }
+  return out;
+}
+
 export function buildEvaluatorMap(
   people: EvaluatorPerson[],
   teams: EvaluatorTeam[]

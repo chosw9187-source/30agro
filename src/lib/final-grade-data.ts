@@ -230,15 +230,18 @@ export async function loadUnitScores(
   return out;
 }
 
-/** 그 해 업무단위별 조직등급. 줄이 없으면 아직 등급을 배분하지 않는다. */
+/**
+ * 그 해 **라인별** 조직등급. 열쇠는 그 라인 운영책임의 userId다(`unitKey`).
+ * 줄이 없으면 아직 등급을 배분하지 않는다.
+ */
 export async function loadUnitPlans(
   year: number,
 ): Promise<Map<string, string | null>> {
   const rows = await prisma.gradeUnitPlan.findMany({
     where: { year },
-    select: { businessUnit: true, orgGrade: true },
+    select: { unitKey: true, orgGrade: true },
   });
-  return new Map(rows.map((r) => [r.businessUnit, r.orgGrade]));
+  return new Map(rows.map((r) => [r.unitKey, r.orgGrade]));
 }
 
 /** 그 해 조직등급별 분포표. */

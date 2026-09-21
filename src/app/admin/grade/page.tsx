@@ -7,11 +7,11 @@ import { POSITION_LABEL } from "@/lib/permission-constants";
 import { isCompetencyTarget, competencyExcluded } from "@/lib/competency";
 import { loadCompetencyForm } from "@/lib/competency-form";
 import { cyclePhaseRank, cycleYear } from "@/lib/goals";
+import { buildUnitHeadMap } from "@/lib/evaluator";
 import {
   ORG_GRADES,
   PERSON_GRADES,
   PERSON_GRADE_CLASS,
-  businessUnitOf,
   parseRatios,
   ratioSum,
   theoreticalSeats,
@@ -44,11 +44,11 @@ const NUM =
  * 등급 · 정원 관리 — 상대평가의 «몇 자리»를 정하는 자리.
  *
  * 우리 회사 인사평가는 상대평가다. 종합점수가 몇 점이냐로 등급이 정해지지 않고,
- * 업무단위 안에서 몇 등이냐와 그 업무단위에 몇 자리가 있느냐로 정해진다. 이
+ * 운영책임 라인 안에서 몇 등이냐와 그 라인에 몇 자리가 있느냐로 정해진다. 이
  * 화면은 그 «몇 자리»를 세 단계로 정한다.
  *
  *   ① 분포표 — 조직등급마다 개인등급 배분율(S 30% · A 60% …).
- *   ② 업무단위 — 그 해 업무단위마다 조직등급을 고른다. 고르는 순간 정원이 정해진다.
+ *   ② 평가 라인 — 그 해 운영책임 라인마다 조직등급을 고른다. 고르는 순간 정원이 정해진다.
  *   ③ 명단 — 순위대로 배분된 등급을 보고, 경계에 걸린 사람을 인사팀이 확정한다.
  *
  * ③이 필요한 이유는 정원이 소수로 떨어지기 때문이다 — 스물한 명에게 5%면
@@ -93,7 +93,7 @@ export default async function GradePlanAdminPage({
     }),
     prisma.gradeUnitPlan.findMany({
       where: { year },
-      select: { businessUnit: true, orgGrade: true },
+      select: { unitKey: true, orgGrade: true },
     }),
     prisma.team.findMany({
       where: { active: true },
@@ -118,16 +118,23 @@ export default async function GradePlanAdminPage({
   const quotaByOrg = new Map(
     quotaRows.map((r) => [r.orgGrade, parseRatios(r.ratios)]),
   );
-  const unitPlan = new Map(unitRows.map((r) => [r.businessUnit, r.orgGrade]));
+  const unitPlan = new Map(unitRows.map((r) => [r.unitKey, r.orgGrade]));
 
-  const teamUnitById = new Map(teams.map((t) => [t.id, t.businessUnit]));
-  const unitOf = (p: { businessUnit: string | null; teamId: string | null }) =>
-    businessUnitOf({
-      businessUnit: p.businessUnit,
-      team: p.teamId
-        ? { businessUnit: teamUnitById.get(p.teamId) ?? null }
-        : null,
-    });
+  /*
+    등급을 매기는 묶음은 **운영책임 라인**이다 — 오동률 이사가 인사 · 구매 ·
+    경영지원 · 재경 · 경영기획을 맡으면 그 다섯 팀이 한 묶음이다. 업무단위 이름으로
+    묶던 때에는 이름이 비어 있거나 팀마다 다르게 적혀 있으면 사람들이 한 덩어리로
+    몰려, 상대평가의 묶음이 뜻을 잃었다.
+  */
+  const unitHeadByPerson = buildUnitHeadMap(people, teams);
+  const NO_UNIT = "__no_head__";
+  const unitOf = (p: { id: string }) =>
+    unitHeadByPerson.get(p.id)?.id ?? NO_UNIT;
+  const unitLabel = (key: string) => {
+    if (key === NO_UNIT) return "운영책임 미지정";
+    const head = people.find((p) => p.id === key);
+    return head ? `${head.name} ${POSITION_LABEL[head.position]}` : "운영책임";
+  };
 
   /*
     모집단은 역량평가 대상과 같다 — 담당·팀장이고 평가에서 빠지지 않은 사람.
@@ -160,17 +167,12 @@ export default async function GradePlanAdminPage({
     targets.map((p) => p.id),
   );
 
-  /** 업무단위 목록 — 사람·팀에 적힌 값에서 뽑는다. 따로 조직표를 두지 않는다. */
-  const unitNames = [
-    ...new Set(
-      [
-        ...targets.map((p) => unitOf(p)),
-        ...teams.map((t) => t.businessUnit?.trim() || null),
-      ].filter((v): v is string => !!v),
-    ),
-  ].sort((a, b) => a.localeCompare(b));
+  /** 라인 목록 — 평가 대상이 실제로 걸려 있는 운영책임들이다. */
+  const unitNames = [...new Set(targets.map((p) => unitOf(p)))].sort((a, b) =>
+    unitLabel(a).localeCompare(unitLabel(b)),
+  );
 
-  const unitless = targets.filter((p) => unitOf(p) == null);
+  const unitless = targets.filter((p) => unitOf(p) === NO_UNIT);
 
   type Row = {
     unit: string;
@@ -245,9 +247,9 @@ export default async function GradePlanAdminPage({
           </Link>
         </div>
         <p className="mt-1.5 text-xs break-keep text-slate-500">
-          인사평가는 상대평가입니다 — 등급은 종합점수 구간이 아니라 업무단위
-          안의 순위와 정원으로 정해집니다. ① 분포표에서 조직등급별 배분율을
-          정하고, ② 업무단위마다 조직등급을 고르면, ③ 명단에 등급이 배분됩니다.
+          인사평가는 상대평가입니다 — 등급은 종합점수 구간이 아니라 운영책임
+          라인 안의 순위와 정원으로 정해집니다. ① 분포표에서 조직등급별 배분율을
+          정하고, ② 라인마다 조직등급을 고르면, ③ 명단에 등급이 배분됩니다.
           {reviewCount > 0 && (
             <>
               {" "}
@@ -266,8 +268,8 @@ export default async function GradePlanAdminPage({
             ① 조직등급별 분포표
           </h2>
           <span className="text-xs break-keep text-slate-500">
-            조직(업무단위) 등급마다 개인등급을 몇 %씩 줄지. 합이 100%가 아닌
-            줄은 등급 배분에 쓰이지 않습니다.
+            조직등급마다 개인등급을 몇 %씩 줄지. 합이 100%가 아닌 줄은 등급
+            배분에 쓰이지 않습니다.
           </span>
           <ActionForm
             action={seedQuotaTable}
@@ -364,20 +366,20 @@ export default async function GradePlanAdminPage({
         </ActionForm>
       </section>
 
-      {/* ② 업무단위 */}
+      {/* ② 평가 라인 */}
       <section className={CARD}>
         <div className="flex flex-wrap items-baseline gap-x-3 px-4 py-2.5">
-          <h2 className="text-sm font-bold text-slate-900">② 업무단위</h2>
+          <h2 className="text-sm font-bold text-slate-900">② 평가 라인</h2>
           <span className="text-xs break-keep text-slate-500">
-            조직등급을 고르면 그 업무단위의 정원이 정해집니다. 「자리」는 인원에
+            조직등급을 고르면 그 라인의 정원이 정해집니다. 「자리」는 인원에
             배분율을 곱해 최대잉여법으로 나눈 결과입니다 — 합이 항상 인원과
             같습니다.
           </span>
         </div>
         {unitNames.length === 0 ? (
           <p className="border-t border-slate-100 px-4 py-6 text-center text-sm break-keep text-slate-500">
-            업무단위가 적힌 팀이나 사람이 없습니다 — 관리 → 팀 관리에서 팀의
-            업무단위를 채워 주세요.
+            평가 대상이 걸린 라인이 없습니다 — 관리 → 팀 관리에서 팀의
+            업무단위를, 직원정보에서 운영책임의 업무단위를 채워 주세요.
           </p>
         ) : (
           <div className="overflow-x-auto border-t border-slate-100">
@@ -385,7 +387,7 @@ export default async function GradePlanAdminPage({
               <thead className="bg-slate-100 text-slate-600">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-semibold">
-                    업무단위
+                    평가 라인 (운영책임)
                   </th>
                   <th className="w-28 px-2 py-2 text-right text-xs font-semibold">
                     대상 / 점수 있음
@@ -410,7 +412,7 @@ export default async function GradePlanAdminPage({
                   return (
                     <tr key={b.unit} className="border-t border-slate-100">
                       <td className="px-3 py-2 font-medium break-keep text-slate-900">
-                        {b.unit}
+                        {unitLabel(b.unit)}
                       </td>
                       <td className="px-2 py-2 text-right tabular-nums text-slate-600">
                         {b.members.length} / {scored}
@@ -420,12 +422,12 @@ export default async function GradePlanAdminPage({
                           action={setUnitOrgGrade}
                           hidden={{
                             year: String(year),
-                            businessUnit: b.unit,
+                            unitKey: b.unit,
                           }}
                           name="orgGrade"
                           value={b.orgGrade ?? ""}
                           options={orgOptions}
-                          ariaLabel={`${b.unit} 조직등급`}
+                          ariaLabel={`${unitLabel(b.unit)} 조직등급`}
                           tone={b.orgGrade ? "plain" : "warn"}
                         />
                       </td>
@@ -470,9 +472,9 @@ export default async function GradePlanAdminPage({
         )}
         {unitless.length > 0 && (
           <p className="border-t border-slate-100 px-4 py-2 text-xs break-keep text-status-critical">
-            업무단위가 비어 있어 등급을 매길 수 없는 사람 {unitless.length}명 ·{" "}
-            {unitless.map((p) => p.name).join(", ")} — 관리 → 사용자 관리나 팀
-            관리에서 업무단위를 채워 주세요.
+            사슬에 운영책임이 없어 등급을 매길 수 없는 사람 {unitless.length}명
+            · {unitless.map((p) => p.name).join(", ")} — 관리 → 팀 관리에서 팀의
+            업무단위를, 직원정보에서 운영책임의 업무단위를 채워 주세요.
           </p>
         )}
       </section>
@@ -510,7 +512,7 @@ export default async function GradePlanAdminPage({
                 <div key={b.unit} className="border-t border-slate-100">
                   <div className="flex flex-wrap items-baseline gap-x-2 bg-slate-50 px-4 py-1.5">
                     <h3 className="text-xs font-bold text-slate-800">
-                      {b.unit}
+                      {unitLabel(b.unit)}
                     </h3>
                     <span className="text-[11px] text-slate-500">
                       {b.members.length}명 ·{" "}
