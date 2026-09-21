@@ -1579,6 +1579,16 @@ function requireGoalFields(
     그 칸들은 지금 저장된 값을 그대로 다시 쓰므로 비는 일이 없다.
   */
   definitionLocked = false,
+  /*
+    **이미 비어 있던 칸**. 고칠 때만 온다.
+
+    성과평가(중간)에서 점수를 적고 저장을 눌렀는데 아무 일도 안 일어나는 일이
+    있었다 — 그 목표에 「상위 목표」나 「Key Results」가 처음부터 비어 있었고,
+    점수와 아무 상관이 없는 그 칸들이 필수라서 서버가 저장을 물렸다. 빈 칸을
+    빈 채로 두는 저장은 아무것도 더 나빠지게 하지 않는다. 그래서 **요구는 새로
+    세울 때** 하고, 고칠 때는 원래 비어 있던 칸을 따지지 않는다.
+  */
+  alreadyEmpty: string[] = [],
 ) {
   if (level === "COMPANY") return;
 
@@ -1619,6 +1629,7 @@ function requireGoalFields(
 
   const missing = need
     .filter(([field]) => !str(formData.get(field)))
+    .filter(([field]) => !alreadyEmpty.includes(field))
     .map(([, label]) => label);
   /*
     팀·책임자는 폼에 칸이 없을 수 있다 — 관리자가 아니면 로그인 정보에서 그대로
@@ -1907,6 +1918,8 @@ export async function updateGoal(formData: FormData) {
       half: true,
       goalType: true,
       keyResults: true,
+      parentId: true,
+      title: true,
     },
   });
   if (!existing) return;
@@ -2052,7 +2065,18 @@ export async function updateGoal(formData: FormData) {
         return s;
       })()
     : { teamId: existing.teamId, ownerId: existing.ownerId };
-  requireGoalFields(level, formData, scope, defLocked);
+  /* 원래 비어 있던 정의 칸은 이 저장에서 따지지 않는다 — 위 `alreadyEmpty` 참조. */
+  const emptyAlready = (
+    [
+      ["parentId", existing.parentId],
+      ["keyResults", existing.keyResults],
+      ["goalType", existing.goalType],
+      ["half", existing.half],
+    ] as const
+  )
+    .filter(([, v]) => !String(v ?? "").trim())
+    .map(([field]) => field);
+  requireGoalFields(level, formData, scope, defLocked, emptyAlready);
 
   /*
     목표설정 단계에는 달성률 칸이 없다. 그때 폼에서 온 빈 값을 그대로 믿으면

@@ -49,59 +49,83 @@ export function ActionForm({
 }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-  const [, formAction] = useActionState(async (_prev: null, formData: FormData) => {
-    try {
-      const result = await action(formData);
+  const [, formAction] = useActionState(
+    async (_prev: null, formData: FormData) => {
+      try {
+        const result = await action(formData);
 
-      // 서버 액션이 { error } 를 돌려주면 그 문구를 그대로 띄운다. 프로덕션에서
-      // Next는 던져진 오류의 메시지를 감추고 영어 안내로 바꿔 버리므로,
-      // 사용자에게 보여줄 말은 던지지 말고 돌려줘야 한다.
-      if (result && typeof result === "object" && "error" in result) {
-        const message = (result as { error?: unknown }).error;
-        if (typeof message === "string" && message) {
-          showToast(message, false);
-          return null;
+        // 서버 액션이 { error } 를 돌려주면 그 문구를 그대로 띄운다. 프로덕션에서
+        // Next는 던져진 오류의 메시지를 감추고 영어 안내로 바꿔 버리므로,
+        // 사용자에게 보여줄 말은 던지지 말고 돌려줘야 한다.
+        if (result && typeof result === "object" && "error" in result) {
+          const message = (result as { error?: unknown }).error;
+          if (typeof message === "string" && message) {
+            showToast(message, false);
+            return null;
+          }
         }
-      }
 
-      /*
+        /*
         액션이 `{ message }`를 돌려주면 그 말을 띄운다 — 같은 폼이 두 가지 일을
         할 때(저장 / 평가완료) 결과를 구별해 알려야 한다. 「수정되었습니다」만
         뜨면 완료로 찍혔는지 알 수 없다.
       */
-      const notice =
-        result && typeof result === "object" && "message" in result
-          ? (result as { message?: unknown }).message
-          : null;
-      showToast(
-        typeof notice === "string" && notice ? notice : successMessage,
-        true,
-      );
-      if (collapseOnSuccess) {
-        formRef.current?.reset();
-        const box = formRef.current?.closest("details");
-        if (box) box.open = false;
+        const notice =
+          result && typeof result === "object" && "message" in result
+            ? (result as { message?: unknown }).message
+            : null;
+        showToast(
+          typeof notice === "string" && notice ? notice : successMessage,
+          true,
+        );
+        if (collapseOnSuccess) {
+          formRef.current?.reset();
+          const box = formRef.current?.closest("details");
+          if (box) box.open = false;
+        }
+        if (successHref) router.replace(successHref);
+      } catch (error) {
+        // redirect()/notFound() 같은 Next 내부 제어 신호는 잡아채면 안 된다.
+        if (
+          error &&
+          typeof error === "object" &&
+          "digest" in error &&
+          String((error as { digest?: unknown }).digest).startsWith("NEXT_")
+        ) {
+          throw error;
+        }
+        // 프로덕션에서 던져진 오류의 message는 "An error occurred in the Server
+        // Components render..." 같은 영어 안내로 바뀌어 있다. 그대로 띄우면
+        // 사용자는 무슨 일인지 알 수 없으므로, 그런 경우는 우리 문구로 바꾼다.
+        const raw = error instanceof Error ? error.message : "";
+        const masked = raw.startsWith("An error occurred in the Server");
+        showToast(
+          !raw || masked ? "처리하지 못했습니다. 입력값을 확인해 주세요." : raw,
+          false,
+        );
       }
-      if (successHref) router.replace(successHref);
-    } catch (error) {
-      // redirect()/notFound() 같은 Next 내부 제어 신호는 잡아채면 안 된다.
-      if (
-        error &&
-        typeof error === "object" &&
-        "digest" in error &&
-        String((error as { digest?: unknown }).digest).startsWith("NEXT_")
-      ) {
-        throw error;
-      }
-      // 프로덕션에서 던져진 오류의 message는 "An error occurred in the Server
-      // Components render..." 같은 영어 안내로 바뀌어 있다. 그대로 띄우면
-      // 사용자는 무슨 일인지 알 수 없으므로, 그런 경우는 우리 문구로 바꾼다.
-      const raw = error instanceof Error ? error.message : "";
-      const masked = raw.startsWith("An error occurred in the Server");
-      showToast(!raw || masked ? "처리하지 못했습니다. 입력값을 확인해 주세요." : raw, false);
-    }
-    return null;
-  }, null);
+      return null;
+    },
+    null,
+  );
+
+  /*
+    빈 필수 칸 — **누른 사람에게 말해 준다.**
+
+    브라우저에 맡겨 두면 필수 칸이 비었을 때 제출 자체가 일어나지 않는다. 그
+    칸이 화면에 보이면 말풍선이 뜨지만, 접힌 칸이나 화면 밖에 있으면 아무것도
+    뜨지 않는다 — 저장을 눌러도 «아무 일도 안 일어나는» 자리가 그래서 생긴다.
+    실제로 평가 화면에서 점수를 적고 저장을 눌렀는데, 화면 위쪽의 「상위 목표」가
+    비어 있어 조용히 막힌 일이 있었다.
+
+    그래서 검사를 우리가 한다(`noValidate`). 빈 칸이 있으면 그 칸의 이름을
+    알림으로 띄우고, 그 자리로 굴려 보낸 뒤 말풍선까지 띄운다.
+  */
+  const fieldLabel = (el: Element) => {
+    const box = el.closest("div");
+    const label = box?.querySelector("label")?.textContent?.trim();
+    return label || (el as HTMLInputElement).name || "빈 칸";
+  };
 
   return (
     <form
@@ -109,8 +133,31 @@ export function ActionForm({
       id={id}
       action={formAction}
       className={className}
+      noValidate
       onSubmit={(e) => {
-        if (confirmMessage && !window.confirm(confirmMessage)) e.preventDefault();
+        const form = e.currentTarget;
+        if (!form.checkValidity()) {
+          e.preventDefault();
+          const bad = [...form.elements].find(
+            (el): el is HTMLInputElement =>
+              "willValidate" in el &&
+              (el as HTMLInputElement).willValidate &&
+              !(el as HTMLInputElement).checkValidity(),
+          );
+          if (bad) {
+            showToast(
+              `「${fieldLabel(bad)}」을(를) 확인해 주세요 — 아직 저장하지 않았습니다.`,
+              false,
+            );
+            bad.scrollIntoView({ block: "center", behavior: "smooth" });
+            bad.reportValidity();
+          } else {
+            showToast("입력값을 확인해 주세요.", false);
+          }
+          return;
+        }
+        if (confirmMessage && !window.confirm(confirmMessage))
+          e.preventDefault();
       }}
     >
       {children}

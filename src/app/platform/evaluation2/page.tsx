@@ -1431,10 +1431,20 @@ export default async function Evaluation2Page({
     select: { status: true, lockedAt: true },
   });
   const counted = allNodes.filter(countsTowardProgress);
-  const overallProgress =
-    companyGoals.length > 0
-      ? weightedProgress(companyGoals)
-      : averageProgress(counted);
+  /*
+    「전사 종합」 — 전사목표의 가중 달성률이다. 전사목표가 아직 없는 해에는 아래
+    층의 평균으로 대신 적는데, 그때 두 가지를 조심한다.
+
+      ① **그 반기만** 센다. 두 반기를 한 덩어리로 세면 상반기 29%와 하반기
+         100%가 섞여 아무 반기도 가리키지 않는 숫자가 된다 — 대시보드의 다른
+         칸들은 모두 한 반기만 본다(`shownHalf`).
+      ② 이름을 바꿔 적는다. 「전사 목표 0건」 옆에 「전사 종합 90%」가 떠 있으면
+         없는 목표에서 나온 숫자처럼 읽힌다. 전사목표가 없을 때는 「목표 평균」이다.
+  */
+  const overallIsCompany = companyGoals.length > 0;
+  const overallProgress = overallIsCompany
+    ? weightedProgress(companyGoals)
+    : averageProgress(counted.filter((g) => !g.half || g.half === shownHalf));
   /*
     머리글의 건수는 «전사 목표»라는 제목 아래 붙으므로 전사목표만 센다.
     예전에는 네 층을 전부 세서, 전사목표 6건은 하나도 완료가 아닌데 «완료 1»이
@@ -3846,7 +3856,11 @@ export default async function Evaluation2Page({
           <div className="ml-auto flex items-center gap-3 whitespace-nowrap">
             {showsProgress && (
               <>
-                <span className="text-[11px] text-slate-500">전사 종합</span>
+                <span className="text-[11px] text-slate-500">
+                  {overallIsCompany
+                    ? "전사 종합"
+                    : `목표 평균${shownHalf ? ` (${shownHalf})` : ""}`}
+                </span>
                 <span className="text-xl leading-none font-semibold tabular-nums text-slate-900">
                   {overallProgress}
                   <span className="ml-0.5 text-xs font-normal text-slate-400">
@@ -4523,7 +4537,20 @@ export default async function Evaluation2Page({
     const parentLevel = GOAL_PARENT_LEVEL[level];
     const isTeam = usesScales(level);
     const isOkr = usesKeyResults(level);
-    const req = level !== "COMPANY";
+    /*
+      **평가 단계에서는 정의 칸을 「필수」로 걸지 않는다.**
+
+      성과평가(중간·최종)에서 이 폼을 여는 까닭은 점수를 적기 위해서다. 목표의
+      정의는 목표설정에서 이미 확정된 값이고 이 폼은 그것을 실어 나를 뿐이다.
+      그런데 「상위 목표」나 「핵심결과」가 비어 있는 목표(예전에 등록된 줄, 상위를
+      안 붙인 줄)에서는 필수 검사가 걸려 **점수를 적고 저장을 눌러도 아무 일도
+      일어나지 않았다** — 빈 칸이 화면 위쪽에 있어 말풍선도 보이지 않았다.
+
+      목표를 세우는 자리(목표설정)에서는 그대로 필수다. 거기서 빠뜨린 칸을
+      평가 때 채우게 하는 것이 아니라, 세울 때 받아야 한다.
+    */
+    const evalStage = !!cycle && cyclePhaseRank(cycle) >= 2;
+    const req = level !== "COMPANY" && !evalStage;
     // 이 사이클이 속한 해의 말일. 마감일 기본값이다.
     const yearEnd = `${cycle?.year ?? new Date().getFullYear()}-12-31`;
 
@@ -4708,7 +4735,7 @@ export default async function Evaluation2Page({
           defaultValue={
             parentIsOther ? OTHER_PARENT_VALUE : (goal?.parentId ?? "")
           }
-          required
+          required={!evalStage}
           className={INPUT_CLASS}
         >
           <option value="">선택</option>
@@ -5267,7 +5294,7 @@ export default async function Evaluation2Page({
           name="keyResults"
           rows={3}
           defaultValue={goal?.keyResults ?? ""}
-          required
+          required={!evalStage}
           placeholder={"타사 적정인원/팀 사례 분석\n적정 팀 구성 분석"}
           className={INPUT_CLASS}
         />
