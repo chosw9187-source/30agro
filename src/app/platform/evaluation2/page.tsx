@@ -3044,6 +3044,8 @@ export default async function Evaluation2Page({
             return p.team?.name ?? p.division ?? "";
           case "first":
             return evaluatorByPerson.get(p.id)?.first?.name ?? "";
+          case "second":
+            return evaluatorByPerson.get(p.id)?.second?.name ?? "";
           case "perf":
             return num(sc?.performance);
           case "comp":
@@ -3543,6 +3545,7 @@ export default async function Evaluation2Page({
                       {sortableHead("name", "이름")}
                       {sortableHead("team", "부서")}
                       {sortableHead("first", "1차 평가자")}
+                      {sortableHead("second", "2차 평가자")}
                       {sortableHead(
                         "perf",
                         `성과 ${Math.round(PERFORMANCE_WEIGHT * 100)}%`,
@@ -3564,7 +3567,7 @@ export default async function Evaluation2Page({
                         {g.showHead && (
                           <tr className="border-t border-slate-200 bg-slate-50">
                             <td
-                              colSpan={8}
+                              colSpan={9}
                               className="px-3 py-1 text-xs font-medium text-slate-600"
                             >
                               <span className="inline-flex items-center gap-2">
@@ -3613,9 +3616,29 @@ export default async function Evaluation2Page({
                                 {p.team?.name ?? p.division ?? "-"}
                               </td>
                               <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
-                                {chain?.first
-                                  ? evaluatorLabel(chain.first)
-                                  : "-"}
+                                {chain?.first ? (
+                                  evaluatorLabel(chain.first)
+                                ) : (
+                                  <span className="text-status-critical">
+                                    미지정
+                                  </span>
+                                )}
+                              </td>
+                              {/*
+                                2차 평가자 — 1차의 한 칸 위다(담당이면 팀장 → 그
+                                위의 책임, 없으면 운영책임). 조직도를 따라
+                                그때그때 셈하므로 팀장이 바뀌면 이 칸도 그날로
+                                바뀐다. 비어 있으면 조직도에 그 자리가 없는 것이라
+                                붉게 적는다.
+                              */}
+                              <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
+                                {chain?.second ? (
+                                  evaluatorLabel(chain.second)
+                                ) : (
+                                  <span className="text-status-critical">
+                                    미지정
+                                  </span>
+                                )}
                               </td>
                               <td className={cell}>
                                 {sc?.performance ?? (

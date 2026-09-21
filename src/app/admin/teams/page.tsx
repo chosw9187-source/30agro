@@ -9,10 +9,12 @@ import {
   toggleTeamActive,
 } from "./actions";
 import { isActive, activePrismaWhere } from "@/lib/hr-analytics";
+import { UserPicker, UserPickerProvider, type PickUser } from "./user-picker";
 
 export const dynamic = "force-dynamic";
 
 const roleLabel: Record<string, string> = {
+  ADMIN: "관리자",
   EVALUATOR: "평가자",
   EMPLOYEE: "직원",
 };
@@ -26,12 +28,33 @@ export default async function TeamsPage() {
         members: { where: activePrismaWhere(), orderBy: { name: "asc" } },
       },
     }),
+    /*
+      고르개에 실을 명단. **관리자도 넣는다** — 인사팀 팀장처럼 관리자 권한을 가진
+      사람이 실제로 팀을 맡고 있는데, 예전에는 role이 ADMIN이면 목록에서 빠져
+      「팀장 지정」에 그 이름이 아예 나오지 않았다.
+
+      쓰는 칸만 읽는다 — 이 명단이 고르개 수십 개에 실리므로 한 줄이라도 가볍게.
+    */
     prisma.user.findMany({
-      where: { AND: [{ role: { not: "ADMIN" } }, activePrismaWhere()] },
+      where: activePrismaWhere(),
       orderBy: { name: "asc" },
-      include: { team: true },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        teamId: true,
+        team: { select: { name: true } },
+      },
     }),
   ]);
+
+  const pickUsers: PickUser[] = users.map((u) => ({
+    id: u.id,
+    name: u.name,
+    role: roleLabel[u.role] ?? u.role,
+    teamId: u.teamId,
+    teamName: u.team?.name ?? null,
+  }));
 
   const businessUnits = Array.from(
     new Set(teams.map((t) => t.businessUnit).filter((v): v is string => !!v))
@@ -95,6 +118,7 @@ export default async function TeamsPage() {
         </form>
       </section>
 
+      <UserPickerProvider users={pickUsers}>
       <section className="flex flex-col gap-3">
         {teams.length === 0 && <p className="text-slate-500">아직 팀이 없습니다.</p>}
         {teams.map((team) => {
@@ -185,18 +209,11 @@ export default async function TeamsPage() {
               className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3"
             >
               <label className="text-sm text-slate-600">팀장 지정</label>
-              <select
+              <UserPicker
                 name="leaderId"
                 defaultValue={team.leaderId ?? ""}
-                className="rounded border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="">미지정</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({roleLabel[u.role] ?? u.role})
-                  </option>
-                ))}
-              </select>
+                emptyLabel="미지정"
+              />
               <button
                 type="submit"
                 className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
@@ -236,21 +253,13 @@ export default async function TeamsPage() {
                   action={addTeamMember.bind(null, team.id)}
                   className="mt-3 flex items-center gap-2"
                 >
-                  <select
+                  <UserPicker
                     name="userId"
                     required
-                    className="rounded border border-slate-300 px-3 py-2 text-sm"
-                  >
-                    <option value="">구성원 추가...</option>
-                    {users
-                      .filter((u) => u.teamId !== team.id)
-                      .map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name}
-                          {u.team ? ` (현재: ${u.team.name})` : ""}
-                        </option>
-                      ))}
-                  </select>
+                    emptyLabel="구성원 추가..."
+                    excludeTeamId={team.id}
+                    showTeam
+                  />
                   <button
                     type="submit"
                     className="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100"
@@ -264,6 +273,7 @@ export default async function TeamsPage() {
           );
         })}
       </section>
+      </UserPickerProvider>
     </div>
   );
 }
