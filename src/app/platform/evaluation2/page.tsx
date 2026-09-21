@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
@@ -8,7 +9,7 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { activePrismaWhere, isEvalPopulation } from "@/lib/hr-analytics";
 import { POSITION_LABEL } from "@/lib/permission-constants";
 import {
-  buildDivisionHeadMap,
+  buildDivisionLineMap,
   buildEvaluatorMap,
   buildUnitHeadMap,
   evaluatorLabel,
@@ -532,6 +533,8 @@ export default async function Evaluation2Page({
     dept?: string;
     /** HR REPORT의 섹터. 「scores」(평가 점수 관리) · 「exec」(임원진 REPORT). */
     rtab?: string;
+    /** HR REPORT 표를 책임별로 묶을지. 「flat」이면 라인 전체를 한 줄로 세운다. */
+    rgroup?: string;
     /** HR REPORT 표의 정렬. 「칸-방향」(예: perf-desc). */
     rsort?: string;
   }>;
@@ -1261,14 +1264,25 @@ export default async function Evaluation2Page({
     보기를 좁히는 데만 쓴다 — 등급은 운영책임 라인에서 매긴 값을 그대로 보여
     준다. 작은 묶음에서 순위를 다시 내면 같은 사람이 화면마다 다른 등급을 받는다.
   */
-  const deptHeadByPerson = buildDivisionHeadMap(people, teams);
+  const deptLineByPerson = buildDivisionLineMap(people, teams);
   const NO_DEPT = "__no_dept__";
+  /** 묶는 열쇠는 **부문 이름**이다 — 책임이 아직 없는 부문도 조직도대로 갈린다. */
   const deptOf = (p: { id: string }) =>
-    deptHeadByPerson.get(p.id)?.id ?? NO_DEPT;
+    deptLineByPerson.get(p.id)?.key ?? NO_DEPT;
+  const deptHeadByKey = new Map<string, string>();
+  for (const line of deptLineByPerson.values()) {
+    if (line?.head && !deptHeadByKey.has(line.key)) {
+      deptHeadByKey.set(
+        line.key,
+        `${line.head.name} ${POSITION_LABEL[line.head.position]}`,
+      );
+    }
+  }
+  /** 「박은희 책임 · 생산」 — 책임이 없으면 부문 이름만 적는다. */
   const deptLabel = (key: string) => {
-    if (key === NO_DEPT) return "책임 미지정";
-    const head = people.find((p) => p.id === key);
-    return head ? `${head.name} ${POSITION_LABEL[head.position]}` : "책임";
+    if (key === NO_DEPT) return "부문 미지정";
+    const head = deptHeadByKey.get(key);
+    return head ? `${head} · ${key}` : key;
   };
   const gradeView = resultView && !!competencyTarget;
   const targetUnit = competencyTarget ? unitOf(competencyTarget) : null;
@@ -2880,6 +2894,9 @@ export default async function Evaluation2Page({
   function reportBoard() {
     const cell = "px-3 py-1.5 text-right tabular-nums";
     const rtab = params.rtab === "exec" ? "exec" : "scores";
+    /* 책임별로 묶어 볼지. 라인 전체를 점수순으로 한 줄로 세워 보고 싶을 때가
+       있어 끌 수 있게 둔다 — 묶어 놓으면 정렬이 묶음 안에서만 돈다. */
+    const grouped = params.rgroup !== "flat";
     /* 고른 라인이 지금 목록에 없으면(해가 바뀌어 사람이 빠졌다든가) 조용히
        «전체»로 돌아간다 — 빈 화면을 두고 «왜 아무도 없지»가 되는 것보다 낫다. */
     const pickedUnit = reportUnits.some((u) => u.unit === params.unit)
@@ -2933,6 +2950,7 @@ export default async function Evaluation2Page({
       if (pickedUnit) qs.set("unit", pickedUnit);
       if (pickedDept) qs.set("dept", pickedDept);
       if (rtab === "exec") qs.set("rtab", "exec");
+      if (!grouped) qs.set("rgroup", "flat");
       if (params.rsort) qs.set("rsort", params.rsort);
       for (const [k, v] of Object.entries(over)) {
         if (v) qs.set(k, v);
@@ -2961,6 +2979,34 @@ export default async function Evaluation2Page({
         </Link>
       </th>
     );
+
+    /*
+      한 라인 안을 **책임(부문) 라인**으로 한 번 더 가른다 — 「황수목 운영책임」
+      밑의 「박은희 책임 · 생산」 · 「김지훈 책임 · 기술연구」처럼. 조직도의 부문을
+      그대로 따라가므로 책임이 아직 지정되지 않은 부문도 이름으로 갈린다.
+
+      묶음이 하나뿐이면 머리를 띄우지 않는다 — 한 줄짜리 소제목은 표만 길어진다.
+    */
+    const deptGroups = (rows: typeof reportPeople) => {
+      if (!grouped) return [{ key: "__flat__", rows, showHead: false }];
+      const by = new Map<string, typeof reportPeople>();
+      for (const p of rows) {
+        const d = deptOf(p);
+        by.set(d, [...(by.get(d) ?? []), p]);
+      }
+      const keys = [...by.keys()].sort((a, b) =>
+        a === NO_DEPT
+          ? 1
+          : b === NO_DEPT
+            ? -1
+            : deptLabel(a).localeCompare(deptLabel(b)),
+      );
+      return keys.map((key) => ({
+        key,
+        rows: by.get(key)!,
+        showHead: keys.length > 1,
+      }));
+    };
 
     /** 그 사람의 등급 — 라인마다 따로 매겨져 있어 한 번 찾아 준다. */
     const unitGradeOf = (p: (typeof reportPeople)[number]) => {
@@ -3316,6 +3362,30 @@ export default async function Evaluation2Page({
 
     return (
       <div className="flex flex-col gap-4">
+        {/*
+          섹터 두 장 — 「평가 점수 관리」는 인사팀이 **적는** 자리, 「임원진
+          REPORT」는 **읽는** 자리다. 한 화면에 섞어 두면 임원이 보는 곳에
+          가산점·등급 입력칸이 따라다녀, 손댈 자리가 아닌데 손대게 된다.
+
+          목표 층 탭(대시보드 · 전사목표)과 같은 줄 모양을 쓴다 — 화면 맨 위에서
+          갈래를 고르는 자리는 한 가지로만 생겼어야 어디를 누르는지 헷갈리지 않는다.
+        */}
+        <nav className="flex flex-wrap gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1 text-xs shadow-sm">
+          {[
+            { key: "scores", label: "평가 점수 관리" },
+            { key: "exec", label: "임원진 REPORT" },
+          ].map((t) => (
+            <Link
+              key={t.key}
+              href={reportHref({ rtab: t.key === "exec" ? "exec" : "" })}
+              className={`rounded-full px-3 py-1.5 transition-colors sm:py-0.5 ${
+                rtab === t.key ? TAB_CLASS.on : TAB_CLASS.off
+              }`}
+            >
+              {t.label}
+            </Link>
+          ))}
+        </nav>
         <section className={CARD_CLASS}>
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5">
             <h1 className="text-base font-bold text-slate-900">
@@ -3330,32 +3400,6 @@ export default async function Evaluation2Page({
               평가 대상 {reportPeople.length}명 · 운영책임 {reportUnits.length}
               개 라인 · 책임 {allDeptKeys.length}개 라인 · 조직도 기준(정규직 +
               영업관리팀 계약직 중 담당 · 팀장)
-            </span>
-          </div>
-          {/*
-            섹터 두 장 — 「평가 점수 관리」는 인사팀이 **적는** 자리, 「임원진
-            REPORT」는 **읽는** 자리다. 한 화면에 섞어 두면 임원이 보는 곳에
-            가산점·등급 입력칸이 따라다녀, 손댈 자리가 아닌데 손대게 된다.
-          */}
-          <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-2">
-            {[
-              { key: "scores", label: "평가 점수 관리" },
-              { key: "exec", label: "임원진 REPORT" },
-            ].map((t) => (
-              <Link
-                key={t.key}
-                href={reportHref({ rtab: t.key === "exec" ? "exec" : "" })}
-                className={`rounded-full px-3 py-1 text-xs font-medium ${
-                  rtab === t.key ? TAB_CLASS.on : TAB_CLASS.off
-                }`}
-              >
-                {t.label}
-              </Link>
-            ))}
-            <span className="ml-2 text-[11px] break-keep text-slate-400">
-              {rtab === "exec"
-                ? "라인별 요약만 읽는 자리입니다 — 적는 칸은 「평가 점수 관리」에 있습니다."
-                : "성과 · 역량은 목표와 문항에서 굴러 온 값입니다. 여기서 적는 것은 가산점과 등급 확정 둘뿐입니다."}
             </span>
           </div>
           {/*
@@ -3396,9 +3440,22 @@ export default async function Evaluation2Page({
                 ]}
               />
             </span>
+            {rtab === "scores" && (
+              <Link
+                href={reportHref({ rgroup: grouped ? "flat" : "" })}
+                className={`rounded-full border px-3 py-1 text-xs whitespace-nowrap transition-colors ${
+                  grouped
+                    ? "border-goal-4 bg-goal-4/10 font-medium text-goal-4"
+                    : "border-slate-300 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                책임별 묶기 {grouped ? "켬" : "끔"}
+              </Link>
+            )}
             <span className="ml-auto text-[11px] break-keep text-slate-400">
-              등급은 운영책임 라인 안에서 매겨집니다 — 책임으로 좁혀도 순위는
-              그대로입니다.
+              {rtab === "exec"
+                ? "라인별 요약만 읽는 자리입니다 — 적는 칸은 「평가 점수 관리」에 있습니다."
+                : "등급은 운영책임 라인 안에서 매겨집니다 — 책임으로 좁혀도 순위는 그대로입니다."}
             </span>
           </div>
         </section>
@@ -3487,144 +3544,176 @@ export default async function Evaluation2Page({
                     </tr>
                   </thead>
                   <tbody>
-                    {sortRows(u.rows).map((p) => {
-                      const sc = reportScores.get(p.id);
-                      const gr = u.grades.get(p.id) ?? null;
-                      const chain = evaluatorByPerson.get(p.id) ?? null;
-                      return (
-                        <tr key={p.id} className="border-t border-slate-100">
-                          <td className="px-3 py-1.5 font-medium whitespace-nowrap text-slate-800">
-                            {p.name} {POSITION_LABEL[p.position]}
-                          </td>
-                          <td className="px-3 py-1.5 whitespace-nowrap text-slate-500">
-                            {p.team?.name ?? p.division ?? "-"}
-                          </td>
-                          <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
-                            {chain?.first ? evaluatorLabel(chain.first) : "-"}
-                          </td>
-                          <td className={cell}>
-                            {sc?.performance ?? (
-                              <span className="text-status-critical">
-                                미입력
+                    {deptGroups(u.rows).map((g) => (
+                      <Fragment key={g.key}>
+                        {g.showHead && (
+                          <tr className="border-t border-slate-200 bg-slate-50">
+                            <td
+                              colSpan={8}
+                              className="px-3 py-1 text-xs font-medium text-slate-600"
+                            >
+                              <span className="inline-flex items-center gap-2">
+                                <span
+                                  className="h-3 w-0.5 rounded-full bg-goal-4"
+                                  aria-hidden="true"
+                                />
+                                {deptLabel(g.key)}
+                                <span className="font-normal text-slate-400">
+                                  {g.rows.length}명
+                                </span>
                               </span>
-                            )}
-                          </td>
-                          <td className={cell}>
-                            {sc?.competency ?? (
-                              <span className="text-status-critical">
-                                미입력
-                              </span>
-                            )}
-                          </td>
-                          {/*
+                            </td>
+                          </tr>
+                        )}
+                        {sortRows(g.rows).map((p) => {
+                          const sc = reportScores.get(p.id);
+                          const gr = u.grades.get(p.id) ?? null;
+                          const chain = evaluatorByPerson.get(p.id) ?? null;
+                          return (
+                            <tr
+                              key={p.id}
+                              className="border-t border-slate-100"
+                            >
+                              <td className="px-3 py-1.5 font-medium whitespace-nowrap text-slate-800">
+                                {p.name} {POSITION_LABEL[p.position]}
+                              </td>
+                              <td className="px-3 py-1.5 whitespace-nowrap text-slate-500">
+                                {p.team?.name ?? p.division ?? "-"}
+                              </td>
+                              <td className="px-3 py-1.5 whitespace-nowrap text-slate-600">
+                                {chain?.first
+                                  ? evaluatorLabel(chain.first)
+                                  : "-"}
+                              </td>
+                              <td className={cell}>
+                                {sc?.performance ?? (
+                                  <span className="text-status-critical">
+                                    미입력
+                                  </span>
+                                )}
+                              </td>
+                              <td className={cell}>
+                                {sc?.competency ?? (
+                                  <span className="text-status-critical">
+                                    미입력
+                                  </span>
+                                )}
+                              </td>
+                              {/*
                             가산점만 적는 칸이다. 줄마다 폼을 두되 칸 **안에**
                             둔다 — `<tr>` 바로 아래에 폼을 넣으면 올바른 HTML이
                             아니라 브라우저가 표 밖으로 밀어낼 수 있다.
                           */}
-                          <td className="px-3 py-1.5">
-                            <ActionForm
-                              action={setGradeBonus}
-                              successMessage="가산점을 적었습니다."
-                              className="flex items-center gap-1"
-                            >
-                              <input
-                                type="hidden"
-                                name="year"
-                                value={selectedYear}
-                              />
-                              <input type="hidden" name="userId" value={p.id} />
-                              <input
-                                type="number"
-                                name="points"
-                                step="0.1"
-                                min={-50}
-                                max={50}
-                                defaultValue={sc?.bonus ? sc.bonus : ""}
-                                placeholder="0"
-                                aria-label={`${p.name} 가산점`}
-                                className="w-14 rounded-md border border-slate-300 px-1.5 py-1 text-right text-xs tabular-nums"
-                              />
-                              <input
-                                name="note"
-                                defaultValue={sc?.bonusNote ?? ""}
-                                placeholder="사유"
-                                aria-label={`${p.name} 가산점 사유`}
-                                className="w-24 rounded-md border border-slate-300 px-2 py-1 text-xs"
-                              />
-                              <button
-                                type="submit"
-                                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs whitespace-nowrap text-slate-700 hover:bg-slate-50"
+                              <td className="px-3 py-1.5">
+                                <ActionForm
+                                  action={setGradeBonus}
+                                  successMessage="가산점을 적었습니다."
+                                  className="flex items-center gap-1"
+                                >
+                                  <input
+                                    type="hidden"
+                                    name="year"
+                                    value={selectedYear}
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="userId"
+                                    value={p.id}
+                                  />
+                                  <input
+                                    type="number"
+                                    name="points"
+                                    step="0.1"
+                                    min={-50}
+                                    max={50}
+                                    defaultValue={sc?.bonus ? sc.bonus : ""}
+                                    placeholder="0"
+                                    aria-label={`${p.name} 가산점`}
+                                    className="w-14 rounded-md border border-slate-300 px-1.5 py-1 text-right text-xs tabular-nums"
+                                  />
+                                  <input
+                                    name="note"
+                                    defaultValue={sc?.bonusNote ?? ""}
+                                    placeholder="사유"
+                                    aria-label={`${p.name} 가산점 사유`}
+                                    className="w-24 rounded-md border border-slate-300 px-2 py-1 text-xs"
+                                  />
+                                  <button
+                                    type="submit"
+                                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs whitespace-nowrap text-slate-700 hover:bg-slate-50"
+                                  >
+                                    저장
+                                  </button>
+                                </ActionForm>
+                              </td>
+                              <td
+                                className={`${cell} text-base font-bold text-slate-900`}
                               >
-                                저장
-                              </button>
-                            </ActionForm>
-                          </td>
-                          <td
-                            className={`${cell} text-base font-bold text-slate-900`}
-                          >
-                            {sc?.total ?? "–"}
-                          </td>
-                          {/*
+                                {sc?.total ?? "–"}
+                              </td>
+                              {/*
                             등급 칸. 표대로 나온 등급을 보여 주되 인사팀이 손으로
                             고칠 수 있다 — 반올림으로 갈린 자리는 사람이 정한다.
                             고른 값이 계산값과 다르면 그 사실을 옆에 적는다.
                           */}
-                          <td className="px-3 py-1.5 whitespace-nowrap">
-                            <span className="flex items-center gap-1.5">
-                              <InstantSelect
-                                action={setFinalGrade}
-                                hidden={{
-                                  year: String(selectedYear),
-                                  userId: p.id,
-                                }}
-                                name="grade"
-                                value={gr?.fixed ? gr.grade : ""}
-                                ariaLabel={`${p.name} 등급 확정`}
-                                options={[
-                                  {
-                                    value: "",
-                                    label: gr
-                                      ? `표대로 ${gr.computed ?? gr.grade}`
-                                      : "표대로 (미정)",
-                                  },
-                                  ...PERSON_GRADES.map((g) => ({
-                                    value: g,
-                                    label: g,
-                                  })),
-                                ]}
-                              />
-                              {gr ? (
-                                <span
-                                  className={`rounded-md px-2 py-0.5 text-sm font-bold ${
-                                    PERSON_GRADE_CLASS[gr.grade] ??
-                                    "bg-slate-500 text-white"
-                                  }`}
-                                >
-                                  {gr.grade}
+                              <td className="px-3 py-1.5 whitespace-nowrap">
+                                <span className="flex items-center gap-1.5">
+                                  <InstantSelect
+                                    action={setFinalGrade}
+                                    hidden={{
+                                      year: String(selectedYear),
+                                      userId: p.id,
+                                    }}
+                                    name="grade"
+                                    value={gr?.fixed ? gr.grade : ""}
+                                    ariaLabel={`${p.name} 등급 확정`}
+                                    options={[
+                                      {
+                                        value: "",
+                                        label: gr
+                                          ? `표대로 ${gr.computed ?? gr.grade}`
+                                          : "표대로 (미정)",
+                                      },
+                                      ...PERSON_GRADES.map((g) => ({
+                                        value: g,
+                                        label: g,
+                                      })),
+                                    ]}
+                                  />
+                                  {gr ? (
+                                    <span
+                                      className={`rounded-md px-2 py-0.5 text-sm font-bold ${
+                                        PERSON_GRADE_CLASS[gr.grade] ??
+                                        "bg-slate-500 text-white"
+                                      }`}
+                                    >
+                                      {gr.grade}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-slate-400">
+                                      미정
+                                    </span>
+                                  )}
+                                  {gr && (
+                                    <span className="text-[11px] whitespace-nowrap text-slate-400">
+                                      {gr.of}명 중 {gr.rank}위
+                                    </span>
+                                  )}
+                                  {gr?.fixed && (
+                                    <span className="rounded bg-goal-4/10 px-1 py-0.5 text-[10px] font-medium whitespace-nowrap text-goal-4">
+                                      인사팀 확정
+                                      {gr.computed &&
+                                        gr.computed !== gr.grade &&
+                                        ` · 표대로는 ${gr.computed}`}
+                                    </span>
+                                  )}
                                 </span>
-                              ) : (
-                                <span className="text-xs text-slate-400">
-                                  미정
-                                </span>
-                              )}
-                              {gr && (
-                                <span className="text-[11px] whitespace-nowrap text-slate-400">
-                                  {gr.of}명 중 {gr.rank}위
-                                </span>
-                              )}
-                              {gr?.fixed && (
-                                <span className="rounded bg-goal-4/10 px-1 py-0.5 text-[10px] font-medium whitespace-nowrap text-goal-4">
-                                  인사팀 확정
-                                  {gr.computed &&
-                                    gr.computed !== gr.grade &&
-                                    ` · 표대로는 ${gr.computed}`}
-                                </span>
-                              )}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
+                    ))}
                   </tbody>
                 </table>
               </div>

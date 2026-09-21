@@ -131,19 +131,33 @@ export function buildUnitHeadMap(
 }
 
 /**
- * 사람마다 **그 부문의 책임**. 「김책임 부문 책임」처럼 한 칸 더 잘게 묶는 열쇠다.
+ * 사람마다 **그 부문(책임 라인)**. 「박은희 책임 · 생산」처럼 한 칸 더 잘게 묶는 열쇠다.
  *
  * 운영책임 라인(`buildUnitHeadMap`)은 등급을 매기는 묶음이라 크다 — 한 라인에
- * 백 명이 넘게 들어가기도 한다. 인사팀이 화면에서 «이 책임 라인만» 보고 싶을 때
- * 쓰는 것이 이 묶음이다. 조직도에서 팀 위에 있는 부문을 그대로 따라간다.
+ * 백 명이 넘게 들어가기도 한다. 그 안을 조직도대로 갈라 보는 것이 이 묶음이다.
+ *
+ * 열쇠는 **사람이 아니라 부문 이름**이다. 책임이 아직 지정되지 않은 부문이
+ * 흔한데, 사람으로 묶으면 그 부문들이 「책임 미지정」 한 덩어리로 몰려 조직도와
+ * 다른 그림이 된다. 부문으로 묶으면 책임이 없어도 「생산」 · 「기술연구」가 그대로
+ * 나뉘고, 책임을 채워 넣으면 그날로 이름이 따라붙는다.
+ *
+ * 운영책임과 사장은 부문보다 위라 어느 책임 라인에도 넣지 않는다 — 넣으면 자기
+ * 밑의 라인에 한 줄로 섞인다.
  *
  * 등급은 여기서 매기지 않는다 — 정원표는 운영책임 라인에 붙어 있고, 더 작은
  * 묶음에서 다시 순위를 내면 같은 사람이 화면마다 다른 등급을 받는다.
  */
-export function buildDivisionHeadMap(
+export type DivisionLine = {
+  /** 부문 이름 — 묶는 열쇠. */
+  key: string;
+  /** 그 부문의 책임. 아직 없으면 null이고 화면은 부문 이름만 적는다. */
+  head: EvaluatorPerson | null;
+};
+
+export function buildDivisionLineMap(
   people: EvaluatorPerson[],
   teams: EvaluatorTeam[]
-): Map<string, EvaluatorPerson | null> {
+): Map<string, DivisionLine | null> {
   const teamById = new Map(teams.map((t) => [t.id, t]));
   const divisionOfMember = (p: EvaluatorPerson) => {
     const team = p.teamId ? teamById.get(p.teamId) : undefined;
@@ -162,20 +176,18 @@ export function buildDivisionHeadMap(
     if (division && !headByDivision.has(division)) headByDivision.set(division, p);
   }
 
-  const out = new Map<string, EvaluatorPerson | null>();
+  const out = new Map<string, DivisionLine | null>();
   for (const p of people) {
-    if (p.position === "SENIOR_STAFF") {
-      out.set(p.id, p);
-      continue;
-    }
-    // 운영책임·사장은 책임보다 위다 — 아래 묶음에 넣으면 자기 부하 라인에
-    // 섞여 버린다. 화면이 「책임 미지정」으로 적는다.
     if (p.position === "OPERATIONS_HEAD" || p.position === "CEO") {
       out.set(p.id, null);
       continue;
     }
-    const division = divisionOfMember(p);
-    out.set(p.id, (division ? headByDivision.get(division) : null) ?? null);
+    const division =
+      p.position === "SENIOR_STAFF" ? divisionOfHead(p) : divisionOfMember(p);
+    out.set(
+      p.id,
+      division ? { key: division, head: headByDivision.get(division) ?? null } : null
+    );
   }
   return out;
 }
