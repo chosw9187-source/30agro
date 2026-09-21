@@ -1364,29 +1364,39 @@ export default async function Evaluation2Page({
       const u = unitOf(p);
       byUnit.set(u, [...(byUnit.get(u) ?? []), p]);
     }
-    return [...byUnit.entries()]
-      .sort((a, b) => unitLabel(a[0]).localeCompare(unitLabel(b[0])))
-      .map(([unit, members]) => {
-        const orgGrade = reportPlans.get(unit) ?? null;
-        const ratios: GradeRatios | null = orgGrade
-          ? (reportQuota.get(orgGrade) ?? null)
-          : null;
-        const grades = resolveUnitGrades(
-          members.map((p) => ({
-            userId: p.id,
-            total: reportScores.get(p.id)?.total ?? null,
-          })),
-          ratios,
-          reportFixed,
-        );
-        // 점수 높은 순으로 세운다 — 등급이 위에서부터 끊기는 순서와 같다.
-        const rows = [...members].sort(
-          (a, b) =>
-            (reportScores.get(b.id)?.total ?? -1) -
-            (reportScores.get(a.id)?.total ?? -1),
-        );
-        return { unit, orgGrade, ratios, grades, rows };
-      });
+    return (
+      [...byUnit.entries()]
+        /* 「운영책임 미지정」은 이름순 가운데에 끼면 사람 라인들 사이에 섞여
+           읽힌다. 조직도에 자리가 없는 사람들이라 늘 맨 아래에 둔다. */
+        .sort(([a], [b]) =>
+          a === NO_UNIT
+            ? 1
+            : b === NO_UNIT
+              ? -1
+              : unitLabel(a).localeCompare(unitLabel(b)),
+        )
+        .map(([unit, members]) => {
+          const orgGrade = reportPlans.get(unit) ?? null;
+          const ratios: GradeRatios | null = orgGrade
+            ? (reportQuota.get(orgGrade) ?? null)
+            : null;
+          const grades = resolveUnitGrades(
+            members.map((p) => ({
+              userId: p.id,
+              total: reportScores.get(p.id)?.total ?? null,
+            })),
+            ratios,
+            reportFixed,
+          );
+          // 점수 높은 순으로 세운다 — 등급이 위에서부터 끊기는 순서와 같다.
+          const rows = [...members].sort(
+            (a, b) =>
+              (reportScores.get(b.id)?.total ?? -1) -
+              (reportScores.get(a.id)?.total ?? -1),
+          );
+          return { unit, orgGrade, ratios, grades, rows };
+        })
+    );
   })();
 
   const editingGoal = params.edit ? (nodeById.get(params.edit) ?? null) : null;
@@ -3004,7 +3014,12 @@ export default async function Evaluation2Page({
       return keys.map((key) => ({
         key,
         rows: by.get(key)!,
-        showHead: keys.length > 1,
+        /*
+          묶음이 하나뿐이면 소제목을 띄우지 않는다 — 한 줄짜리 소제목은 표만
+          길어진다. 다만 그 하나가 「부문 미지정」이면 띄운다: 라인 전원이 한
+          덩어리로 보이는 이유를 그 자리에서 말해 주어야 한다.
+        */
+        showHead: keys.length > 1 || key === NO_DEPT,
       }));
     };
 
@@ -3561,6 +3576,23 @@ export default async function Evaluation2Page({
                                 <span className="font-normal text-slate-400">
                                   {g.rows.length}명
                                 </span>
+                                {/*
+                                  왜 미지정인지를 그 자리에서 알린다 — 「부문」은
+                                  팀 관리 화면에서 「본부」라는 이름으로 적는 칸이라,
+                                  어디를 채워야 하는지 말해 주지 않으면 찾을 수 없다.
+                                */}
+                                {g.key === NO_DEPT && (
+                                  <span className="font-normal break-keep text-slate-400">
+                                    · 팀의 「본부」 칸이 비어 있습니다 —{" "}
+                                    <Link
+                                      href="/admin/teams"
+                                      className="text-brand-green-dark underline"
+                                    >
+                                      팀 관리
+                                    </Link>
+                                    에서 채우면 책임 라인으로 갈립니다
+                                  </span>
+                                )}
                               </span>
                             </td>
                           </tr>
