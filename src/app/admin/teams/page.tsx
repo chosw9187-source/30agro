@@ -8,7 +8,11 @@ import {
   removeTeamMember,
   toggleTeamActive,
 } from "./actions";
-import { isActive, activePrismaWhere } from "@/lib/hr-analytics";
+import {
+  isActive,
+  activePrismaWhere,
+  regularOrExceptionTeamWhere,
+} from "@/lib/hr-analytics";
 import { UserPicker, UserPickerProvider, type PickUser } from "./user-picker";
 
 export const dynamic = "force-dynamic";
@@ -29,14 +33,18 @@ export default async function TeamsPage() {
       },
     }),
     /*
-      고르개에 실을 명단. **관리자도 넣는다** — 인사팀 팀장처럼 관리자 권한을 가진
-      사람이 실제로 팀을 맡고 있는데, 예전에는 role이 ADMIN이면 목록에서 빠져
-      「팀장 지정」에 그 이름이 아예 나오지 않았다.
+      고르개에 실을 명단 — **정규직과 영업관리팀 계약직**뿐이다(조직도·평가
+      대상과 같은 규칙, `regularOrExceptionTeamWhere`). 기능직·계약직까지 다
+      실으면 조직도에 세우지도 않을 사람들 사이에서 팀장을 찾게 된다.
+
+      **관리자도 넣는다** — 인사팀 팀장처럼 관리자 권한을 가진 사람이 실제로
+      팀을 맡고 있는데, 예전에는 role이 ADMIN이면 목록에서 빠져 「팀장 지정」에
+      그 이름이 아예 나오지 않았다.
 
       쓰는 칸만 읽는다 — 이 명단이 고르개 수십 개에 실리므로 한 줄이라도 가볍게.
     */
     prisma.user.findMany({
-      where: activePrismaWhere(),
+      where: { AND: [activePrismaWhere(), regularOrExceptionTeamWhere()] },
       orderBy: { name: "asc" },
       select: {
         id: true,
@@ -48,13 +56,27 @@ export default async function TeamsPage() {
     }),
   ]);
 
-  const pickUsers: PickUser[] = users.map((u) => ({
-    id: u.id,
-    name: u.name,
-    role: roleLabel[u.role] ?? u.role,
-    teamId: u.teamId,
-    teamName: u.team?.name ?? null,
-  }));
+  /*
+    이미 팀장으로 앉아 있는 사람은 모수 밖이어도 명단에 남긴다 — 고르개에 그
+    사람이 없으면 화면에 「미지정」으로 보이고, 그 상태로 저장을 누르면 멀쩡한
+    팀장이 지워진다.
+  */
+  const pickable = new Set(users.map((u) => u.id));
+  const strayLeaders = teams
+    .map((t) => t.leader)
+    .filter(
+      (l): l is NonNullable<typeof l> =>
+        !!l && isActive(l) && !pickable.has(l.id)
+    );
+  const pickUsers: PickUser[] = [...users, ...strayLeaders]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((u) => ({
+      id: u.id,
+      name: u.name,
+      role: roleLabel[u.role] ?? u.role,
+      teamId: u.teamId,
+      teamName: "team" in u ? (u.team?.name ?? null) : null,
+    }));
 
   const businessUnits = Array.from(
     new Set(teams.map((t) => t.businessUnit).filter((v): v is string => !!v))
