@@ -2107,6 +2107,22 @@ export default async function Evaluation2Page({
       })),
     );
     const compScore = competencyScore100(compAvg.overallExact);
+    /*
+      표 맨 아래의 **합계** — 자기평가와 팀장평가를 각각 다 더한 값이다. 「성과평가
+      상세」의 합계 줄과 같은 자리에 같은 모양으로 둔다. 손으로 세어 맞춰 보는
+      사람이 있어서(성과 쪽에서 실제로 그 2점 차이를 잡았다) 합을 화면이 먼저
+      적어 주는 편이 낫다.
+
+      안 적힌 칸은 0으로 세지 않고 **센 칸 수를 옆에 적는다** — 열 문항 중 여덟만
+      적힌 합을 만점과 나란히 놓으면 낮게 받은 것처럼 보인다.
+    */
+    const compSum = (pick: (r: (typeof rows)[number]) => number | null) => {
+      const got = rows.map(pick).filter((v): v is number => v != null);
+      return { sum: got.reduce((a, b) => a + b, 0), filled: got.length };
+    };
+    const compSelf = compSum((r) => r.self);
+    const compLead = compSum((r) => r.lead);
+    const compFullMark = rows.length * COMPETENCY_MAX;
 
     /*
       성과평가 점수 — 최종평가에서 목표마다 1차 평가자가 매긴 점수의 합. 한 칸도
@@ -2737,6 +2753,45 @@ export default async function Evaluation2Page({
                         );
                       })}
                     </tbody>
+                    {/*
+                      합계 줄 — 표의 일부이므로 `tfoot`에 둔다. 「자기 / 팀장」
+                      두 칸만 더한다. 평균·차이는 문항마다 뜻이 있는 값이라
+                      더해서 얻을 것이 없다.
+                    */}
+                    <tfoot>
+                      <tr className="border-t-2 border-slate-300 bg-slate-50">
+                        <td className="px-2 py-2.5 text-xs font-semibold whitespace-nowrap text-slate-700">
+                          합계
+                        </td>
+                        <td className="px-3 py-2.5 text-[11px] break-keep text-slate-500">
+                          {rows.length}개 문항 · 만점 {compFullMark}점
+                        </td>
+                        <td className="px-2 py-2.5 text-right whitespace-nowrap">
+                          <span className="text-base leading-none font-bold tabular-nums text-slate-900">
+                            {compSelf.filled === 0 ? "–" : compSelf.sum}
+                          </span>
+                          {compSelf.filled > 0 &&
+                            compSelf.filled < rows.length && (
+                              <span className="ml-1 text-[11px] font-normal text-status-critical">
+                                {compSelf.filled}칸
+                              </span>
+                            )}
+                        </td>
+                        <td className="px-2 py-2.5 text-right whitespace-nowrap">
+                          <span className="text-base leading-none font-bold tabular-nums text-slate-900">
+                            {compLead.filled === 0 ? "–" : compLead.sum}
+                          </span>
+                          {compLead.filled > 0 &&
+                            compLead.filled < rows.length && (
+                              <span className="ml-1 text-[11px] font-normal text-status-critical">
+                                {compLead.filled}칸
+                              </span>
+                            )}
+                        </td>
+                        <td className="px-2 py-2.5" />
+                        <td className="px-2 py-2.5" />
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
                 <p className="mt-2 text-[11px] break-keep text-slate-400">
