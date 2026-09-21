@@ -130,6 +130,56 @@ export function buildUnitHeadMap(
   return out;
 }
 
+/**
+ * 사람마다 **그 부문의 책임**. 「김책임 부문 책임」처럼 한 칸 더 잘게 묶는 열쇠다.
+ *
+ * 운영책임 라인(`buildUnitHeadMap`)은 등급을 매기는 묶음이라 크다 — 한 라인에
+ * 백 명이 넘게 들어가기도 한다. 인사팀이 화면에서 «이 책임 라인만» 보고 싶을 때
+ * 쓰는 것이 이 묶음이다. 조직도에서 팀 위에 있는 부문을 그대로 따라간다.
+ *
+ * 등급은 여기서 매기지 않는다 — 정원표는 운영책임 라인에 붙어 있고, 더 작은
+ * 묶음에서 다시 순위를 내면 같은 사람이 화면마다 다른 등급을 받는다.
+ */
+export function buildDivisionHeadMap(
+  people: EvaluatorPerson[],
+  teams: EvaluatorTeam[]
+): Map<string, EvaluatorPerson | null> {
+  const teamById = new Map(teams.map((t) => [t.id, t]));
+  const divisionOfMember = (p: EvaluatorPerson) => {
+    const team = p.teamId ? teamById.get(p.teamId) : undefined;
+    return clean(team?.division) ?? clean(p.division);
+  };
+  // 책임이 맡은 부문은 본인 인사카드의 값이 먼저다(`presidesOver`와 같은 이유).
+  const divisionOfHead = (p: EvaluatorPerson) => {
+    const team = p.teamId ? teamById.get(p.teamId) : undefined;
+    return clean(p.division) ?? clean(team?.division);
+  };
+
+  const headByDivision = new Map<string, EvaluatorPerson>();
+  for (const p of people) {
+    if (p.position !== "SENIOR_STAFF") continue;
+    const division = divisionOfHead(p);
+    if (division && !headByDivision.has(division)) headByDivision.set(division, p);
+  }
+
+  const out = new Map<string, EvaluatorPerson | null>();
+  for (const p of people) {
+    if (p.position === "SENIOR_STAFF") {
+      out.set(p.id, p);
+      continue;
+    }
+    // 운영책임·사장은 책임보다 위다 — 아래 묶음에 넣으면 자기 부하 라인에
+    // 섞여 버린다. 화면이 「책임 미지정」으로 적는다.
+    if (p.position === "OPERATIONS_HEAD" || p.position === "CEO") {
+      out.set(p.id, null);
+      continue;
+    }
+    const division = divisionOfMember(p);
+    out.set(p.id, (division ? headByDivision.get(division) : null) ?? null);
+  }
+  return out;
+}
+
 export function buildEvaluatorMap(
   people: EvaluatorPerson[],
   teams: EvaluatorTeam[]

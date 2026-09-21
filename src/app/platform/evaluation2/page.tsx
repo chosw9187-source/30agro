@@ -8,6 +8,7 @@ import { SearchableSelect } from "@/components/searchable-select";
 import { activePrismaWhere, isEvalPopulation } from "@/lib/hr-analytics";
 import { POSITION_LABEL } from "@/lib/permission-constants";
 import {
+  buildDivisionHeadMap,
   buildEvaluatorMap,
   buildUnitHeadMap,
   evaluatorLabel,
@@ -280,6 +281,22 @@ const INPUT_CLASS =
 const LABEL_CLASS = "mb-1 block text-xs font-medium text-slate-500";
 const PRIMARY_BUTTON_CLASS =
   "rounded-md bg-brand-green px-4 py-2 text-sm font-medium text-white hover:bg-brand-green-dark";
+/** 절 머리 — 왼쪽에 색 막대를 세워 절의 시작을 눈에 걸리게 한다. 결과지와 HR
+    REPORT가 같은 모양을 쓴다. */
+function sectionHead(title: string, hint: string) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+      <span className="flex items-center gap-2">
+        <span className="h-4 w-1 rounded-full bg-goal-4" aria-hidden="true" />
+        <h2 className="text-base font-bold whitespace-nowrap text-slate-900">
+          {title}
+        </h2>
+      </span>
+      <span className="text-xs break-keep text-slate-500">{hint}</span>
+    </div>
+  );
+}
+
 const CARD_CLASS = "rounded-xl border border-slate-200 bg-white shadow-sm";
 
 /** 상태 배지 — 색만으로 뜻이 전달되지 않도록 항상 글자 라벨을 같이 둔다. */
@@ -511,6 +528,10 @@ export default async function Evaluation2Page({
     who?: string;
     /** HR REPORT — 어느 운영책임 라인을 볼지. 비면 전체. */
     unit?: string;
+    /** HR REPORT — 그 라인 안에서 어느 책임(부문) 라인만 볼지. 비면 전체. */
+    dept?: string;
+    /** HR REPORT의 섹터. 「scores」(평가 점수 관리) · 「exec」(임원진 REPORT). */
+    rtab?: string;
     /** HR REPORT 표의 정렬. 「칸-방향」(예: perf-desc). */
     rsort?: string;
   }>;
@@ -1231,6 +1252,23 @@ export default async function Evaluation2Page({
     if (key === NO_UNIT) return "운영책임 미지정";
     const head = people.find((p) => p.id === key);
     return head ? `${head.name} ${POSITION_LABEL[head.position]}` : "운영책임";
+  };
+  /*
+    한 칸 더 잘게 — **책임(부문) 라인**. 운영책임 라인은 백 명이 넘어 화면에서
+    한눈에 읽히지 않는다. 조직도에서 팀 위에 있는 부문을 그대로 따라가 「누구
+    책임 라인」으로 묶는다(`buildDivisionHeadMap`).
+
+    보기를 좁히는 데만 쓴다 — 등급은 운영책임 라인에서 매긴 값을 그대로 보여
+    준다. 작은 묶음에서 순위를 다시 내면 같은 사람이 화면마다 다른 등급을 받는다.
+  */
+  const deptHeadByPerson = buildDivisionHeadMap(people, teams);
+  const NO_DEPT = "__no_dept__";
+  const deptOf = (p: { id: string }) =>
+    deptHeadByPerson.get(p.id)?.id ?? NO_DEPT;
+  const deptLabel = (key: string) => {
+    if (key === NO_DEPT) return "책임 미지정";
+    const head = people.find((p) => p.id === key);
+    return head ? `${head.name} ${POSITION_LABEL[head.position]}` : "책임";
   };
   const gradeView = resultView && !!competencyTarget;
   const targetUnit = competencyTarget ? unitOf(competencyTarget) : null;
@@ -2280,19 +2318,6 @@ export default async function Evaluation2Page({
       return bits.join(" · ");
     })();
 
-    /** 절 머리 — 왼쪽에 색 막대를 세워 세 절의 시작을 눈에 걸리게 한다. */
-    const sectionHead = (title: string, hint: string) => (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
-        <span className="flex items-center gap-2">
-          <span className="h-4 w-1 rounded-full bg-goal-4" aria-hidden="true" />
-          <h2 className="text-base font-bold whitespace-nowrap text-slate-900">
-            {title}
-          </h2>
-        </span>
-        <span className="text-xs break-keep text-slate-500">{hint}</span>
-      </div>
-    );
-
     return (
       <div className="flex flex-col gap-2">
         {/*
@@ -2854,19 +2879,70 @@ export default async function Evaluation2Page({
   */
   function reportBoard() {
     const cell = "px-3 py-1.5 text-right tabular-nums";
-    const pickedUnit = params.unit ?? "";
+    const rtab = params.rtab === "exec" ? "exec" : "scores";
+    /* 고른 라인이 지금 목록에 없으면(해가 바뀌어 사람이 빠졌다든가) 조용히
+       «전체»로 돌아간다 — 빈 화면을 두고 «왜 아무도 없지»가 되는 것보다 낫다. */
+    const pickedUnit = reportUnits.some((u) => u.unit === params.unit)
+      ? params.unit!
+      : "";
     const [rKey, rDir] = (params.rsort ?? "total-desc").split("-");
     const rDesc = rDir === "desc";
 
-    /** 표 머리글을 눌렀을 때 갈 주소 — 같은 칸을 다시 누르면 방향이 뒤집힌다. */
-    const rHref = (key: string) => {
+    const unitsShown = pickedUnit
+      ? reportUnits.filter((u) => u.unit === pickedUnit)
+      : reportUnits;
+    /* 책임 고르개는 **고른 운영책임 라인 안에서만** 채운다. 라인을 바꾸면 주소에
+       남아 있던 책임이 그 라인에 없을 수 있어, 없으면 전체로 본다. */
+    const deptCount = new Map<string, number>();
+    for (const u of unitsShown) {
+      for (const p of u.rows) {
+        const d = deptOf(p);
+        deptCount.set(d, (deptCount.get(d) ?? 0) + 1);
+      }
+    }
+    const deptKeys = [...deptCount.keys()].sort((a, b) =>
+      a === NO_DEPT
+        ? 1
+        : b === NO_DEPT
+          ? -1
+          : deptLabel(a).localeCompare(deptLabel(b)),
+    );
+    const pickedDept =
+      params.dept && deptCount.has(params.dept) ? params.dept : "";
+    /** 모수 전체의 책임 라인 수 — 머리글에 적는다(고른 라인과 상관없이). */
+    const allDeptKeys = [...new Set(reportPeople.map((p) => deptOf(p)))];
+    /*
+      화면에 그릴 라인. 책임을 골랐으면 그 사람들만 남기되 **등급은 건드리지
+      않는다**(`u.grades`) — 등급은 운영책임 라인 안에서 매겨진 값이고, 보기를
+      좁혔다고 순위를 다시 내면 같은 사람이 화면마다 다른 등급을 받는다.
+    */
+    const shown = unitsShown
+      .map((u) => ({
+        ...u,
+        rows: pickedDept
+          ? u.rows.filter((p) => deptOf(p) === pickedDept)
+          : u.rows,
+      }))
+      .filter((u) => u.rows.length > 0);
+
+    /** 이 화면 안에서 움직이는 주소 — 고른 섹터·라인·책임·정렬을 들고 다닌다. */
+    const reportHref = (over: Record<string, string>) => {
       const qs = new URLSearchParams();
       qs.set("year", String(selectedYear));
       qs.set("phase", selectedPhase);
       if (pickedUnit) qs.set("unit", pickedUnit);
-      qs.set("rsort", rKey === key && !rDesc ? `${key}-desc` : key);
+      if (pickedDept) qs.set("dept", pickedDept);
+      if (rtab === "exec") qs.set("rtab", "exec");
+      if (params.rsort) qs.set("rsort", params.rsort);
+      for (const [k, v] of Object.entries(over)) {
+        if (v) qs.set(k, v);
+        else qs.delete(k);
+      }
       return `/platform/evaluation2?${qs.toString()}`;
     };
+    /** 표 머리글을 눌렀을 때 갈 주소 — 같은 칸을 다시 누르면 방향이 뒤집힌다. */
+    const rHref = (key: string) =>
+      reportHref({ rsort: rKey === key && !rDesc ? `${key}-desc` : key });
     const rMark = (key: string) => (rKey === key ? (rDesc ? " ↓" : " ↑") : "");
     const sortableHead = (
       key: string,
@@ -2933,9 +3009,310 @@ export default async function Evaluation2Page({
       });
     };
 
-    const shown = pickedUnit
-      ? reportUnits.filter((u) => u.unit === pickedUnit)
-      : reportUnits;
+    /*
+      임원진 REPORT — **라인 단위로 읽는** 자리. 사람 한 줄씩이 아니라 묶음마다
+      «몇 명이 끝났고, 평균이 얼마고, 등급이 어떻게 갈렸는지»를 놓는다. 적는
+      칸은 하나도 두지 않는다.
+    */
+    const mean = (xs: number[]) =>
+      xs.length
+        ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10
+        : null;
+    /** 한 묶음의 요약. 평균은 **값이 있는 사람만**으로 낸다 — 미입력을 0으로
+        세면 평가가 덜 끝난 라인이 통째로 낮아 보인다. */
+    const summarize = (
+      rows: typeof reportPeople,
+      gradeOf: (p: (typeof reportPeople)[number]) => string | null,
+    ) => {
+      const got = (
+        pick: (
+          sc: ReturnType<typeof reportScores.get>,
+        ) => number | null | undefined,
+      ) =>
+        mean(
+          rows
+            .map((p) => pick(reportScores.get(p.id)))
+            .filter((v): v is number => v != null),
+        );
+      const dist = new Map<string, number>();
+      for (const p of rows) {
+        const g = gradeOf(p);
+        if (g) dist.set(g, (dist.get(g) ?? 0) + 1);
+      }
+      return {
+        n: rows.length,
+        done: rows.filter((p) => reportScores.get(p.id)?.total != null).length,
+        perf: got((sc) => sc?.performance),
+        comp: got((sc) => sc?.competency),
+        total: got((sc) => sc?.total),
+        dist,
+      };
+    };
+    const showNum = (v: number | null) =>
+      v == null ? <span className="text-slate-300">–</span> : v;
+    /** 등급 분포 — 다섯 칸을 늘 같은 자리에 둔다(없으면 «·»). */
+    const distCells = (dist: Map<string, number>) =>
+      PERSON_GRADES.map((g) => (
+        <td key={g} className="px-2 py-1.5 text-right tabular-nums">
+          {dist.get(g) ? (
+            <span className="font-medium text-slate-800">{dist.get(g)}</span>
+          ) : (
+            <span className="text-slate-300">·</span>
+          )}
+        </td>
+      ));
+    const gradeHeads = PERSON_GRADES.map((g) => (
+      <th key={g} className="px-2 py-1.5 text-right font-medium">
+        {g}
+      </th>
+    ));
+
+    const execSections = () => {
+      const allRows = shown.flatMap((u) => u.rows);
+      const whole = summarize(allRows, (p) => unitGradeOf(p)?.grade ?? null);
+      /*
+        책임 라인별 — 고른 범위 안에서만 묶는다. 묶는 열쇠는 «운영책임 + 책임»
+        둘이다. 책임만으로 묶으면 「책임 미지정」이 여러 라인에서 한 줄로 뭉쳐,
+        옆에 적힌 운영책임이 그중 한 명만 가리키는 거짓말이 된다.
+      */
+      const byDept = new Map<
+        string,
+        { rows: typeof reportPeople; unitKey: string; deptKey: string }
+      >();
+      for (const u of shown) {
+        for (const p of u.rows) {
+          const d = deptOf(p);
+          const key = `${u.unit}|${d}`;
+          const cur = byDept.get(key);
+          if (cur) cur.rows.push(p);
+          else byDept.set(key, { rows: [p], unitKey: u.unit, deptKey: d });
+        }
+      }
+      const deptRows = [...byDept.entries()].sort(([, a], [, b]) => {
+        const byUnit = unitLabel(a.unitKey).localeCompare(unitLabel(b.unitKey));
+        if (byUnit !== 0) return byUnit;
+        if (a.deptKey === NO_DEPT) return 1;
+        if (b.deptKey === NO_DEPT) return -1;
+        return deptLabel(a.deptKey).localeCompare(deptLabel(b.deptKey));
+      });
+
+      return (
+        <>
+          <section className={CARD_CLASS}>
+            {sectionHead(
+              "1. 한눈에",
+              pickedDept
+                ? deptLabel(pickedDept)
+                : pickedUnit
+                  ? unitLabel(pickedUnit)
+                  : "전사",
+            )}
+            <div className="grid grid-cols-2 gap-px border-t border-slate-100 bg-slate-100 sm:grid-cols-4">
+              {[
+                { label: "평가 대상", value: `${whole.n}명` },
+                {
+                  label: "점수 산출 완료",
+                  value: `${whole.done}명`,
+                  hint:
+                    whole.n > 0
+                      ? `${Math.round((whole.done / whole.n) * 100)}%`
+                      : null,
+                },
+                {
+                  label: `평균 성과 ${Math.round(PERFORMANCE_WEIGHT * 100)}%`,
+                  value: whole.perf == null ? "–" : String(whole.perf),
+                },
+                {
+                  label: `평균 역량 ${Math.round(COMPETENCY_WEIGHT * 100)}%`,
+                  value: whole.comp == null ? "–" : String(whole.comp),
+                },
+              ].map((b) => (
+                <div key={b.label} className="bg-white px-4 py-3">
+                  <p className="text-xs break-keep text-slate-500">{b.label}</p>
+                  <p className="text-xl font-bold tabular-nums text-slate-900">
+                    {b.value}
+                    {b.hint && (
+                      <span className="ml-1 text-xs font-normal text-slate-400">
+                        {b.hint}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-2.5">
+              <span className="text-xs font-medium text-slate-700">
+                평균 최종점수
+              </span>
+              <span className="text-lg font-bold tabular-nums text-slate-900">
+                {whole.total == null ? "–" : whole.total}
+              </span>
+              <span className="ml-3 text-xs font-medium text-slate-700">
+                등급 분포
+              </span>
+              {PERSON_GRADES.map((g) => (
+                <span
+                  key={g}
+                  className="flex items-center gap-1 text-xs text-slate-600"
+                >
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                      PERSON_GRADE_CLASS[g] ?? "bg-slate-500 text-white"
+                    }`}
+                  >
+                    {g}
+                  </span>
+                  {whole.dist.get(g) ?? 0}명
+                </span>
+              ))}
+              {whole.done < whole.n && (
+                <span className="ml-auto text-xs break-keep text-status-critical">
+                  아직 {whole.n - whole.done}명은 점수가 비어 있습니다 — 성과 ·
+                  역량 중 한쪽이라도 미입력이면 최종점수가 나오지 않습니다.
+                </span>
+              )}
+            </div>
+          </section>
+
+          <section className={CARD_CLASS}>
+            {sectionHead(
+              "2. 운영책임 라인별",
+              "등급을 매기는 묶음 · 점수는 평균",
+            )}
+            <div className="overflow-x-auto border-t border-slate-100">
+              <table className="w-full min-w-[46rem] border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-50 text-left text-xs text-slate-500">
+                    <th className="px-3 py-1.5 font-medium">라인</th>
+                    <th className="px-3 py-1.5 text-right font-medium">인원</th>
+                    <th className="px-3 py-1.5 text-right font-medium">완료</th>
+                    <th className="px-3 py-1.5 font-medium">조직등급</th>
+                    <th className="px-3 py-1.5 text-right font-medium">성과</th>
+                    <th className="px-3 py-1.5 text-right font-medium">역량</th>
+                    <th className="px-3 py-1.5 text-right font-medium">최종</th>
+                    {gradeHeads}
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map((u) => {
+                    const sum = summarize(
+                      u.rows,
+                      (p) => u.grades.get(p.id)?.grade ?? null,
+                    );
+                    return (
+                      <tr key={u.unit} className="border-t border-slate-100">
+                        <td className="px-3 py-1.5 font-medium whitespace-nowrap text-slate-800">
+                          <Link
+                            href={reportHref({ unit: u.unit, dept: "" })}
+                            className="hover:underline"
+                          >
+                            {unitLabel(u.unit)}
+                          </Link>
+                        </td>
+                        <td className={cell}>{sum.n}</td>
+                        <td className={cell}>
+                          {sum.done < sum.n ? (
+                            <span className="text-status-critical">
+                              {sum.done}
+                            </span>
+                          ) : (
+                            sum.done
+                          )}
+                        </td>
+                        <td className="px-3 py-1.5 whitespace-nowrap">
+                          {u.orgGrade ? (
+                            <span className="font-medium text-slate-800">
+                              {u.orgGrade}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-status-critical">
+                              미지정
+                            </span>
+                          )}
+                        </td>
+                        <td className={cell}>{showNum(sum.perf)}</td>
+                        <td className={cell}>{showNum(sum.comp)}</td>
+                        <td className={`${cell} font-bold text-slate-900`}>
+                          {showNum(sum.total)}
+                        </td>
+                        {distCells(sum.dist)}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className={CARD_CLASS}>
+            {sectionHead("3. 책임 라인별", "조직도의 부문 단위 · 점수는 평균")}
+            <div className="overflow-x-auto border-t border-slate-100">
+              <table className="w-full min-w-[46rem] border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-50 text-left text-xs text-slate-500">
+                    <th className="px-3 py-1.5 font-medium">책임 라인</th>
+                    <th className="px-3 py-1.5 font-medium">운영책임</th>
+                    <th className="px-3 py-1.5 text-right font-medium">인원</th>
+                    <th className="px-3 py-1.5 text-right font-medium">완료</th>
+                    <th className="px-3 py-1.5 text-right font-medium">성과</th>
+                    <th className="px-3 py-1.5 text-right font-medium">역량</th>
+                    <th className="px-3 py-1.5 text-right font-medium">최종</th>
+                    {gradeHeads}
+                  </tr>
+                </thead>
+                <tbody>
+                  {deptRows.map(([key, g]) => {
+                    const dept = g.deptKey;
+                    const sum = summarize(
+                      g.rows,
+                      (p) => unitGradeOf(p)?.grade ?? null,
+                    );
+                    return (
+                      <tr key={key} className="border-t border-slate-100">
+                        <td className="px-3 py-1.5 font-medium whitespace-nowrap text-slate-800">
+                          <Link
+                            href={reportHref({
+                              unit: g.unitKey,
+                              dept: dept === NO_DEPT ? "" : dept,
+                            })}
+                            className="hover:underline"
+                          >
+                            {deptLabel(dept)}
+                          </Link>
+                        </td>
+                        <td className="px-3 py-1.5 whitespace-nowrap text-slate-500">
+                          {unitLabel(g.unitKey)}
+                        </td>
+                        <td className={cell}>{sum.n}</td>
+                        <td className={cell}>
+                          {sum.done < sum.n ? (
+                            <span className="text-status-critical">
+                              {sum.done}
+                            </span>
+                          ) : (
+                            sum.done
+                          )}
+                        </td>
+                        <td className={cell}>{showNum(sum.perf)}</td>
+                        <td className={cell}>{showNum(sum.comp)}</td>
+                        <td className={`${cell} font-bold text-slate-900`}>
+                          {showNum(sum.total)}
+                        </td>
+                        {distCells(sum.dist)}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="border-t border-slate-100 px-4 py-2 text-[11px] break-keep text-slate-400">
+              등급은 운영책임 라인 안에서 매겨진 값을 그대로 세었습니다 — 책임
+              라인끼리는 정원이 따로 있지 않습니다.
+            </p>
+          </section>
+        </>
+      );
+    };
 
     return (
       <div className="flex flex-col gap-4">
@@ -2949,22 +3326,45 @@ export default async function Evaluation2Page({
               {Math.round(COMPETENCY_WEIGHT * 100)}% + 운영(책임) 가산점 =
               최종점수
             </span>
-            <span className="ml-auto text-xs text-slate-500">
-              평가 대상 {reportPeople.length}명 · {reportUnits.length}개 라인 ·
-              정규직
-              {" + 영업관리팀 계약직"}
+            <span className="ml-auto text-xs break-keep text-slate-500">
+              평가 대상 {reportPeople.length}명 · 운영책임 {reportUnits.length}
+              개 라인 · 책임 {allDeptKeys.length}개 라인 · 조직도 기준(정규직 +
+              영업관리팀 계약직 중 담당 · 팀장)
             </span>
           </div>
-          {/* 탭 줄 — 지금은 한 장이지만 자리를 먼저 잡아 둔다. */}
+          {/*
+            섹터 두 장 — 「평가 점수 관리」는 인사팀이 **적는** 자리, 「임원진
+            REPORT」는 **읽는** 자리다. 한 화면에 섞어 두면 임원이 보는 곳에
+            가산점·등급 입력칸이 따라다녀, 손댈 자리가 아닌데 손대게 된다.
+          */}
           <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-2">
-            <span className={`${TAB_CLASS} bg-goal-4 text-white`}>
-              평가 점수 관리
+            {[
+              { key: "scores", label: "평가 점수 관리" },
+              { key: "exec", label: "임원진 REPORT" },
+            ].map((t) => (
+              <Link
+                key={t.key}
+                href={reportHref({ rtab: t.key === "exec" ? "exec" : "" })}
+                className={`rounded-full px-3 py-1 text-xs font-medium ${
+                  rtab === t.key ? TAB_CLASS.on : TAB_CLASS.off
+                }`}
+              >
+                {t.label}
+              </Link>
+            ))}
+            <span className="ml-2 text-[11px] break-keep text-slate-400">
+              {rtab === "exec"
+                ? "라인별 요약만 읽는 자리입니다 — 적는 칸은 「평가 점수 관리」에 있습니다."
+                : "성과 · 역량은 목표와 문항에서 굴러 온 값입니다. 여기서 적는 것은 가산점과 등급 확정 둘뿐입니다."}
             </span>
-            <span className="text-[11px] break-keep text-slate-400">
-              성과 · 역량은 목표와 문항에서 굴러 온 값입니다. 여기서 적는 것은
-              가산점과 등급 확정 둘뿐입니다.
-            </span>
-            <span className="ml-auto flex items-center gap-2">
+          </div>
+          {/*
+            고르개 줄 — 조직도를 그대로 따라 내려간다(본부 → 부문). 운영책임
+            라인은 백 명이 넘어 한눈에 안 읽히므로, 그 안에서 책임 라인으로 한 칸
+            더 좁힐 수 있다.
+          */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-slate-100 px-4 py-2">
+            <span className="flex items-center gap-2">
               <span className="text-xs font-medium text-slate-700">
                 운영책임
               </span>
@@ -2981,6 +3381,25 @@ export default async function Evaluation2Page({
                 ]}
               />
             </span>
+            <span className="flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-700">책임</span>
+              <ParamSelect
+                param="dept"
+                value={pickedDept}
+                ariaLabel="책임 라인 고르기"
+                options={[
+                  { value: "", label: `전체 ${deptKeys.length}개 책임 라인` },
+                  ...deptKeys.map((k) => ({
+                    value: k,
+                    label: `${deptLabel(k)} (${deptCount.get(k)}명)`,
+                  })),
+                ]}
+              />
+            </span>
+            <span className="ml-auto text-[11px] break-keep text-slate-400">
+              등급은 운영책임 라인 안에서 매겨집니다 — 책임으로 좁혀도 순위는
+              그대로입니다.
+            </span>
           </div>
         </section>
 
@@ -2989,6 +3408,8 @@ export default async function Evaluation2Page({
             {selectedYear}년 평가 대상자가 없습니다 — 「평가대상자 관리」에서
             확인해 주세요.
           </p>
+        ) : rtab === "exec" ? (
+          execSections()
         ) : (
           shown.map((u) => (
             <section key={u.unit} className={CARD_CLASS}>
