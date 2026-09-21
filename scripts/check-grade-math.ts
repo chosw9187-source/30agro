@@ -12,6 +12,7 @@ import {
   theoreticalSeats,
   type GradeRatios,
 } from "../src/lib/final-grade";
+import { buildDivisionLineMap, buildUnitHeadMap } from "../src/lib/evaluator";
 import { competencyAverage } from "../src/lib/competency";
 import { competencyScore100, overallScore } from "../src/lib/competency-result";
 
@@ -161,6 +162,84 @@ const half = competencyAverage([
   { itemKey: "b", selfScore: 4, leadScore: null },
 ]);
 eq("적힌 칸만 센다", [half.sum, half.count, half.overallExact], [8, 2, 4]);
+
+/*
+  묶음 — 등급은 «어느 라인 안에서 몇 등»이라, 사람이 어느 라인에 들어가느냐가
+  점수 못지않게 등급을 가른다. 조직도(본부 → 부문)를 따라가는지 본다.
+*/
+console.log("\n[라인 묶기]");
+const P = (
+  id: string,
+  position: string,
+  extra: { teamId?: string; division?: string; businessUnit?: string } = {},
+) =>
+  ({
+    id,
+    name: id,
+    position,
+    ...extra,
+  }) as Parameters<typeof buildUnitHeadMap>[0][number];
+const orgPeople = [
+  P("오동률", "OPERATIONS_HEAD", { businessUnit: "재무경영관리" }),
+  P("이장훈", "OPERATIONS_HEAD", { businessUnit: "제품사업" }),
+  P("경책임", "SENIOR_STAFF", { division: "경영관리" }),
+  P("정책임", "SENIOR_STAFF", { division: "영업고객관리" }),
+  P("경팀장", "TEAM_LEADER", { teamId: "t_hr" }),
+  P("네담당", "STAFF", { teamId: "t_hr" }),
+  P("한담당", "STAFF", { teamId: "t_sales" }),
+  P("생산담당", "STAFF", { teamId: "t_prod" }),
+  P("떠돌이", "STAFF", {}),
+];
+const orgTeams = [
+  {
+    id: "t_hr",
+    name: "인사팀",
+    division: "경영관리",
+    businessUnit: "재무경영관리",
+    leaderId: "경팀장",
+  },
+  {
+    id: "t_prod",
+    name: "생산팀",
+    division: "생산",
+    businessUnit: "제품사업",
+    leaderId: null,
+  },
+  {
+    id: "t_sales",
+    name: "영업고객관리팀",
+    division: "영업고객관리",
+    businessUnit: "제품사업",
+    leaderId: null,
+  },
+];
+const unitOf = buildUnitHeadMap(orgPeople, orgTeams);
+const deptOf = buildDivisionLineMap(orgPeople, orgTeams);
+const name = (m: Map<string, { id: string } | null>, id: string) =>
+  m.get(id)?.id ?? null;
+/** 책임 라인은 «부문 이름 / 그 부문의 책임»으로 돌아온다. */
+const line = (id: string) => {
+  const l = deptOf.get(id);
+  return l ? [l.key, l.head?.id ?? null] : null;
+};
+eq("팀의 본부를 따라 운영책임이 붙는다", name(unitOf, "네담당"), "오동률");
+eq("운영책임 본인은 자기 라인의 장", name(unitOf, "오동률"), "오동률");
+eq("본부를 못 찾으면 미지정", name(unitOf, "떠돌이"), null);
+eq("팀의 부문을 따라 책임이 붙는다", line("네담당"), ["경영관리", "경책임"]);
+eq("팀장도 자기 부문의 책임 밑", line("경팀장"), ["경영관리", "경책임"]);
+eq("책임 본인은 자기 라인의 장", line("경책임"), ["경영관리", "경책임"]);
+// 운영책임을 책임 밑에 넣으면 자기 부하 라인에 섞인다.
+eq("운영책임은 책임 라인에 들어가지 않는다", line("오동률"), null);
+eq("부문을 못 찾으면 미지정", line("떠돌이"), null);
+/* 책임이 아직 없는 부문도 조직도대로 갈린다 — 사람으로 묶으면 「책임 미지정」
+   한 덩어리로 몰려 조직도와 다른 그림이 된다. */
+eq("책임이 없는 부문도 부문 이름으로 갈린다", line("생산담당"), ["생산", null]);
+// 두 묶음은 겹쳐 놓아도 어긋나지 않는다 — 책임 라인은 한 운영책임 안에 있다.
+eq(
+  "책임 라인은 한 운영책임 안에 있다",
+  [name(unitOf, "한담당"), line("한담당")],
+  ["이장훈", ["영업고객관리", "정책임"]],
+);
 
 if (fail > 0) {
   console.log(`\n${fail}건 실패`);
