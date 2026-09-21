@@ -90,12 +90,16 @@ import {
   createGoal,
   createGoalYear,
   deleteGoal,
+  closeYearCycle,
   lockCompetencyForm,
   lockGoalSetting,
+  releaseYearResults,
   reopenGoalAgreement,
+  reopenYearCycle,
   requestGoalAgreement,
   unlockCompetencyForm,
   unlockGoalSetting,
+  unreleaseYearResults,
   returnGoalAgreement,
   seedCompanyGoalTemplate,
   setGoalDropped,
@@ -1430,6 +1434,21 @@ export default async function Evaluation2Page({
     where: { year: selectedYear },
     select: { status: true, lockedAt: true },
   });
+  /*
+    그 해의 **끝 두 칸** — 인사팀이 결과를 배포했는지, 그 해를 마감했는지.
+
+    배포 전에는 결과지의 최종등급을 인사팀만 본다. 등급은 상대평가라 마감 직후에도
+    표대로 계산된 값이 이미 있는데, 그것은 인사팀이 반올림 경계를 손으로 조정하기
+    전의 값이다 — 직원이 먼저 보면 나중에 «등급이 바뀌었다»가 된다.
+  */
+  const yearRelease = await prisma.evalYearRelease.findUnique({
+    where: { year: selectedYear },
+    select: { releasedAt: true, closedAt: true },
+  });
+  const resultsReleased = !!yearRelease?.releasedAt;
+  const yearClosed = !!yearRelease?.closedAt;
+  /** 등급을 볼 수 있는가 — 인사팀은 늘, 나머지는 배포 뒤에만. */
+  const canSeeGrade = isAdmin || resultsReleased;
   const counted = allNodes.filter(countsTowardProgress);
   /*
     「전사 종합」 — 전사목표의 가중 달성률이다. 전사목표가 아직 없는 해에는 아래
@@ -2321,11 +2340,18 @@ export default async function Evaluation2Page({
       아직 등급이 없는 이유는 세 가지고, 그 이유를 딱지 자리에 그대로 적는다 —
       비어 있으면 «고장났나»로 읽힌다.
     */
+    /*
+      **배포 전에는 인사팀만 등급을 본다**(`canSeeGrade`). 등급은 상대평가라
+      마감 직후에도 표대로 계산된 값이 이미 있는데, 인사팀이 반올림 경계를 손으로
+      조정하기 전의 값이다 — 직원이 먼저 보면 나중에 «등급이 바뀌었다»가 된다.
+      점수(성과 · 역량 · 종합)는 그대로 보인다. 감추는 것은 등급뿐이다.
+    */
+    const shownGrade = canSeeGrade ? targetGrade : null;
     const gradeBadge =
-      targetGrade != null ? (
+      shownGrade != null ? (
         <span className="ml-1.5 inline-flex items-baseline gap-1 rounded-lg bg-white px-2.5 py-1 leading-none">
           <span className="text-xl font-bold text-goal-4">
-            {targetGrade.grade}
+            {shownGrade.grade}
           </span>
           <span className="text-[11px] font-medium text-goal-4/70">등급</span>
         </span>
@@ -2337,7 +2363,7 @@ export default async function Evaluation2Page({
           아래 「최종등급」 줄과 HR REPORT에 그대로 적혀 있다.
         */
         <span className="ml-1.5 rounded-lg bg-white/15 px-2 py-1 text-[11px] font-medium break-keep text-white">
-          등급 미정
+          {canSeeGrade ? "등급 미정" : "배포 전"}
         </span>
       );
 
@@ -2430,17 +2456,19 @@ export default async function Evaluation2Page({
               <span className="text-xs font-semibold text-slate-500">
                 최종등급
               </span>
-              {targetGrade ? (
+              {shownGrade ? (
                 <span
                   className={`rounded-lg px-2.5 py-1 text-base leading-none font-bold ${
-                    PERSON_GRADE_CLASS[targetGrade.grade] ??
+                    PERSON_GRADE_CLASS[shownGrade.grade] ??
                     "bg-slate-500 text-white"
                   }`}
                 >
-                  {targetGrade.grade}
+                  {shownGrade.grade}
                 </span>
               ) : (
-                <span className="text-sm text-slate-400">미정</span>
+                <span className="text-sm break-keep text-slate-400">
+                  {canSeeGrade ? "미정" : "배포 전"}
+                </span>
               )}
             </span>
           </div>
@@ -2571,24 +2599,26 @@ export default async function Evaluation2Page({
               <span className="w-24 shrink-0 text-xs font-semibold text-slate-500">
                 등급 근거
               </span>
-              {targetGrade?.fixed && (
+              {shownGrade?.fixed && (
                 <span className="rounded-md bg-goal-4/10 px-1.5 py-0.5 text-[11px] font-medium text-goal-4">
                   인사팀 확정
-                  {targetGrade.computed &&
-                    targetGrade.computed !== targetGrade.grade &&
-                    ` · 표대로는 ${targetGrade.computed}`}
+                  {shownGrade.computed &&
+                    shownGrade.computed !== shownGrade.grade &&
+                    ` · 표대로는 ${shownGrade.computed}`}
                 </span>
               )}
-              {targetGrade?.needsReview && (
+              {shownGrade?.needsReview && (
                 <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium break-keep text-amber-800">
-                  반올림 확인 · {targetGrade.reviewReason}
+                  반올림 확인 · {shownGrade.reviewReason}
                 </span>
               )}
               <span className="text-[11px] break-keep text-slate-500">
-                {gradeBasis}
+                {canSeeGrade
+                  ? gradeBasis
+                  : "인사팀이 결과를 배포하면 최종등급이 공개됩니다 — 점수는 그대로 보실 수 있습니다."}
               </span>
             </div>
-            {targetGrade?.fixedNote && (
+            {canSeeGrade && targetGrade?.fixedNote && (
               <p className="pl-24 text-[11px] break-keep text-slate-500">
                 확정 사유 · {targetGrade.fixedNote}
               </p>
@@ -4104,6 +4134,8 @@ export default async function Evaluation2Page({
       rank?: 1 | 2 | 3;
       /** 역량평가 마디 — 사이클이 아니라 그 해 양식의 상태를 읽는다. */
       competency?: boolean;
+      /** 최종결과 마디 — 인사팀의 「결과 배포」로 켜진다. */
+      release?: boolean;
       end?: boolean;
     };
     const PLAN: Stage[] = [
@@ -4117,6 +4149,13 @@ export default async function Evaluation2Page({
          하는 것처럼 읽히고, 영영 «준비 중»으로 남는 칸이 된다. */
       { label: FINAL_PHASE_LABEL, rank: 3 },
       { label: "역량평가", competency: true },
+      /*
+        **최종결과** — 인사팀이 결과를 직원에게 배포하는 칸이다. 앞 단계를 모두
+        마감하고 등급을 확정한 뒤에 누르고, 그때부터 직원 결과지에 최종등급이
+        보인다. 이 칸이 없을 때는 역량평가 마감만으로 띠가 「종료」까지 초록이
+        되어, 등급 확정이 남았는데 다 끝난 것처럼 읽혔다.
+      */
+      { label: "최종결과", release: true },
       { label: "합의" },
       { label: "종료", end: true },
     ];
@@ -4155,11 +4194,36 @@ export default async function Evaluation2Page({
         !!competencyFormState.lockedAt);
 
     const nodes = PLAN.map((st) => {
+      /*
+        끝 두 칸은 인사팀이 누르는 단추로 켠다 — 「최종결과」는 결과 배포,
+        「종료」는 사이클 마감이다(`EvalYearRelease`). 앞 단계가 다 마감되면
+        «지금 할 일»로 빛나서 띠가 다음 칸을 가리킨다.
+      */
+      if (st.release) {
+        return {
+          ...st,
+          state: resultsReleased
+            ? ("done" as const)
+            : allClosed
+              ? ("current" as const)
+              : ("todo" as const),
+          period: resultsReleased
+            ? `${fmtFull(yearRelease!.releasedAt!)} 배포`
+            : ("인사팀 배포" as string | null),
+          cycle: null as (typeof yearCycles)[number] | null,
+        };
+      }
       if (st.end) {
         return {
           ...st,
-          state: allClosed ? ("done" as const) : ("todo" as const),
-          period: null as string | null,
+          state: yearClosed
+            ? ("done" as const)
+            : resultsReleased
+              ? ("current" as const)
+              : ("todo" as const),
+          period: yearClosed
+            ? `${fmtFull(yearRelease!.closedAt!)} 마감`
+            : (null as string | null),
           cycle: null as (typeof yearCycles)[number] | null,
         };
       }
@@ -6612,6 +6676,98 @@ export default async function Evaluation2Page({
               받습니다.
             </span>
           )}
+        </div>
+      )}
+
+      {/*
+        **결과 배포 · 사이클 마감** — 그 해의 끝 두 칸이다. 인사팀만 보고 인사팀만
+        누른다. 목표 마감 · 역량평가 마감과 같은 자리에 같은 모양으로 둔다.
+
+        배포를 누르기 전까지 직원 결과지의 최종등급은 감춰져 있다. 마감은 배포
+        뒤에만 눌린다 — 순서를 지켜야 진행 띠가 «다음에 할 일»을 가리킨다.
+      */}
+      {(resultView || reportView) && isAdmin && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <span className="shrink-0 text-sm font-medium text-slate-800">
+            {selectedYear}년 최종결과
+          </span>
+          <span className="flex-1 text-xs break-keep text-slate-500">
+            {yearClosed
+              ? "배포와 마감이 모두 끝났습니다 — 진행 띠가 「종료」로 켜집니다."
+              : resultsReleased
+                ? "배포했습니다 — 직원 결과지에 최종등급이 보입니다. 남은 것은 사이클 마감입니다."
+                : "배포하면 직원 결과지에 최종등급이 공개됩니다. 그때까지는 인사팀만 등급을 봅니다 — 모든 단계를 마감한 뒤 눌러 주세요."}
+          </span>
+          <span className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
+            {resultsReleased ? (
+              <>
+                <span className="rounded-md bg-goal-4/10 px-2 py-1 text-xs font-medium whitespace-nowrap text-goal-4">
+                  {yearRelease?.releasedAt
+                    ? `${yearRelease.releasedAt.toLocaleDateString("ko-KR")} 배포`
+                    : "배포됨"}
+                </span>
+                <ActionForm
+                  action={unreleaseYearResults.bind(null, selectedYear)}
+                  successMessage="배포를 취소했습니다. 다시 인사팀만 등급을 봅니다."
+                  confirmMessage="배포를 취소하면 직원 결과지에서 최종등급이 다시 감춰집니다(사이클 마감도 함께 풀립니다). 진행할까요?"
+                >
+                  <button
+                    type="submit"
+                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50"
+                  >
+                    배포 취소
+                  </button>
+                </ActionForm>
+              </>
+            ) : (
+              <ActionForm
+                action={releaseYearResults.bind(null, selectedYear)}
+                successMessage="결과를 배포했습니다. 직원 결과지에 최종등급이 보입니다."
+                confirmMessage="이 해의 결과를 직원에게 배포할까요? 배포하면 결과지에 최종등급이 공개됩니다."
+              >
+                <button
+                  type="submit"
+                  className="rounded-md bg-brand-green px-4 py-2 text-sm font-medium whitespace-nowrap text-white hover:bg-brand-green-dark"
+                >
+                  결과 배포
+                </button>
+              </ActionForm>
+            )}
+            {yearClosed ? (
+              <>
+                <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium whitespace-nowrap text-slate-600">
+                  {yearRelease?.closedAt
+                    ? `${yearRelease.closedAt.toLocaleDateString("ko-KR")} 마감`
+                    : "마감됨"}
+                </span>
+                <ActionForm
+                  action={reopenYearCycle.bind(null, selectedYear)}
+                  successMessage="사이클 마감을 풀었습니다."
+                  confirmMessage="사이클 마감을 풀면 이 해가 다시 열립니다. 진행할까요?"
+                >
+                  <button
+                    type="submit"
+                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50"
+                  >
+                    마감 해제
+                  </button>
+                </ActionForm>
+              </>
+            ) : (
+              <ActionForm
+                action={closeYearCycle.bind(null, selectedYear)}
+                successMessage="사이클을 마감했습니다."
+                confirmMessage="이 해의 사이클을 마감할까요? 진행 띠가 「종료」로 켜집니다."
+              >
+                <button
+                  type="submit"
+                  className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50"
+                >
+                  사이클 마감
+                </button>
+              </ActionForm>
+            )}
+          </span>
         </div>
       )}
 

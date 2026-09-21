@@ -31,6 +31,7 @@ import {
   defaultOtherWeight,
   groupCyclesByYear,
   cyclePhaseRank,
+  cycleTitle,
   cycleYear,
   parseNameYear,
   evalTargetState,
@@ -1205,6 +1206,117 @@ export async function lockCompetencyForm(year: number) {
   });
   revalidatePath(PATH);
   revalidatePath(COMPETENCY_ADMIN_PATH);
+}
+
+/**
+ * 그 해 결과를 **직원에게 배포한다**. 관리자만.
+ *
+ * 등급은 상대평가라 마감 직후에도 표대로 계산된 값이 이미 화면에 있다. 다만
+ * 그것은 인사팀이 반올림 경계를 손으로 조정하기 **전**의 값이라, 직원이 먼저
+ * 보면 나중에 «등급이 바뀌었다»가 된다. 그래서 결과지의 최종등급은 이 단추를
+ * 누른 뒤에만 직원에게 보인다.
+ *
+ * 마감을 다 하기 전에는 누를 수 없다 — 아직 점수가 들어오는 중에 배포하면
+ * 배포한 등급과 최종 등급이 다르다. 무엇이 안 끝났는지 이름을 적어 알린다.
+ */
+export async function releaseYearResults(year: number) {
+  const session = await requireGoalModule();
+  if (!(await isAdmin()))
+    throw new Error("결과 배포는 관리자만 할 수 있습니다.");
+
+  const [cycles, form] = await Promise.all([
+    prisma.goalCycle.findMany({
+      orderBy: GOAL_CYCLE_ORDER,
+      select: {
+        id: true,
+        name: true,
+        year: true,
+        status: true,
+        goalsLockedAt: true,
+      },
+    }),
+    prisma.competencyForm.findUnique({
+      where: { year },
+      select: { status: true, lockedAt: true },
+    }),
+  ]);
+  const mine = cycles.filter((c) => cycleYear(c) === year);
+  const open = mine.filter((c) => !c.goalsLockedAt && c.status !== "CLOSED");
+  const waiting = open.map((c) => cycleTitle(c));
+  if (!form) waiting.push(`${year}년 역량평가 양식`);
+  else if (!form.lockedAt && form.status !== "CLOSED")
+    waiting.push(`${year}년 역량평가`);
+  if (mine.length === 0) throw new Error(`${year}년 인사평가가 없습니다.`);
+  if (waiting.length > 0) {
+    throw new Error(
+      `아직 마감하지 않은 단계가 있습니다 — ${waiting.join(" · ")}. 모두 마감한 뒤 배포해 주세요.`,
+    );
+  }
+
+  await prisma.evalYearRelease.upsert({
+    where: { year },
+    create: { year, releasedAt: new Date(), releasedById: session.user.id },
+    update: { releasedAt: new Date(), releasedById: session.user.id },
+  });
+  revalidatePath(PATH);
+}
+
+/** 배포를 되돌린다 — 다시 인사팀만 등급을 본다. **관리자만.** */
+export async function unreleaseYearResults(year: number) {
+  await requireGoalModule();
+  if (!(await isAdmin()))
+    throw new Error("배포 취소는 관리자만 할 수 있습니다.");
+
+  await prisma.evalYearRelease.updateMany({
+    where: { year },
+    /* 마감까지 함께 되돌린다 — 배포하지 않은 해가 「종료」로 남아 있으면 띠가
+       거꾸로 읽힌다. */
+    data: {
+      releasedAt: null,
+      releasedById: null,
+      closedAt: null,
+      closedById: null,
+    },
+  });
+  revalidatePath(PATH);
+}
+
+/**
+ * 그 해 사이클을 **마감한다** — 진행 띠의 「종료」가 이걸로 켜진다. 관리자만.
+ *
+ * 배포 뒤에 누르는 칸이다. 순서를 지키게 하는 까닭은 띠가 길잡이 노릇을 해야
+ * 하기 때문이다 — 배포도 안 한 해가 「종료」면 다음에 할 일을 띠에서 읽을 수 없다.
+ */
+export async function closeYearCycle(year: number) {
+  const session = await requireGoalModule();
+  if (!(await isAdmin()))
+    throw new Error("사이클 마감은 관리자만 할 수 있습니다.");
+
+  const row = await prisma.evalYearRelease.findUnique({
+    where: { year },
+    select: { releasedAt: true },
+  });
+  if (!row?.releasedAt)
+    throw new Error("먼저 결과를 배포해 주세요 — 배포한 뒤에 마감합니다.");
+
+  await prisma.evalYearRelease.update({
+    where: { year },
+    data: { closedAt: new Date(), closedById: session.user.id },
+  });
+  revalidatePath(PATH);
+}
+
+/** 사이클 마감을 풀어 그 해를 다시 연다. **관리자만.** */
+export async function reopenYearCycle(year: number) {
+  await requireGoalModule();
+  if (!(await isAdmin()))
+    throw new Error("사이클 마감 해제는 관리자만 할 수 있습니다.");
+
+  await prisma.evalYearRelease.updateMany({
+    where: { year },
+    data: { closedAt: null, closedById: null },
+  });
+  revalidatePath(PATH);
 }
 
 /** 마감을 풀어 다시 점수를 받는다. **관리자만.** */

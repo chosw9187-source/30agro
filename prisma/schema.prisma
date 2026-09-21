@@ -1694,3 +1694,31 @@ model FinalGrade {
   @@unique([year, userId])
   @@index([year])
 }
+
+/**
+ * 그 해 평가의 **끝 두 칸** — 인사팀이 결과를 직원에게 배포한 시점과, 그 해를
+ * 마감한 시점.
+ *
+ * 등급은 상대평가라 «남의 점수»가 다 들어와야 정해진다. 그래서 마감 직후에는
+ * 표대로 계산된 등급이 화면에 뜨긴 뜨는데, 인사팀이 반올림 경계를 손으로
+ * 조정하기 전의 값이다 — 그것을 직원이 먼저 보면 나중에 «등급이 바뀌었다»가
+ * 된다. 그래서 결과지의 최종등급은 **배포를 누른 뒤**에만 직원에게 보인다.
+ *
+ * 마감(`closedAt`)은 그다음 칸이다. 배포까지 끝난 해를 «닫는다»는 표시이고,
+ * 진행 띠의 「종료」가 이 값으로 켜진다.
+ *
+ * 되돌릴 수 있게 시각만 남긴다 — 상태 값을 따로 두면 «배포인데 시각이 없는»
+ * 줄이 생긴다(목표 마감·역량평가 마감과 같은 방식).
+ */
+model EvalYearRelease {
+  id   String @id @default(cuid())
+  year Int    @unique
+
+  releasedAt   DateTime?
+  releasedById String?
+  closedAt     DateTime?
+  closedById   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
