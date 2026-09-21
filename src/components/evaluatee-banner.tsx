@@ -106,10 +106,11 @@ export async function EvaluateeBanner({
             </p>
           )}
           {/*
-            평가자 줄만 좁은 화면에서 두 줄로 접힌다. 한 줄로 우겨넣으면 «2차
-            평가자»가 말줄임에 먹혀서, 정작 알아야 할 이름이 사라진다.
+            평가자 줄은 **접히되 잘리지 않는다.** 한 줄로 우겨넣고 말줄임을 걸면
+            «2차 평가자»가 먼저 먹혀서, 정작 알아야 할 이름이 사라진다 — 이름이
+            길면(「오동률 운영책임」처럼) 넓은 화면에서도 그랬다.
           */}
-          <p className="mt-[4px] text-[11.5px] leading-snug break-keep text-white/75 sm:truncate sm:text-[12.5px]">
+          <p className="mt-[4px] text-[11.5px] leading-snug break-keep text-white/75 sm:text-[12.5px]">
             1차 평가자{" "}
             <b className="font-bold text-white">
               {chain?.first ? evaluatorLabel(chain.first) : "미지정"}

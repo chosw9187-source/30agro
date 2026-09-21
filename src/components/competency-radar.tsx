@@ -29,9 +29,35 @@ export type CompetencyRadarAxis = {
 const SELF_COLOR = "#2a78d6";
 const LEAD_COLOR = "#c98500";
 
-/** 축 이름이 길면 줄인다 — 길게 두면 바깥 지름이 라벨에 먹힌다. 전체 이름은 옆 표에 있다. */
-function shortLabel(label: string, max = 7): string {
-  return label.length > max ? `${label.slice(0, max - 1)}…` : label;
+/**
+ * 축 이름을 **줄로 접는다 — 자르지 않는다.**
+ *
+ * 예전에는 일곱 자에서 「인사정보 보…」처럼 끊었다. 온전한 이름이 옆 표에 있다고는
+ * 해도, 차트만 보는 사람에게는 어느 역량인지 모르는 축이 절반이었다. 띄어쓰기에서
+ * 먼저 접고, 띄어쓰기가 없어 한 줄이 여전히 길면 글자 수로 접는다.
+ */
+export function wrapLabel(label: string, max = 9): string[] {
+  const lines: string[] = [];
+  let cur = "";
+  for (const word of label.split(/\s+/).filter(Boolean)) {
+    if (!cur) cur = word;
+    else if (`${cur} ${word}`.length <= max) cur = `${cur} ${word}`;
+    else {
+      lines.push(cur);
+      cur = word;
+    }
+  }
+  if (cur) lines.push(cur);
+
+  const out: string[] = [];
+  for (const line of lines) {
+    if (line.length <= max) {
+      out.push(line);
+      continue;
+    }
+    for (let i = 0; i < line.length; i += max) out.push(line.slice(i, i + max));
+  }
+  return out.length > 0 ? out : [label];
 }
 
 export function CompetencyRadar({
@@ -48,19 +74,30 @@ export function CompetencyRadar({
 
   /*
     라벨이 바깥으로 나가므로 그림 자리보다 뷰박스를 넉넉히 잡는다. 9시·3시 방향
-    라벨이 가장 멀리 뻗으니 그 길이로 잡는다 — 여덟 자에 지름 바깥 여백을 더한
-    만큼. 좁게 잡았더니 「고객 충성도 유지」의 첫 자가 잘려 나갔다.
+    라벨이 가장 멀리 뻗으니 그 길이로 잡는다 — 한 줄 최대 글자 수 × 글자 크기에
+    지름 바깥 여백을 더한 만큼. 좁게 잡았더니 「고객 충성도 유지」의 첫 자가 잘려
+    나갔다.
 
-    글자 크기(15)에 맞춰 여백도 같이 잡았다 — 일곱 자 × 15 + 지름 바깥 여백.
-    뷰박스는 칸 너비에 맞춰 줄어드니 글자 «단위»가 커야 화면에서 읽히는 크기가
-    나온다: 10.5로 뒀을 때는 8px까지 내려가 읽을 수 없었다. 여백을 키우면 그만큼
-    그림이 줄어들므로 이름을 한 자 더 줄여(일곱 자) 자리를 벌었다 — 온전한 이름은
-    바로 옆 표에 있고, 축에 마우스를 올려도 나온다.
+    이름은 이제 자르지 않고 두 줄로 접으므로(`wrapLabel`) 한 줄은 아홉 자까지다 —
+    그만큼 여백도 넓혔다. 뷰박스가 칸 너비에 맞춰 줄어드니 글자 «단위»가 커야
+    화면에서 읽히는 크기가 나온다(10.5로 뒀을 때는 8px까지 내려가 읽을 수 없었다).
   */
-  const pad = 126;
-  const box = size + pad * 2;
-  const cx = box / 2;
-  const cy = box / 2;
+  const LABEL_FONT = 15;
+  const LABEL_MAX = 9;
+  const LINE_HEIGHT = 17;
+  const wrapped = axes.map((a) => wrapLabel(a.label, LABEL_MAX));
+  const maxLines = Math.max(1, ...wrapped.map((w) => w.length));
+  /*
+    여백은 **좌우와 위아래를 따로** 잡는다. 이름이 가장 멀리 뻗는 곳은 9시·3시
+    방향이라 좌우만 이름 길이만큼 필요하고, 위아래는 접힌 줄 수만큼이면 된다.
+    네 변을 똑같이 주면 위아래가 통째로 비어 그림만 작아진다.
+  */
+  const padX = LABEL_MAX * LABEL_FONT + 20;
+  const padY = 24 + maxLines * LINE_HEIGHT;
+  const boxW = size + padX * 2;
+  const boxH = size + padY * 2;
+  const cx = boxW / 2;
+  const cy = boxH / 2;
   const r = size / 2;
 
   /** 축 i의 값 v(1~5)가 놓이는 자리. 12시부터 시계방향으로 돈다. */
@@ -135,7 +172,7 @@ export function CompetencyRadar({
       </figcaption>
 
       <svg
-        viewBox={`0 0 ${box} ${box}`}
+        viewBox={`0 0 ${boxW} ${boxH}`}
         className="h-auto w-full max-w-[520px]"
         role="img"
         aria-label={`역량별 자기평가와 팀장평가 방사형 비교 — ${axes
@@ -233,7 +270,11 @@ export function CompetencyRadar({
           }),
         )}
 
-        {/* 축 이름 — 바깥에. 왼쪽 축은 오른쪽 정렬해야 그림에 겹치지 않는다. */}
+        {/*
+          축 이름 — 바깥에. 왼쪽 축은 오른쪽 정렬해야 그림에 겹치지 않는다.
+          긴 이름은 두 줄로 접어 **온전히** 적는다(`wrapLabel`). 여러 줄이면
+          가운데가 축에 맞도록 위로 반 줄씩 올려 시작한다.
+        */}
         {axes.map((a, i) => {
           const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
           const lx = cx + (r + 18) * Math.cos(angle);
@@ -241,18 +282,24 @@ export function CompetencyRadar({
           const cos = Math.cos(angle);
           const anchor =
             Math.abs(cos) < 0.25 ? "middle" : cos > 0 ? "start" : "end";
+          const lines = wrapped[i];
+          const top = ly + 5 - ((lines.length - 1) * LINE_HEIGHT) / 2;
           return (
             <text
               key={`label-${i}`}
               x={lx}
-              y={ly + 5}
+              y={top}
               textAnchor={anchor}
               className="fill-slate-700"
-              fontSize="15"
+              fontSize={LABEL_FONT}
               fontWeight="500"
             >
               <title>{a.label}</title>
-              {shortLabel(a.label)}
+              {lines.map((line, k) => (
+                <tspan key={line + k} x={lx} dy={k === 0 ? 0 : LINE_HEIGHT}>
+                  {line}
+                </tspan>
+              ))}
             </text>
           );
         })}
