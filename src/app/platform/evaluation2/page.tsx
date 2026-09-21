@@ -4142,11 +4142,15 @@ export default async function Evaluation2Page({
       { label: "목표설정", rank: 1 },
       { label: "합의" },
       { label: MID_PHASE_LABEL, rank: 2 },
-      { label: "피드백" },
-      { label: "합의" },
-      /* 성과점수는 목표별 평가점수의 합이라, 세 번째 단계가 곧 성과평가다
-         (`FINAL_PHASE_LABEL`). 마디를 따로 하나 더 그리면 같은 일을 두 번
-         하는 것처럼 읽히고, 영영 «준비 중»으로 남는 칸이 된다. */
+      /*
+        중간평가 뒤의 합의·피드백 마디는 두지 않는다 — 그 일은 성과평가(중간)
+        안에서 함께 일어난다(점수를 적고 평가자와 맞춰 보는 것이 그 단계다).
+        마디로 따로 세워 두면 영영 «준비 중»으로 남는 칸이 둘 늘고, 띠가 길어져
+        정작 지금 할 단계가 어디인지 흐려진다.
+
+        성과점수는 목표별 평가점수의 합이라, 세 번째 단계가 곧 성과평가다
+        (`FINAL_PHASE_LABEL`) — 성과평가 마디를 따로 하나 더 그리지 않는다.
+      */
       { label: FINAL_PHASE_LABEL, rank: 3 },
       { label: "역량평가", competency: true },
       /*
