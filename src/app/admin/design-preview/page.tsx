@@ -1,14 +1,17 @@
 import Link from "next/link";
 
 /**
- * **디자인 미리보기** — 고치기 전에 «지금»과 «바꾼 뒤»를 나란히 놓고 고르는 자리.
+ * **평가2 디자인 미리보기** — 고치기 전에 «지금»과 «바꾼 뒤»를 나란히 놓고 고르는 자리.
  *
  * 화면을 먼저 바꿔 놓고 물으면, 마음에 안 들 때 되돌리는 값이 크고 그사이 쓰던
  * 사람이 혼란스럽다. 그래서 여기서는 **아무것도 저장하지 않는다** — 실제 화면은
  * 그대로 두고, 그림만 그려 둔 방이다. 고른 것만 실제 화면에 옮긴다.
  *
- * 여기 그려진 것은 진짜 부품이 아니라 «그림»이다. 일부러 그렇게 둔다 — 진짜
- * 부품을 끌어다 쓰면 이 화면을 손볼 때마다 실제 화면이 흔들린다.
+ * 여기 담는 것은 **평가2 화면뿐**이다(목표 목록 · 역량평가 · 결과지). 다른 모듈의
+ * 디자인은 이 방에서 다루지 않는다.
+ *
+ * 그려진 것은 진짜 부품이 아니라 «그림»이다. 일부러 그렇게 둔다 — 진짜 부품을
+ * 끌어다 쓰면 이 화면을 손볼 때마다 실제 화면이 흔들린다.
  */
 
 export const dynamic = "force-dynamic";
@@ -48,18 +51,18 @@ function Pane({
 
 function Item({
   id,
+  where,
   title,
   why,
   effort,
-  scope,
   now,
   next,
 }: {
   id: string;
+  where: string;
   title: string;
   why: string;
   effort: string;
-  scope: string;
   now: React.ReactNode;
   next: React.ReactNode;
 }) {
@@ -70,19 +73,17 @@ function Item({
           {id.toUpperCase()}
         </span>
         <h2 className="text-base font-bold text-slate-900">{title}</h2>
+        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap text-slate-600">
+          {where}
+        </span>
         <span className="text-xs break-keep text-slate-500">{why}</span>
       </div>
       <div className="grid gap-3 p-4 lg:grid-cols-2">
         <Pane kind="now">{now}</Pane>
         <Pane kind="next">{next}</Pane>
       </div>
-      <p className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-100 px-4 py-2 text-[11px] break-keep text-slate-500">
-        <span>
-          <b className="font-semibold text-slate-700">작업량</b> {effort}
-        </span>
-        <span>
-          <b className="font-semibold text-slate-700">바뀌는 곳</b> {scope}
-        </span>
+      <p className="border-t border-slate-100 px-4 py-2 text-[11px] break-keep text-slate-500">
+        <b className="font-semibold text-slate-700">작업량</b> {effort}
       </p>
     </section>
   );
@@ -90,76 +91,119 @@ function Item({
 
 /* ── 그림 부품 — 실제 부품이 아니라 이 화면에서만 쓰는 모형 ─────────── */
 
-function FakeField({ label, value }: { label: string; value: string }) {
+/** 지금의 목표 한 줄 — 제목줄 + 막대줄로 두 줄을 먹는다. */
+function NowGoalRow({
+  title,
+  weight,
+  progress,
+  done,
+}: {
+  title: string;
+  weight: number;
+  progress: number;
+  done?: boolean;
+}) {
   return (
-    <div className="flex flex-col gap-1">
-      <span className="text-[11px] font-medium text-slate-500">{label}</span>
-      <span className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700">
-        {value}
+    <div className="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[10px] text-slate-400">▸</span>
+        <span className="text-[11px] font-medium text-slate-800">{title}</span>
+        {done && (
+          <span className="rounded bg-brand-green-light px-1 py-px text-[9px] text-brand-green-dark">
+            완료
+          </span>
+        )}
+        <span className="text-[9px] font-medium text-status-critical">
+          상위 목표 미연결
+        </span>
+        <span className="text-[9px] text-slate-500">가중치 {weight}%</span>
+        <span className="ml-auto text-[11px] font-bold text-slate-900">
+          {progress}%
+        </span>
+      </div>
+      <span className="mt-1 block h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+        <span
+          className="block h-full rounded-full bg-brand-green"
+          style={{ width: `${progress}%` }}
+        />
       </span>
     </div>
   );
 }
 
-function FakeMenu({
-  items,
-  flat,
+/** 바꾼 뒤의 목표 한 줄 — 표의 한 행. */
+function NextGoalRow({
+  title,
+  weight,
+  progress,
+  score,
+  max,
 }: {
-  items: { group?: string; rows: string[] }[];
-  flat?: boolean;
+  title: string;
+  weight: number;
+  progress: number;
+  score: number | null;
+  max: number;
 }) {
   return (
-    <div className="rounded-lg bg-brand-green px-2 py-2 text-white">
-      <div className="ml-1 border-l border-white/20 pl-2">
-        {items.map((g, i) => (
-          <div key={i} className={i === 0 ? "" : "mt-2"}>
-            {/*
-              묶음 이름은 **누를 수 없는 머리**다. 메뉴 줄과 같은 흰 글씨로 두면
-              한 줄로 읽혀 묶음이 아무 일도 하지 않는다 — 브랜드의 노란빛 작은
-              글씨에 가느다란 선을 붙여 눈으로 갈라 준다.
-            */}
-            {!flat && g.group && (
-              <div className="mb-1 flex items-center gap-2 px-1">
-                <span className="text-[10px] font-bold tracking-wider whitespace-nowrap text-amber-200">
-                  {g.group}
-                </span>
-                <span className="h-px flex-1 bg-white/20" />
-              </div>
-            )}
-            {g.rows.map((r) => (
-              <p
-                key={r}
-                className="rounded px-2 py-[3px] text-[11px] text-white/90"
-              >
-                {r}
-              </p>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
+    <tr className="border-t border-slate-100">
+      <td className="py-1 pr-2 text-[11px] font-medium whitespace-nowrap text-slate-800">
+        {title}
+      </td>
+      <td className="py-1 pr-2 text-right text-[11px] tabular-nums text-slate-500">
+        {weight}%
+      </td>
+      <td className="py-1 pr-2">
+        <span className="flex items-center gap-1">
+          <span className="h-1.5 w-10 overflow-hidden rounded-full bg-slate-200">
+            <span
+              className="block h-full rounded-full bg-brand-green"
+              style={{ width: `${progress}%` }}
+            />
+          </span>
+          <span className="text-[10px] tabular-nums text-slate-600">
+            {progress}%
+          </span>
+        </span>
+      </td>
+      <td className="py-1 text-right text-[11px] tabular-nums whitespace-nowrap">
+        {score == null ? (
+          <span className="text-status-critical">미입력</span>
+        ) : (
+          <>
+            <b className="font-bold text-slate-900">{score}</b>
+            <span className="text-slate-400"> / {max}</span>
+          </>
+        )}
+      </td>
+    </tr>
   );
 }
 
 export default function DesignPreviewPage() {
+  const items = [
+    ["e1", "E-1 담당자별 묶기"],
+    ["e2", "E-2 목록을 표로"],
+    ["e3", "E-3 반복 경고 정리"],
+    ["e4", "E-4 역량 점수 버튼"],
+    ["e5", "E-5 결과지 인쇄"],
+    ["e6", "E-6 모바일 자기평가"],
+  ];
+
   return (
     <div className="flex flex-col gap-4">
       <section className={CARD}>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3">
-          <h1 className="text-lg font-bold text-slate-900">디자인 미리보기</h1>
+          <h1 className="text-lg font-bold text-slate-900">
+            평가2 디자인 미리보기
+          </h1>
           <span className="text-xs break-keep text-slate-500">
-            고치기 전에 「지금」과 「바꾼 뒤」를 나란히 봅니다 — 이 화면은
-            그림일 뿐, 아무것도 저장하지 않습니다.
+            평가2 화면만 다룹니다 · 「지금」과 「바꾼 뒤」를 나란히 봅니다 — 이
+            화면은 그림일 뿐, 아무것도 저장하지 않습니다.
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-2">
-          {[
-            ["d1", "D-1 용어 통일"],
-            ["d2", "D-2 결과지 인쇄"],
-            ["d3", "D-3 관리 메뉴 묶기"],
-            ["d4", "D-4 홈 «할 일»"],
-            ["d5", "D-5 모바일 자기평가"],
-          ].map(([id, label]) => (
+          {items.map(([id, label]) => (
             <a
               key={id}
               href={`#${id}`}
@@ -174,85 +218,302 @@ export default function DesignPreviewPage() {
         </div>
       </section>
 
-      {/* ── D-1 ─────────────────────────────────────────────── */}
+      {/* ── E-1 ─────────────────────────────────────────────── */}
       <Item
-        id="d1"
-        title="용어를 하나로"
-        why="DB 한 칸을 화면마다 다르게 부르고 있습니다 — 값은 그대로, 글자만 바꿉니다."
-        effort="반나절 (라벨·안내문 교체)"
-        scope="팀 관리 · 사용자 관리 · 조직도 안내문 · 평가2 안내문"
+        id="e1"
+        where="성과평가 · 개인목표"
+        title="누구 목표인지가 안 보입니다"
+        why="팀장·인사팀 화면인데 목록에 사람 이름이 없어, 마흔 줄에서 팀원 것을 눈으로 골라내야 합니다."
+        effort="1일 (담당자별 묶음 + 요약 줄)"
         now={
-          <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-3 gap-2">
-              <FakeField label="팀 이름" value="인사팀" />
-              <FakeField label="사업단위" value="재무경영관리" />
-              <FakeField label="본부" value="경영관리" />
-            </div>
-            <div className="rounded-md border border-slate-200 bg-white px-3 py-2">
-              <p className="text-[11px] text-slate-500">
-                평가2에서는 같은 값을
-              </p>
-              <p className="text-xs text-slate-700">
-                「오동률 <b>운영책임 라인</b>」 · 「경영관리 <b>부문</b>」
-              </p>
-            </div>
-            <p className="text-[11px] break-keep text-status-critical">
-              같은 칸을 팀 관리는 「본부」, 평가2는 「부문」이라 부릅니다 —
-              안내를 읽고도 어디를 채워야 할지 찾지 못합니다.
+          <div className="flex flex-col gap-1.5">
+            <p className="text-[10px] text-slate-400">
+              개인목표 40건 · 평균 달성률 91%
+            </p>
+            <NowGoalRow title="목표 A" weight={30} progress={50} />
+            <NowGoalRow title="두 상1" weight={30} progress={100} done />
+            <NowGoalRow title="강 상1" weight={30} progress={100} done />
+            <NowGoalRow title="황 상1" weight={30} progress={100} done />
+            <p className="text-[10px] break-keep text-status-critical">
+              이름이 없어 「목표 A」가 누구 것인지 알 수 없습니다 — 네 사람의
+              목표가 뒤섞여 있습니다.
             </p>
           </div>
         }
         next={
-          <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-3 gap-2">
-              <FakeField label="팀 이름" value="인사팀" />
-              <FakeField label="본부" value="재무경영관리" />
-              <FakeField label="부문" value="경영관리" />
-            </div>
-            <div className="rounded-md border border-brand-green/40 bg-white px-3 py-2">
-              <p className="text-[11px] text-slate-500">
-                평가2에서도 같은 말로
-              </p>
-              <p className="text-xs text-slate-700">
-                「오동률 운영책임 — <b>본부</b>」 · 「경영관리 <b>부문</b>의
-                책임」
-              </p>
-            </div>
-            <table className="w-full border-collapse text-[11px]">
-              <thead>
-                <tr className="text-left text-slate-400">
-                  <th className="py-0.5 font-medium">저장되는 값</th>
-                  <th className="py-0.5 font-medium">지금</th>
-                  <th className="py-0.5 font-medium">바꾼 뒤</th>
-                </tr>
-              </thead>
-              <tbody className="text-slate-600">
-                <tr className="border-t border-slate-100">
-                  <td className="py-0.5">businessUnit</td>
-                  <td>사업단위</td>
-                  <td className="font-semibold text-brand-green-dark">본부</td>
-                </tr>
-                <tr className="border-t border-slate-100">
-                  <td className="py-0.5">division</td>
-                  <td>본부</td>
-                  <td className="font-semibold text-brand-green-dark">부문</td>
-                </tr>
-              </tbody>
-            </table>
+          <div className="flex flex-col gap-2">
+            {[
+              [
+                "한담당 담당",
+                "영업고객관리팀",
+                "5건 · 가중치 100%",
+                "평가 5/5",
+              ],
+              ["두담당 담당", "제품등록팀", "5건 · 가중치 100%", "평가 0/5"],
+            ].map(([name, team, sum, eval_], i) => (
+              <div
+                key={name}
+                className="overflow-hidden rounded-lg border border-slate-200 bg-white"
+              >
+                <div className="flex flex-wrap items-center gap-2 bg-slate-50 px-2 py-1.5">
+                  <span className="text-[11px] font-bold text-slate-800">
+                    {name}
+                  </span>
+                  <span className="text-[10px] text-slate-500">{team}</span>
+                  <span className="text-[10px] text-slate-500">{sum}</span>
+                  <span
+                    className={`ml-auto rounded px-1.5 py-px text-[10px] font-medium ${
+                      i === 0
+                        ? "bg-brand-green-light text-brand-green-dark"
+                        : "bg-amber-100 text-amber-800"
+                    }`}
+                  >
+                    {eval_}
+                  </span>
+                </div>
+                {i === 0 && (
+                  <div className="px-2 py-1">
+                    <table className="w-full border-collapse">
+                      <tbody>
+                        <NextGoalRow
+                          title="신규 과제 도출"
+                          weight={30}
+                          progress={100}
+                          score={30}
+                          max={33}
+                        />
+                        <NextGoalRow
+                          title="인사체계 개편"
+                          weight={20}
+                          progress={100}
+                          score={18}
+                          max={22}
+                        />
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ))}
+            <p className="text-[10px] break-keep text-slate-500">
+              사람마다 접힙니다. 머리줄만 봐도 «누가 몇 건, 가중치 합은
+              100%인지, 평가가 몇 건 남았는지»가 읽힙니다.
+            </p>
           </div>
         }
       />
 
-      {/* ── D-2 ─────────────────────────────────────────────── */}
+      {/* ── E-2 ─────────────────────────────────────────────── */}
       <Item
-        id="d2"
-        title="결과지 인쇄 · PDF"
-        why="면담 때 종이로 주거나 보관해야 하는데, 지금 인쇄하면 사이드바와 단추까지 같이 나옵니다."
-        effort="반나절 (인쇄 전용 스타일 한 벌 + 「인쇄」 단추)"
-        scope="평가결과 화면"
+        id="e2"
+        where="성과평가 · 개인목표"
+        title="한 줄이 두 줄을 먹습니다"
+        why="줄마다 막대가 한 줄을 통째로 쓰고, 평가 단계인데 점수는 펼쳐야 보입니다. 마흔 건이면 화면 세 장입니다."
+        effort="1~2일 (목록을 표로 + 점수 칸)"
+        now={
+          <div className="flex flex-col gap-1.5">
+            <NowGoalRow title="목표 A" weight={30} progress={50} />
+            <NowGoalRow title="목표 B" weight={20} progress={10} />
+            <NowGoalRow title="목표 C" weight={20} progress={60} />
+            <p className="text-[10px] break-keep text-status-critical">
+              점수가 없습니다 — 「50%」가 몇 점인지 보려면 줄을 하나씩 펼쳐야
+              합니다.
+            </p>
+          </div>
+        }
+        next={
+          <div className="flex flex-col gap-2">
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white px-2 py-1">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="text-left text-[9px] text-slate-400">
+                    <th className="py-0.5 pr-2 font-medium">목표</th>
+                    <th className="py-0.5 pr-2 text-right font-medium">
+                      가중치
+                    </th>
+                    <th className="py-0.5 pr-2 font-medium">달성률</th>
+                    <th className="py-0.5 text-right font-medium">점수</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <NextGoalRow
+                    title="신규 과제 도출"
+                    weight={30}
+                    progress={50}
+                    score={15}
+                    max={33}
+                  />
+                  <NextGoalRow
+                    title="인사체계 개편"
+                    weight={20}
+                    progress={10}
+                    score={null}
+                    max={22}
+                  />
+                  <NextGoalRow
+                    title="프로세스 개선"
+                    weight={20}
+                    progress={60}
+                    score={12}
+                    max={22}
+                  />
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[10px] break-keep text-slate-500">
+              한 줄에 한 행. 같은 자리에서 <b>점수 · 만점 · 미입력</b>까지
+              읽히고, 높이는 3분의 1로 줄어듭니다. 줄을 누르면 지금처럼
+              펼쳐집니다.
+            </p>
+          </div>
+        }
+      />
+
+      {/* ── E-3 ─────────────────────────────────────────────── */}
+      <Item
+        id="e3"
+        where="성과평가 · 개인목표"
+        title="같은 경고가 마흔 번"
+        why="「상위 목표 미연결」이 줄마다 붉게 반복되면 경고가 아니라 배경이 됩니다."
+        effort="반나절 (묶음 머리에 한 줄 + 한 번에 지정)"
+        now={
+          <div className="flex flex-col gap-1.5">
+            <NowGoalRow title="목표 A" weight={30} progress={50} />
+            <NowGoalRow title="목표 B" weight={20} progress={10} />
+            <NowGoalRow title="목표 C" weight={20} progress={60} />
+            <p className="text-[10px] break-keep text-status-critical">
+              붉은 글씨가 마흔 줄이면 정작 봐야 할 「미입력」이 묻힙니다.
+            </p>
+          </div>
+        }
+        next={
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1.5">
+              <span className="text-[11px] font-medium break-keep text-amber-900">
+                상위 목표가 없는 목표 40건 — 전사 달성률에 반영되지 않습니다
+              </span>
+              <span className="ml-auto rounded-md bg-white px-2 py-1 text-[10px] font-medium whitespace-nowrap text-amber-900">
+                한 번에 지정
+              </span>
+            </div>
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white px-2 py-1">
+              <table className="w-full border-collapse">
+                <tbody>
+                  <NextGoalRow
+                    title="신규 과제 도출"
+                    weight={30}
+                    progress={50}
+                    score={15}
+                    max={33}
+                  />
+                  <NextGoalRow
+                    title="인사체계 개편"
+                    weight={20}
+                    progress={10}
+                    score={null}
+                    max={22}
+                  />
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[10px] break-keep text-slate-500">
+              경고는 묶음 머리에 한 번만. 줄에서는 <b>미입력</b>처럼 그 줄에만
+              해당하는 것만 붉게 둡니다.
+            </p>
+          </div>
+        }
+      />
+
+      {/* ── E-4 ─────────────────────────────────────────────── */}
+      <Item
+        id="e4"
+        where="역량평가"
+        title="점수를 두 번 눌러 고릅니다"
+        why="스무 칸을 드롭다운으로 고르면 한 칸에 두 번씩 마흔 번을 누릅니다. 1~10이면 칸이 열 개뿐입니다."
+        effort="1~2일 (점수 고르개 + 남은 칸 표시)"
+        now={
+          <div className="flex flex-col gap-2">
+            <p className="text-[10px] text-slate-400">
+              자기평가 평균 <b className="text-slate-700">10</b> 5/5 · 팀장평가
+              평균 <b className="text-slate-700">8</b> 5/5
+            </p>
+            <div className="rounded-lg border border-slate-200 bg-white p-2">
+              <p className="text-[10px] font-medium text-slate-700">문제해결</p>
+              <div className="mt-1 flex gap-2">
+                {["10 (탁월)", "8 (우수)"].map((v) => (
+                  <span
+                    key={v}
+                    className="flex flex-1 items-center justify-between rounded border border-slate-300 px-2 py-1 text-[10px] text-slate-700"
+                  >
+                    {v} <span className="text-slate-400">▾</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+            <p className="text-[10px] break-keep text-status-critical">
+              「평균 10 5/5」가 무슨 뜻인지 한 번에 읽히지 않습니다 — 평균인지,
+              5문항 중 5칸인지.
+            </p>
+          </div>
+        }
+        next={
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-2 py-1.5">
+              <span className="text-[10px] text-slate-500">자기평가</span>
+              <span className="text-[11px] font-bold text-slate-900">
+                5 / 5칸
+              </span>
+              <span className="text-[10px] text-slate-400">평균 10.0</span>
+              <span className="ml-auto text-[10px] text-slate-500">
+                팀장평가
+              </span>
+              <span className="text-[11px] font-bold text-status-critical">
+                3 / 5칸
+              </span>
+              <span className="text-[10px] text-slate-400">2칸 남음</span>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-white p-2">
+              <p className="text-[10px] font-medium text-slate-700">
+                문제해결 <span className="text-slate-400">· 팀장평가</span>
+              </p>
+              <div className="mt-1 flex gap-[3px]">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                  <span
+                    key={n}
+                    className={`flex-1 rounded py-1 text-center text-[10px] ${
+                      n === 8
+                        ? "bg-brand-green font-bold text-white"
+                        : n <= 2
+                          ? "bg-slate-100 text-slate-500"
+                          : "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {n}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-1 text-[9px] text-slate-400">
+                8 = 우수 · 상당히 숙련되고 광범위하게 응용함
+              </p>
+            </div>
+            <p className="text-[10px] break-keep text-slate-500">
+              한 번만 누르면 됩니다. 고른 숫자의 뜻은 아래 한 줄로 알려 주고,
+              머리에는 <b>몇 칸 남았는지</b>를 적습니다.
+            </p>
+          </div>
+        }
+      />
+
+      {/* ── E-5 ─────────────────────────────────────────────── */}
+      <Item
+        id="e5"
+        where="평가결과"
+        title="결과지를 종이로 낼 수 없습니다"
+        why="면담 때 출력하거나 PDF로 보관해야 하는데, 지금 인쇄하면 메뉴와 단추까지 같이 찍힙니다."
+        effort="반나절 (인쇄 전용 스타일 + 「인쇄」 단추)"
         now={
           <div className="flex gap-1">
-            <div className="w-1/4 rounded bg-brand-green-dark px-1 py-2">
+            <div className="w-1/4 rounded bg-brand-green px-1 py-2">
               <p className="text-[8px] text-white/80">홈</p>
               <p className="text-[8px] text-white/80">조직도</p>
               <p className="text-[8px] text-white/80">평가2</p>
@@ -312,144 +573,13 @@ export default function DesignPreviewPage() {
         }
       />
 
-      {/* ── D-3 ─────────────────────────────────────────────── */}
+      {/* ── E-6 ─────────────────────────────────────────────── */}
       <Item
-        id="d3"
-        title="관리 메뉴를 네 묶음으로"
-        why="열세 개가 평평하게 놓여 있어, 인사팀이 아닌 사람은 어디로 가야 할지 찾지 못합니다."
-        effort="적용 완료 — 왼쪽 메뉴에서 바로 보입니다"
-        scope="왼쪽 「관리」 메뉴"
-        now={
-          <FakeMenu
-            flat
-            items={[
-              {
-                rows: [
-                  "사용자 관리",
-                  "팀 관리",
-                  "데이터 업로드",
-                  "평가 템플릿",
-                  "평가 사이클",
-                  "결과 다운로드",
-                  "권한 매트릭스",
-                  "화면 구성",
-                  "일일 트래픽",
-                  "조직 목표 관리",
-                  "평가대상자 관리",
-                  "역량평가 문항",
-                  "등급 · 정원 관리",
-                ],
-              },
-            ]}
-          />
-        }
-        next={
-          <FakeMenu
-            items={[
-              {
-                group: "조직",
-                rows: ["사용자 관리", "팀 관리", "데이터 업로드"],
-              },
-              {
-                group: "평가 설계",
-                rows: ["조직 목표 관리", "역량평가 문항", "등급 · 정원 관리"],
-              },
-              {
-                group: "평가 운영",
-                rows: ["평가대상자 관리", "결과 다운로드", "평가 사이클"],
-              },
-              {
-                group: "시스템",
-                rows: [
-                  "권한 매트릭스",
-                  "화면 구성",
-                  "일일 트래픽",
-                  "평가 템플릿",
-                ],
-              },
-            ]}
-          />
-        }
-      />
-
-      {/* ── D-4 ─────────────────────────────────────────────── */}
-      <Item
-        id="d4"
-        title="홈에 「지금 할 일」"
-        why="로그인 직후 «내가 무엇을 해야 하는지»가 없어, 시즌마다 문의 전화를 받습니다."
-        effort="1~2일 (사람마다 남은 일을 세는 셈은 이미 있습니다)"
-        scope="홈 화면"
-        now={
-          <div className="grid grid-cols-2 gap-2">
-            {["조직도", "직원정보 조회", "평가2", "온보딩"].map((t) => (
-              <div
-                key={t}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-600"
-              >
-                {t}
-              </div>
-            ))}
-            <p className="col-span-2 text-[11px] break-keep text-status-critical">
-              바로가기만 있고, 지금이 평가 시즌인지 · 내가 무엇을 안 했는지는
-              말해 주지 않습니다.
-            </p>
-          </div>
-        }
-        next={
-          <div className="flex flex-col gap-2">
-            <div className="rounded-lg border border-brand-green/40 bg-white p-3">
-              <p className="text-xs font-bold text-slate-900">
-                지금 할 일{" "}
-                <span className="ml-1 rounded bg-status-critical/10 px-1.5 py-0.5 text-[10px] font-medium text-status-critical">
-                  2건
-                </span>
-              </p>
-              <div className="mt-2 flex flex-col gap-1.5">
-                {[
-                  ["역량평가 자기평가", "10칸 중 4칸", "12/15까지"],
-                  ["팀원 평가 (2명)", "한담당 · 계약담당", "12/20까지"],
-                ].map(([t, sub, due]) => (
-                  <div
-                    key={t}
-                    className="flex items-center gap-2 rounded-md border border-slate-200 px-2 py-1.5"
-                  >
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-status-critical" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[11px] font-medium text-slate-800">
-                        {t}
-                      </span>
-                      <span className="block text-[10px] text-slate-500">
-                        {sub}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-[10px] text-slate-400">
-                      {due}
-                    </span>
-                  </div>
-                ))}
-                <div className="flex items-center gap-2 rounded-md border border-slate-100 px-2 py-1.5 opacity-60">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-green" />
-                  <span className="text-[11px] text-slate-500">
-                    목표 자기평가 — 끝냈습니다
-                  </span>
-                </div>
-              </div>
-            </div>
-            <p className="text-[11px] break-keep text-slate-500">
-              시즌이 아니면 이 카드는 뜨지 않습니다 — 평소 홈은 지금
-              그대로입니다.
-            </p>
-          </div>
-        }
-      />
-
-      {/* ── D-5 ─────────────────────────────────────────────── */}
-      <Item
-        id="d5"
+        id="e6"
+        where="성과평가 · 역량평가"
         title="휴대폰에서 자기평가 끝내기"
-        why="현장·영업 인원이 많은데, 지금 폼은 한 화면에 칸이 열 개라 폰에서 끝내기 어렵습니다."
+        why="현장·영업 인원이 많은데, 지금 폼은 한 화면에 칸이 여덟 개라 폰에서 끝내기 어렵습니다."
         effort="2~3일 (목표 한 건씩 넘기는 걸음 + 큰 고르개)"
-        scope="평가2 목표 편집 · 역량평가 입력"
         now={
           <div className="mx-auto w-[58%] rounded-xl border border-slate-300 bg-white p-2">
             <p className="text-[9px] font-bold text-slate-800">목표 수정</p>
@@ -516,13 +646,13 @@ export default function DesignPreviewPage() {
       />
 
       <p className="px-1 pb-4 text-xs break-keep text-slate-500">
-        고르실 것만 알려 주세요 — 번호로 말씀하셔도 됩니다(예: 「D-1, D-3
+        고르실 것만 알려 주세요 — 번호로 말씀하셔도 됩니다(예: 「E-1, E-2
         진행」). 고르지 않은 것은 그대로 둡니다.{" "}
         <Link
           href="/platform/evaluation2?phase=hrreport"
           className="text-brand-green-dark underline"
         >
-          HR REPORT로 돌아가기
+          평가2로 돌아가기
         </Link>
       </p>
     </div>
