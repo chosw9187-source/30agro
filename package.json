@@ -12,7 +12,8 @@
     "goals:fix-other": "tsx scripts/fix-other-goals.ts",
     "grade:check": "tsx scripts/check-grade-math.ts",
     "progress:check": "tsx scripts/check-progress-math.ts",
-    "lint": "eslint"
+    "lint": "eslint",
+    "competency:rescale": "tsx scripts/rescale-competency.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.0",

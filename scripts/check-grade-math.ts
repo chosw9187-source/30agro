@@ -13,8 +13,13 @@ import {
   type GradeRatios,
 } from "../src/lib/final-grade";
 import { buildDivisionLineMap, buildUnitHeadMap } from "../src/lib/evaluator";
-import { competencyAverage } from "../src/lib/competency";
-import { competencyScore100, overallScore } from "../src/lib/competency-result";
+import { COMPETENCY_MAX, competencyAverage } from "../src/lib/competency";
+import {
+  competencyScore100,
+  gapNote,
+  overallScore,
+  strengthsAndWeaknesses,
+} from "../src/lib/competency-result";
 
 const R = (
   S: number,
@@ -113,22 +118,22 @@ eq("깨진 JSON은 전부 0", parseRatios("{nope"), R(0, 0, 0, 0, 0));
 /*
   역량 100점 환산 — 사람이 칸을 다 더해 맞춰 볼 수 있어야 한다.
 
-  스무 칸 합 83점이면 83점이다. 화면에 적는 평균(4.2)으로 곱하면 84점이 되는데,
-  그 한 점은 어디서 왔는지 설명할 수 없다 — 실제로 «다 더하면 83점 아니야?»라는
-  말을 들었다.
+  눈금이 1~10이라 스무 칸의 합은 200점 만점이고, 100점 환산은 그 절반이다
+  (합 163 → 81.5점). 화면에 적는 평균(8.2)으로 곱하면 82점이 되는데, 그 반 점은
+  어디서 왔는지 설명할 수 없다 — 그래서 끊지 않은 평균으로 곱한다.
 */
 console.log("\n[역량 점수 환산]");
 const sheet: [number, number][] = [
-  [5, 5],
-  [5, 4],
-  [4, 3],
-  [5, 4],
-  [4, 1],
-  [5, 5],
-  [3, 5],
-  [2, 4],
-  [5, 4],
-  [5, 5],
+  [10, 7],
+  [10, 8],
+  [8, 6],
+  [10, 8],
+  [8, 2],
+  [10, 10],
+  [6, 10],
+  [4, 8],
+  [10, 8],
+  [10, 10],
 ];
 const scores = sheet.map(([selfScore, leadScore], i) => ({
   itemKey: `i${i}`,
@@ -136,17 +141,60 @@ const scores = sheet.map(([selfScore, leadScore], i) => ({
   leadScore,
 }));
 const avg = competencyAverage(scores);
-eq("스무 칸 합", avg.sum, 83);
+eq("스무 칸 합", avg.sum, 163);
 eq("칸 수", avg.count, 20);
-eq("화면에 적는 평균(끊은 값)", avg.overall, 4.2);
-eq("환산에 쓰는 평균(안 끊은 값)", avg.overallExact, 4.15);
-eq("100점 환산 = 칸 합", competencyScore100(avg.overallExact), 83);
+eq("만점은 칸 수 × 10", avg.count * COMPETENCY_MAX, 200);
+eq("화면에 적는 평균(끊은 값)", avg.overall, 8.2);
+eq("환산에 쓰는 평균(안 끊은 값)", avg.overallExact, 8.15);
+eq("100점 환산 = 칸 합의 절반", competencyScore100(avg.overallExact), 81.5);
 eq(
-  "끊은 평균으로 곱하면 한 점이 붙는다(그래서 쓰지 않는다)",
+  "끊은 평균으로 곱하면 반 점이 붙는다(그래서 쓰지 않는다)",
   competencyScore100(avg.overall),
-  84,
+  82,
 );
-eq("종합점수 = 성과 95×60% + 역량 83×40%", overallScore(95, 83), 90.2);
+eq("종합점수 = 성과 95×60% + 역량 81.5×40%", overallScore(95, 81.5), 89.6);
+/*
+  눈금이 바뀌면 강점·약점 문턱도 같이 움직여야 한다 — 1~5의 «3점 초과»는 만점의
+  60%라는 뜻이고, 1~10에서는 6점이다. 숫자를 그대로 두면 거의 모두가 강점이 된다.
+*/
+const picked = strengthsAndWeaknesses([
+  {
+    itemKey: "a",
+    group: "핵심가치",
+    area: "높음",
+    self: 9,
+    lead: 9,
+    avg: 9,
+    gap: 0,
+  },
+  {
+    itemKey: "b",
+    group: "핵심가치",
+    area: "가운데",
+    self: 6,
+    lead: 6,
+    avg: 6,
+    gap: 0,
+  },
+  {
+    itemKey: "c",
+    group: "핵심가치",
+    area: "낮음",
+    self: 4,
+    lead: 4,
+    avg: 4,
+    gap: 0,
+  },
+]);
+eq(
+  "만점의 60%(6점) 초과만 강점",
+  [picked.strengths.map((r) => r.area), picked.weaknesses.map((r) => r.area)],
+  [["높음"], ["낮음"]],
+);
+// 차이 문턱도 만점을 따라간다 — 1~10에서는 2점·4점이다.
+eq("자기가 2점 높으면 셀프 피드백", gapNote(-2), "셀프 피드백");
+eq("한 점 차이는 아무 말도 하지 않는다", gapNote(-1), null);
+eq("팀장이 4점 높으면 1:1 미팅", gapNote(4), "1:1 미팅");
 // 한 칸도 안 적힌 사람은 0점이 아니라 «아직 없음»이다.
 const blank = competencyAverage([
   { itemKey: "a", selfScore: null, leadScore: null },

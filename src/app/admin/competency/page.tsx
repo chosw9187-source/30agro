@@ -6,6 +6,7 @@ import { POSITION_LABEL } from "@/lib/permission-constants";
 import {
   COMPETENCY_ITEMS_PER_SET,
   COMPETENCY_SCALE,
+  competencyScaleRange,
   isCompetencyTarget,
   coreKindFor,
   needsJobSet,
@@ -827,7 +828,7 @@ export default async function CompetencyFormAdminPage({
               {COMPETENCY_SCALE.map((r) => (
                 <li key={r.score} className="text-xs break-keep text-slate-600">
                   <b className="text-slate-800">
-                    {r.score} ({r.label})
+                    {competencyScaleRange(r)} ({r.label})
                   </b>{" "}
                   · {r.points} · {r.definition}
                 </li>

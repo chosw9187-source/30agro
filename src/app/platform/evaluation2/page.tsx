@@ -7,6 +7,7 @@ import { checkModuleAccess } from "@/lib/permissions";
 import { NoModuleAccess } from "@/components/no-module-access";
 import { SearchableSelect } from "@/components/searchable-select";
 import { activePrismaWhere, isEvalPopulation } from "@/lib/hr-analytics";
+import { evalTodo, loadEvalStatus } from "@/lib/eval-status";
 import { POSITION_LABEL } from "@/lib/permission-constants";
 import {
   buildDivisionLineMap,
@@ -130,6 +131,8 @@ import {
   COMPETENCY_MAX,
   COMPETENCY_NOTES,
   COMPETENCY_SCALE,
+  COMPETENCY_SCORES,
+  competencyScaleRange,
   competencyAverage,
   competencyScoreLabel,
   isCompetencyTarget,
@@ -1781,9 +1784,10 @@ export default async function Evaluation2Page({
           className={scoreSelectClass}
         >
           <option value="">–</option>
-          {COMPETENCY_SCALE.map((r) => (
-            <option key={r.score} value={r.score}>
-              {competencyScoreLabel(r.score)}
+          {/* 고르개는 열 칸을 다 펼친다 — 수준(다섯)이 아니라 점수를 고른다. */}
+          {COMPETENCY_SCORES.map((score) => (
+            <option key={score} value={score}>
+              {competencyScoreLabel(score)}
             </option>
           ))}
         </select>
@@ -1955,7 +1959,7 @@ export default async function Evaluation2Page({
                     }`}
                   >
                     <td className="px-3 py-1 text-xs font-semibold whitespace-nowrap text-slate-800">
-                      {r.score} ({r.label})
+                      {competencyScaleRange(r)} ({r.label})
                     </td>
                     <td className="px-3 py-1 text-xs whitespace-nowrap text-slate-600">
                       {r.points}
@@ -3508,10 +3512,23 @@ export default async function Evaluation2Page({
               {Math.round(COMPETENCY_WEIGHT * 100)}% + 운영(책임) 가산점 =
               최종점수
             </span>
-            <span className="ml-auto text-xs break-keep text-slate-500">
-              평가 대상 {reportPeople.length}명 · 운영책임 {reportUnits.length}
-              개 라인 · 책임 {allDeptKeys.length}개 라인 · 조직도 기준(정규직 +
-              영업관리팀 계약직 중 담당 · 팀장)
+            <span className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="text-xs break-keep text-slate-500">
+                평가 대상 {reportPeople.length}명 · 운영책임{" "}
+                {reportUnits.length}개 라인 · 책임 {allDeptKeys.length}개 라인 ·
+                조직도 기준(정규직 + 영업관리팀 계약직 중 담당 · 팀장)
+              </span>
+              {/*
+                엑셀 — 보상 검토 · 경영 보고 · 이력 보관은 결국 엑셀에서 이뤄진다.
+                화면과 **같은 함수**로 셈한 값을 네 장(종합 · 성과 상세 · 역량 상세 ·
+                라인 요약)에 담아 내려 준다.
+              */}
+              <a
+                href={`/api/evaluation2/export?year=${selectedYear}`}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50"
+              >
+                엑셀 내보내기
+              </a>
             </span>
           </div>
           {/*
@@ -3871,6 +3888,178 @@ export default async function Evaluation2Page({
           ))
         )}
       </div>
+    );
+  }
+
+  /*
+    **평가 진행 현황 카드** — 인원 · 완료 · 누가 어디까지 · 무엇이 남았는가.
+
+    팀장은 자기 평가 대상자만, 인사팀은 평가자별로 묶은 전체를 본다. 숫자만
+    늘어놓지 않고 **남은 일을 말로** 적는다 — 「1차 점수 3건 · 역량 팀장평가
+    10칸」처럼. 그대로 독촉 메일에 옮겨 적을 수 있어야 쓸모가 있다.
+  */
+  function evalStatusBoard() {
+    if (statusPeople.length === 0) return null;
+
+    const rowsOf = (list: typeof statusPeople) =>
+      list.map((p) => {
+        const st = statusRows.get(p.id);
+        return { person: p, st, todo: st ? evalTodo(st) : ["집계 없음"] };
+      });
+    const all = rowsOf(statusPeople);
+    const doneCount = all.filter((r) => r.todo.length === 0).length;
+    const pct = all.length > 0 ? Math.round((doneCount / all.length) * 100) : 0;
+
+    const table = (list: typeof all) => (
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[46rem] border-collapse text-sm">
+          <thead>
+            <tr className="bg-slate-50 text-left text-xs text-slate-500">
+              <th className="px-3 py-1.5 font-medium">이름</th>
+              <th className="px-3 py-1.5 font-medium">소속</th>
+              <th className="px-3 py-1.5 text-right font-medium">목표</th>
+              <th className="px-3 py-1.5 text-right font-medium">자기평가</th>
+              <th className="px-3 py-1.5 text-right font-medium">1차 점수</th>
+              <th className="px-3 py-1.5 text-right font-medium">평가완료</th>
+              <th className="px-3 py-1.5 text-right font-medium">역량 자기</th>
+              <th className="px-3 py-1.5 text-right font-medium">역량 팀장</th>
+              <th className="px-3 py-1.5 font-medium">남은 일</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map(({ person, st, todo }) => {
+              /* 다 끝난 줄은 흐리게 — 남은 줄이 먼저 눈에 걸려야 한다. */
+              const done = todo.length === 0;
+              const cellOf = (got: number, need: number) => (
+                <td
+                  className={`px-3 py-1.5 text-right tabular-nums ${
+                    need > 0 && got < need
+                      ? "text-status-critical"
+                      : "text-slate-600"
+                  }`}
+                >
+                  {need > 0 ? `${got}/${need}` : "–"}
+                </td>
+              );
+              return (
+                <tr
+                  key={person.id}
+                  className={`border-t border-slate-100 ${done ? "text-slate-400" : ""}`}
+                >
+                  <td className="px-3 py-1.5 font-medium whitespace-nowrap text-slate-800">
+                    <Link
+                      href={`/platform/evaluation2?year=${selectedYear}&phase=${RESULT_PHASE}&who=${person.id}`}
+                      className="hover:underline"
+                    >
+                      {person.name} {POSITION_LABEL[person.position]}
+                    </Link>
+                  </td>
+                  <td className="px-3 py-1.5 whitespace-nowrap text-slate-500">
+                    {person.team?.name ?? person.division ?? "-"}
+                  </td>
+                  <td className="px-3 py-1.5 text-right tabular-nums text-slate-600">
+                    {st?.goals ?? 0}
+                  </td>
+                  {cellOf(st?.selfScored ?? 0, st?.goals ?? 0)}
+                  {cellOf(st?.firstScored ?? 0, st?.goals ?? 0)}
+                  {cellOf(st?.evalDone ?? 0, st?.goals ?? 0)}
+                  {cellOf(st?.compSelf ?? 0, st?.compItems ?? 0)}
+                  {cellOf(st?.compLead ?? 0, st?.compItems ?? 0)}
+                  <td className="px-3 py-1.5 break-keep">
+                    {done ? (
+                      <span className="text-xs text-brand-green-dark">
+                        모두 끝났습니다
+                      </span>
+                    ) : (
+                      <span className="text-xs text-status-critical">
+                        {todo.join(" · ")}
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+
+    /* 인사팀은 평가자별로 접어 본다 — 206명을 한 표로 두면 누구를 독촉할지가
+       오히려 안 보인다. 남은 일이 많은 평가자가 위로 온다. */
+    const byEvaluator = (() => {
+      const map = new Map<string, { name: string; rows: typeof all }>();
+      for (const row of all) {
+        const first = evaluatorByPerson.get(row.person.id)?.first ?? null;
+        const key = first?.id ?? "__none__";
+        const name = first ? evaluatorLabel(first) : "1차 평가자 미지정";
+        const cur = map.get(key);
+        if (cur) cur.rows.push(row);
+        else map.set(key, { name, rows: [row] });
+      }
+      return [...map.values()].sort(
+        (a, b) =>
+          b.rows.filter((r) => r.todo.length > 0).length -
+            a.rows.filter((r) => r.todo.length > 0).length ||
+          a.name.localeCompare(b.name),
+      );
+    })();
+
+    return (
+      <section className={CARD_CLASS}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+          <h2 className="text-sm font-bold whitespace-nowrap text-slate-900">
+            {isAdmin ? "평가 진행 현황" : "내 평가 대상자"}
+          </h2>
+          <span className="text-xs break-keep text-slate-500">
+            {all.length}명 중 {doneCount}명 완료
+          </span>
+          <span
+            className="h-1.5 w-28 overflow-hidden rounded-full bg-slate-200"
+            aria-hidden="true"
+          >
+            <span
+              className="block h-full rounded-full bg-brand-green"
+              style={{ width: `${pct}%` }}
+            />
+          </span>
+          <span className="text-xs font-semibold tabular-nums text-slate-700">
+            {pct}%
+          </span>
+          <span className="ml-auto text-[11px] break-keep text-slate-400">
+            이름을 누르면 그 사람의 결과지로 갑니다
+          </span>
+        </div>
+        {isAdmin ? (
+          <div className="flex flex-col border-t border-slate-100">
+            {byEvaluator.map((g) => {
+              const left = g.rows.filter((r) => r.todo.length > 0).length;
+              return (
+                <details
+                  key={g.name}
+                  className="border-b border-slate-100 last:border-b-0"
+                >
+                  <summary className="flex cursor-pointer flex-wrap items-center gap-2 px-4 py-2 text-sm hover:bg-slate-50">
+                    <span className="font-medium text-slate-800">{g.name}</span>
+                    <span className="text-xs text-slate-500">
+                      {g.rows.length}명 중 {g.rows.length - left}명 완료
+                    </span>
+                    {left > 0 && (
+                      <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
+                        남은 사람 {left}명
+                      </span>
+                    )}
+                  </summary>
+                  <div className="border-t border-slate-100">
+                    {table(g.rows)}
+                  </div>
+                </details>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="border-t border-slate-100">{table(all)}</div>
+        )}
+      </section>
     );
   }
 
@@ -6459,6 +6648,42 @@ export default async function Evaluation2Page({
 
   const isDashboard = tab === "dashboard";
 
+  /*
+    **평가 진행 현황** — 누가 무엇을 아직 안 했는가.
+
+    평가 시즌에 제일 많이 묻는 말이 «누구를 독촉해야 하나»인데 그걸 볼 자리가
+    없었다. 팀장에게는 자기 평가 대상자를, 인사팀에게는 평가자별로 묶은 전체를
+    보여 준다. 대시보드에서만 읽는다 — 목록 화면마다 세면 화면이 느려진다.
+  */
+  const statusPeople = progressView
+    ? people.filter(
+        (p) =>
+          /* 모수는 다른 화면과 같다 — 조직도 기준 담당 · 팀장. 기능직·계약직이
+             평가 대상자 목록에 섞이면 «왜 이 사람이»가 된다. */
+          inEvalPopulation(p) &&
+          (isAdmin ||
+            evaluatorByPerson.get(p.id)?.first?.id === session!.user.id),
+      )
+    : [];
+  const statusForm =
+    statusPeople.length > 0
+      ? (competencyFormEarly ?? (await loadCompetencyForm(selectedYear)))
+      : null;
+  const statusRows =
+    statusPeople.length > 0
+      ? await loadEvalStatus(
+          selectedYear,
+          yearCycles.map((c) => c.id),
+          finalCycle,
+          statusPeople.map((p) => ({
+            id: p.id,
+            position: p.position,
+            teamId: p.teamId,
+          })),
+          statusForm,
+        )
+      : new Map();
+
   /**
    * 아직 만들지 않은 자리. 그냥 «준비 중»만 적어 두면 눌러 본 사람이 무엇을
    * 기다리는지 모른 채 돌아간다 — 여기에 무엇이 들어올지까지 적는다.
@@ -6861,6 +7086,7 @@ export default async function Evaluation2Page({
                 </div>
               )}
               {companyGoalBoard()}
+              {evalStatusBoard()}
             </>
           ) : (
             // key에 탭을 넣어 탭을 옮길 때마다 이 안을 새로 그린다. 안 그러면

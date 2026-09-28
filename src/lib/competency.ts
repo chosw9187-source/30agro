@@ -9,9 +9,24 @@
  * 평가하는지, 평균을 어떻게 내는지, 그리고 «이 사람에게 어느 묶음이 뜨는가».
  */
 
-/** 1~5 정수. 소수점은 받지 않는다 — 양식의 규칙이다. */
+/**
+ * **1~10 정수.** 소수점은 받지 않는다 — 양식의 규칙이다.
+ *
+ * 2026년까지는 1~5였다. 다섯 칸은 눈금이 너무 성글어서, 한 문항을 한 칸만 낮게
+ * 줘도 100점 환산에서 20점이 빠졌다(한 칸 = 20점). 열 칸으로 벌리면 한 칸이
+ * 10점이라 평가자가 «조금 아쉽다»와 «많이 아쉽다»를 나눠 적을 수 있다.
+ *
+ * 화면의 눈금 · 고르개 · 만점 · 강점/약점 문턱이 모두 이 값에서 나온다. 여기만
+ * 바꾸면 따라 움직인다.
+ */
 export const COMPETENCY_MIN = 1;
-export const COMPETENCY_MAX = 5;
+export const COMPETENCY_MAX = 10;
+
+/** 고를 수 있는 점수 — 높은 쪽부터. 고르개가 이 목록을 그대로 쓴다. */
+export const COMPETENCY_SCORES: number[] = Array.from(
+  { length: COMPETENCY_MAX - COMPETENCY_MIN + 1 },
+  (_, i) => COMPETENCY_MAX - i
+);
 
 /**
  * 묶음 하나의 문항 수 — 다섯 줄로 고정한다.
@@ -23,7 +38,10 @@ export const COMPETENCY_MAX = 5;
 export const COMPETENCY_ITEMS_PER_SET = 5;
 
 export type CompetencyScaleRow = {
+  /** 그 수준의 **가장 높은 점수**. 눈금(방사형 차트)도 이 값에 그린다. */
   score: number;
+  /** 그 수준의 **가장 낮은 점수**. 1~10에서는 한 수준이 두 칸이다(9~10 탁월). */
+  min: number;
   /** 「탁월」처럼 점수 옆에 붙는 이름. */
   label: string;
   /** 인사팀이 참고용으로 적어 둔 점수 환산 구간. 화면에서도 «참고용»으로 적는다. */
@@ -34,53 +52,68 @@ export type CompetencyScaleRow = {
 /** 평가스케일 정의. 높은 점수가 위로 오게 둔다 — 양식과 같은 순서다. */
 export const COMPETENCY_SCALE: CompetencyScaleRow[] = [
   {
-    score: 5,
+    score: 10,
+    min: 9,
     label: "탁월",
     points: "110점 이상",
     definition:
       "매우 우수해 타인을 지도하는 수준으로 관련 행동이 익숙하게 항상 나타남",
   },
   {
-    score: 4,
+    score: 8,
+    min: 7,
     label: "우수",
     points: "100 ~ 110점 미만",
     definition:
       "상당히 숙련되고 광범위하게 응용하며, 관련행동이 일관적으로 나타남",
   },
   {
-    score: 3,
+    score: 6,
+    min: 5,
     label: "보통",
     points: "90 ~ 100점 미만",
     definition: "업무에 적용해 활용하며, 관련행동이 평소에 자주 나타남",
   },
   {
-    score: 2,
+    score: 4,
+    min: 3,
     label: "미흡",
     points: "80 ~ 90점 미만",
     definition:
       "업무에 제한적으로 적용하며, 관련 행동이 나타나지만 일관적이지 않음",
   },
   {
-    score: 1,
+    score: 2,
+    min: 1,
     label: "부족",
     points: "80점 미만",
     definition: "습득 및 학습을 하는 수준으로 관련 행동이 가끔 나타남",
   },
 ];
 
-const SCALE_BY_SCORE = new Map(COMPETENCY_SCALE.map((r) => [r.score, r]));
+/** 그 점수가 속한 수준. 한 수준이 두 칸이라(9~10 탁월) 구간으로 찾는다. */
+export function competencyScaleOf(score: number): CompetencyScaleRow | null {
+  return (
+    COMPETENCY_SCALE.find((r) => score >= r.min && score <= r.score) ?? null
+  );
+}
 
-/** 「4 (우수)」. 점수만 적어 두면 그 숫자가 무슨 뜻인지 표에서 읽히지 않는다. */
+/** 「8 (우수)」. 점수만 적어 두면 그 숫자가 무슨 뜻인지 표에서 읽히지 않는다. */
 export function competencyScoreLabel(score: number): string {
-  const row = SCALE_BY_SCORE.get(score);
+  const row = competencyScaleOf(score);
   return row ? `${score} (${row.label})` : String(score);
+}
+
+/** 「9~10」. 한 수준이 한 칸뿐이면 숫자 하나만 적는다. */
+export function competencyScaleRange(row: CompetencyScaleRow): string {
+  return row.min === row.score ? String(row.score) : `${row.min}~${row.score}`;
 }
 
 /** 양식 맨 위의 ※ 안내. 화면에도 같이 둔다 — 평가하는 동안 읽어야 할 규칙이다. */
 export const COMPETENCY_NOTES = [
   "본 평가는 한국삼공 구성원의 역량을 평가하고 피드백을 제공하여 각자의 강점은 강화하고 약점은 무력화하는 것을 초점으로 합니다.",
   "각 질문을 깊게 고민한 뒤 평가 스케일에 맞는 숫자를 고르시되, 가급적 행동을 근거로 하여 평가해 주시기 바랍니다.",
-  "스케일은 정수로만 고릅니다 (소수점 불가).",
+  "스케일은 1~10 사이의 정수로만 고릅니다 (소수점 불가).",
 ] as const;
 
 /**
@@ -271,7 +304,7 @@ export function competencyAverage(rows: CompetencyScoreRow[]): {
   };
 }
 
-/** 폼에서 온 값을 1~5 정수로만 통과시킨다. 빈 값은 «아직 안 적음»이라 null이다. */
+/** 폼에서 온 값을 1~10 정수로만 통과시킨다. 빈 값은 «아직 안 적음»이라 null이다. */
 export function parseCompetencyScore(raw: unknown): number | null {
   const text = typeof raw === "string" ? raw.trim() : "";
   if (!text) return null;

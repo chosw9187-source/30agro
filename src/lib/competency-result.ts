@@ -19,11 +19,11 @@ export const PERFORMANCE_WEIGHT = 0.6;
 export const COMPETENCY_WEIGHT = 0.4;
 
 /**
- * 역량 평균(1~5)을 100점 자리로 옮긴다 — **평균 × 20**.
+ * 역량 평균(1~10)을 100점 자리로 옮긴다 — **평균 × 10**.
  *
  * 사내 결과지의 셈이 그렇다(평균 4.3 → 86점). 역량평가 스케일 표의 «점수환산
  * (참고용)»은 110점까지 올라가지만 그건 읽는 눈금이고, 결과지에 실리는 값은
- * 5점 만점을 100점으로 편 것이다.
+ * 만점(`COMPETENCY_MAX`)을 100점으로 편 것이다.
  *
  * 넘겨주는 평균은 **반올림하지 않은 값**이어야 한다(`competencyAverage`의
  * `overallExact`). 화면에 적는 평균은 소수 한 자리로 끊는데, 그 끊은 값으로
@@ -82,15 +82,22 @@ export function buildResultRow(
 }
 
 /** 강점·약점을 가르는 문턱. 결과지에 적힌 규칙 그대로다. */
-const STRENGTH_THRESHOLD = 3;
+/*
+  문턱은 **만점에서 끌어낸다.** 1~5에서 «평균 3점 초과가 강점»이던 규칙은 만점의
+  60%라는 뜻이고, 1~10에서는 6점이다. 숫자를 그대로 두면 열 칸 눈금에서 3점이
+  «보통 이상»이 되어 거의 모두가 강점으로 찍힌다.
+*/
+const STRENGTH_THRESHOLD = COMPETENCY_MAX * 0.6;
 /** 자기평가와 팀장평가가 이만큼 벌어지면 강점·약점에서 뺀다 — 양식의 «차이가 클 경우는 제외». */
-const GAP_EXCLUDE = 2;
+const GAP_EXCLUDE = COMPETENCY_MAX * 0.4;
+/** 자기가 팀장보다 이만큼 높게 봤으면 셀프 피드백을 권한다. */
+const SELF_FEEDBACK_GAP = COMPETENCY_MAX * 0.2;
 const MAX_PICKS = 3;
 
 /**
  * 주요 강점 · 약점 역량.
  *
- * 결과지에 적힌 규칙을 그대로 쓴다 — 「자기 평가와 팀장 평가의 평균이 3점 초과인
+ * 결과지에 적힌 규칙을 만점 비율로 옮겨 쓴다 — 「자기 평가와 팀장 평가의 평균이 만점의 60% 초과인
  * 경우 강점 역량으로, 미만인 경우 약점 역량으로 구분하고 있습니다. (차이가 클
  * 경우는 제외)」. 3점 초과가 열 개 다 해당될 수 있으므로 평균이 높은 순으로 셋만
  * 고른다.
@@ -148,7 +155,7 @@ export function strengthsAndWeaknesses(rows: CompetencyResultRow[]): {
  */
 export function gapNote(gap: number | null): string | null {
   if (gap == null) return null;
-  if (gap <= -1) return "셀프 피드백";
+  if (gap <= -SELF_FEEDBACK_GAP) return "셀프 피드백";
   if (gap >= GAP_EXCLUDE) return "1:1 미팅";
   return null;
 }
