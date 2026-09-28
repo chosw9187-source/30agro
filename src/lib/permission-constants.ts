@@ -154,7 +154,8 @@ export type AdminMenuKey =
   | "ORG_GOALS"
   | "EVAL_TARGETS"
   | "COMPETENCY_FORM"
-  | "GRADE_PLAN";
+  | "GRADE_PLAN"
+  | "DESIGN_PREVIEW";
 
 export const ADMIN_MENU_ITEMS: {
   key: AdminMenuKey;
@@ -182,6 +183,13 @@ export const ADMIN_MENU_ITEMS: {
   },
   { key: "COMPETENCY_FORM", href: "/admin/competency", label: "역량평가 문항" },
   { key: "GRADE_PLAN", href: "/admin/grade", label: "등급 · 정원 관리" },
+  /* 화면을 고치기 전에 「지금 / 바꾼 뒤」를 나란히 보는 자리. 그림만 있고
+     저장하는 것이 없어 맨 아래에 둔다. */
+  {
+    key: "DESIGN_PREVIEW",
+    href: "/admin/design-preview",
+    label: "디자인 미리보기",
+  },
 ];
 
 export type HomeBlock = "TEAM_SUMMARY" | "OVERALL_SUMMARY" | "QUICK_LINKS";
