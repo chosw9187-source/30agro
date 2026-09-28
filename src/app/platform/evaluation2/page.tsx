@@ -137,10 +137,8 @@ import {
   COMPETENCY_MAX,
   COMPETENCY_NOTES,
   COMPETENCY_SCALE,
-  COMPETENCY_SCORES,
   competencyScaleRange,
   competencyAverage,
-  competencyScoreLabel,
   isCompetencyTarget,
   pickCompetencySets,
   competencyExcluded,
@@ -165,6 +163,7 @@ import {
   competencyFormOpen,
   competencyFormStateLabel,
 } from "@/lib/competency-form";
+import { CompetencyItemGroup } from "./competency-items";
 import { YearPhaseSelect, ParamSelect } from "./cycle-select";
 import { ActionForm } from "@/components/action-form";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -1803,112 +1802,40 @@ export default async function Evaluation2Page({
     const canWriteLead = (isAdmin || isFirstEvaluator) && formOpen;
     const canWrite = (canWriteSelf || canWriteLead) && itemCount > 0;
 
-    const scoreSelectClass =
-      "w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm tabular-nums focus:border-brand-green focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
-
-    const scoreCell = (
-      item: CompetencyItem,
-      who: "self" | "lead",
-      value: number | null,
-      enabled: boolean,
-    ) => (
-      <td className="px-2 py-1.5 align-middle">
-        <select
-          /*
-            저장한 뒤 서버가 준 새 점수가 칸에 그대로 보여야 한다. `defaultValue`는
-            처음 그려질 때만 먹으므로, 저장 → 갱신 후에도 React가 같은 select를
-            재사용하면서 칸이 «–»로 비어 보였다(평균만 바뀌어서 저장이 안 된 것처럼
-            읽혔다). 값을 열쇠에 넣어 두면 값이 달라질 때만 칸을 다시 그린다.
-          */
-          key={`${who}:${item.key}:${value ?? ""}`}
-          name={`${who}:${item.key}`}
-          defaultValue={value == null ? "" : String(value)}
-          disabled={!enabled}
-          aria-label={`${item.area} ${who === "self" ? "자기평가" : "팀장평가"}`}
-          className={scoreSelectClass}
-        >
-          <option value="">–</option>
-          {/* 고르개는 열 칸을 다 펼친다 — 수준(다섯)이 아니라 점수를 고른다. */}
-          {COMPETENCY_SCORES.map((score) => (
-            <option key={score} value={score}>
-              {competencyScoreLabel(score)}
-            </option>
-          ))}
-        </select>
-      </td>
-    );
-
-    const itemTable = (
-      heading: string,
+    /**
+     * 묶음 한 덩어리. 문항 칸은 client 부품이 그린다 — 누르는 대로 「자기 3/5」가
+     * 따라 움직이고 고른 값의 뜻이 바로 떠야 하는데, 그건 서버가 못 하는 일이다.
+     * 저장은 그대로 바깥 폼이 한 번에 한다.
+     */
+    const itemGroup = (
+      no: number,
+      badge: string,
+      subtitle: string,
+      tone: "core" | "job",
       items: CompetencyItem[],
-      emptyNote?: string,
+      emptyNote: string,
     ) => (
-      <section className={CARD_CLASS}>
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2">
-          <h2 className="text-sm font-bold text-slate-900">{heading}</h2>
-          <span className="text-xs text-slate-500">{items.length}문항</span>
-        </div>
-        {items.length === 0 ? (
-          <p className="border-t border-slate-100 px-4 py-6 text-center text-sm break-keep text-slate-500">
-            {emptyNote}
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            {/* 네 칸(영역·질문·자기평가·팀장평가)이 들어가야 표로 읽힌다. 좁은
-                화면에서는 이 상자만 옆으로 굴린다 — 본문이 흔들리지 않게. */}
-            <table className="w-full min-w-[620px] text-sm">
-              <thead className="bg-slate-100 text-slate-600">
-                <tr>
-                  <th className="w-36 px-3 py-1 text-left text-xs font-semibold">
-                    영역
-                  </th>
-                  <th className="px-3 py-1 text-left text-xs font-semibold">
-                    질문
-                  </th>
-                  <th className="w-28 px-2 py-1 text-left text-xs font-semibold">
-                    자기평가
-                  </th>
-                  <th className="w-28 px-2 py-1 text-left text-xs font-semibold">
-                    팀장평가
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item, i) => {
-                  const row = saved.get(item.key);
-                  return (
-                    <tr
-                      key={item.key}
-                      className={`border-t border-slate-100 align-middle ${
-                        i % 2 === 1 ? "bg-slate-50/70" : ""
-                      }`}
-                    >
-                      <td className="px-3 py-1.5 text-xs font-medium break-keep text-slate-800">
-                        {item.area}
-                      </td>
-                      <td className="px-3 py-1.5 text-xs leading-relaxed break-keep text-slate-600">
-                        {item.question}
-                      </td>
-                      {scoreCell(
-                        item,
-                        "self",
-                        row?.selfScore ?? null,
-                        canWriteSelf,
-                      )}
-                      {scoreCell(
-                        item,
-                        "lead",
-                        row?.leadScore ?? null,
-                        canWriteLead,
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      <CompetencyItemGroup
+        /*
+          사람을 바꿔 고르면 부품을 새로 그린다 — 열쇠에 사람을 넣지 않으면 앞
+          사람의 점수가 칸에 그대로 남는다(부품이 값을 들고 있으므로).
+        */
+        key={`${target.id}:${badge}`}
+        no={no}
+        badge={badge}
+        subtitle={subtitle}
+        tone={tone}
+        canSelf={canWriteSelf}
+        canLead={canWriteLead}
+        emptyNote={emptyNote}
+        rows={items.map((item) => ({
+          key: item.key,
+          area: item.area,
+          question: item.question,
+          self: saved.get(item.key)?.selfScore ?? null,
+          lead: saved.get(item.key)?.leadScore ?? null,
+        }))}
+      />
     );
 
     return (
@@ -2042,10 +1969,15 @@ export default async function Evaluation2Page({
           <input type="hidden" name="year" value={selectedYear} />
           <input type="hidden" name="userId" value={target.id} />
 
-          {itemTable(
-            picked.core
-              ? `1. 핵심가치 · ${picked.core.kind === "CORE_LEADER" ? "팀장용" : "팀원용"}`
-              : "1. 핵심가치",
+          {itemGroup(
+            1,
+            "핵심가치",
+            `${
+              (picked.core ? picked.core.kind === "CORE_LEADER" : target.position === "TEAM_LEADER")
+                ? "팀장용"
+                : "팀원용"
+            } · 전사 공통`,
+            "core",
             form.core,
             `${target.position === "TEAM_LEADER" ? "팀장용" : "팀원용"} 핵심가치 문항이 아직 등록되지 않았습니다.`,
           )}
@@ -2053,14 +1985,21 @@ export default async function Evaluation2Page({
             둘째 묶음은 직책에 따라 다른 것이 온다 — 담당은 직무역량(직무마다
             다름), 팀장은 리더십역량(전사 한 벌). 표제에 그 이름을 그대로 쓴다.
           */}
-          {itemTable(
+          {itemGroup(
+            2,
             picked.job
               ? picked.job.kind === "LEADERSHIP"
-                ? "2. 리더십역량"
-                : `2. 직무역량 · ${picked.job.name}`
+                ? "리더십역량"
+                : "직무역량"
               : target.position === "TEAM_LEADER"
-                ? "2. 리더십역량"
-                : "2. 직무역량",
+                ? "리더십역량"
+                : "직무역량",
+            picked.job
+              ? picked.job.kind === "LEADERSHIP"
+                ? "전사 공통 · 팀장만"
+                : `${picked.job.name} · 직무마다 다름`
+              : "직무 미배정",
+            "job",
             form.job,
             target.position === "TEAM_LEADER"
               ? "리더십역량 문항이 아직 등록되지 않았습니다 — 관리 → 「역량평가 문항」에서 채워 주세요."
