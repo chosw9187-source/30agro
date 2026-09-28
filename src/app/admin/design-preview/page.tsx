@@ -109,24 +109,34 @@ function FakeMenu({
   flat?: boolean;
 }) {
   return (
-    <div className="rounded-lg bg-brand-green-dark px-2 py-2 text-white">
-      {items.map((g, i) => (
-        <div key={i} className="mb-1 last:mb-0">
-          {!flat && g.group && (
-            <p className="px-2 py-1 text-[10px] font-bold tracking-wide text-white/60">
-              {g.group}
-            </p>
-          )}
-          {g.rows.map((r) => (
-            <p
-              key={r}
-              className="rounded px-2 py-[3px] text-[11px] text-white/90"
-            >
-              {r}
-            </p>
-          ))}
-        </div>
-      ))}
+    <div className="rounded-lg bg-brand-green px-2 py-2 text-white">
+      <div className="ml-1 border-l border-white/20 pl-2">
+        {items.map((g, i) => (
+          <div key={i} className={i === 0 ? "" : "mt-2"}>
+            {/*
+              묶음 이름은 **누를 수 없는 머리**다. 메뉴 줄과 같은 흰 글씨로 두면
+              한 줄로 읽혀 묶음이 아무 일도 하지 않는다 — 브랜드의 노란빛 작은
+              글씨에 가느다란 선을 붙여 눈으로 갈라 준다.
+            */}
+            {!flat && g.group && (
+              <div className="mb-1 flex items-center gap-2 px-1">
+                <span className="text-[10px] font-bold tracking-wider whitespace-nowrap text-amber-200">
+                  {g.group}
+                </span>
+                <span className="h-px flex-1 bg-white/20" />
+              </div>
+            )}
+            {g.rows.map((r) => (
+              <p
+                key={r}
+                className="rounded px-2 py-[3px] text-[11px] text-white/90"
+              >
+                {r}
+              </p>
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -307,7 +317,7 @@ export default function DesignPreviewPage() {
         id="d3"
         title="관리 메뉴를 네 묶음으로"
         why="열세 개가 평평하게 놓여 있어, 인사팀이 아닌 사람은 어디로 가야 할지 찾지 못합니다."
-        effort="반나절 (메뉴 목록에 묶음 이름만 추가)"
+        effort="적용 완료 — 왼쪽 메뉴에서 바로 보입니다"
         scope="왼쪽 「관리」 메뉴"
         now={
           <FakeMenu

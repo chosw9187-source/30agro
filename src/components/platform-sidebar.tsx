@@ -7,6 +7,8 @@ import {
   POSITION_LABEL,
   SIDEBAR_MODULES,
   ADMIN_MENU_ITEMS,
+  ADMIN_MENU_GROUPS,
+  type AdminMenuGroup,
   type Module,
   type Position,
   type AdminMenuKey,
@@ -21,6 +23,8 @@ type NavItem = {
   badgeCount?: number;
   module?: Module;
   hidden?: boolean;
+  /** 관리 메뉴의 묶음 — 「조직」·「평가 설계」·「평가 운영」·「시스템」. */
+  group?: AdminMenuGroup;
 };
 
 type Section = {
@@ -55,7 +59,12 @@ function mainItems(
   notificationCount: number,
   moduleUiConfig: Record<
     string,
-    { order: number; comingSoon: boolean; hidden: boolean; label?: string | null }
+    {
+      order: number;
+      comingSoon: boolean;
+      hidden: boolean;
+      label?: string | null;
+    }
   >,
 ): NavItem[] {
   const orderedModules = [...SIDEBAR_MODULES].sort(
@@ -94,12 +103,19 @@ function manageItems(
   if (role !== "ADMIN") {
     return [];
   }
-  return ADMIN_MENU_ITEMS.filter(
+  /*
+    묶음 순서대로 늘어놓는다 — 목록에 적힌 차례가 아니라 「조직 → 평가 설계 →
+    평가 운영 → 시스템」이다. 화면에서 묶음 이름을 붙여 주는 쪽이 이 순서를
+    믿고 그린다.
+  */
+  const shown = ADMIN_MENU_ITEMS.filter(
     (item) => !hiddenAdminMenuKeys.has(item.key),
-  ).map((item) => ({
-    href: item.href,
-    label: item.label,
-  }));
+  );
+  return ADMIN_MENU_GROUPS.flatMap((group) =>
+    shown
+      .filter((item) => item.group === group)
+      .map((item) => ({ href: item.href, label: item.label, group })),
+  );
 }
 
 const supportItems: NavItem[] = [
@@ -177,7 +193,12 @@ export function PlatformSidebar({
   visibleModules: Module[];
   moduleUiConfig: Record<
     string,
-    { order: number; comingSoon: boolean; hidden: boolean; label?: string | null }
+    {
+      order: number;
+      comingSoon: boolean;
+      hidden: boolean;
+      label?: string | null;
+    }
   >;
   hiddenAdminMenuKeys?: AdminMenuKey[];
 }) {
@@ -284,13 +305,32 @@ export function PlatformSidebar({
               </button>
               {open && (
                 <div className="ml-2 flex flex-col gap-1 border-l border-white/20 pl-2">
-                  {section.items.map((item) => (
-                    <NavLink
-                      key={item.href}
-                      item={item}
-                      active={isActive(item.href)}
-                    />
-                  ))}
+                  {section.items.map((item, i) => {
+                    /*
+                      묶음이 바뀌는 자리에 이름을 세운다 — 앞 줄과 같은 흰 글씨로
+                      두면 메뉴 한 줄로 읽혀서 묶음이 아무 일도 하지 않는다.
+                      브랜드의 노란빛 작은 글씨 + 가느다란 선으로, 누를 수 없는
+                      «머리»임을 눈으로 갈라 준다.
+                    */
+                    const newGroup =
+                      !!item.group &&
+                      item.group !== section.items[i - 1]?.group;
+                    return (
+                      <div key={item.href} className="flex flex-col gap-1">
+                        {newGroup && (
+                          <div
+                            className={`flex items-center gap-2 px-1 ${i === 0 ? "" : "mt-2"}`}
+                          >
+                            <span className="text-[10px] font-bold tracking-wider whitespace-nowrap text-amber-200">
+                              {item.group}
+                            </span>
+                            <span className="h-px flex-1 bg-white/20" />
+                          </div>
+                        )}
+                        <NavLink item={item} active={isActive(item.href)} />
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

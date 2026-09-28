@@ -157,38 +157,107 @@ export type AdminMenuKey =
   | "GRADE_PLAN"
   | "DESIGN_PREVIEW";
 
+/**
+ * 관리 메뉴의 묶음 — 열세 개가 평평하게 놓여 있으면 인사팀이 아닌 사람은 어디로
+ * 가야 할지 찾지 못한다. 하는 일로 넷으로 나눈다.
+ *
+ *   조직      — 사람과 팀을 손보는 자리
+ *   평가 설계 — 시즌 전에 «무엇으로 평가할지»를 정하는 자리
+ *   평가 운영 — 시즌 중에 굴리는 자리
+ *   시스템    — 권한 · 화면 · 기록
+ */
+export const ADMIN_MENU_GROUPS = [
+  "조직",
+  "평가 설계",
+  "평가 운영",
+  "시스템",
+] as const;
+export type AdminMenuGroup = (typeof ADMIN_MENU_GROUPS)[number];
+
 export const ADMIN_MENU_ITEMS: {
   key: AdminMenuKey;
   href: string;
   label: string;
+  group: AdminMenuGroup;
 }[] = [
-  { key: "USERS", href: "/admin/users", label: "사용자 관리" },
-  { key: "TEAMS", href: "/admin/teams", label: "팀 관리" },
-  { key: "DATA_UPLOAD", href: "/platform/data-upload", label: "데이터 업로드" },
-  { key: "TEMPLATES", href: "/admin/templates", label: "평가 템플릿" },
-  { key: "CYCLES", href: "/admin/cycles", label: "평가 사이클" },
-  { key: "REPORTS", href: "/admin/reports", label: "결과 다운로드" },
+  { key: "USERS", href: "/admin/users", label: "사용자 관리", group: "조직" },
+  { key: "TEAMS", href: "/admin/teams", label: "팀 관리", group: "조직" },
   {
-    key: "PERMISSION_MATRIX",
-    href: "/admin/permission-matrix",
-    label: "권한 매트릭스",
+    key: "DATA_UPLOAD",
+    href: "/platform/data-upload",
+    label: "데이터 업로드",
+    group: "조직",
   },
-  { key: "SCREEN_CONFIG", href: "/admin/screen-config", label: "화면 구성" },
-  { key: "TRAFFIC", href: "/admin/traffic", label: "일일 트래픽" },
-  { key: "ORG_GOALS", href: "/admin/org-goals", label: "조직 목표 관리" },
+
+  {
+    key: "ORG_GOALS",
+    href: "/admin/org-goals",
+    label: "조직 목표 관리",
+    group: "평가 설계",
+  },
+  {
+    key: "COMPETENCY_FORM",
+    href: "/admin/competency",
+    label: "역량평가 문항",
+    group: "평가 설계",
+  },
+  {
+    key: "GRADE_PLAN",
+    href: "/admin/grade",
+    label: "등급 · 정원 관리",
+    group: "평가 설계",
+  },
+
   {
     key: "EVAL_TARGETS",
     href: "/admin/eval-targets",
     label: "평가대상자 관리",
+    group: "평가 운영",
   },
-  { key: "COMPETENCY_FORM", href: "/admin/competency", label: "역량평가 문항" },
-  { key: "GRADE_PLAN", href: "/admin/grade", label: "등급 · 정원 관리" },
+  {
+    key: "REPORTS",
+    href: "/admin/reports",
+    label: "결과 다운로드",
+    group: "평가 운영",
+  },
+  {
+    key: "CYCLES",
+    href: "/admin/cycles",
+    label: "평가 사이클",
+    group: "평가 운영",
+  },
+
+  {
+    key: "PERMISSION_MATRIX",
+    href: "/admin/permission-matrix",
+    label: "권한 매트릭스",
+    group: "시스템",
+  },
+  {
+    key: "SCREEN_CONFIG",
+    href: "/admin/screen-config",
+    label: "화면 구성",
+    group: "시스템",
+  },
+  {
+    key: "TRAFFIC",
+    href: "/admin/traffic",
+    label: "일일 트래픽",
+    group: "시스템",
+  },
+  {
+    key: "TEMPLATES",
+    href: "/admin/templates",
+    label: "평가 템플릿",
+    group: "시스템",
+  },
   /* 화면을 고치기 전에 「지금 / 바꾼 뒤」를 나란히 보는 자리. 그림만 있고
      저장하는 것이 없어 맨 아래에 둔다. */
   {
     key: "DESIGN_PREVIEW",
     href: "/admin/design-preview",
     label: "디자인 미리보기",
+    group: "시스템",
   },
 ];
 
