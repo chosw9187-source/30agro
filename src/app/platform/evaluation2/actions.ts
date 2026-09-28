@@ -49,8 +49,8 @@ import {
   type GoalLevel,
   type GoalStatus,
 } from "@/lib/goals";
-import { buildEvaluatorMap } from "@/lib/evaluator";
-import { activePrismaWhere } from "@/lib/hr-analytics";
+import { buildEvaluatorMap, buildUnitHeadMap } from "@/lib/evaluator";
+import { activePrismaWhere, isEvalPopulation } from "@/lib/hr-analytics";
 import {
   competencyItemKeys,
   isCompetencyTarget,
@@ -59,6 +59,13 @@ import {
   competencyExcluded,
 } from "@/lib/competency";
 import { loadCompetencyForm, competencyFormOpen } from "@/lib/competency-form";
+import {
+  loadFixedGrades,
+  loadQuotaTable,
+  loadUnitPlans,
+  loadUnitScores,
+  resolveUnitGrades,
+} from "@/lib/final-grade-data";
 
 const ALL_ROLES = ["ADMIN", "EVALUATOR", "EMPLOYEE"] as const;
 const PATH = "/platform/evaluation2";
@@ -1258,7 +1265,109 @@ export async function releaseYearResults(year: number) {
     create: { year, releasedAt: new Date(), releasedById: session.user.id },
     update: { releasedAt: new Date(), releasedById: session.user.id },
   });
+  /* 배포와 함께 그 해 등급을 인사 이력에 적어 둔다 — 직원카드와 «최근 5년»이
+     이 표를 읽는다. */
+  await writeYearHistory(year);
   revalidatePath(PATH);
+  revalidatePath("/platform/employees");
+}
+
+/**
+ * 배포한 해의 결과를 **인사 이력에 적재한다**(`PerformanceHistory`).
+ *
+ * 직원카드의 「인사평가 이력」과 평가자 화면의 «최근 5년»이 이 표를 읽는다. 배포
+ * 시점에 한 번 적어 두면, 해가 바뀌어 평가2의 사이클이 닫혀도 지난 등급이 남는다.
+ *
+ * 등급이 아직 없는 사람(점수 미입력·정원 미지정)은 적지 않는다 — 빈 등급 줄이
+ * 이력에 남으면 «그 해에는 D였나»로 읽힌다.
+ */
+async function writeYearHistory(year: number) {
+  const [people, teams, cycles, plans, quota] = await Promise.all([
+    prisma.user.findMany({
+      where: activePrismaWhere(),
+      select: {
+        id: true,
+        name: true,
+        position: true,
+        teamId: true,
+        employmentType: true,
+        hiddenFromDirectory: true,
+        division: true,
+        businessUnit: true,
+        team: { select: { name: true } },
+      },
+    }),
+    prisma.team.findMany({
+      select: {
+        id: true,
+        name: true,
+        division: true,
+        businessUnit: true,
+        leaderId: true,
+      },
+    }),
+    prisma.goalCycle.findMany({
+      orderBy: GOAL_CYCLE_ORDER,
+      select: { id: true, name: true, year: true },
+    }),
+    loadUnitPlans(year),
+    loadQuotaTable(year),
+  ]);
+
+  const yearCycles = cycles.filter((c) => cycleYear(c) === year);
+  const finalCycle =
+    yearCycles.find((c) => cyclePhaseRank(c) === 3) ??
+    yearCycles[yearCycles.length - 1] ??
+    null;
+  const rank = (id: string) => {
+    const c = cycles.find((x) => x.id === id);
+    return c ? cyclePhaseRank(c) : 9;
+  };
+
+  const targets = people.filter(
+    (p) => isEvalPopulation(p) && isCompetencyTarget(p.position),
+  );
+  const ids = targets.map((p) => p.id);
+  if (ids.length === 0) return;
+
+  const [scores, fixed] = await Promise.all([
+    loadUnitScores(year, ids, yearCycles, finalCycle, rank),
+    loadFixedGrades(year, ids),
+  ]);
+
+  // 등급은 라인 안에서 매겨진다 — 라인별로 나눠 계산한 뒤 합친다.
+  const unitHead = buildUnitHeadMap(people, teams);
+  const byUnit = new Map<string, typeof targets>();
+  for (const p of targets) {
+    const key = unitHead.get(p.id)?.id ?? "__none__";
+    byUnit.set(key, [...(byUnit.get(key) ?? []), p]);
+  }
+
+  for (const [key, members] of byUnit) {
+    const orgGrade = plans.get(key) ?? null;
+    const ratios = orgGrade ? (quota.get(orgGrade) ?? null) : null;
+    const grades = resolveUnitGrades(
+      members.map((p) => ({
+        userId: p.id,
+        total: scores.get(p.id)?.total ?? null,
+      })),
+      ratios,
+      fixed,
+    );
+    for (const p of members) {
+      const gr = grades.get(p.id);
+      const sc = scores.get(p.id);
+      if (!gr || sc?.total == null) continue;
+      const note = `성과 ${sc.performance ?? "-"} · 역량 ${sc.competency ?? "-"}${
+        sc.bonus ? ` · 가산점 ${sc.bonus > 0 ? "+" : ""}${sc.bonus}` : ""
+      }`;
+      await prisma.performanceHistory.upsert({
+        where: { userId_year: { userId: p.id, year } },
+        create: { userId: p.id, year, grade: gr.grade, score: sc.total, note },
+        update: { grade: gr.grade, score: sc.total, note },
+      });
+    }
+  }
 }
 
 /** 배포를 되돌린다 — 다시 인사팀만 등급을 본다. **관리자만.** */
@@ -1278,7 +1387,10 @@ export async function unreleaseYearResults(year: number) {
       closedById: null,
     },
   });
+  /* 배포를 되돌리면 이력도 거둔다 — 이력에는 «배포된 등급»만 남는다. */
+  await prisma.performanceHistory.deleteMany({ where: { year } });
   revalidatePath(PATH);
+  revalidatePath("/platform/employees");
 }
 
 /**
@@ -1302,6 +1414,90 @@ export async function closeYearCycle(year: number) {
   await prisma.evalYearRelease.update({
     where: { year },
     data: { closedAt: new Date(), closedById: session.user.id },
+  });
+  revalidatePath(PATH);
+}
+
+/**
+ * **이의신청** — 배포된 결과를 다시 봐 달라고 본인이 적는다.
+ *
+ * 배포 전에는 받지 않는다. 등급이 아직 공개되지 않았는데 이의가 들어오면 무엇에
+ * 대한 이의인지 서로 다른 것을 보고 이야기하게 된다.
+ *
+ * 한 해에 한 건이고(같은 줄을 고친다), 인사팀이 답한 뒤에는 본인이 고칠 수 없다 —
+ * 답변이 달린 뒤 사유가 바뀌면 그 답변이 무엇에 대한 것인지 사라진다.
+ */
+export async function submitEvalAppeal(formData: FormData) {
+  const session = await requireGoalModule();
+  const year = parseNumber(formData.get("year"), 0);
+  const reason = str(formData.get("reason"));
+  if (!reason) return { error: "사유를 적어 주세요." };
+
+  const release = await prisma.evalYearRelease.findUnique({
+    where: { year },
+    select: { releasedAt: true },
+  });
+  if (!release?.releasedAt) {
+    return { error: "아직 결과가 배포되지 않았습니다." };
+  }
+
+  const mine = await prisma.evalAppeal.findUnique({
+    where: { year_userId: { year, userId: session.user.id } },
+    select: { status: true },
+  });
+  if (mine?.status === "ANSWERED") {
+    return {
+      error:
+        "이미 답변이 달린 이의신청입니다 — 추가로 하실 말씀은 인사팀에 직접 전해 주세요.",
+    };
+  }
+
+  await prisma.evalAppeal.upsert({
+    where: { year_userId: { year, userId: session.user.id } },
+    create: { year, userId: session.user.id, reason },
+    update: { reason, status: "OPEN" },
+  });
+  revalidatePath(PATH);
+  return { message: "이의신청을 접수했습니다. 인사팀이 확인합니다." };
+}
+
+/** 이의신청에 답한다. **관리자만.** */
+export async function answerEvalAppeal(formData: FormData) {
+  const session = await requireGoalModule();
+  if (!(await isAdmin()))
+    throw new Error("이의신청 답변은 관리자만 할 수 있습니다.");
+
+  const id = str(formData.get("appealId"));
+  const answer = str(formData.get("answer"));
+  if (!id) return;
+  if (!answer) return { error: "답변을 적어 주세요." };
+
+  await prisma.evalAppeal.update({
+    where: { id },
+    data: {
+      answer,
+      status: "ANSWERED",
+      answeredById: session.user.id,
+      answeredAt: new Date(),
+    },
+  });
+  revalidatePath(PATH);
+  return { message: "답변을 남겼습니다." };
+}
+
+/** 답변을 거두고 다시 «접수»로 — 잘못 적었을 때. **관리자만.** */
+export async function reopenEvalAppeal(appealId: string) {
+  await requireGoalModule();
+  if (!(await isAdmin()))
+    throw new Error("이의신청은 관리자만 되돌릴 수 있습니다.");
+  await prisma.evalAppeal.update({
+    where: { id: appealId },
+    data: {
+      status: "OPEN",
+      answer: null,
+      answeredAt: null,
+      answeredById: null,
+    },
   });
   revalidatePath(PATH);
 }

@@ -8,6 +8,7 @@ import { NoModuleAccess } from "@/components/no-module-access";
 import { SearchableSelect } from "@/components/searchable-select";
 import { activePrismaWhere, isEvalPopulation } from "@/lib/hr-analytics";
 import { evalTodo, loadEvalStatus } from "@/lib/eval-status";
+import { EvalVenn } from "@/components/eval-venn";
 import { POSITION_LABEL } from "@/lib/permission-constants";
 import {
   buildDivisionLineMap,
@@ -94,7 +95,9 @@ import {
   closeYearCycle,
   lockCompetencyForm,
   lockGoalSetting,
+  answerEvalAppeal,
   releaseYearResults,
+  reopenEvalAppeal,
   reopenGoalAgreement,
   reopenYearCycle,
   requestGoalAgreement,
@@ -107,6 +110,7 @@ import {
   setGoalEvalDone,
   setGradeBonus,
   setGoalExcluded,
+  submitEvalAppeal,
   updateGoal,
   saveCompetencyScores,
 } from "./actions";
@@ -1449,6 +1453,42 @@ export default async function Evaluation2Page({
     select: { releasedAt: true, closedAt: true },
   });
   const resultsReleased = !!yearRelease?.releasedAt;
+  /*
+    이의신청 — 본인 결과지에서는 «내 것 한 줄», HR REPORT에서는 «그 해 전부»를
+    읽는다. 배포 전에는 아예 받지 않으므로 그때는 읽지도 않는다.
+  */
+  const myAppeal =
+    resultView && resultsReleased
+      ? await prisma.evalAppeal.findUnique({
+          where: {
+            year_userId: { year: selectedYear, userId: session!.user.id },
+          },
+          select: {
+            id: true,
+            reason: true,
+            status: true,
+            answer: true,
+            answeredAt: true,
+            createdAt: true,
+          },
+        })
+      : null;
+  const appeals =
+    reportView && isAdmin
+      ? await prisma.evalAppeal.findMany({
+          where: { year: selectedYear },
+          orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+          select: {
+            id: true,
+            userId: true,
+            reason: true,
+            status: true,
+            answer: true,
+            answeredAt: true,
+            createdAt: true,
+          },
+        })
+      : [];
   const yearClosed = !!yearRelease?.closedAt;
   /** 등급을 볼 수 있는가 — 인사팀은 늘, 나머지는 배포 뒤에만. */
   const canSeeGrade = isAdmin || resultsReleased;
@@ -2985,6 +3025,81 @@ export default async function Evaluation2Page({
             당신에게 감사드리며, 한 해 동안 고생하셨습니다.
           </p>
         </section>
+
+        {/*
+          5. 이의신청 — **배포된 뒤, 본인 결과지에서만** 뜬다.
+
+          등급은 보상으로 이어지므로 «아니라고 말할 길»이 절차로 있어야 한다. 말로
+          오가면 누가 언제 무엇을 물었고 무엇이라 답했는지가 남지 않는다. 한 해에
+          한 건이고, 인사팀이 답을 달면 그 줄에 나란히 실린다.
+        */}
+        {resultsReleased && target.id === session!.user.id && (
+          <section className={CARD_CLASS}>
+            {sectionHead(
+              "5. 이의신청",
+              myAppeal
+                ? myAppeal.status === "ANSWERED"
+                  ? "인사팀 답변이 달렸습니다"
+                  : "접수되었습니다 — 인사팀이 확인하고 있습니다"
+                : "결과에 다시 봐 주셨으면 하는 점이 있으면 적어 주세요",
+            )}
+            <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3">
+              {myAppeal && (
+                <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <p className="text-[11px] text-slate-400">
+                    {myAppeal.createdAt.toLocaleDateString("ko-KR")} 접수
+                  </p>
+                  <p className="text-sm leading-relaxed break-keep whitespace-pre-wrap text-slate-700">
+                    {myAppeal.reason}
+                  </p>
+                  {myAppeal.status === "ANSWERED" && (
+                    <div className="border-t border-slate-200 pt-2">
+                      <p className="text-[11px] font-medium text-goal-4">
+                        인사팀 답변
+                        {myAppeal.answeredAt &&
+                          ` · ${myAppeal.answeredAt.toLocaleDateString("ko-KR")}`}
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed break-keep whitespace-pre-wrap text-slate-700">
+                        {myAppeal.answer}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {myAppeal?.status === "ANSWERED" ? (
+                <p className="text-xs break-keep text-slate-500">
+                  답변이 달린 이의신청은 화면에서 고칠 수 없습니다 — 더 하실
+                  말씀은 인사팀에 직접 전해 주세요.
+                </p>
+              ) : (
+                <ActionForm
+                  action={submitEvalAppeal}
+                  successMessage="이의신청을 접수했습니다."
+                  className="flex flex-col gap-2"
+                >
+                  <input type="hidden" name="year" value={selectedYear} />
+                  <textarea
+                    name="reason"
+                    rows={3}
+                    required
+                    defaultValue={myAppeal?.reason ?? ""}
+                    placeholder="예: 하반기 3번 목표의 달성률이 실제와 다릅니다 — 8월에 완료한 건이 반영되지 않은 것 같습니다."
+                    className={INPUT_CLASS}
+                  />
+                  <span className="flex flex-wrap items-center gap-3">
+                    <button type="submit" className={PRIMARY_BUTTON_CLASS}>
+                      {myAppeal ? "이의신청 고치기" : "이의신청 보내기"}
+                    </button>
+                    <span className="text-[11px] break-keep text-slate-400">
+                      점수 · 등급이 어떻게 나왔는지는 위의 「등급 근거」와
+                      「성과평가 상세」에 적혀 있습니다.
+                    </span>
+                  </span>
+                </ActionForm>
+              )}
+            </div>
+          </section>
+        )}
       </div>
     );
   }
@@ -3589,6 +3704,114 @@ export default async function Evaluation2Page({
           </div>
         </section>
 
+        {/*
+          이의신청 — 인사팀이 답하는 자리. 「평가 점수 관리」 섹터 맨 위에 둔다:
+          점수를 고치러 온 자리에서 «왜 고치는가»가 바로 위에 있어야 한다.
+          한 건도 없으면 띄우지 않는다.
+        */}
+        {rtab === "scores" && appeals.length > 0 && (
+          <section className={CARD_CLASS}>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+              <h2 className="text-sm font-bold whitespace-nowrap text-slate-900">
+                이의신청
+              </h2>
+              <span className="text-xs text-slate-500">
+                {appeals.length}건 · 답변 대기{" "}
+                {appeals.filter((a) => a.status !== "ANSWERED").length}건
+              </span>
+            </div>
+            <div className="flex flex-col border-t border-slate-100">
+              {appeals.map((a) => {
+                const who = people.find((p) => p.id === a.userId);
+                const answered = a.status === "ANSWERED";
+                return (
+                  <details
+                    key={a.id}
+                    open={!answered}
+                    className="border-b border-slate-100 last:border-b-0"
+                  >
+                    <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 hover:bg-slate-50">
+                      <span className="text-sm font-medium whitespace-nowrap text-slate-800">
+                        {who
+                          ? `${who.name} ${POSITION_LABEL[who.position]}`
+                          : a.userId}
+                      </span>
+                      <span className="text-xs whitespace-nowrap text-slate-500">
+                        {who?.team?.name ?? "-"}
+                      </span>
+                      <span
+                        className={`rounded-md px-1.5 py-0.5 text-[11px] font-medium ${
+                          answered
+                            ? "bg-goal-4/10 text-goal-4"
+                            : "bg-amber-100 text-amber-800"
+                        }`}
+                      >
+                        {answered ? "답변 완료" : "답변 대기"}
+                      </span>
+                      <span className="text-[11px] text-slate-400">
+                        {a.createdAt.toLocaleDateString("ko-KR")} 접수
+                      </span>
+                      <Link
+                        href={`/platform/evaluation2?year=${selectedYear}&phase=${RESULT_PHASE}&who=${a.userId}`}
+                        className="ml-auto text-xs text-brand-green-dark underline"
+                      >
+                        결과지 보기
+                      </Link>
+                    </summary>
+                    <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/60 px-4 py-3">
+                      <p className="text-sm leading-relaxed break-keep whitespace-pre-wrap text-slate-700">
+                        {a.reason}
+                      </p>
+                      <ActionForm
+                        action={answerEvalAppeal}
+                        successMessage="답변을 남겼습니다."
+                        className="flex flex-col gap-2"
+                      >
+                        <input type="hidden" name="appealId" value={a.id} />
+                        <textarea
+                          name="answer"
+                          rows={2}
+                          required
+                          defaultValue={a.answer ?? ""}
+                          placeholder="확인한 내용과 처리 결과를 적어 주세요 — 신청한 사람의 결과지에 그대로 실립니다."
+                          className={INPUT_CLASS}
+                        />
+                        <span className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="submit"
+                            className={PRIMARY_BUTTON_CLASS}
+                          >
+                            {answered ? "답변 고치기" : "답변 보내기"}
+                          </button>
+                          {answered && (
+                            <span className="text-[11px] text-slate-400">
+                              {a.answeredAt?.toLocaleDateString("ko-KR")} 답변
+                            </span>
+                          )}
+                        </span>
+                      </ActionForm>
+                      {answered && (
+                        <ActionForm
+                          action={reopenEvalAppeal.bind(null, a.id)}
+                          successMessage="다시 «답변 대기»로 되돌렸습니다."
+                          confirmMessage="답변을 거두고 다시 접수 상태로 돌릴까요? 신청한 사람 화면에서 답변이 사라집니다."
+                        >
+                          <button
+                            type="submit"
+                            className="text-xs text-slate-500 underline hover:text-slate-700"
+                          >
+                            답변 거두기
+                          </button>
+                        </ActionForm>
+                      )}
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {shown.length === 0 ? (
           <p className={`${CARD_CLASS} p-8 text-center text-sm text-slate-500`}>
             {selectedYear}년 평가 대상자가 없습니다 — 「평가대상자 관리」에서
@@ -3910,82 +4133,164 @@ export default async function Evaluation2Page({
     const doneCount = all.filter((r) => r.todo.length === 0).length;
     const pct = all.length > 0 ? Math.round((doneCount / all.length) * 100) : 0;
 
-    const table = (list: typeof all) => (
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[46rem] border-collapse text-sm">
+    /*
+      벤 다이어그램에 넣을 세 갈래 — **누구의 무슨 일인가**로 가른다.
+
+        본인 몫   : 목표 자기평가 + 역량 자기평가
+        목표 평가 : 1차 평가자의 점수 + 「평가완료」 확정
+        역량 평가 : 1차 평가자의 역량 점수
+
+      세 갈래를 다 끝낸 사람이 곧 위의 「N명 완료」다 — 가운데 숫자와 머리글의
+      숫자가 다르면 어느 쪽이 맞는지 아무도 모른다. 일감 자체가 없는 사람은
+      (목표 미등록) 셋 다 거짓이라 원 밖에 선다.
+    */
+    const vennRows = all.map(({ st }) => ({
+      a:
+        !!st &&
+        st.goals > 0 &&
+        st.selfScored >= st.goals &&
+        (st.compItems === 0 || st.compSelf >= st.compItems),
+      b:
+        !!st &&
+        st.goals > 0 &&
+        st.firstScored >= st.goals &&
+        st.evalDone >= st.goals,
+      c: !!st && st.compItems > 0 && st.compLead >= st.compItems,
+    }));
+
+    /** 「5/5」 — 다 채웠으면 회색, 남았으면 붉게. */
+    const tally = (label: string, got: number, need: number) => (
+      <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
+        <span className="text-[11px] text-slate-400">{label}</span>
+        <span
+          className={`text-xs font-medium tabular-nums ${
+            need > 0 && got < need ? "text-status-critical" : "text-slate-600"
+          }`}
+        >
+          {need > 0 ? `${got}/${need}` : "–"}
+        </span>
+      </span>
+    );
+
+    /** 그 사람의 최근 다섯 해 — 배포된 등급만 남아 있다. */
+    const history = (userId: string) => {
+      const years = Array.from({ length: 5 }, (_, i) => selectedYear - 4 + i);
+      const mine = statusHistory.filter((h) => h.userId === userId);
+      const sc = statusScores.get(userId);
+      return (
+        <table className="w-full min-w-[22rem] border-collapse text-xs">
           <thead>
-            <tr className="bg-slate-50 text-left text-xs text-slate-500">
-              <th className="px-3 py-1.5 font-medium">이름</th>
-              <th className="px-3 py-1.5 font-medium">소속</th>
-              <th className="px-3 py-1.5 text-right font-medium">목표</th>
-              <th className="px-3 py-1.5 text-right font-medium">자기평가</th>
-              <th className="px-3 py-1.5 text-right font-medium">1차 점수</th>
-              <th className="px-3 py-1.5 text-right font-medium">평가완료</th>
-              <th className="px-3 py-1.5 text-right font-medium">역량 자기</th>
-              <th className="px-3 py-1.5 text-right font-medium">역량 팀장</th>
-              <th className="px-3 py-1.5 font-medium">남은 일</th>
+            <tr className="text-left text-[11px] text-slate-400">
+              <th className="py-1 pr-3 font-medium">연도</th>
+              <th className="py-1 pr-3 text-right font-medium">종합점수</th>
+              <th className="py-1 pr-3 font-medium">등급</th>
+              <th className="py-1 font-medium">내역</th>
             </tr>
           </thead>
           <tbody>
-            {list.map(({ person, st, todo }) => {
-              /* 다 끝난 줄은 흐리게 — 남은 줄이 먼저 눈에 걸려야 한다. */
-              const done = todo.length === 0;
-              const cellOf = (got: number, need: number) => (
-                <td
-                  className={`px-3 py-1.5 text-right tabular-nums ${
-                    need > 0 && got < need
-                      ? "text-status-critical"
-                      : "text-slate-600"
-                  }`}
-                >
-                  {need > 0 ? `${got}/${need}` : "–"}
-                </td>
-              );
+            {years.map((y) => {
+              const row = mine.find((h) => h.year === y);
+              const thisYear = y === selectedYear;
               return (
-                <tr
-                  key={person.id}
-                  className={`border-t border-slate-100 ${done ? "text-slate-400" : ""}`}
-                >
-                  <td className="px-3 py-1.5 font-medium whitespace-nowrap text-slate-800">
-                    <Link
-                      href={`/platform/evaluation2?year=${selectedYear}&phase=${RESULT_PHASE}&who=${person.id}`}
-                      className="hover:underline"
-                    >
-                      {person.name} {POSITION_LABEL[person.position]}
-                    </Link>
+                <tr key={y} className="border-t border-slate-100">
+                  <td className="py-1 pr-3 whitespace-nowrap text-slate-600">
+                    {y}년{thisYear && " (올해)"}
                   </td>
-                  <td className="px-3 py-1.5 whitespace-nowrap text-slate-500">
-                    {person.team?.name ?? person.division ?? "-"}
+                  <td className="py-1 pr-3 text-right tabular-nums text-slate-800">
+                    {row?.score ?? (thisYear ? (sc?.total ?? "–") : "–")}
                   </td>
-                  <td className="px-3 py-1.5 text-right tabular-nums text-slate-600">
-                    {st?.goals ?? 0}
-                  </td>
-                  {cellOf(st?.selfScored ?? 0, st?.goals ?? 0)}
-                  {cellOf(st?.firstScored ?? 0, st?.goals ?? 0)}
-                  {cellOf(st?.evalDone ?? 0, st?.goals ?? 0)}
-                  {cellOf(st?.compSelf ?? 0, st?.compItems ?? 0)}
-                  {cellOf(st?.compLead ?? 0, st?.compItems ?? 0)}
-                  <td className="px-3 py-1.5 break-keep">
-                    {done ? (
-                      <span className="text-xs text-brand-green-dark">
-                        모두 끝났습니다
+                  <td className="py-1 pr-3 whitespace-nowrap">
+                    {row?.grade ? (
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                          (PERSON_GRADE_CLASS as Record<string, string>)[
+                            row.grade
+                          ] ?? "bg-slate-500 text-white"
+                        }`}
+                      >
+                        {row.grade}
                       </span>
                     ) : (
-                      <span className="text-xs text-status-critical">
-                        {todo.join(" · ")}
+                      <span className="text-slate-300">
+                        {thisYear ? "배포 전" : "–"}
                       </span>
                     )}
+                  </td>
+                  <td className="py-1 break-keep text-slate-500">
+                    {row?.note ??
+                      (thisYear
+                        ? `성과 ${sc?.performance ?? "-"} · 역량 ${sc?.competency ?? "-"}`
+                        : "")}
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+      );
+    };
+
+    /*
+      사람 한 명이 접힌 줄 하나다. **겉에는 점수를 두지 않는다** — 진행 칸(몇/몇)과
+      남은 일만 보이고, 점수와 등급은 눌러야 나온다.
+    */
+    const personList = (list: typeof all) => (
+      <div className="flex flex-col">
+        {list.map(({ person, st, todo }) => {
+          const done = todo.length === 0;
+          return (
+            <details
+              key={person.id}
+              className="border-b border-slate-100 last:border-b-0"
+            >
+              <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 hover:bg-slate-50">
+                <span
+                  className={`text-sm font-medium whitespace-nowrap ${
+                    done ? "text-slate-400" : "text-slate-800"
+                  }`}
+                >
+                  {person.name} {POSITION_LABEL[person.position]}
+                </span>
+                <span className="text-xs whitespace-nowrap text-slate-500">
+                  {person.team?.name ?? person.division ?? "-"}
+                </span>
+                {tally("목표", st?.goals ?? 0, st?.goals ?? 0)}
+                {tally("자기", st?.selfScored ?? 0, st?.goals ?? 0)}
+                {tally("1차", st?.firstScored ?? 0, st?.goals ?? 0)}
+                {tally("완료", st?.evalDone ?? 0, st?.goals ?? 0)}
+                {tally("역량자기", st?.compSelf ?? 0, st?.compItems ?? 0)}
+                {tally("역량팀장", st?.compLead ?? 0, st?.compItems ?? 0)}
+                <span className="ml-auto text-xs break-keep">
+                  {done ? (
+                    <span className="text-brand-green-dark">
+                      모두 끝났습니다
+                    </span>
+                  ) : (
+                    <span className="text-status-critical">
+                      {todo.join(" · ")}
+                    </span>
+                  )}
+                </span>
+              </summary>
+              <div className="flex flex-wrap items-start gap-x-6 gap-y-2 border-t border-slate-100 bg-slate-50/60 px-4 py-3">
+                <div className="min-w-0 flex-1 overflow-x-auto">
+                  {history(person.id)}
+                </div>
+                <Link
+                  href={`/platform/evaluation2?year=${selectedYear}&phase=${RESULT_PHASE}&who=${person.id}`}
+                  className="shrink-0 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-white"
+                >
+                  결과지 보기
+                </Link>
+              </div>
+            </details>
+          );
+        })}
       </div>
     );
 
-    /* 인사팀은 평가자별로 접어 본다 — 206명을 한 표로 두면 누구를 독촉할지가
-       오히려 안 보인다. 남은 일이 많은 평가자가 위로 온다. */
+    /* 인사팀은 평가자별로 접어 본다 — 206명을 한 목록에 두면 누구를 독촉할지가
+       오히려 안 보인다. 남은 사람이 많은 평가자가 위로 온다. */
     const byEvaluator = (() => {
       const map = new Map<string, { name: string; rows: typeof all }>();
       for (const row of all) {
@@ -4026,39 +4331,53 @@ export default async function Evaluation2Page({
             {pct}%
           </span>
           <span className="ml-auto text-[11px] break-keep text-slate-400">
-            이름을 누르면 그 사람의 결과지로 갑니다
+            이름을 누르면 점수 · 최근 5년 등급이 펼쳐집니다
           </span>
         </div>
-        {isAdmin ? (
-          <div className="flex flex-col border-t border-slate-100">
-            {byEvaluator.map((g) => {
-              const left = g.rows.filter((r) => r.todo.length > 0).length;
-              return (
-                <details
-                  key={g.name}
-                  className="border-b border-slate-100 last:border-b-0"
-                >
-                  <summary className="flex cursor-pointer flex-wrap items-center gap-2 px-4 py-2 text-sm hover:bg-slate-50">
-                    <span className="font-medium text-slate-800">{g.name}</span>
-                    <span className="text-xs text-slate-500">
-                      {g.rows.length}명 중 {g.rows.length - left}명 완료
-                    </span>
-                    {left > 0 && (
-                      <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
-                        남은 사람 {left}명
-                      </span>
-                    )}
-                  </summary>
-                  <div className="border-t border-slate-100">
-                    {table(g.rows)}
-                  </div>
-                </details>
-              );
-            })}
+        <div className="grid gap-4 border-t border-slate-100 p-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+          <EvalVenn
+            rows={vennRows}
+            labels={{
+              a: "본인 몫",
+              b: "목표 평가",
+              c: "역량 평가",
+            }}
+          />
+          <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200">
+            {isAdmin ? (
+              <div className="flex flex-col">
+                {byEvaluator.map((g) => {
+                  const left = g.rows.filter((r) => r.todo.length > 0).length;
+                  return (
+                    <details
+                      key={g.name}
+                      className="border-b border-slate-200 last:border-b-0"
+                    >
+                      <summary className="flex cursor-pointer flex-wrap items-center gap-2 bg-slate-50 px-4 py-2 text-sm hover:bg-slate-100">
+                        <span className="font-medium text-slate-800">
+                          {g.name}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {g.rows.length}명 중 {g.rows.length - left}명 완료
+                        </span>
+                        {left > 0 && (
+                          <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
+                            남은 사람 {left}명
+                          </span>
+                        )}
+                      </summary>
+                      <div className="border-t border-slate-200">
+                        {personList(g.rows)}
+                      </div>
+                    </details>
+                  );
+                })}
+              </div>
+            ) : (
+              personList(all)
+            )}
           </div>
-        ) : (
-          <div className="border-t border-slate-100">{table(all)}</div>
-        )}
+        </div>
       </section>
     );
   }
@@ -6669,6 +6988,40 @@ export default async function Evaluation2Page({
     statusPeople.length > 0
       ? (competencyFormEarly ?? (await loadCompetencyForm(selectedYear)))
       : null;
+  /*
+    펼쳤을 때 보이는 것 — **최근 5년 등급**과 올해 점수. 겉에는 진행 칸만 두고
+    점수는 눌러야 나온다(평가자·인사팀만 보는 화면이지만, 명단을 훑는 자리에
+    점수가 깔려 있으면 어깨너머로 다 읽힌다).
+
+    지난 해 등급은 `PerformanceHistory`에서 읽는다 — 결과를 배포할 때 그 해
+    등급이 이 표에 적힌다. 배포 전인 해는 비어 있어 저절로 감춰진다.
+  */
+  const statusHistory =
+    statusPeople.length > 0
+      ? await prisma.performanceHistory.findMany({
+          where: {
+            userId: { in: statusPeople.map((p) => p.id) },
+            year: { gte: selectedYear - 4, lte: selectedYear },
+          },
+          select: {
+            userId: true,
+            year: true,
+            grade: true,
+            score: true,
+            note: true,
+          },
+        })
+      : [];
+  const statusScores =
+    statusPeople.length > 0
+      ? await loadUnitScores(
+          selectedYear,
+          statusPeople.map((p) => p.id),
+          yearCycles,
+          finalCycle,
+          rankOfCycle,
+        )
+      : new Map();
   const statusRows =
     statusPeople.length > 0
       ? await loadEvalStatus(
