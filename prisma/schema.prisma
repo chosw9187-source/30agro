@@ -1738,9 +1738,18 @@ model EvalAppeal {
   year   Int
   userId String
 
-  /** 신청 사유 — 본인이 적는다. */
-  reason String
-  /** OPEN(접수) · ANSWERED(답변 완료). */
+  /**
+   * **결과에 동의한 시각.** 배포된 결과를 읽고 「동의」를 누르면 찍힌다.
+   *
+   * 이의신청과 같은 줄에 둔다 — 한 해에 한 사람이 하는 일은 «읽고 동의하거나,
+   * 아니라고 말하거나» 하나다. 줄을 따로 두면 「동의했는데 이의도 있는」 사람이
+   * 생겨 어느 것이 그 사람의 뜻인지 알 수 없다. 이의를 내면 동의는 풀린다.
+   */
+  agreedAt DateTime?
+
+  /** 신청 사유 — 본인이 적는다. 동의만 한 줄에는 비어 있다. */
+  reason String?
+  /** OPEN(접수) · ANSWERED(답변 완료) · AGREED(동의만 함). */
   status String @default("OPEN")
 
   answer       String?

@@ -8,7 +8,7 @@ import { NoModuleAccess } from "@/components/no-module-access";
 import { SearchableSelect } from "@/components/searchable-select";
 import { activePrismaWhere, isEvalPopulation } from "@/lib/hr-analytics";
 import { evalTodo, loadEvalStatus } from "@/lib/eval-status";
-import { EvalVenn } from "@/components/eval-venn";
+import { EvalProgress } from "@/components/eval-progress";
 import { POSITION_LABEL } from "@/lib/permission-constants";
 import {
   buildDivisionLineMap,
@@ -95,7 +95,9 @@ import {
   closeYearCycle,
   lockCompetencyForm,
   lockGoalSetting,
+  agreeEvalResult,
   answerEvalAppeal,
+  cancelEvalAgreement,
   releaseYearResults,
   reopenEvalAppeal,
   reopenGoalAgreement,
@@ -1467,6 +1469,7 @@ export default async function Evaluation2Page({
             id: true,
             reason: true,
             status: true,
+            agreedAt: true,
             answer: true,
             answeredAt: true,
             createdAt: true,
@@ -1483,6 +1486,7 @@ export default async function Evaluation2Page({
             userId: true,
             reason: true,
             status: true,
+            agreedAt: true,
             answer: true,
             answeredAt: true,
             createdAt: true,
@@ -2476,6 +2480,90 @@ export default async function Evaluation2Page({
           </span>
         </section>
 
+        {/*
+          **결과 확인** — 「1. 결과 요약」 바로 위, 결과지를 열면 가장 먼저 닿는
+          자리다. 할 수 있는 일은 둘뿐이다: 동의하거나, 이의를 내거나.
+
+          배포된 뒤 본인 결과지에서만 뜬다. 등급이 아직 공개되지 않았는데 «동의»를
+          받아 두면 무엇에 동의한 것인지 남지 않는다.
+        */}
+        {resultsReleased && target.id === session!.user.id && (
+          <section className={CARD_CLASS}>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+              <span className="shrink-0 text-sm font-bold text-slate-900">
+                평가결과 확인
+              </span>
+              {myAppeal?.status === "AGREED" ? (
+                <>
+                  <span className="rounded-md bg-brand-green-light px-2 py-1 text-xs font-medium text-brand-green-dark">
+                    {myAppeal.agreedAt?.toLocaleDateString("ko-KR")} 동의함
+                  </span>
+                  <span className="text-xs break-keep text-slate-500">
+                    결과를 확인하고 동의하셨습니다.
+                  </span>
+                  <ActionForm
+                    action={cancelEvalAgreement.bind(null, selectedYear)}
+                    successMessage="동의를 거두었습니다."
+                    className="ml-auto shrink-0"
+                  >
+                    <button
+                      type="submit"
+                      className="text-xs text-slate-500 underline hover:text-slate-700"
+                    >
+                      동의 취소
+                    </button>
+                  </ActionForm>
+                </>
+              ) : myAppeal ? (
+                <>
+                  <span
+                    className={`rounded-md px-2 py-1 text-xs font-medium ${
+                      myAppeal.status === "ANSWERED"
+                        ? "bg-goal-4/10 text-goal-4"
+                        : "bg-amber-100 text-amber-800"
+                    }`}
+                  >
+                    이의신청{" "}
+                    {myAppeal.status === "ANSWERED" ? "답변 완료" : "접수됨"}
+                  </span>
+                  <span className="text-xs break-keep text-slate-500">
+                    {myAppeal.status === "ANSWERED"
+                      ? "인사팀 답변이 아래 「5. 이의신청」에 실려 있습니다."
+                      : "인사팀이 확인하고 있습니다 — 내용은 아래 「5. 이의신청」에 있습니다."}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-xs break-keep text-slate-500">
+                    결과를 확인하셨으면 동의를, 다시 봐 주셨으면 하는 점이
+                    있으면 이의신청을 눌러 주세요.
+                  </span>
+                  <span className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
+                    <ActionForm
+                      action={agreeEvalResult.bind(null, selectedYear)}
+                      successMessage="평가결과에 동의하셨습니다."
+                      confirmMessage="이 결과에 동의하시겠습니까? 동의하면 인사팀 명단에 «동의»로 표시됩니다."
+                    >
+                      <button
+                        type="submit"
+                        className="rounded-md bg-brand-green px-4 py-2 text-sm font-medium whitespace-nowrap text-white hover:bg-brand-green-dark"
+                      >
+                        평가결과 동의
+                      </button>
+                    </ActionForm>
+                    <a
+                      href="#eval-appeal"
+                      className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50"
+                    >
+                      이의신청
+                    </a>
+                  </span>
+                </>
+              )}
+            </div>
+          </section>
+        )}
+
         {/* 1. 결과 요약 */}
         <section className={CARD_CLASS}>
           {/*
@@ -3034,7 +3122,7 @@ export default async function Evaluation2Page({
           한 건이고, 인사팀이 답을 달면 그 줄에 나란히 실린다.
         */}
         {resultsReleased && target.id === session!.user.id && (
-          <section className={CARD_CLASS}>
+          <section id="eval-appeal" className={CARD_CLASS}>
             {sectionHead(
               "5. 이의신청",
               myAppeal
@@ -3044,7 +3132,7 @@ export default async function Evaluation2Page({
                 : "결과에 다시 봐 주셨으면 하는 점이 있으면 적어 주세요",
             )}
             <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3">
-              {myAppeal && (
+              {myAppeal?.reason && (
                 <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
                   <p className="text-[11px] text-slate-400">
                     {myAppeal.createdAt.toLocaleDateString("ko-KR")} 접수
@@ -3150,8 +3238,6 @@ export default async function Evaluation2Page({
     );
     const pickedDept =
       params.dept && deptCount.has(params.dept) ? params.dept : "";
-    /** 모수 전체의 책임 라인 수 — 머리글에 적는다(고른 라인과 상관없이). */
-    const allDeptKeys = [...new Set(reportPeople.map((p) => deptOf(p)))];
     /*
       화면에 그릴 라인. 책임을 골랐으면 그 사람들만 남기되 **등급은 건드리지
       않는다**(`u.grades`) — 등급은 운영책임 라인 안에서 매겨진 값이고, 보기를
@@ -3237,6 +3323,36 @@ export default async function Evaluation2Page({
       }));
     };
 
+    /*
+      **결과 확인** — 본인이 결과지에서 누른 것이 여기 한 칸으로 온다. 동의인지,
+      이의신청인지, 아직 열어 보지도 않았는지. 점수를 고치는 자리에서 «이 사람이
+      무엇이라 했는지»가 같은 줄에 있어야 한다.
+    */
+    const ackByUser = new Map(appeals.map((a) => [a.userId, a]));
+    const ackCell = (userId: string) => {
+      const a = ackByUser.get(userId);
+      if (!resultsReleased)
+        return <span className="text-xs text-slate-300">배포 전</span>;
+      if (!a) return <span className="text-xs text-slate-400">미확인</span>;
+      if (a.status === "AGREED")
+        return (
+          <span className="rounded-md bg-brand-green-light px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap text-brand-green-dark">
+            동의 {a.agreedAt?.toLocaleDateString("ko-KR").slice(5)}
+          </span>
+        );
+      if (a.status === "ANSWERED")
+        return (
+          <span className="rounded-md bg-goal-4/10 px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap text-goal-4">
+            이의 · 답변완료
+          </span>
+        );
+      return (
+        <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap text-amber-800">
+          이의신청
+        </span>
+      );
+    };
+
     /** 그 사람의 등급 — 라인마다 따로 매겨져 있어 한 번 찾아 준다. */
     const unitGradeOf = (p: (typeof reportPeople)[number]) => {
       const u = reportUnits.find((x) => x.rows.some((r) => r.id === p.id));
@@ -3268,6 +3384,13 @@ export default async function Evaluation2Page({
             return sc?.bonus ?? 0;
           case "grade":
             return unitGradeOf(p)?.grade ?? "";
+          case "ack":
+            /* 손이 가야 하는 줄이 위로 오게 — 이의 → 미확인 → 동의 순. */
+            return (
+              { OPEN: "1", ANSWERED: "2", AGREED: "4" }[
+                ackByUser.get(p.id)?.status ?? ""
+              ] ?? "3"
+            );
           default:
             return num(sc?.total);
         }
@@ -3628,11 +3751,6 @@ export default async function Evaluation2Page({
               최종점수
             </span>
             <span className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="text-xs break-keep text-slate-500">
-                평가 대상 {reportPeople.length}명 · 운영책임{" "}
-                {reportUnits.length}개 라인 · 책임 {allDeptKeys.length}개 라인 ·
-                조직도 기준(정규직 + 영업관리팀 계약직 중 담당 · 팀장)
-              </span>
               {/*
                 엑셀 — 보상 검토 · 경영 보고 · 이력 보관은 결국 엑셀에서 이뤄진다.
                 화면과 **같은 함수**로 셈한 값을 네 장(종합 · 성과 상세 · 역량 상세 ·
@@ -3894,6 +4012,7 @@ export default async function Evaluation2Page({
                       {sortableHead("bonus", "가산점 ±")}
                       {sortableHead("total", "최종점수", "right")}
                       {sortableHead("grade", "등급")}
+                      {sortableHead("ack", "확인")}
                     </tr>
                   </thead>
                   <tbody>
@@ -3902,7 +4021,7 @@ export default async function Evaluation2Page({
                         {g.showHead && (
                           <tr className="border-t border-slate-200 bg-slate-50">
                             <td
-                              colSpan={9}
+                              colSpan={10}
                               className="px-3 py-1 text-xs font-medium text-slate-600"
                             >
                               <span className="inline-flex items-center gap-2">
@@ -4099,6 +4218,9 @@ export default async function Evaluation2Page({
                                   )}
                                 </span>
                               </td>
+                              <td className="px-3 py-1.5 whitespace-nowrap">
+                                {ackCell(p.id)}
+                              </td>
                             </tr>
                           );
                         })}
@@ -4134,29 +4256,46 @@ export default async function Evaluation2Page({
     const pct = all.length > 0 ? Math.round((doneCount / all.length) * 100) : 0;
 
     /*
-      벤 다이어그램에 넣을 세 갈래 — **누구의 무슨 일인가**로 가른다.
-
-        본인 몫   : 목표 자기평가 + 역량 자기평가
-        목표 평가 : 1차 평가자의 점수 + 「평가완료」 확정
-        역량 평가 : 1차 평가자의 역량 점수
-
-      세 갈래를 다 끝낸 사람이 곧 위의 「N명 완료」다 — 가운데 숫자와 머리글의
-      숫자가 다르면 어느 쪽이 맞는지 아무도 모른다. 일감 자체가 없는 사람은
-      (목표 미등록) 셋 다 거짓이라 원 밖에 선다.
+      일감별 진행 — **어느 일이 몇 명 남았는가**. 사람 수를 세는 규칙은 아래
+      목록의 칸(몇/몇)과 같다. 일감이 없는 사람(목표 미등록·역량 문항 없음)은
+      그 줄의 «대상»에서 빠진다 — 할 수 없는 일을 안 했다고 세면 안 된다.
     */
-    const vennRows = all.map(({ st }) => ({
-      a:
-        !!st &&
-        st.goals > 0 &&
-        st.selfScored >= st.goals &&
-        (st.compItems === 0 || st.compSelf >= st.compItems),
-      b:
-        !!st &&
-        st.goals > 0 &&
-        st.firstScored >= st.goals &&
-        st.evalDone >= st.goals,
-      c: !!st && st.compItems > 0 && st.compLead >= st.compItems,
-    }));
+    const hasGoals = all.filter((r) => (r.st?.goals ?? 0) > 0);
+    const hasComp = all.filter((r) => (r.st?.compItems ?? 0) > 0);
+    const bars = [
+      {
+        label: "목표 자기평가",
+        owner: "본인",
+        total: hasGoals.length,
+        done: hasGoals.filter((r) => r.st!.selfScored >= r.st!.goals).length,
+      },
+      {
+        label: "역량 자기평가",
+        owner: "본인",
+        total: hasComp.length,
+        done: hasComp.filter((r) => r.st!.compSelf >= r.st!.compItems).length,
+      },
+      {
+        label: "목표 점수",
+        owner: "1차 평가자",
+        total: hasGoals.length,
+        done: hasGoals.filter((r) => r.st!.firstScored >= r.st!.goals).length,
+      },
+      {
+        label: "역량 점수",
+        owner: "1차 평가자",
+        total: hasComp.length,
+        done: hasComp.filter((r) => r.st!.compLead >= r.st!.compItems).length,
+      },
+      {
+        label: "평가완료 확정",
+        owner: "1차 평가자",
+        total: hasGoals.length,
+        done: hasGoals.filter((r) => r.st!.evalDone >= r.st!.goals).length,
+      },
+    ];
+    /* 목표가 아예 없는 사람은 어느 줄에도 안 잡힌다 — 따로 세어 아래에 적는다. */
+    const noGoalCount = all.length - hasGoals.length;
 
     /** 「5/5」 — 다 채웠으면 회색, 남았으면 붉게. */
     const tally = (label: string, got: number, need: number) => (
@@ -4334,14 +4473,14 @@ export default async function Evaluation2Page({
             이름을 누르면 점수 · 최근 5년 등급이 펼쳐집니다
           </span>
         </div>
-        <div className="grid gap-4 border-t border-slate-100 p-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-          <EvalVenn
-            rows={vennRows}
-            labels={{
-              a: "본인 몫",
-              b: "목표 평가",
-              c: "역량 평가",
-            }}
+        <div className="grid gap-5 border-t border-slate-100 p-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+          <EvalProgress
+            bars={bars}
+            caption={
+              noGoalCount > 0
+                ? `목표가 아직 없는 ${noGoalCount}명은 목표 줄의 대상에서 빠져 있습니다 — 아래 목록에서 「목표 미등록」으로 표시됩니다.`
+                : undefined
+            }
           />
           <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200">
             {isAdmin ? (

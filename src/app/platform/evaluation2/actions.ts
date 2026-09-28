@@ -1455,10 +1455,60 @@ export async function submitEvalAppeal(formData: FormData) {
   await prisma.evalAppeal.upsert({
     where: { year_userId: { year, userId: session.user.id } },
     create: { year, userId: session.user.id, reason },
-    update: { reason, status: "OPEN" },
+    /* 이의를 내면 동의는 풀린다 — 한 사람의 뜻은 둘 중 하나다. */
+    update: { reason, status: "OPEN", agreedAt: null },
   });
   revalidatePath(PATH);
   return { message: "이의신청을 접수했습니다. 인사팀이 확인합니다." };
+}
+
+/**
+ * **평가결과 동의** — 배포된 결과를 읽고 «맞습니다»라고 눌러 둔다.
+ *
+ * 이의신청과 한 줄을 쓴다. 이의를 내면 동의는 풀리고, 동의를 누르면 접수 중이던
+ * 이의는 거둔다 — 한 사람의 뜻은 둘 중 하나다.
+ */
+export async function agreeEvalResult(year: number) {
+  const session = await requireGoalModule();
+  const release = await prisma.evalYearRelease.findUnique({
+    where: { year },
+    select: { releasedAt: true },
+  });
+  if (!release?.releasedAt) {
+    return { error: "아직 결과가 배포되지 않았습니다." };
+  }
+
+  const mine = await prisma.evalAppeal.findUnique({
+    where: { year_userId: { year, userId: session.user.id } },
+    select: { status: true },
+  });
+  if (mine?.status === "ANSWERED") {
+    return {
+      error: "답변이 달린 이의신청이 있습니다 — 인사팀에 문의해 주세요.",
+    };
+  }
+
+  await prisma.evalAppeal.upsert({
+    where: { year_userId: { year, userId: session.user.id } },
+    create: {
+      year,
+      userId: session.user.id,
+      status: "AGREED",
+      agreedAt: new Date(),
+    },
+    update: { status: "AGREED", agreedAt: new Date(), reason: null },
+  });
+  revalidatePath(PATH);
+  return { message: "평가결과에 동의하셨습니다." };
+}
+
+/** 동의를 거둔다 — 잘못 눌렀을 때. */
+export async function cancelEvalAgreement(year: number) {
+  const session = await requireGoalModule();
+  await prisma.evalAppeal.deleteMany({
+    where: { year, userId: session.user.id, status: "AGREED" },
+  });
+  revalidatePath(PATH);
 }
 
 /** 이의신청에 답한다. **관리자만.** */
