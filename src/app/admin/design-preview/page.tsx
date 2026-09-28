@@ -180,12 +180,197 @@ function NextGoalRow({
   );
 }
 
+/* ── E-4 전용 그림 부품 — 역량 문항 한 칸 ────────────────────────── */
+
+/**
+ * 묶음마다 «색 한 가지»를 정해 둔다. 핵심가치와 직무역량은 문항 수도 같고 표
+ * 모양도 같아서, 표제만 다르면 스쳐 읽을 때 한 덩어리로 보인다. 왼쪽 색 막대 ·
+ * 딱지 · 고른 점수의 색을 묶음마다 다르게 두면 «지금 어느 묶음을 적는 중인지»가
+ * 눈으로 먼저 들어온다.
+ */
+const COMPETENCY_GROUP_STYLE = {
+  core: {
+    bar: "bg-goal-4",
+    chip: "bg-goal-4 text-white",
+    tint: "bg-goal-4/5",
+    no: "bg-goal-4/10 text-goal-4",
+    pick: "bg-goal-4 text-white",
+  },
+  job: {
+    bar: "bg-goal-2",
+    chip: "bg-goal-2 text-white",
+    tint: "bg-goal-2/5",
+    no: "bg-goal-2/10 text-goal-2",
+    pick: "bg-goal-2 text-white",
+  },
+} as const;
+
+type CompetencyGroupKind = keyof typeof COMPETENCY_GROUP_STYLE;
+
+/** 1~10 한 줄. 고른 칸만 묶음 색으로 찬다. 아직 안 고른 줄은 붉게 남는다. */
+function ScoreButtons({
+  label,
+  picked,
+  meaning,
+  kind,
+}: {
+  label: string;
+  picked: number | null;
+  meaning: string;
+  kind: CompetencyGroupKind;
+}) {
+  const style = COMPETENCY_GROUP_STYLE[kind];
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="w-12 shrink-0 text-[10px] font-medium whitespace-nowrap text-slate-500">
+        {label}
+      </span>
+      <span className="flex min-w-0 flex-1 gap-[2px]">
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+          <span
+            key={n}
+            className={`flex-1 rounded py-[3px] text-center text-[10px] tabular-nums ${
+              n === picked
+                ? `font-bold ${style.pick}`
+                : "bg-slate-100 text-slate-500"
+            }`}
+          >
+            {n}
+          </span>
+        ))}
+      </span>
+      <span className="w-full text-[9px] break-keep text-slate-500 sm:w-auto sm:shrink-0">
+        {picked == null ? (
+          <b className="font-semibold text-status-critical">아직 안 골랐음</b>
+        ) : (
+          meaning
+        )}
+      </span>
+    </div>
+  );
+}
+
+/** 문항 한 칸 — 영역 딱지 + 질문 전문 + 점수 두 줄. */
+function NextCompetencyItem({
+  no,
+  area,
+  question,
+  self,
+  selfMeaning,
+  lead,
+  leadMeaning,
+  kind,
+}: {
+  no: number;
+  area: string;
+  question: string;
+  self: number | null;
+  selfMeaning: string;
+  lead: number | null;
+  leadMeaning: string;
+  kind: CompetencyGroupKind;
+}) {
+  const style = COMPETENCY_GROUP_STYLE[kind];
+  return (
+    <div className="flex flex-col gap-1.5 rounded-lg border border-slate-200 bg-white p-2">
+      <div className="flex items-baseline gap-1.5">
+        <span
+          className={`rounded px-1 text-[9px] font-bold tabular-nums ${style.no}`}
+        >
+          {no}
+        </span>
+        <span className="text-[11px] font-bold break-keep text-slate-900">
+          {area}
+        </span>
+      </div>
+      {/* 질문은 줄이지 않는다 — 점수를 매기는 기준이 이 문장이다. */}
+      <p className="text-[10px] leading-relaxed break-keep text-slate-600">
+        {question}
+      </p>
+      <ScoreButtons
+        label="자기평가"
+        picked={self}
+        meaning={selfMeaning}
+        kind={kind}
+      />
+      <ScoreButtons
+        label="팀장평가"
+        picked={lead}
+        meaning={leadMeaning}
+        kind={kind}
+      />
+    </div>
+  );
+}
+
+/** 묶음 한 덩어리 — 머리에 색 막대와 딱지, 그리고 그 묶음만의 남은 칸. */
+function NextCompetencyGroup({
+  kind,
+  badge,
+  name,
+  items,
+  selfDone,
+  leadDone,
+  children,
+}: {
+  kind: CompetencyGroupKind;
+  badge: string;
+  name: string;
+  items: number;
+  selfDone: number;
+  leadDone: number;
+  children: React.ReactNode;
+}) {
+  const style = COMPETENCY_GROUP_STYLE[kind];
+  return (
+    <div className="flex overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <span className={`w-1.5 shrink-0 ${style.bar}`} aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <div
+          className={`flex flex-wrap items-center gap-x-2 gap-y-1 px-2 py-1.5 ${style.tint}`}
+        >
+          <span
+            className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${style.chip}`}
+          >
+            {badge}
+          </span>
+          <span className="text-[10px] break-keep text-slate-600">{name}</span>
+          <span className="text-[10px] text-slate-400">{items}문항</span>
+          <span className="ml-auto text-[10px] whitespace-nowrap text-slate-500">
+            자기{" "}
+            <b
+              className={
+                selfDone === items
+                  ? "font-semibold text-slate-900"
+                  : "font-semibold text-status-critical"
+              }
+            >
+              {selfDone}/{items}
+            </b>{" "}
+            · 팀장{" "}
+            <b
+              className={
+                leadDone === items
+                  ? "font-semibold text-slate-900"
+                  : "font-semibold text-status-critical"
+              }
+            >
+              {leadDone}/{items}
+            </b>
+          </span>
+        </div>
+        <div className="flex flex-col gap-1.5 p-2">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export default function DesignPreviewPage() {
   const items = [
     ["e1", "E-1 담당자별 묶기"],
     ["e2", "E-2 목록을 표로"],
     ["e3", "E-3 반복 경고 정리"],
-    ["e4", "E-4 역량 점수 버튼"],
+    ["e4", "E-4 역량 문항 칸"],
     ["e5", "E-5 결과지 인쇄"],
     ["e6", "E-6 모바일 자기평가"],
   ];
@@ -428,77 +613,137 @@ export default function DesignPreviewPage() {
       <Item
         id="e4"
         where="역량평가"
-        title="점수를 두 번 눌러 고릅니다"
-        why="스무 칸을 드롭다운으로 고르면 한 칸에 두 번씩 마흔 번을 누릅니다. 1~10이면 칸이 열 개뿐입니다."
-        effort="1~2일 (점수 고르개 + 남은 칸 표시)"
+        title="문항 한 칸을 한 번 눌러 매깁니다"
+        why="지금은 질문이 표 한 칸에 눌려 있고 점수는 드롭다운이라 한 칸에 두 번씩 누릅니다. 핵심가치와 직무역량도 표제만 다르고 모양이 같아 한 덩어리로 보입니다."
+        effort="2일 (문항 칸 + 점수 고르개 + 묶음 색 구분)"
         now={
           <div className="flex flex-col gap-2">
             <p className="text-[10px] text-slate-400">
               자기평가 평균 <b className="text-slate-700">10</b> 5/5 · 팀장평가
-              평균 <b className="text-slate-700">8</b> 5/5
+              평균 <b className="text-slate-700">8</b> 3/5
             </p>
-            <div className="rounded-lg border border-slate-200 bg-white p-2">
-              <p className="text-[10px] font-medium text-slate-700">문제해결</p>
-              <div className="mt-1 flex gap-2">
-                {["10 (탁월)", "8 (우수)"].map((v) => (
-                  <span
-                    key={v}
-                    className="flex flex-1 items-center justify-between rounded border border-slate-300 px-2 py-1 text-[10px] text-slate-700"
-                  >
-                    {v} <span className="text-slate-400">▾</span>
-                  </span>
-                ))}
+            {/* 두 묶음이 표제만 다르고 나머지가 똑같다 — 이게 지금의 문제다. */}
+            {[
+              {
+                heading: "1. 핵심가치 · 팀원용",
+                area: "문제해결",
+                question:
+                  "문제에 직면했을 때 원인과 대책을 도출할 수 있으며, 주어진…",
+              },
+              {
+                heading: "2. 직무역량 · 인사팀",
+                area: "인사정보 보안",
+                question:
+                  "인사 정보의 보안 및 개인정보 보호 정책과 절차를 엄격하게…",
+              },
+            ].map((g) => (
+              <div
+                key={g.heading}
+                className="overflow-hidden rounded-lg border border-slate-200 bg-white"
+              >
+                <p className="px-2 py-1 text-[10px] font-bold text-slate-900">
+                  {g.heading}{" "}
+                  <span className="font-normal text-slate-400">5문항</span>
+                </p>
+                <table className="w-full border-collapse">
+                  <thead className="bg-slate-100 text-slate-500">
+                    <tr className="text-left text-[9px]">
+                      <th className="px-1 py-0.5 font-semibold">영역</th>
+                      <th className="px-1 py-0.5 font-semibold">질문</th>
+                      <th className="px-1 py-0.5 font-semibold">자기</th>
+                      <th className="px-1 py-0.5 font-semibold">팀장</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t border-slate-100">
+                      <td className="w-14 px-1 py-1 text-[9px] font-medium text-slate-800">
+                        {g.area}
+                      </td>
+                      <td className="px-1 py-1 text-[9px] text-slate-500">
+                        <span className="block overflow-hidden text-ellipsis whitespace-nowrap">
+                          {g.question}
+                        </span>
+                      </td>
+                      <td className="w-12 px-1 py-1">
+                        <span className="flex items-center justify-between rounded border border-slate-300 px-1 py-px text-[9px] text-slate-700">
+                          10 <span className="text-slate-400">▾</span>
+                        </span>
+                      </td>
+                      <td className="w-12 px-1 py-1">
+                        <span className="flex items-center justify-between rounded border border-slate-300 px-1 py-px text-[9px] text-slate-400">
+                          – <span>▾</span>
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
-            </div>
+            ))}
             <p className="text-[10px] break-keep text-status-critical">
-              「평균 10 5/5」가 무슨 뜻인지 한 번에 읽히지 않습니다 — 평균인지,
-              5문항 중 5칸인지.
+              질문이 한 줄로 잘려 기준을 못 읽고, 점수는 눌러서 펼친 뒤 다시
+              골라야 합니다. 두 묶음은 표제만 다릅니다.
             </p>
           </div>
         }
         next={
           <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-2 py-1.5">
-              <span className="text-[10px] text-slate-500">자기평가</span>
-              <span className="text-[11px] font-bold text-slate-900">
-                5 / 5칸
-              </span>
-              <span className="text-[10px] text-slate-400">평균 10.0</span>
-              <span className="ml-auto text-[10px] text-slate-500">
-                팀장평가
-              </span>
-              <span className="text-[11px] font-bold text-status-critical">
-                3 / 5칸
-              </span>
-              <span className="text-[10px] text-slate-400">2칸 남음</span>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-white p-2">
-              <p className="text-[10px] font-medium text-slate-700">
-                문제해결 <span className="text-slate-400">· 팀장평가</span>
-              </p>
-              <div className="mt-1 flex gap-[3px]">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                  <span
-                    key={n}
-                    className={`flex-1 rounded py-1 text-center text-[10px] ${
-                      n === 8
-                        ? "bg-brand-green font-bold text-white"
-                        : n <= 2
-                          ? "bg-slate-100 text-slate-500"
-                          : "bg-slate-100 text-slate-600"
-                    }`}
-                  >
-                    {n}
-                  </span>
-                ))}
-              </div>
-              <p className="mt-1 text-[9px] text-slate-400">
-                8 = 우수 · 상당히 숙련되고 광범위하게 응용함
-              </p>
-            </div>
+            <NextCompetencyGroup
+              kind="core"
+              badge="핵심가치"
+              name="팀원용 · 전사 공통"
+              items={5}
+              selfDone={5}
+              leadDone={3}
+            >
+              <NextCompetencyItem
+                kind="core"
+                no={1}
+                area="문제해결"
+                question="문제에 직면했을 때 원인과 대책을 도출할 수 있으며, 주어진 도구와 자원을 활용하여, 부여된 과업의 누락, 동일문제 재발을 방지하는가?"
+                self={10}
+                selfMeaning="10 탁월"
+                lead={8}
+                leadMeaning="8 우수"
+              />
+              <NextCompetencyItem
+                kind="core"
+                no={2}
+                area="커뮤니케이션"
+                question="업무 수행에 필수적인 정보를 사전 공유하며, 중간 보고 등 업무관련자와 적시에 피드백을 주고받아, 차질없이 업무를 진행하는가?"
+                self={8}
+                selfMeaning="8 우수"
+                lead={null}
+                leadMeaning=""
+              />
+            </NextCompetencyGroup>
+
+            <NextCompetencyGroup
+              kind="job"
+              badge="직무역량"
+              name="인사팀 · 직무마다 다름"
+              items={5}
+              selfDone={5}
+              leadDone={5}
+            >
+              <NextCompetencyItem
+                kind="job"
+                no={1}
+                area="인사정보 보안 및 개인정보보호"
+                question="인사 정보의 보안 및 개인정보 보호 정책과 절차를 엄격하게 준수하고 유지하는가?"
+                self={10}
+                selfMeaning="10 탁월"
+                lead={9}
+                leadMeaning="9 탁월"
+              />
+            </NextCompetencyGroup>
+
             <p className="text-[10px] break-keep text-slate-500">
-              한 번만 누르면 됩니다. 고른 숫자의 뜻은 아래 한 줄로 알려 주고,
-              머리에는 <b>몇 칸 남았는지</b>를 적습니다.
+              문항마다 <b>영역</b>과 <b>질문 전문</b>을 그대로 두고, 점수는 1~10
+              을 한 번만 누릅니다. 핵심가치는{" "}
+              <b className="text-goal-4">보라</b>, 직무역량은{" "}
+              <b className="text-goal-2">파랑</b> — 색 막대와 딱지로 갈라 두어
+              어느 묶음을 적는 중인지 바로 보입니다. 안 고른 줄은 붉게 남고,
+              묶음 머리에 그 묶음만의 <b>남은 칸</b>이 적힙니다.
             </p>
           </div>
         }
