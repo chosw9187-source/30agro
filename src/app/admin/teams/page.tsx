@@ -225,6 +225,16 @@ export default async function TeamsPage() {
               >
                 저장
               </button>
+              {/*
+                비워 두어도 되는 칸이라고 적어 둔다 — 재무경영관리처럼 운영책임
+                밑에 팀이 바로 붙는 라인은 본부가 없다. 저장하면 소속 담당·팀장의
+                인사카드도 같은 값으로 맞춰진다(책임·운영책임은 그대로).
+              */}
+              <span className="text-xs break-keep text-slate-500">
+                본부가 없는 라인은 비워 두세요 — 그러면 운영책임이 바로 1차
+                평가자가 됩니다. 저장하면 이 팀 소속 담당·팀장의 인사카드도 같은
+                값으로 맞춰집니다.
+              </span>
             </form>
             <form
               action={setTeamLeader.bind(null, team.id)}

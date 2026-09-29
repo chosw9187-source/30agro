@@ -1301,9 +1301,16 @@ export default async function Evaluation2Page({
       );
     }
   }
-  /** 「박은희 책임 · 생산」 — 책임이 없으면 부문 이름만 적는다. */
+  /**
+   * 「박은희 책임 · 생산」 — 책임이 없으면 부문 이름만 적는다.
+   *
+   * 부문이 아예 없는 라인은 «미지정»이 아니다. 재무경영관리처럼 운영책임 밑에
+   * 팀이 바로 붙는 라인이 있고, 사업개발팀처럼 부문 없이 운영책임만 있는 팀도
+   * 있다. 「부문 미지정」이라고 적어 두었더니 채워야 할 빈 칸처럼 읽혀서, 실제로
+   * 「왜 미지정이지」를 몇 번이나 되짚게 만들었다 — 조직이 그렇게 생긴 것이다.
+   */
   const deptLabel = (key: string) => {
-    if (key === NO_DEPT) return "부문 미지정";
+    if (key === NO_DEPT) return "부문 없음 · 운영책임 직속";
     const head = deptHeadByKey.get(key);
     return head ? `${head} · ${key}` : key;
   };
@@ -3297,7 +3304,7 @@ export default async function Evaluation2Page({
         rows: by.get(key)!,
         /*
           묶음이 하나뿐이면 소제목을 띄우지 않는다 — 한 줄짜리 소제목은 표만
-          길어진다. 다만 그 하나가 「부문 미지정」이면 띄운다: 라인 전원이 한
+          길어진다. 다만 그 하나가 부문 없는 묶음이면 띄운다: 라인 전원이 한
           덩어리로 보이는 이유를 그 자리에서 말해 주어야 한다.
         */
         showHead: keys.length > 1 || key === NO_DEPT,
@@ -4016,20 +4023,22 @@ export default async function Evaluation2Page({
                                   {g.rows.length}명
                                 </span>
                                 {/*
-                                  왜 미지정인지를 그 자리에서 알린다 — 「부문」은
-                                  팀 관리 화면에서 「본부」라는 이름으로 적는 칸이라,
-                                  어디를 채워야 하는지 말해 주지 않으면 찾을 수 없다.
+                                  부문이 없다는 것이 잘못이라는 뜻은 아니라고
+                                  적어 둔다 — 운영책임 밑에 팀이 바로 붙는 라인이
+                                  실제로 있다. 부문을 두려면 어디를 채우는지만
+                                  알려 준다(「부문」은 팀 관리에서 「본부」 칸이다).
                                 */}
                                 {g.key === NO_DEPT && (
                                   <span className="font-normal break-keep text-slate-400">
-                                    · 팀의 「본부」 칸이 비어 있습니다 —{" "}
+                                    · 부문 없이 운영책임이 바로 평가합니다 ·
+                                    부문을 두려면{" "}
                                     <Link
                                       href="/admin/teams"
                                       className="text-brand-green-dark underline"
                                     >
                                       팀 관리
                                     </Link>
-                                    에서 채우면 책임 라인으로 갈립니다
+                                    에서 팀의 「본부」 칸을 채우세요
                                   </span>
                                 )}
                               </span>
