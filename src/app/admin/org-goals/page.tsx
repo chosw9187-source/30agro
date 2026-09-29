@@ -142,12 +142,12 @@ export default async function OrgGoalsAdminPage({
       })
     : [];
 
-  // 달성률은 화면(평가2)과 같은 규칙으로 굴려 올린 값을 보여줘야, 관리자가
+  // 달성률은 화면(인사평가)과 같은 규칙으로 굴려 올린 값을 보여줘야, 관리자가
   // 여기서 본 숫자와 사용자가 보는 숫자가 어긋나지 않는다.
   const roots = buildGoalTree(goals);
   const orgGoals = roots.filter((g) => g.level === "COMPANY");
   /*
-    책임목표는 전사목표와 팀목표 사이를 잇는 층이다. 일반 화면(평가2)에는 세우는
+    책임목표는 전사목표와 팀목표 사이를 잇는 층이다. 일반 화면(인사평가)에는 세우는
     자리를 두지 않는다 — 한 해에 몇 건 만들고 마는 값이라 탭을 하나 더 두면 늘
     비어 있는 탭이 하나 생긴다. 대신 여기, 전사목표를 세우는 자리 바로 아래에서
     같이 관리한다.
@@ -205,7 +205,7 @@ export default async function OrgGoalsAdminPage({
         <div>
           <h1 className="text-2xl font-semibold">조직 목표 관리</h1>
           <p className="mt-1 text-slate-600">
-            평가2 화면 맨 위에 고정되는 조직 목표 표를 여기서 만들고 고칩니다. 관리자만
+            인사평가 화면 맨 위에 고정되는 조직 목표 표를 여기서 만들고 고칩니다. 관리자만
             들어올 수 있습니다.
           </p>
         </div>
@@ -226,7 +226,7 @@ export default async function OrgGoalsAdminPage({
             href="/platform/evaluation2"
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
           >
-            평가2 화면 보기 →
+            인사평가 화면 보기 →
           </Link>
         </div>
       </div>
@@ -783,7 +783,7 @@ export default async function OrgGoalsAdminPage({
           <section className={`${CARD_CLASS} p-5`}>
             <h2 className="text-base font-semibold">목표 사이클</h2>
             <p className="mt-1 text-sm text-slate-500">
-              위·아래 화살표로 순서를 바꾸면 평가2 화면 왼쪽 위 「인사평가」 목록도 같은 순서가 됩니다.
+              위·아래 화살표로 순서를 바꾸면 인사평가 화면 왼쪽 위의 「연도 · 인사평가」 고르개도 같은 순서가 됩니다.
             </p>
             {/*
               «고쳤는데 안 바뀐다»는 대개 저장을 안 눌러서다. 칸을 건드리면 그 줄의
@@ -791,7 +791,7 @@ export default async function OrgGoalsAdminPage({
             */}
             <p className="mt-1 text-sm text-slate-500">
               이름·기간은 <b className="font-semibold text-slate-700">그 줄의 「저장」</b>을
-              눌러야 반영됩니다. 여기서 정한 기간이 평가2 대시보드의 진행 띠에 그대로
+              눌러야 반영됩니다. 여기서 정한 기간이 인사평가 대시보드의 진행 띠에 그대로
               나옵니다.
             </p>
             {/*

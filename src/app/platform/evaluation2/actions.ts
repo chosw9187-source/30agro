@@ -198,7 +198,7 @@ function statusFor(
 async function requireGoalModule() {
   const session = await requireRole(...ALL_ROLES);
   if (!(await checkModuleAccess("EVALUATION_V2"))) {
-    throw new Error("평가2 모듈 접근 권한이 없습니다.");
+    throw new Error("인사평가 모듈 접근 권한이 없습니다.");
   }
   return session;
 }
@@ -1276,7 +1276,7 @@ export async function releaseYearResults(year: number) {
  * 배포한 해의 결과를 **인사 이력에 적재한다**(`PerformanceHistory`).
  *
  * 직원카드의 「인사평가 이력」과 평가자 화면의 «최근 5년»이 이 표를 읽는다. 배포
- * 시점에 한 번 적어 두면, 해가 바뀌어 평가2의 사이클이 닫혀도 지난 등급이 남는다.
+ * 시점에 한 번 적어 두면, 해가 바뀌어 인사평가의 사이클이 닫혀도 지난 등급이 남는다.
  *
  * 등급이 아직 없는 사람(점수 미입력·정원 미지정)은 적지 않는다 — 빈 등급 줄이
  * 이력에 남으면 «그 해에는 D였나»로 읽힌다.

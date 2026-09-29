@@ -45,17 +45,10 @@ const MODULE_NAV: Record<string, { href: string; label: string }> = {
     label: "SG 인적성검사",
   },
   ONBOARDING: { href: "/platform/onboarding", label: "온보딩 프로그램" },
-  EVALUATION_V2: { href: "/platform/evaluation2", label: "평가2" },
+  EVALUATION_V2: { href: "/platform/evaluation2", label: "인사평가" },
 };
 
-function evaluationHref(role: Role): string {
-  if (role === "ADMIN") return "/admin/evaluation";
-  if (role === "EVALUATOR") return "/evaluate";
-  return "/my-evaluations";
-}
-
 function mainItems(
-  role: Role,
   notificationCount: number,
   moduleUiConfig: Record<
     string,
@@ -71,8 +64,8 @@ function mainItems(
     (a, b) => (moduleUiConfig[a]?.order ?? 0) - (moduleUiConfig[b]?.order ?? 0),
   );
   const moduleItems: NavItem[] = orderedModules.map((m) => ({
-    href: m === "EVALUATION" ? evaluationHref(role) : MODULE_NAV[m].href,
-    label: moduleUiConfig[m]?.label || MODULE_LABEL_FOR_NAV[m],
+    href: MODULE_NAV[m].href,
+    label: moduleUiConfig[m]?.label || MODULE_NAV[m].label,
     module: m as Module,
     comingSoon: moduleUiConfig[m]?.comingSoon ?? false,
     hidden: moduleUiConfig[m]?.hidden ?? false,
@@ -88,13 +81,6 @@ function mainItems(
     },
   ];
 }
-
-const MODULE_LABEL_FOR_NAV: Record<string, string> = {
-  ...Object.fromEntries(
-    Object.entries(MODULE_NAV).map(([k, v]) => [k, v.label]),
-  ),
-  EVALUATION: "평가",
-};
 
 function manageItems(
   role: Role,
@@ -212,11 +198,7 @@ export function PlatformSidebar({
 
   // 숨김 처리된 메뉴는 관리자 본인에게는 계속 보여야 개발 중에도 접근할 수
   // 있으므로, 다른 역할(평가자·직원)에게서만 실제로 숨긴다.
-  const visibleMainItems = mainItems(
-    role,
-    notificationCount,
-    moduleUiConfig,
-  ).filter(
+  const visibleMainItems = mainItems(notificationCount, moduleUiConfig).filter(
     (item) =>
       (!item.module || visible.has(item.module)) &&
       (role === "ADMIN" || !item.hidden),

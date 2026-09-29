@@ -28,6 +28,19 @@ export const EXECUTIVE_POSITIONS: Position[] = [
   "SENIOR_STAFF",
 ];
 
+/**
+ * 플랫폼 왼쪽 띠에 서는 화면 묶음.
+ *
+ * 예전에는 「평가」(구 평가 모듈 — 평가 템플릿·사이클·배정으로 굴러가던 첫
+ * 판)와 「평가2」(목표 캐스케이드 + 역량평가)가 나란히 서 있었다. 인사평가를
+ * 평가2 한 벌로만 굴리기로 해서 「평가」는 띠에서 걷고, 평가2가 그 이름
+ * 「인사평가」를 받았다(`MODULE_LABEL`).
+ *
+ * DB의 `Module` enum에는 `EVALUATION`이 그대로 남아 있다 — 지난 권한·화면
+ * 설정 줄이 그 값을 쓰고 있어서 값을 지우면 그 줄을 함께 버려야 한다. 여기
+ * 목록에 없으면 화면에도 권한 설정에도 오르지 않으므로, 남은 줄은 그냥
+ * 읽히지 않는다.
+ */
 export type Module =
   | "EMPLOYEES"
   | "ORG_CHART"
@@ -35,7 +48,6 @@ export type Module =
   | "TASK_MANAGEMENT"
   | "LEGAL_LIBRARY"
   | "HR_REPORT"
-  | "EVALUATION"
   | "EVALUATION_V2"
   | "TALENT_ASSESSMENT"
   | "ONBOARDING";
@@ -47,7 +59,6 @@ export const MODULES: Module[] = [
   "TASK_MANAGEMENT",
   "LEGAL_LIBRARY",
   "HR_REPORT",
-  "EVALUATION",
   "EVALUATION_V2",
   "TALENT_ASSESSMENT",
   "ONBOARDING",
@@ -60,8 +71,7 @@ export const MODULE_LABEL: Record<Module, string> = {
   TASK_MANAGEMENT: "업무 관리",
   LEGAL_LIBRARY: "인사 규정 챗봇",
   HR_REPORT: "HR REPORT",
-  EVALUATION: "평가",
-  EVALUATION_V2: "평가2",
+  EVALUATION_V2: "인사평가",
   TALENT_ASSESSMENT: "SG 인적성검사",
   ONBOARDING: "온보딩 프로그램",
 };
@@ -106,7 +116,6 @@ export const SIDEBAR_MODULES: Module[] = [
   "TASK_MANAGEMENT",
   "EMPLOYEES",
   "LEGAL_LIBRARY",
-  "EVALUATION",
   "EVALUATION_V2",
   "TALENT_ASSESSMENT",
   "ONBOARDING",
@@ -127,7 +136,7 @@ export const DEFAULT_COMING_SOON_MODULES = new Set<Module>([
  * (getVisibleModules)과 화면 진입 검사(checkModuleAccess) 양쪽에서 같이
  * 막는다. 서버 액션도 checkModuleAccess를 거치므로 함께 잠긴다.
  *
- * 지금은 비어 있다 — 평가2(목표관리)를 팀장·팀원까지 열면서 뺐다. 평가2 안의
+ * 지금은 비어 있다 — 인사평가(목표관리)를 팀장·팀원까지 열면서 뺐다. 그 안의
  * 층별 노출과 목록 범위는 직책으로 갈리고(lib/goals.ts), 편집 화면
  * (조직 목표 관리 / 평가대상자 관리)만 관리자로 남는다.
  */

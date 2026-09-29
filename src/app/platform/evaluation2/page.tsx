@@ -552,7 +552,7 @@ export default async function Evaluation2Page({
   }>;
 }) {
   if (!(await checkModuleAccess("EVALUATION_V2"))) {
-    return <NoModuleAccess title="평가2" />;
+    return <NoModuleAccess title="인사평가" />;
   }
 
   const params = await searchParams;
@@ -589,7 +589,7 @@ export default async function Evaluation2Page({
     orderBy: GOAL_CYCLE_ORDER,
   });
   /**
-   * 상단 배너의 인사평가 선택. 평가2에 처음 들어오면 아무것도 안 고른
+   * 상단 배너의 인사평가 선택. 인사평가에 처음 들어오면 아무것도 안 고른
    * "선택" 상태이고, 그때는 **어떤 목표도 보여주지 않는다**.
    *
    * 예전에는 오늘이 속한 사이클을 알아서 잡아 줬는데, 그러면 화면에 뜬 숫자가
@@ -602,7 +602,7 @@ export default async function Evaluation2Page({
     목표 자리에는 세 단계(목표설정·중간평가·최종평가)와 「목표진행현황」이 있다.
     진행현황은 사이클이 아니라 **보기**다: 그 해에서 가장 앞선 단계의 목표를
     읽기 전용으로 펼쳐, 전사부터 내 목표까지 지금 얼마나 굴러갔는지만 본다.
-    평가2를 눌렀을 때 처음 뜨는 화면이 이것이다 — 대부분은 무엇을 고치러
+    인사평가를 눌렀을 때 처음 뜨는 화면이 이것이다 — 대부분은 무엇을 고치러
     오는 게 아니라 «지금 어디까지 왔나»를 보러 온다.
 
     예전 주소(cycleId=…)로 들어와도 읽는다. 그 사이클의 해와 단계로 옮겨 준다.
@@ -1023,7 +1023,7 @@ export default async function Evaluation2Page({
    * 빼 두지 않은 사람.
    *
    * 세 화면(역량평가 · 평가결과 · HR REPORT)이 같은 모수를 봐야 등급 정원이
-   * 어긋나지 않는다. 고용형태를 여기서 거르기 전에는 평가2가 계약직·기능직까지
+   * 어긋나지 않는다. 고용형태를 여기서 거르기 전에는 인사평가가 계약직·기능직까지
    * 세어, 「평가대상자 관리」와 사람 수가 달랐다.
    */
   const inEvalPopulation = (p: (typeof people)[number]) =>
@@ -1608,7 +1608,7 @@ export default async function Evaluation2Page({
               {
                 /*
                   한 해의 인사평가가 흘러가는 차례 그대로다 — 진행현황을 맨 위이자
-                  기본값으로 둔다. 평가2에 들어오는 사람 대부분은 무엇을 고치러
+                  기본값으로 둔다. 인사평가에 들어오는 사람 대부분은 무엇을 고치러
                   오는 게 아니라 «지금 어디까지 왔나»를 보러 온다.
 
                   역량평가도 이 묶음에 든다. 사이클(목표)이 없는 화면이지만 «올해
@@ -7006,7 +7006,7 @@ export default async function Evaluation2Page({
   if (cycles.length === 0) {
     return (
       <div className="flex flex-col gap-6">
-        <h1 className="text-2xl font-semibold">평가2 · 목표관리</h1>
+        <h1 className="text-2xl font-semibold">인사평가 · 목표관리</h1>
         <div className={`${CARD_CLASS} p-5`}>
           <p className="text-sm text-slate-600">
             등록된 목표 사이클이 없습니다.{" "}

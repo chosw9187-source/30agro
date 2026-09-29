@@ -1,13 +1,13 @@
 import Link from "next/link";
 
 /**
- * **평가2 디자인 미리보기** — 고치기 전에 «지금»과 «바꾼 뒤»를 나란히 놓고 고르는 자리.
+ * **인사평가 디자인 미리보기** — 고치기 전에 «지금»과 «바꾼 뒤»를 나란히 놓고 고르는 자리.
  *
  * 화면을 먼저 바꿔 놓고 물으면, 마음에 안 들 때 되돌리는 값이 크고 그사이 쓰던
  * 사람이 혼란스럽다. 그래서 여기서는 **아무것도 저장하지 않는다** — 실제 화면은
  * 그대로 두고, 그림만 그려 둔 방이다. 고른 것만 실제 화면에 옮긴다.
  *
- * 여기 담는 것은 **평가2 화면뿐**이다(목표 목록 · 역량평가 · 결과지). 다른 모듈의
+ * 여기 담는 것은 **인사평가 화면뿐**이다(목표 목록 · 역량평가 · 결과지). 다른 모듈의
  * 디자인은 이 방에서 다루지 않는다.
  *
  * 그려진 것은 진짜 부품이 아니라 «그림»이다. 일부러 그렇게 둔다 — 진짜 부품을
@@ -380,10 +380,10 @@ export default function DesignPreviewPage() {
       <section className={CARD}>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-3">
           <h1 className="text-lg font-bold text-slate-900">
-            평가2 디자인 미리보기
+            인사평가 디자인 미리보기
           </h1>
           <span className="text-xs break-keep text-slate-500">
-            평가2 화면만 다룹니다 · 「지금」과 「바꾼 뒤」를 나란히 봅니다 — 이
+            인사평가 화면만 다룹니다 · 「지금」과 「바꾼 뒤」를 나란히 봅니다 — 이
             화면은 그림일 뿐, 아무것도 저장하지 않습니다.
           </span>
         </div>
@@ -761,7 +761,7 @@ export default function DesignPreviewPage() {
             <div className="w-1/4 rounded bg-brand-green px-1 py-2">
               <p className="text-[8px] text-white/80">홈</p>
               <p className="text-[8px] text-white/80">조직도</p>
-              <p className="text-[8px] text-white/80">평가2</p>
+              <p className="text-[8px] text-white/80">인사평가</p>
             </div>
             <div className="flex-1 rounded border border-slate-200 bg-white p-2">
               <p className="text-[10px] font-bold text-slate-800">
@@ -897,7 +897,7 @@ export default function DesignPreviewPage() {
           href="/platform/evaluation2?phase=hrreport"
           className="text-brand-green-dark underline"
         >
-          평가2로 돌아가기
+          인사평가로 돌아가기
         </Link>
       </p>
     </div>

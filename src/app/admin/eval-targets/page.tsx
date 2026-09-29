@@ -253,7 +253,7 @@ export default async function EvalTargetsPage({
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <h1 className="text-xl font-bold">평가대상자 관리</h1>
         <Link href="/platform/evaluation2" className={SMALL_BUTTON_CLASS}>
-          평가2로 이동
+          인사평가로 이동
         </Link>
         <div className="ml-auto">
           {cycles.length > 0 && (

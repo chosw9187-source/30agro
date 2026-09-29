@@ -39,7 +39,7 @@ const CONTRACT_INCLUDED_TEAMS = ["영업관리팀"];
  * `regularOrExceptionTeamWhere`와 같은 규칙을 이미 읽어 온 사람 목록에 쓰는
  * 꼴이다. 쿼리를 한 번만 던지고 화면마다 다르게 거르는 자리가 여럿이라, 규칙을
  * 두 군데 적어 두면 「평가대상자 관리」와 「HR REPORT」의 사람 수가 어긋난다 —
- * 실제로 평가2 쪽이 계약직·기능직까지 세고 있었다.
+ * 실제로 인사평가 쪽이 계약직·기능직까지 세고 있었다.
  */
 export function isEvalPopulation(p: {
   employmentType?: string | null;
