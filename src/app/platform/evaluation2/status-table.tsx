@@ -70,6 +70,16 @@ export function StatusTable({
       : "total-desc",
   );
   const [grouped, setGrouped] = useState(true);
+  /*
+    **점수와 등급은 눌러야 보인다.**
+
+    이 표는 사람마다 성과 · 역량 · 종합점수와 등급이 한 줄씩 적혀 있다. 대시보드를
+    여는 것만으로 그것이 펼쳐져 있으면, 회의실 화면이나 어깨너머로 팀원 전원의
+    점수가 그대로 읽힌다 — 평가자에게 필요한 자리이지만 «늘 켜 둘» 자리는 아니다.
+    그래서 닫은 채로 두고, 볼 때만 연다. 기억하지도 않는다 — 화면을 다시 열면
+    다시 닫혀 있다.
+  */
+  const [open, setOpen] = useState(false);
   const [sKey, sDir] = sort.split("-");
   const sDesc = sDir === "desc";
   const canGroup = groupNoun !== "";
@@ -159,8 +169,42 @@ export function StatusTable({
     </td>
   );
 
+  if (!open) {
+    return (
+      <div className="flex min-w-0 flex-col items-start gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-6">
+        <p className="text-sm font-semibold text-slate-700">
+          점수 · 등급 상세표
+        </p>
+        <p className="text-xs break-keep text-slate-500">
+          사람별 성과 · 역량 · 종합점수와 등급입니다({rows.length}명). 어깨너머로
+          읽히지 않게 닫아 두었습니다 — 볼 때만 여세요.
+        </p>
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="cursor-pointer rounded-md bg-goal-4 px-3 py-1.5 text-xs font-semibold text-white hover:bg-goal-4/90"
+        >
+          점수 · 등급 보기
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-w-0">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-slate-700">
+          점수 · 등급 상세표
+        </span>
+        <span className="text-[11px] text-slate-400">{rows.length}명</span>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="ml-auto cursor-pointer rounded-md border border-slate-300 px-2.5 py-0.5 text-[11px] font-medium whitespace-nowrap text-slate-600 hover:bg-slate-50"
+        >
+          감추기
+        </button>
+      </div>
       {/* 자주 쓰는 정렬은 칸 머리를 찾지 않아도 되게 칩으로 둔다. */}
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         <span className="text-[11px] whitespace-nowrap text-slate-400">

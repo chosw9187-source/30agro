@@ -4441,7 +4441,7 @@ export default async function Evaluation2Page({
             {pct}%
           </span>
           <span className="ml-auto text-[11px] break-keep text-slate-400">
-            왼쪽은 단계별 진행 · 오른쪽은 사람별 점수와 등급입니다
+            왼쪽은 단계별 진행 · 사람별 점수와 등급은 오른쪽에서 눌러야 보입니다
           </span>
         </div>
         {/* 왼쪽 칸은 24rem — 단계 이름(「성과평가(중간)」)과 막대·숫자가 한 줄에
