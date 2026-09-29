@@ -151,6 +151,7 @@ import {
 import {
   PERFORMANCE_WEIGHT,
   COMPETENCY_WEIGHT,
+  STRENGTH_THRESHOLD,
   competencyScore100,
   overallScore,
   buildResultRow,
@@ -2720,7 +2721,7 @@ export default async function Evaluation2Page({
               </span>
               {pickList(
                 strengths,
-                "평균 3점을 넘는 역량이 아직 없습니다",
+                `평균 ${STRENGTH_THRESHOLD}점을 넘는 역량이 아직 없습니다`,
                 "good",
               )}
             </div>
@@ -2733,7 +2734,7 @@ export default async function Evaluation2Page({
               ) : relativelyLow.length > 0 ? (
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="text-sm text-slate-400">
-                    3점 미만 역량 없음
+                    {STRENGTH_THRESHOLD}점 미만 역량 없음
                   </span>
                   <span className="text-xs text-slate-400">
                     · 상대적으로 낮은 역량
@@ -2746,12 +2747,13 @@ export default async function Evaluation2Page({
             </div>
             {/*
               규칙을 화면에 적어 둔다 — 왜 이 역량이 강점으로 뽑혔는지 결과지만
-              보고는 알 수 없다. 사내 양식에 적힌 문장 그대로다.
+              보고는 알 수 없다. 문턱은 코드에서 읽어 와서, 눈금이 바뀌어도 적힌
+              숫자와 실제가 어긋나지 않는다.
             */}
             <p className="text-[11px] break-keep text-slate-400">
-              자기평가와 팀장평가의 평균이 3점을 넘으면 강점, 3점 미만이면
-              약점으로 봅니다. 두 점수 차이가 2점 이상 벌어진 역량은
-              강점·약점에서 뺍니다.
+              자기평가와 팀장평가의 평균이 {STRENGTH_THRESHOLD}점을 넘으면 강점,{" "}
+              {STRENGTH_THRESHOLD}점 미만이면 약점으로 봅니다 (평균이 높은 순으로
+              세 개까지).
             </p>
           </div>
         </section>

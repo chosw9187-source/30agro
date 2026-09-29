@@ -81,15 +81,15 @@ export function buildResultRow(
   };
 }
 
-/** 강점·약점을 가르는 문턱. 결과지에 적힌 규칙 그대로다. */
 /*
-  문턱은 **만점에서 끌어낸다.** 1~5에서 «평균 3점 초과가 강점»이던 규칙은 만점의
-  60%라는 뜻이고, 1~10에서는 6점이다. 숫자를 그대로 두면 열 칸 눈금에서 3점이
-  «보통 이상»이 되어 거의 모두가 강점으로 찍힌다.
+  강점·약점을 가르는 문턱. **만점에서 끌어낸다** — 1~5에서 «평균 3점 초과가
+  강점»이던 규칙은 만점의 60%라는 뜻이고, 1~10에서는 6점이다. 숫자를 그대로 두면
+  열 칸 눈금에서 3점이 «보통 이상»이 되어 거의 모두가 강점으로 찍힌다.
+
+  화면도 이 값을 읽어 「평균 6점을 넘으면 강점」이라고 적는다 — 문턱과 화면의
+  설명이 따로 놀지 않게 한다.
 */
-const STRENGTH_THRESHOLD = COMPETENCY_MAX * 0.6;
-/** 자기평가와 팀장평가가 이만큼 벌어지면 강점·약점에서 뺀다 — 양식의 «차이가 클 경우는 제외». */
-const GAP_EXCLUDE = COMPETENCY_MAX * 0.4;
+export const STRENGTH_THRESHOLD = COMPETENCY_MAX * 0.6;
 const MAX_PICKS = 3;
 
 /**
@@ -111,16 +111,13 @@ export function strengthsAndWeaknesses(rows: CompetencyResultRow[]): {
   relativelyLow: CompetencyResultRow[];
 } {
   const scored = rows.filter((r) => r.avg != null);
-  const steady = scored.filter(
-    (r) => r.gap == null || Math.abs(r.gap) < GAP_EXCLUDE,
-  );
 
-  const strengths = [...steady]
+  const strengths = [...scored]
     .filter((r) => r.avg! > STRENGTH_THRESHOLD)
     .sort((a, b) => b.avg! - a.avg! || a.area.localeCompare(b.area))
     .slice(0, MAX_PICKS);
 
-  const weaknesses = [...steady]
+  const weaknesses = [...scored]
     .filter((r) => r.avg! < STRENGTH_THRESHOLD)
     .sort((a, b) => a.avg! - b.avg! || a.area.localeCompare(b.area))
     .slice(0, MAX_PICKS);
@@ -142,11 +139,13 @@ export function strengthsAndWeaknesses(rows: CompetencyResultRow[]): {
 }
 
 /*
-  차이에 「셀프 피드백 / 1:1 미팅」 딱지를 붙이던 `gapNote`는 걷었다(양식의
-  «-1 이상이면 셀프 피드백, 2 이상이면 1:1 미팅» 문구를 옮긴 것이었다). 표에서는
-  차이를 숫자와 색으로만 보여 준다 — 마이너스는 붉게, 플러스는 파랗게.
+  자기평가와 팀장평가의 **차이는 이제 뽑기에 끼어들지 않는다.**
 
-  벌어진 정도를 쓰는 곳은 아래 강점·약점 뽑기 한 군데로 남는다(`GAP_EXCLUDE`) —
-  두 사람이 크게 다르게 본 역량은 «강점»도 «보완점»도 아니라고 보는 양식의
-  «차이가 클 경우는 제외» 규칙이다.
+  양식에는 «차이가 클 경우는 제외»가 적혀 있었고, 그대로 옮겨 두 사람이 4점 이상
+  다르게 본 역량은 강점·약점에서 뺐다. 그런데 정작 그 역량이 제일 이야기할 거리인
+  경우가 많았고(자기 10 / 팀장 4), 화면에서는 왜 빠졌는지 보이지 않아서 «내 제일
+  높은 점수가 강점에 없다»로 읽혔다. 차이는 「2. 역량별 결과」 표에서 숫자와
+  색으로 그대로 보이므로, 뽑기에서는 평균만 본다.
+
+  「셀프 피드백 / 1:1 미팅」 딱지를 붙이던 `gapNote`도 같은 이유로 걷었다.
 */
