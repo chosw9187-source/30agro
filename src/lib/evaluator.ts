@@ -242,77 +242,47 @@ export function buildEvaluatorMap(
   }
 
   /*
-    사다리의 각 칸에는 «그 칸을 채우는 직책»이 있다. 자기가 이미 그 칸 높이거나
-    그 위면 «비었다»고 세지 않는다 — 운영책임에게 «부문 책임이 없다»고 알리는
-    건 틀린 말이다. 운영책임의 다음 칸은 원래 사장이다.
+    한 칸 위로 — **팀장 → 부문 책임 → 본부 운영책임 → 사장** 순으로 올라가다
+    처음 만나는 사람이 평가자다. 자기 자신은 건너뛴다(팀장은 자기 팀의 팀장이다).
+    비어 있는 칸도 그냥 건너뛴다 — 부문을 두지 않는 라인이 실제로 있어서, 빈 칸을
+    «빠진 것»으로 세어 알리지 않는다.
   */
-  const RANK: Record<Position, number> = {
-    STAFF: 0,
-    TEAM_LEADER: 1,
-    SENIOR_STAFF: 2,
-    OPERATIONS_HEAD: 3,
-    CEO: 4,
-  };
-
-  const step = (p: EvaluatorPerson): { person: EvaluatorPerson | null; missing: string[] } => {
+  const step = (p: EvaluatorPerson): EvaluatorPerson | null => {
     const { team, division, businessUnit } = belongsTo(p);
-    const mine = RANK[p.position] ?? 0;
-    const missing: string[] = [];
-    const rungs: { who: EvaluatorPerson | undefined; gap: string | null; rank: number }[] = [
-      // 팀장은 자기 팀의 팀장이므로 이 칸에서 걸러지고 다음 칸으로 넘어간다.
-      {
-        who: team?.leaderId ? byId.get(team.leaderId) : undefined,
-        gap: team ? `팀 「${team.name ?? "소속 팀"}」의 팀장` : null,
-        rank: RANK.TEAM_LEADER,
-      },
-      {
-        who: division ? divisionHead.get(division) : undefined,
-        gap: division ? `부문 「${division}」의 책임` : null,
-        rank: RANK.SENIOR_STAFF,
-      },
-      {
-        who: businessUnit ? unitHead.get(businessUnit) : undefined,
-        gap: businessUnit ? `본부 「${businessUnit}」의 운영책임` : null,
-        rank: RANK.OPERATIONS_HEAD,
-      },
-      { who: ceo ?? undefined, gap: null, rank: RANK.CEO },
+    const rungs = [
+      team?.leaderId ? byId.get(team.leaderId) : undefined,
+      division ? divisionHead.get(division) : undefined,
+      businessUnit ? unitHead.get(businessUnit) : undefined,
+      ceo ?? undefined,
     ];
-    for (const rung of rungs) {
-      if (rung.who && rung.who.id !== p.id) return { person: rung.who, missing };
-      // 자기 자신이라서 넘어간 자리와, 내 층 이하의 자리는 «비었다»고 하지 않는다.
-      if (!rung.who && rung.gap && mine < rung.rank) missing.push(rung.gap);
+    for (const who of rungs) {
+      if (who && who.id !== p.id) return who;
     }
-    return { person: null, missing };
+    return null;
   };
 
   const map = new Map<string, EvaluatorResult>();
   for (const p of people) {
     const first = step(p);
-    const second = first.person ? step(first.person) : { person: null, missing: [] };
+    const second = first ? step(first) : null;
     /*
-      중간에 빈 자리를 건너뛰었으면 그 말을 적는다. 조직도에 그 자리가 비어 있다는
-      뜻이고, 화면에 적어야 «왜 우리 팀장이 아니지»가 «인사팀에 팀장이 지정돼 있지
-      않구나»로 읽힌다.
+      **사슬이 한 칸을 건너뛴 것은 알리지 않는다.**
 
-      처음에는 사장까지 올라간 경우만 알렸다. 그런데 한 칸만 건너뛴 경우 — 팀에
-      팀장이 없어 부문 책임이나 본부 운영책임이 1차 평가자가 되는 경우 — 가 훨씬
-      흔하고, 그때는 아무 말도 없었다. 폼에 뜨는 것은 「1차 평가자」라는 머리글
-      뿐이라 «평가자가 왜 저 사람이지»를 화면만 보고는 풀 수 없었다.
+      예전에는 「조직도에 부문 「…」의 책임이 없어 ○○ 운영책임이 1차 평가자가
+      되었습니다」를 적었다. 빈 자리를 채우라는 뜻으로 둔 말인데, 부문을 두지 않는
+      라인(재무경영관리처럼 운영책임 밑에 팀이 바로 붙는 라인, 사업개발팀)에서는
+      채울 것이 없는데도 목록마다 남아 «고장인가»로 읽혔다. 1차 평가자가 누구인지는
+      화면이 이름으로 적고 있으므로, 그 사람이 어느 칸에서 왔는지까지 줄마다
+      설명할 이유가 없다.
+
+      **평가자가 아예 없는 것은 남긴다** — 그건 평가를 시작할 수 없다는 뜻이라
+      알려야 한다(사장이 등록되어 있지 않은 경우).
     */
-    /*
-      말은 «누가 되었는지»까지 적는다. 예전에는 「그 윗자리가 1차 평가자가
-      되었습니다」로 끝나서, 읽는 사람이 «1차 평가자가 없다는 말인가»로 받았다 —
-      실제로는 빈 것은 한 칸(부문 책임)이고 1차 평가자는 그 위 사람으로 정해져
-      있다. 그 사람 이름을 적어 두면 «왜 저 사람이지»가 그 줄에서 끝난다.
-    */
-    const note = !first.person
-      ? p.position !== "CEO"
+    const note =
+      !first && p.position !== "CEO"
         ? "조직도에서 평가자를 찾지 못했습니다 (사장이 등록되어 있는지 확인해 주세요)"
-        : null
-      : first.missing.length > 0
-        ? `조직도에 ${first.missing.join(", ")}이(가) 없어 ${evaluatorLabel(first.person)}이(가) 1차 평가자가 되었습니다`
         : null;
-    map.set(p.id, { first: first.person, second: second.person, note });
+    map.set(p.id, { first, second, note });
   }
   return map;
 }

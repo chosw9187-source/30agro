@@ -5939,13 +5939,13 @@ export default async function Evaluation2Page({
             1차 평가자
           </p>
           {/*
-            사슬이 팀장을 건너뛰었으면 왜 건너뛰었는지 적는다 — 대개 그 팀에
-            팀장이 지정돼 있지 않아서다. 이 말이 없으면 «왜 우리 팀장이 아니지»가
-            화면만 보고는 풀리지 않는다.
+            평가자가 아예 없을 때만 적는다 — 그건 평가를 시작할 수 없다는 뜻이다.
+            사슬이 한 칸 건너뛴 것(부문에 책임이 없는 라인 등)은 알리지 않는다.
           */}
           {evalNote && (
-            /* 목록의 알림과 같은 색으로 — 고장이 아니라 조직도 모양이다. */
-            <p className="mb-2 text-[11px] break-keep text-goal-3">{evalNote}</p>
+            <p className="mb-2 text-[11px] break-keep text-status-critical">
+              {evalNote}
+            </p>
           )}
           <div className="grid gap-3 md:grid-cols-4">
             <div>
@@ -6442,18 +6442,13 @@ export default async function Evaluation2Page({
                 <span className="text-status-critical">가중치 미입력</span>
               )}
               {/*
-                평가 사슬이 한 칸을 건너뛰었다는 알림. **빨강은 쓰지 않는다** —
-                고장이 아니고 «조직도가 이렇게 생겼다»는 말이라, 빨갛게 두면 읽는
-                사람이 «1차 평가자가 없다»로 받는다(실제로 그렇게 읽혔다).
-                무엇을 고치면 되는지는 손을 올렸을 때 뜬다.
+                남은 알림은 «평가자가 아예 없다» 하나뿐이다 — 사슬이 한 칸
+                건너뛴 것은 알리지 않는다(부문을 두지 않는 라인이 실제로 있어서,
+                목록마다 남는 그 말이 고장처럼 읽혔다). 이건 평가를 시작할 수
+                없다는 뜻이라 붉게 둔다.
               */}
               {level === "TEAM" && subjectEval?.note && (
-                <span
-                  className="text-goal-3"
-                  title="부문은 「팀 관리」의 「본부」 칸에 적는 값입니다. 그 부문을 맡을 책임이 조직도에 없으면 평가 사슬이 한 칸 위(본부의 운영책임)로 올라갑니다 — 책임을 두려면 「사용자 관리」에서 그 사람의 직책을 책임으로, 본부를 같은 이름으로 맞춰 주세요."
-                >
-                  {subjectEval.note}
-                </span>
+                <span className="text-status-critical">{subjectEval.note}</span>
               )}
             </span>
             <span className="ml-auto flex items-center gap-2">
