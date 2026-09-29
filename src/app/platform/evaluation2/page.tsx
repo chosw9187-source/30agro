@@ -5088,20 +5088,18 @@ export default async function Evaluation2Page({
     };
     const halves = GOAL_HALVES.map(statsIn);
     /*
-      두 반기를 한 카드에서 보되 **퍼센트는 섞지 않는다** — 반기마다 가중치가
-      100%로 따로 맞춰져 있어서, 끝난 상반기 102%와 갓 시작한 하반기 0%의 평균
-      51%는 아무것도 뜻하지 않는다. 합칠 수 있는 것은 건수뿐이다.
+      카드 머리의 건수는 **지금 굴러가는 반기**만 센다.
 
-      건수는 **줄을 세어** 더한다. 두 반기의 건수를 그냥 더하면 하위 목표가 아직
-      없는 팀목표가 두 반기에 다 들어 두 번 세어진다(팀목표 한 건이 「연간 2건」).
+      두 반기를 합쳐 「연간 10건」으로 적어 두었더니, 사람들이 세는 단위와 어긋났다
+      — 목표는 반기마다 따로 세우므로 «지금 내 목표가 몇 건인가»는 그 반기의
+      건수다. 합친 숫자는 두 반기를 한 덩어리로 읽게 만들고, 퍼센트는 애초에 섞을
+      수 없어서(반기마다 가중치를 100%로 따로 맞춘다) 건수만 합친 것도 반쪽이었다.
+      지난 반기 건수는 그 반기 칸의 「전체」가 그대로 적는다.
     */
-    const yearCount = new Set(
-      GOAL_HALVES.flatMap((h) =>
-        rowsIn(h)
-          .filter(countsTowardProgress)
-          .map((g) => g.id),
-      ),
-    ).size;
+    const shownCount =
+      halves.find((h) => h.half === shownHalf)?.count ??
+      halves[0]?.count ??
+      0;
     /* 반기 칸이 없는 층(전사·책임목표)에서는 예전처럼 한 덩어리로 센다. */
     const nodes = rowsIn(shownHalf);
     const counted = nodes.filter(countsTowardProgress);
@@ -5228,11 +5226,11 @@ export default async function Evaluation2Page({
           <h2 className="text-base font-semibold text-slate-800">
             {GOAL_LEVEL_LABEL[level]}
           </h2>
-          {/* 합칠 수 있는 것은 건수뿐이다 — 반기별 퍼센트는 섞지 않는다. */}
+          {/* 어느 반기의 건수인지 이름을 붙인다 — 숫자만으로는 알 수 없다. */}
           <span className="ml-auto text-[11px] whitespace-nowrap text-slate-500">
-            연간{" "}
+            {shownHalf}{" "}
             <b className="font-semibold tabular-nums text-slate-700">
-              {yearCount}건
+              {shownCount}건
             </b>
           </span>
         </div>
