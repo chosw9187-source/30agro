@@ -2017,17 +2017,30 @@ export default async function Evaluation2Page({
               <span className="text-xs text-slate-500">
                 1차 평가자만 작성합니다
               </span>
+              {/* 필수라는 말을 칸 옆에 둔다 — 저장을 눌러 막힌 뒤에 알면 늦다. */}
+              {canWriteLead && (
+                <span className="rounded bg-status-critical/10 px-1.5 py-0.5 text-[11px] font-semibold text-status-critical">
+                  필수
+                </span>
+              )}
             </div>
             <div className="border-t border-slate-100 px-4 py-3">
+              {/* 막혔을 때 뜨는 말이 「leadComment」가 아니라 「전체 코멘트」가
+                  되도록 이름표를 둔다(ActionForm이 같은 상자의 label을 읽는다). */}
+              <label htmlFor="leadComment" className="sr-only">
+                전체 코멘트
+              </label>
               <textarea
                 key={`leadComment:${competencyReview?.leadComment ?? ""}`}
+                id="leadComment"
                 name="leadComment"
                 rows={3}
                 defaultValue={competencyReview?.leadComment ?? ""}
                 disabled={!canWriteLead}
+                required={canWriteLead}
                 placeholder={
                   canWriteLead
-                    ? "점수를 그렇게 준 이유, 격려·감사·교정하고 싶은 점을 적어 주세요."
+                    ? "점수를 그렇게 준 이유, 격려·감사·교정하고 싶은 점을 적어 주세요. (필수)"
                     : "1차 평가자가 적으면 여기에 보입니다."
                 }
                 className={INPUT_CLASS}
@@ -2046,6 +2059,14 @@ export default async function Evaluation2Page({
                     ? "자기평가 칸만 적습니다. 팀장평가는 1차 평가자가 적습니다."
                     : "팀장평가 칸만 적습니다. 자기평가는 본인이 적습니다."}{" "}
                 비워 두면 «아직 안 적음»으로 남고 평균에서 빠집니다.
+                {canWriteLead && (
+                  <>
+                    {" "}
+                    <b className="font-semibold text-status-critical">
+                      전체 코멘트는 반드시 적어야 저장됩니다.
+                    </b>
+                  </>
+                )}
               </span>
               <button
                 type="submit"

@@ -3021,10 +3021,23 @@ export async function saveCompetencyScores(formData: FormData) {
     「전체 코멘트」는 팀장평가자 몫이다(양식에 «팀장평가자만 작성»이라 적혀 있다).
     자기평가만 쓸 수 있는 사람이 저장할 때는 이 칸이 폼에 실려 오지 않으므로,
     손대지 않고 그대로 둔다 — 빈 값으로 읽으면 팀장이 적어 둔 말이 지워진다.
+
+    팀장평가자에게는 **필수**다. 점수 열 칸으로는 «왜 그 점수인지»가 남지 않아서,
+    면담 자리에서 피평가자가 물으면 평가자도 기억에 의지해야 했다. 화면에서도
+    `required`로 막지만, 잠긴 칸은 폼에 실리지 않고 폼은 고쳐 보낼 수 있으므로
+    여기서 한 번 더 막는다 — 막히면 점수도 함께 저장되지 않는다(한 번에 저장이라
+    반만 들어가는 일이 없다).
   */
-  const commentData = canWriteLead
-    ? { leadComment: str(formData.get("leadComment")) || null }
-    : {};
+  let commentData: { leadComment?: string } = {};
+  if (canWriteLead) {
+    const leadComment = str(formData.get("leadComment"));
+    if (!leadComment) {
+      throw new Error(
+        "전체 코멘트를 적어 주세요 — 점수만 남기면 왜 그 점수인지가 남지 않습니다. (아직 저장하지 않았습니다)",
+      );
+    }
+    commentData = { leadComment };
+  }
 
   const review = await prisma.competencyReview.upsert({
     where: { year_userId: { year, userId } },
