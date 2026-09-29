@@ -5045,6 +5045,44 @@ export default async function Evaluation2Page({
         : rowsIn(half).filter((g) => g.rollupStatus === "DONE" && !g.excluded)
             .length;
 
+    /** 그 반기 한 칸에 들어가는 숫자 전부. */
+    const statsIn = (half: string) => {
+      const rows = rowsIn(half);
+      return {
+        half,
+        count: rows.filter(countsTowardProgress).length,
+        done: doneIn(half),
+        overdue: rows.filter((g) => isOverdue(g, now) && !g.excluded).length,
+        percent: percentIn(half),
+        /*
+          그 반기에 목표가 아예 없으면 0%가 아니라 «없음»이다 — 0%로 두면 아직
+          시작하지 않은 반기가 «다 밀린 반기»처럼 읽힌다.
+
+          «있는가»는 아래 숫자와 같은 줄로 센다(`rowsIn`). 하위 목표가 아직 없는
+          팀목표는 어느 반기에도 속하지 않지만 두 반기의 «전체»에 다 드는데,
+          여기서만 다른 규칙으로 세면 「전체 1건」과 「목표 없음」이 한 칸에 같이
+          뜬다.
+        */
+        has: rows.length > 0,
+      };
+    };
+    const halves = GOAL_HALVES.map(statsIn);
+    /*
+      두 반기를 한 카드에서 보되 **퍼센트는 섞지 않는다** — 반기마다 가중치가
+      100%로 따로 맞춰져 있어서, 끝난 상반기 102%와 갓 시작한 하반기 0%의 평균
+      51%는 아무것도 뜻하지 않는다. 합칠 수 있는 것은 건수뿐이다.
+
+      건수는 **줄을 세어** 더한다. 두 반기의 건수를 그냥 더하면 하위 목표가 아직
+      없는 팀목표가 두 반기에 다 들어 두 번 세어진다(팀목표 한 건이 「연간 2건」).
+    */
+    const yearCount = new Set(
+      GOAL_HALVES.flatMap((h) =>
+        rowsIn(h)
+          .filter(countsTowardProgress)
+          .map((g) => g.id),
+      ),
+    ).size;
+    /* 반기 칸이 없는 층(전사·책임목표)에서는 예전처럼 한 덩어리로 센다. */
     const nodes = rowsIn(shownHalf);
     const counted = nodes.filter(countsTowardProgress);
     const done = doneIn(shownHalf);
@@ -5052,15 +5090,6 @@ export default async function Evaluation2Page({
       (g) => isOverdue(g, now) && !g.excluded,
     ).length;
     const percent = percentIn(shownHalf);
-
-    /** 다른 반기 한 줄. 그 반기에 목표가 있을 때만 적는다. */
-    const otherHalf =
-      shownHalf === GOAL_HALVES[0] ? GOAL_HALVES[1] : GOAL_HALVES[0];
-    const otherHasGoals = usesHalf(level)
-      ? all.some((g) => goalHalf(g) === otherHalf)
-      : all.some((t) => t.children.some((c) => goalHalf(c) === otherHalf));
-    const otherCount = rowsIn(otherHalf).filter(countsTowardProgress).length;
-    const otherPercent = percentIn(otherHalf);
 
     const href =
       level === "COMPANY"
@@ -5074,7 +5103,120 @@ export default async function Evaluation2Page({
       화면에 같이 들어오지 않았다. 가로로 누이면 카드 높이가 도넛 하나 높이로
       끝난다 — 읽는 순서(무엇의 달성률인가 → 몇 %인가 → 몇 건인가)는 그대로다.
     */
-    const body = (
+    /*
+      **두 반기를 나란히 둔다.**
+
+      예전에는 지금 굴러가는 반기 하나만 도넛으로 크게 띄우고 지난 반기는 아래
+      한 줄로 흘려 적었다. 그런데 상·하반기는 목표도 가중치도 따로 세우는 두 벌의
+      평가라, 「하반기 92%」만 크게 보이면 «상반기는 어떻게 됐지»를 매번 눈으로
+      찾아야 했다. 그래서 반기마다 한 칸을 주고 **같은 크기로** 놓는다.
+
+      구분은 색으로 못 박는다 — 상반기는 초록, 하반기는 호박색(`HALF_TONE`).
+      테두리 · 바탕 · 딱지 · 막대 · 숫자가 모두 그 색이라, 두 칸을 스쳐 보아도
+      어느 쪽이 어느 반기인지 헷갈리지 않는다. 지금 굴러가는 반기에는 「진행 중」을
+      달아 둔다.
+    */
+    const halfPanel = (h: (typeof halves)[number]) => {
+      const tone = HALF_TONE[h.half] ?? HALF_TONE[HALF_UNSET];
+      const running = h.half === shownHalf;
+      return (
+        <div
+          key={h.half}
+          className={`min-w-0 flex-1 rounded-lg border ${tone.border} ${tone.panel} px-2.5 py-2`}
+        >
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${tone.badge}`}
+            >
+              {h.half}
+            </span>
+            {running && (
+              <span className="rounded-full border border-slate-300 bg-white px-1.5 py-px text-[10px] font-medium whitespace-nowrap text-slate-500">
+                진행 중
+              </span>
+            )}
+          </div>
+          {h.has ? (
+            <>
+              <div className="mt-1.5 flex items-baseline gap-1.5">
+                <span
+                  className={`text-2xl leading-none font-bold tabular-nums ${tone.text}`}
+                >
+                  {h.percent}
+                </span>
+                <span className="text-xs text-slate-400">%</span>
+                <span className="ml-auto text-[10px] whitespace-nowrap text-slate-500">
+                  {level === "COMPANY" ? "가중평균" : "평균 달성률"}
+                </span>
+              </div>
+              <span
+                className="mt-1 block h-1.5 w-full overflow-hidden rounded-full bg-white/70"
+                aria-hidden="true"
+              >
+                <span
+                  className={`block h-full rounded-full ${
+                    h.half === GOAL_HALVES[0] ? "bg-brand-green" : "bg-goal-3"
+                  }`}
+                  style={{ width: `${Math.min(100, h.percent)}%` }}
+                />
+              </span>
+              <dl className="mt-1.5 flex items-baseline gap-x-3 gap-y-0.5 text-[11px] whitespace-nowrap">
+                <span className="flex items-baseline gap-1">
+                  <dt className="text-slate-500">전체</dt>
+                  <dd className="font-semibold tabular-nums text-slate-800">
+                    {h.count}
+                  </dd>
+                </span>
+                <span className="flex items-baseline gap-1">
+                  <dt className="text-slate-500">완료</dt>
+                  <dd className="font-semibold tabular-nums text-brand-green-dark">
+                    {h.done}
+                  </dd>
+                </span>
+                <span className="flex items-baseline gap-1">
+                  <dt className="text-slate-500">지연</dt>
+                  <dd
+                    className={`font-semibold tabular-nums ${
+                      h.overdue > 0
+                        ? "text-status-critical"
+                        : "text-slate-400"
+                    }`}
+                  >
+                    {h.overdue}
+                  </dd>
+                </span>
+              </dl>
+            </>
+          ) : (
+            /* 목표가 없는 반기는 0%가 아니라 «아직 없음»이다. */
+            <p className="mt-2 text-[11px] break-keep text-slate-500">
+              아직 등록된 목표가 없습니다
+            </p>
+          )}
+        </div>
+      );
+    };
+
+    const body = halfSplit ? (
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <LevelDot level={level} />
+          <h2 className="text-base font-semibold text-slate-800">
+            {GOAL_LEVEL_LABEL[level]}
+          </h2>
+          {/* 합칠 수 있는 것은 건수뿐이다 — 반기별 퍼센트는 섞지 않는다. */}
+          <span className="ml-auto text-[11px] whitespace-nowrap text-slate-500">
+            연간{" "}
+            <b className="font-semibold tabular-nums text-slate-700">
+              {yearCount}건
+            </b>
+          </span>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          {halves.map(halfPanel)}
+        </div>
+      </div>
+    ) : (
       <div className="flex items-center gap-4">
         {showsProgress && (
           <div className="relative shrink-0">
@@ -5105,16 +5247,6 @@ export default async function Evaluation2Page({
             <h2 className="text-base font-semibold text-slate-800">
               {GOAL_LEVEL_LABEL[level]}
             </h2>
-            {/* 어느 반기의 숫자인지 이름 옆에 적는다 — 숫자만으로는 알 수 없다. */}
-            {halfSplit && (
-              <span
-                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                  HALF_TONE[shownHalf]?.badge ?? "bg-slate-500 text-white"
-                }`}
-              >
-                {shownHalf}
-              </span>
-            )}
           </div>
 
           <dl className="mt-2 grid grid-cols-3 gap-1 border-t border-slate-100 pt-2 text-center">
@@ -5141,18 +5273,6 @@ export default async function Evaluation2Page({
               </dd>
             </div>
           </dl>
-
-          {/*
-            다른 반기는 한 줄로 남긴다. 상반기가 끝난 뒤에도 «상반기는 102%였다»가
-            이 카드에서 읽혀야 한다 — 감추면 지난 반기를 찾아 다른 화면을 돌게 된다.
-          */}
-          {halfSplit && showsProgress && otherHasGoals && (
-            <p className="mt-1.5 text-[11px] break-keep text-slate-500">
-              {otherHalf}{" "}
-              <b className="font-medium text-slate-600">{otherCount}건</b> ·{" "}
-              <b className="font-medium text-slate-600">{otherPercent}%</b>
-            </p>
-          )}
         </div>
       </div>
     );
