@@ -24,19 +24,22 @@ export type EvalProgressBar = {
 export function EvalProgress({
   bars,
   caption,
+  /** 첫 칸의 이름. 일감으로 갈랐으면 「일감」, 단계로 갈랐으면 「단계」다. */
+  unitLabel = "일감",
 }: {
   bars: EvalProgressBar[];
   caption?: string;
+  unitLabel?: string;
 }) {
   return (
     <figure className="m-0 flex flex-col gap-2">
       <table className="w-full border-collapse text-sm">
         <caption className="sr-only">
-          일감별 진행 현황 — 끝낸 사람 수와 남은 사람 수
+          {unitLabel}별 진행 현황 — 끝낸 사람 수와 남은 사람 수
         </caption>
         <thead>
           <tr className="text-left text-[11px] text-slate-400">
-            <th className="py-1 pr-3 font-medium">일감</th>
+            <th className="py-1 pr-3 font-medium">{unitLabel}</th>
             <th className="py-1 pr-3 font-medium">진행</th>
             <th className="py-1 pr-3 text-right font-medium">완료</th>
             <th className="py-1 text-right font-medium">남음</th>

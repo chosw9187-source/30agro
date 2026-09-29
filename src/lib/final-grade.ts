@@ -253,3 +253,18 @@ export const PERSON_GRADE_CLASS: Record<PersonGrade, string> = {
   B: "border border-amber-300 bg-amber-100 text-amber-800",
   C: "bg-amber-500 text-white",
 };
+
+/**
+ * 등급을 **S → A+ → A → B → C** 순으로 세우는 열쇠.
+ *
+ * 글자로 정렬하면 「A · A+ · B · C · S」가 된다(localeCompare) — S가 맨 아래로
+ * 가고 A+가 A 뒤에 붙는다. 표에서 «등급순으로 보기»를 눌렀을 때 읽는 사람이
+ * 기대하는 순서는 사전순이 아니라 등급의 높낮이라, 자리 번호로 바꿔 센다.
+ *
+ * 등급이 아직 없는 사람은 `null`이다 — 정렬하는 쪽에서 «값 없는 사람은 맨 아래»
+ * 규칙에 그대로 걸린다.
+ */
+export function gradeOrder(grade: string | null | undefined): number | null {
+  const i = (PERSON_GRADES as readonly string[]).indexOf(grade ?? "");
+  return i < 0 ? null : i;
+}

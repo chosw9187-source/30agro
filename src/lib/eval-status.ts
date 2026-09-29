@@ -25,6 +25,18 @@ type CompetencyFormData = NonNullable<
  * `final-grade-data`가 한 군데서 낸다.
  */
 
+/** 한 단계(사이클)에서 그 사람의 진도. 「목표설정 · 성과평가(중간) · 최종」 줄이 읽는다. */
+export type EvalStageRow = {
+  /** 그 단계가 매기는 반기의 개인목표 수. */
+  goals: number;
+  /** 본인이 점수를 적은 목표 수. */
+  self: number;
+  /** 1차 평가자가 점수를 적은 목표 수. */
+  first: number;
+  /** 「평가완료」가 찍힌 목표 수. */
+  done: number;
+};
+
 export type EvalStatusRow = {
   userId: string;
   /** 그 반기(성과평가(최종)이 매기는 반기)의 개인목표 수. */
@@ -39,6 +51,15 @@ export type EvalStatusRow = {
   compItems: number;
   compSelf: number;
   compLead: number;
+  /**
+   * **단계마다 따로** 센 진도 — 열쇠는 사이클 id다.
+   *
+   * 위의 숫자들은 «성과평가(최종)이 매기는 반기»만 본다(결과지와 같은 규칙).
+   * 그런데 진행 현황 표는 「목표설정 · 성과평가(중간) · 성과평가(최종)」을 각각
+   * 한 줄로 놓아야 하고, 중간평가는 최종과 다른 반기를 매길 수 있다. 한 벌의
+   * 숫자로는 그 셋을 가를 수 없어 단계별로도 담아 둔다.
+   */
+  byCycle: Map<string, EvalStageRow>;
 };
 
 export type EvalStatusPerson = {
@@ -49,7 +70,8 @@ export type EvalStatusPerson = {
 
 export async function loadEvalStatus(
   year: number,
-  cycleIds: string[],
+  /** 그 해의 단계들. 단계마다 «무슨 반기를 매기는가»가 달라 이름까지 받는다. */
+  cycles: { id: string; name: string }[],
   finalCycle: { name: string } | null,
   people: EvalStatusPerson[],
   form: CompetencyFormData | null,
@@ -57,6 +79,7 @@ export async function loadEvalStatus(
   const out = new Map<string, EvalStatusRow>();
   const ids = people.map((p) => p.id);
   if (ids.length === 0) return out;
+  const cycleIds = cycles.map((c) => c.id);
 
   const [goalRows, reviews] = await Promise.all([
     cycleIds.length > 0
@@ -69,6 +92,7 @@ export async function loadEvalStatus(
           },
           select: {
             ownerId: true,
+            cycleId: true,
             title: true,
             half: true,
             selfScore: true,
@@ -123,8 +147,46 @@ export async function loadEvalStatus(
         })()
       : 0;
 
+    /*
+      **단계별 진도.**
+
+      여기서 «그 단계의 목표»는 목표가 적혀 있는 사이클이 아니라 **그 단계가
+      매기는 반기**로 가른다. 중간·최종평가는 목표를 따로 갖지 않고 목표설정
+      단계의 목표를 그대로 이어받아(`sourceCycleId`) 그 줄에 점수를 적는다.
+      사이클 id로 갈랐더니 평가 단계의 목표가 0건으로 잡혀, 점수가 다 들어와
+      있는데도 표에 「해당 없음」이 떴다.
+
+      그래서 그 해의 목표를 한 통으로 놓고 단계마다 자기 반기만 걸러 센다 —
+      상반기 목표는 중간평가가, 하반기 목표는 최종평가가 매긴다
+      (`evaluatesHalfHere`, 위의 셈과 같은 규칙). 목표설정처럼 평가하지 않는
+      단계에서는 그 함수가 늘 통과시키므로 그 해 목표 전부가 잡힌다 — 「목표를
+      세웠는가」를 묻는 줄이라 그것이 맞다. 같은 이름이 두 벌 있으면 한 줄로 본다.
+    */
+    const byCycle = new Map<string, EvalStageRow>();
+    for (const c of cycles) {
+      const here = goalRows.filter(
+        (g) => g.ownerId === p.id && evaluatesHalfHere({ half: g.half }, c),
+      );
+      const kept = new Map<string, (typeof here)[number]>();
+      for (const g of here) {
+        const key = g.title.trim();
+        const had = kept.get(key);
+        if (!had || (g.firstScore != null && had.firstScore == null)) {
+          kept.set(key, g);
+        }
+      }
+      const list = [...kept.values()];
+      byCycle.set(c.id, {
+        goals: list.length,
+        self: list.filter((g) => g.selfScore != null).length,
+        first: list.filter((g) => g.firstScore != null).length,
+        done: list.filter((g) => g.evalDoneAt != null).length,
+      });
+    }
+
     out.set(p.id, {
       userId: p.id,
+      byCycle,
       goals: goals.length,
       selfScored: goals.filter((g) => g.selfScore != null).length,
       firstScored: goals.filter((g) => g.firstScore != null).length,

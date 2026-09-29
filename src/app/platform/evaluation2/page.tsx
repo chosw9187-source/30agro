@@ -120,6 +120,7 @@ import {
   ORG_GRADES,
   PERSON_GRADES,
   PERSON_GRADE_CLASS,
+  gradeOrder,
   type GradeRatios,
 } from "@/lib/final-grade";
 import { InstantSelect } from "@/components/instant-select";
@@ -132,6 +133,7 @@ import {
   loadUnitScores,
   resolveUnitGrades,
   type PerfResult,
+  type ResolvedGrade,
 } from "@/lib/final-grade-data";
 import {
   COMPETENCY_MAX,
@@ -549,6 +551,10 @@ export default async function Evaluation2Page({
     rgroup?: string;
     /** HR REPORT 표의 정렬. 「칸-방향」(예: perf-desc). */
     rsort?: string;
+    /** 평가 진행 현황의 상세표 정렬. 「칸-방향」(예: perf-desc · grade). */
+    ssort?: string;
+    /** 상세표를 라인별로 묶을지. 「flat」이면 전원을 한 줄로 세운다. */
+    sgroup?: string;
   }>;
 }) {
   if (!(await checkModuleAccess("EVALUATION_V2"))) {
@@ -3350,7 +3356,8 @@ export default async function Evaluation2Page({
           case "bonus":
             return sc?.bonus ?? 0;
           case "grade":
-            return unitGradeOf(p)?.grade ?? "";
+            /* 글자로 세우면 「A · A+ · B · C · S」가 된다 — 등급의 높낮이로 센다. */
+            return gradeOrder(unitGradeOf(p)?.grade);
           case "ack":
             /* 손이 가야 하는 줄이 위로 오게 — 이의 → 미확인 → 동의 순. */
             return (
@@ -4210,6 +4217,15 @@ export default async function Evaluation2Page({
     늘어놓지 않고 **남은 일을 말로** 적는다 — 「1차 점수 3건 · 역량 팀장평가
     10칸」처럼. 그대로 독촉 메일에 옮겨 적을 수 있어야 쓸모가 있다.
   */
+  /**
+   * **평가 진행 현황** — 왼쪽은 «단계가 어디까지 왔나», 오른쪽은 «우리 사람들의
+   * 점수와 등급».
+   *
+   * 두 표가 묻는 것이 다르다. 왼쪽은 시즌을 굴리는 사람의 물음(누구를 독촉할까)
+   * 이고, 오른쪽은 평가자의 물음(내 사람들이 전반적으로 몇 점이고 등급이 어떻게
+   * 갈렸나)이다. 예전에는 오른쪽에도 진행 칸(몇/몇)이 깔려 있어서 같은 이야기를
+   * 두 번 하고, 정작 점수는 이름을 눌러야 나왔다.
+   */
   function evalStatusBoard() {
     if (statusPeople.length === 0) return null;
 
@@ -4219,207 +4235,293 @@ export default async function Evaluation2Page({
         return { person: p, st, todo: st ? evalTodo(st) : ["집계 없음"] };
       });
     const all = rowsOf(statusPeople);
+    type StatusRow = (typeof all)[number];
     const doneCount = all.filter((r) => r.todo.length === 0).length;
     const pct = all.length > 0 ? Math.round((doneCount / all.length) * 100) : 0;
 
     /*
-      일감별 진행 — **어느 일이 몇 명 남았는가**. 사람 수를 세는 규칙은 아래
-      목록의 칸(몇/몇)과 같다. 일감이 없는 사람(목표 미등록·역량 문항 없음)은
-      그 줄의 «대상»에서 빠진다 — 할 수 없는 일을 안 했다고 세면 안 된다.
+      ── 왼쪽: 단계별 진행 ──────────────────────────────────────────
+
+      진행 띠와 같은 다섯 단계로 세운다(목표설정 · 성과평가(중간) · 성과평가(최종) ·
+      역량평가 · 평가완료). 예전에는 「목표 자기평가 · 역량 자기평가 · 목표 점수 …」
+      처럼 일감으로 갈라 두었는데, 화면 위쪽 진행 띠와 이름이 달라서 어느 줄이
+      어느 단계인지 맞춰 보아야 했다.
+
+      단계마다 **대상**이 다르다. 그 단계에 목표가 없는 사람은 그 줄에서 빠진다 —
+      할 수 없는 일을 안 했다고 세면 안 된다. 그래서 중간평가 단계가 없는 해나
+      상반기 목표가 없는 사람은 그 줄의 «해당 없음»으로 남는다.
     */
-    const hasGoals = all.filter((r) => (r.st?.goals ?? 0) > 0);
+    const cycleOfRank = (rank: number) =>
+      yearCycles.find((c) => cyclePhaseRank(c) === rank) ?? null;
+    const planCycle = cycleOfRank(1);
+    const midCycle = cycleOfRank(2);
+    const lastCycle = cycleOfRank(3) ?? finalCycle;
+    const stage = (r: StatusRow, cycle: { id: string } | null) =>
+      cycle ? (r.st?.byCycle.get(cycle.id) ?? null) : null;
+
+    /** 그 단계에 할 일이 있는 사람만. */
+    const withStage = (cycle: { id: string } | null) =>
+      all.filter((r) => (stage(r, cycle)?.goals ?? 0) > 0);
     const hasComp = all.filter((r) => (r.st?.compItems ?? 0) > 0);
+    /*
+      목표설정은 «목표가 있는가»가 곧 완료다. 목표설정 단계가 따로 없는 해(예전
+      해)는 어느 단계든 목표가 있으면 세운다 — 단계가 없다고 모두 미등록으로
+      보이면 표가 거짓말을 한다.
+    */
+    const planDone = all.filter((r) =>
+      planCycle
+        ? (stage(r, planCycle)?.goals ?? 0) > 0
+        : (r.st?.goals ?? 0) > 0,
+    ).length;
+    /** 성과평가 한 단계 — 자기평가와 1차 점수가 **모두** 적혀야 완료다. */
+    const perfBar = (label: string, cycle: { id: string } | null) => {
+      const list = withStage(cycle);
+      return {
+        label,
+        owner: "본인 · 1차 평가자",
+        total: list.length,
+        done: list.filter((r) => {
+          const st = stage(r, cycle)!;
+          return st.self >= st.goals && st.first >= st.goals;
+        }).length,
+      };
+    };
+    const finalList = withStage(lastCycle);
     const bars = [
       {
-        label: "목표 자기평가",
-        owner: "본인",
-        total: hasGoals.length,
-        done: hasGoals.filter((r) => r.st!.selfScored >= r.st!.goals).length,
+        label: "목표설정",
+        owner: "본인 · 팀장",
+        total: all.length,
+        done: planDone,
       },
+      perfBar(MID_PHASE_LABEL, midCycle),
+      perfBar(FINAL_PHASE_LABEL, lastCycle),
       {
-        label: "역량 자기평가",
-        owner: "본인",
+        label: "역량평가",
+        owner: "본인 · 1차 평가자",
         total: hasComp.length,
-        done: hasComp.filter((r) => r.st!.compSelf >= r.st!.compItems).length,
+        done: hasComp.filter(
+          (r) =>
+            r.st!.compSelf >= r.st!.compItems &&
+            r.st!.compLead >= r.st!.compItems,
+        ).length,
       },
       {
-        label: "목표 점수",
+        label: "평가완료",
         owner: "1차 평가자",
-        total: hasGoals.length,
-        done: hasGoals.filter((r) => r.st!.firstScored >= r.st!.goals).length,
-      },
-      {
-        label: "역량 점수",
-        owner: "1차 평가자",
-        total: hasComp.length,
-        done: hasComp.filter((r) => r.st!.compLead >= r.st!.compItems).length,
-      },
-      {
-        label: "평가완료 확정",
-        owner: "1차 평가자",
-        total: hasGoals.length,
-        done: hasGoals.filter((r) => r.st!.evalDone >= r.st!.goals).length,
+        total: finalList.length,
+        done: finalList.filter((r) => {
+          const st = stage(r, lastCycle)!;
+          return st.done >= st.goals;
+        }).length,
       },
     ];
-    /* 목표가 아예 없는 사람은 어느 줄에도 안 잡힌다 — 따로 세어 아래에 적는다. */
-    const noGoalCount = all.length - hasGoals.length;
+    const noGoalCount = all.length - planDone;
 
-    /** 「5/5」 — 다 채웠으면 회색, 남았으면 붉게. */
-    const tally = (label: string, got: number, need: number) => (
-      <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
-        <span className="text-[11px] text-slate-400">{label}</span>
-        <span
-          className={`text-xs font-medium tabular-nums ${
-            need > 0 && got < need ? "text-status-critical" : "text-slate-600"
-          }`}
+    /*
+      ── 오른쪽: 점수 · 등급 상세표 ────────────────────────────────
+
+      «우리 사람들이 전반적으로 몇 점이고, 등급이 어떻게 갈렸나»를 견주는 표다.
+      성과 · 역량 · 종합 · 등급을 한 줄에 놓고, 칸 머리를 눌러 높은 순 · 낮은 순으로
+      세운다. 등급은 S → A+ → A → B → C 순으로 세운다(글자순으로 세우면 S가 맨
+      아래로 간다 — `gradeOrder`).
+
+      **등급은 라인 안에서 매겨진 값**이다(상대평가). 보이는 사람만으로 다시
+      계산하지 않는다 — 팀원 다섯 명으로 순위를 내면 그중 한 명이 S가 된다.
+    */
+    const [sKey, sDir] = (params.ssort ?? "total-desc").split("-");
+    const sDesc = sDir === "desc";
+    /*
+      묶어 볼지. 라인이 클수록 묶음이 필요하지만(운영책임 → 부문별), 묶어 두면
+      정렬이 **묶음 안에서만** 돌아서 «라인 전체에서 성과가 낮은 순»이 보이지
+      않는다. 그래서 끌 수 있게 둔다 — HR REPORT의 책임별 묶음과 같은 규칙이다.
+    */
+    const grouped = params.sgroup !== "flat";
+    const statusHref = (over: Record<string, string>) => {
+      const qs = new URLSearchParams();
+      qs.set("year", String(selectedYear));
+      qs.set("phase", selectedPhase);
+      if (params.ssort) qs.set("ssort", params.ssort);
+      if (!grouped) qs.set("sgroup", "flat");
+      for (const [k, v] of Object.entries(over)) {
+        if (v) qs.set(k, v);
+        else qs.delete(k);
+      }
+      return `/platform/evaluation2?${qs.toString()}`;
+    };
+    /** 같은 칸을 다시 누르면 방향이 뒤집힌다. */
+    const sHref = (key: string) =>
+      statusHref({ ssort: sKey === key && !sDesc ? `${key}-desc` : key });
+    const sortHead = (
+      key: string,
+      label: string,
+      align: "left" | "right" = "left",
+    ) => (
+      <th
+        className={`py-1.5 font-medium whitespace-nowrap ${
+          align === "right" ? "px-1.5 text-right" : "px-2 text-left"
+        }`}
+      >
+        <Link
+          href={sHref(key)}
+          className="hover:text-slate-800 hover:underline"
         >
-          {need > 0 ? `${got}/${need}` : "–"}
-        </span>
-      </span>
+          {label}
+          {sKey === key ? (sDesc ? " ↓" : " ↑") : ""}
+        </Link>
+      </th>
     );
 
-    /** 그 사람의 최근 다섯 해 — 배포된 등급만 남아 있다. */
-    const history = (userId: string) => {
-      const years = Array.from({ length: 5 }, (_, i) => selectedYear - 4 + i);
-      const mine = statusHistory.filter((h) => h.userId === userId);
-      const sc = statusScores.get(userId);
-      return (
-        <table className="w-full min-w-[22rem] border-collapse text-xs">
-          <thead>
-            <tr className="text-left text-[11px] text-slate-400">
-              <th className="py-1 pr-3 font-medium">연도</th>
-              <th className="py-1 pr-3 text-right font-medium">종합점수</th>
-              <th className="py-1 pr-3 font-medium">등급</th>
-              <th className="py-1 font-medium">내역</th>
-            </tr>
-          </thead>
-          <tbody>
-            {years.map((y) => {
-              const row = mine.find((h) => h.year === y);
-              const thisYear = y === selectedYear;
-              return (
-                <tr key={y} className="border-t border-slate-100">
-                  <td className="py-1 pr-3 whitespace-nowrap text-slate-600">
-                    {y}년{thisYear && " (올해)"}
-                  </td>
-                  <td className="py-1 pr-3 text-right tabular-nums text-slate-800">
-                    {row?.score ?? (thisYear ? (sc?.total ?? "–") : "–")}
-                  </td>
-                  <td className="py-1 pr-3 whitespace-nowrap">
-                    {row?.grade ? (
-                      <span
-                        className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
-                          (PERSON_GRADE_CLASS as Record<string, string>)[
-                            row.grade
-                          ] ?? "bg-slate-500 text-white"
-                        }`}
-                      >
-                        {row.grade}
-                      </span>
-                    ) : (
-                      <span className="text-slate-300">
-                        {thisYear ? "배포 전" : "–"}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-1 break-keep text-slate-500">
-                    {row?.note ??
-                      (thisYear
-                        ? `성과 ${sc?.performance ?? "-"} · 역량 ${sc?.competency ?? "-"}`
-                        : "")}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      );
+    const sortRows = (rows: StatusRow[]) => {
+      const key = (r: StatusRow): string | number | null => {
+        const sc = statusScores.get(r.person.id);
+        switch (sKey) {
+          case "name":
+            return r.person.name;
+          case "team":
+            return r.person.team?.name ?? r.person.division ?? "";
+          case "perf":
+            return sc?.performance ?? null;
+          case "comp":
+            return sc?.competency ?? null;
+          case "grade":
+            return gradeOrder(statusGrades.get(r.person.id)?.grade);
+          default:
+            return sc?.total ?? null;
+        }
+      };
+      /* 값이 없는 사람은 늘 아래로 — 낮은 순으로 볼 때 «미입력»이 맨 위를 차지하면
+         정작 읽으려던 낮은 점수가 화면 밖으로 밀린다. */
+      return [...rows].sort((a, b) => {
+        const x = key(a);
+        const y = key(b);
+        if (x == null && y == null)
+          return a.person.name.localeCompare(b.person.name);
+        if (x == null) return 1;
+        if (y == null) return -1;
+        const n =
+          typeof x === "number" && typeof y === "number"
+            ? x - y
+            : String(x).localeCompare(String(y));
+        return (
+          (sDesc ? -n : n) || a.person.name.localeCompare(b.person.name)
+        );
+      });
     };
 
     /*
-      사람 한 명이 접힌 줄 하나다. **겉에는 점수를 두지 않는다** — 진행 칸(몇/몇)과
-      남은 일만 보이고, 점수와 등급은 눌러야 나온다.
+      묶음은 **보는 사람의 자리**에 따라 다르다. 팀장은 팀원뿐이라 묶을 것이
+      없고, 책임은 팀별로, 운영책임은 부문(책임 라인)별로 봐야 «어느 라인이
+      낮은가»가 읽힌다. 인사팀은 1차 평가자별로 — 독촉할 사람이 곧 평가자다.
     */
-    const personList = (list: typeof all) => (
-      <div className="flex flex-col">
-        {list.map(({ person, st, todo }) => {
-          const done = todo.length === 0;
-          return (
-            <details
-              key={person.id}
-              className="border-b border-slate-100 last:border-b-0"
-            >
-              <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 hover:bg-slate-50">
-                <span
-                  className={`text-sm font-medium whitespace-nowrap ${
-                    done ? "text-slate-400" : "text-slate-800"
-                  }`}
-                >
-                  {person.name} {POSITION_LABEL[person.position]}
-                </span>
-                <span className="text-xs whitespace-nowrap text-slate-500">
-                  {person.team?.name ?? person.division ?? "-"}
-                </span>
-                {tally("목표", st?.goals ?? 0, st?.goals ?? 0)}
-                {tally("자기", st?.selfScored ?? 0, st?.goals ?? 0)}
-                {tally("1차", st?.firstScored ?? 0, st?.goals ?? 0)}
-                {tally("완료", st?.evalDone ?? 0, st?.goals ?? 0)}
-                {tally("역량자기", st?.compSelf ?? 0, st?.compItems ?? 0)}
-                {tally("역량팀장", st?.compLead ?? 0, st?.compItems ?? 0)}
-                <span className="ml-auto text-xs break-keep">
-                  {done ? (
-                    <span className="text-brand-green-dark">
-                      모두 끝났습니다
-                    </span>
-                  ) : (
-                    <span className="text-status-critical">
-                      {todo.join(" · ")}
-                    </span>
-                  )}
-                </span>
-              </summary>
-              <div className="flex flex-wrap items-start gap-x-6 gap-y-2 border-t border-slate-100 bg-slate-50/60 px-4 py-3">
-                <div className="min-w-0 flex-1 overflow-x-auto">
-                  {history(person.id)}
-                </div>
-                <Link
-                  href={`/platform/evaluation2?year=${selectedYear}&phase=${RESULT_PHASE}&who=${person.id}`}
-                  className="shrink-0 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium whitespace-nowrap text-slate-700 hover:bg-white"
-                >
-                  결과지 보기
-                </Link>
-              </div>
-            </details>
-          );
-        })}
-      </div>
+    const groupMode: "evaluator" | "dept" | "team" | "none" = seesEveryone
+      ? "evaluator"
+      : me?.position === "OPERATIONS_HEAD"
+        ? "dept"
+        : me?.position === "SENIOR_STAFF"
+          ? "team"
+          : "none";
+    const groupLabelOf = (r: StatusRow) => {
+      if (groupMode === "evaluator") {
+        const first = evaluatorByPerson.get(r.person.id)?.first ?? null;
+        return first ? evaluatorLabel(first) : "1차 평가자 미지정";
+      }
+      if (groupMode === "dept") return deptLabel(deptOf(r.person));
+      if (groupMode === "team")
+        return r.person.team?.name ?? r.person.division ?? "소속 미지정";
+      return "";
+    };
+    const groups = (() => {
+      if (groupMode === "none" || !grouped)
+        return [{ label: "", rows: sortRows(all), head: false }];
+      const by = new Map<string, StatusRow[]>();
+      for (const r of all) {
+        const k = groupLabelOf(r);
+        by.set(k, [...(by.get(k) ?? []), r]);
+      }
+      const keys = [...by.keys()].sort((a, b) => a.localeCompare(b));
+      return keys.map((label) => ({
+        label,
+        rows: sortRows(by.get(label)!),
+        head: keys.length > 1,
+      }));
+    })();
+
+    /** 점수 한 칸 — 아직 없으면 회색 «–». */
+    const scoreCellOf = (v: number | null | undefined, strong = false) => (
+      <td
+        className={`px-1.5 py-1.5 text-right tabular-nums ${
+          v == null
+            ? "text-slate-300"
+            : strong
+              ? "text-sm font-bold text-slate-900"
+              : "text-slate-700"
+        }`}
+      >
+        {v ?? "–"}
+      </td>
     );
 
-    /* 인사팀은 평가자별로 접어 본다 — 206명을 한 목록에 두면 누구를 독촉할지가
-       오히려 안 보인다. 남은 사람이 많은 평가자가 위로 온다. */
-    const byEvaluator = (() => {
-      const map = new Map<string, { name: string; rows: typeof all }>();
-      for (const row of all) {
-        const first = evaluatorByPerson.get(row.person.id)?.first ?? null;
-        const key = first?.id ?? "__none__";
-        const name = first ? evaluatorLabel(first) : "1차 평가자 미지정";
-        const cur = map.get(key);
-        if (cur) cur.rows.push(row);
-        else map.set(key, { name, rows: [row] });
-      }
-      return [...map.values()].sort(
-        (a, b) =>
-          b.rows.filter((r) => r.todo.length > 0).length -
-            a.rows.filter((r) => r.todo.length > 0).length ||
-          a.name.localeCompare(b.name),
+    /** 등급 한 칸. 아직 배포하지 않은 해는 «산출값»이라 옅게 둔다. */
+    const gradeCellOf = (userId: string) => {
+      const g = statusGrades.get(userId);
+      if (!g?.grade)
+        return (
+          <span className="text-[11px] text-slate-300">
+            {statusScores.get(userId)?.total == null ? "평가 중" : "정원 미정"}
+          </span>
+        );
+      return (
+        <span className="inline-flex items-center gap-1 whitespace-nowrap">
+          <span
+            className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
+              (PERSON_GRADE_CLASS as Record<string, string>)[g.grade] ??
+              "bg-slate-500 text-white"
+            }`}
+          >
+            {g.grade}
+          </span>
+          {g.fixed && (
+            <span className="text-[10px] text-slate-400">확정</span>
+          )}
+        </span>
       );
-    })();
+    };
+
+    /** 지난 해 등급 — 배포된 것만 남아 있다(`PerformanceHistory`). */
+    const pastCell = (userId: string) => {
+      const past = statusHistory
+        .filter((h) => h.userId === userId && h.year < selectedYear && h.grade)
+        .sort((a, b) => b.year - a.year)
+        .slice(0, 2);
+      if (past.length === 0)
+        return <span className="text-[11px] text-slate-300">–</span>;
+      /* 딱지 대신 글자로 둔다 — 두 해를 딱지로 두면 칸이 넓어져 표가 화면
+         밖으로 밀린다. 점수는 손을 올리면 뜬다. */
+      return (
+        <span
+          className="text-[11px] whitespace-nowrap text-slate-500"
+          title={past
+            .map(
+              (h) =>
+                `${h.year}년 ${h.grade}${h.score != null ? ` · ${h.score}점` : ""}`,
+            )
+            .join(" / ")}
+        >
+          {past
+            .map((h) => `${String(h.year).slice(2)} ${h.grade}`)
+            .join(" · ")}
+        </span>
+      );
+    };
+
+    const colCount = 7;
 
     return (
       <section className={CARD_CLASS}>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
           <h2 className="text-sm font-bold whitespace-nowrap text-slate-900">
-            {isAdmin ? "평가 진행 현황" : "내 평가 대상자"}
+            {seesEveryone ? "평가 진행 현황" : "내 평가 대상자"}
           </h2>
           <span className="text-xs break-keep text-slate-500">
             {all.length}명 중 {doneCount}명 완료
@@ -4437,51 +4539,163 @@ export default async function Evaluation2Page({
             {pct}%
           </span>
           <span className="ml-auto text-[11px] break-keep text-slate-400">
-            이름을 누르면 점수 · 최근 5년 등급이 펼쳐집니다
+            왼쪽은 단계별 진행 · 오른쪽은 사람별 점수와 등급입니다
           </span>
         </div>
-        <div className="grid gap-5 border-t border-slate-100 p-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+        {/* 왼쪽 칸은 24rem — 단계 이름(「성과평가(중간)」)과 막대·숫자가 한 줄에
+            들어가는 너비다. 더 좁히면 왼쪽 표가 칸을 넘어 오른쪽 표와 겹친다. */}
+        <div className="grid gap-5 border-t border-slate-100 p-4 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
           <EvalProgress
             bars={bars}
-            caption={
+            unitLabel="단계"
+            caption={`완료 기준 — 목표설정은 개인목표 등록, 성과평가는 자기평가와 1차 점수가 모두 적힘, 역량평가는 자기·팀장 두 칸, 평가완료는 「평가완료」 확정입니다.${
               noGoalCount > 0
-                ? `목표가 아직 없는 ${noGoalCount}명은 목표 줄의 대상에서 빠져 있습니다 — 아래 목록에서 「목표 미등록」으로 표시됩니다.`
-                : undefined
-            }
+                ? ` 목표가 아직 없는 ${noGoalCount}명은 성과평가 줄의 대상에서도 빠져 있습니다.`
+                : ""
+            }`}
           />
-          <div className="min-w-0 overflow-hidden rounded-xl border border-slate-200">
-            {isAdmin ? (
-              <div className="flex flex-col">
-                {byEvaluator.map((g) => {
-                  const left = g.rows.filter((r) => r.todo.length > 0).length;
-                  return (
-                    <details
-                      key={g.name}
-                      className="border-b border-slate-200 last:border-b-0"
+          <div className="min-w-0">
+            {/* 자주 쓰는 정렬은 칸 머리를 찾지 않아도 되게 칩으로 둔다. */}
+            <div className="mb-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] whitespace-nowrap text-slate-400">
+                정렬
+              </span>
+              {[
+                { key: "total-desc", label: "종합 높은 순" },
+                { key: "perf-desc", label: "성과 높은 순" },
+                { key: "perf", label: "성과 낮은 순" },
+                { key: "comp-desc", label: "역량 높은 순" },
+                { key: "comp", label: "역량 낮은 순" },
+                { key: "grade", label: "등급순 (S→C)" },
+                { key: "name", label: "이름순" },
+              ].map((c) => {
+                const on = (params.ssort ?? "total-desc") === c.key;
+                return (
+                  <Link
+                    key={c.key}
+                    href={statusHref({ ssort: c.key })}
+                    className={`rounded-full px-2.5 py-0.5 text-[11px] whitespace-nowrap transition-colors ${
+                      on
+                        ? "bg-goal-4 font-semibold text-white"
+                        : "border border-slate-300 text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    {c.label}
+                  </Link>
+                );
+              })}
+              {groupMode !== "none" && (
+                <Link
+                  href={statusHref({ sgroup: grouped ? "flat" : "" })}
+                  className="ml-1 rounded-full border border-slate-300 px-2.5 py-0.5 text-[11px] whitespace-nowrap text-slate-600 hover:bg-slate-50"
+                >
+                  {grouped
+                    ? groupMode === "evaluator"
+                      ? "평가자 묶음 끄기"
+                      : "라인 묶음 끄기"
+                    : groupMode === "evaluator"
+                      ? "평가자별로 묶기"
+                      : "라인별로 묶기"}
+                </Link>
+              )}
+            </div>
+            <div className="min-w-0 overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full min-w-[34rem] text-sm">
+                <thead className="bg-slate-100 text-xs text-slate-600">
+                  <tr>
+                    {sortHead("name", "이름")}
+                    {sortHead("perf", "성과", "right")}
+                    {sortHead("comp", "역량", "right")}
+                    {sortHead("total", "종합", "right")}
+                    {sortHead("grade", "등급")}
+                    <th
+                      className="px-2 py-1.5 text-left font-medium whitespace-nowrap"
+                      title="지난 해 등급 — 결과 배포가 끝난 해만 남습니다"
                     >
-                      <summary className="flex cursor-pointer flex-wrap items-center gap-2 bg-slate-50 px-4 py-2 text-sm hover:bg-slate-100">
-                        <span className="font-medium text-slate-800">
-                          {g.name}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {g.rows.length}명 중 {g.rows.length - left}명 완료
-                        </span>
-                        {left > 0 && (
-                          <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
-                            남은 사람 {left}명
-                          </span>
-                        )}
-                      </summary>
-                      <div className="border-t border-slate-200">
-                        {personList(g.rows)}
-                      </div>
-                    </details>
-                  );
-                })}
-              </div>
-            ) : (
-              personList(all)
-            )}
+                      지난
+                    </th>
+                    <th className="px-2 py-1.5" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {groups.map((g) => (
+                    <Fragment key={g.label || "__flat__"}>
+                      {g.head && (
+                        <tr className="border-t border-slate-200 bg-slate-50">
+                          <td
+                            colSpan={colCount}
+                            className="px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-slate-700"
+                          >
+                            {g.label}
+                            <span className="ml-2 font-normal text-slate-400">
+                              {g.rows.length}명
+                            </span>
+                          </td>
+                        </tr>
+                      )}
+                      {g.rows.map((r) => {
+                        const sc = statusScores.get(r.person.id);
+                        return (
+                          <tr
+                            key={r.person.id}
+                            className="border-t border-slate-100 hover:bg-slate-50/70"
+                          >
+                            {/* 소속은 이름 아래에 붙인다 — 칸으로 두면 표가 화면
+                                밖으로 밀려 오른쪽 등급이 잘린다. */}
+                            <td className="px-2 py-1.5 whitespace-nowrap">
+                              <span className="text-sm font-medium text-slate-900">
+                                {r.person.name}
+                              </span>
+                              <span className="ml-1 text-[11px] text-slate-400">
+                                {POSITION_LABEL[r.person.position]}
+                              </span>
+                              <span className="block text-[11px] text-slate-400">
+                                {r.person.team?.name ?? r.person.division ?? "-"}
+                                {/* 아직 칸이 덜 찬 사람은 점수가 중간값이라
+                                    표시해 둔다. 남은 일은 딱지에 얹어 둔다. */}
+                                {r.todo.length > 0 && (
+                                  <span
+                                    className="ml-1.5 rounded bg-slate-100 px-1 text-[10px] whitespace-nowrap text-slate-500"
+                                    title={r.todo.join(" · ")}
+                                  >
+                                    진행 중
+                                  </span>
+                                )}
+                              </span>
+                            </td>
+                            {scoreCellOf(sc?.performance)}
+                            {scoreCellOf(sc?.competency)}
+                            {scoreCellOf(sc?.total, true)}
+                            <td className="px-2 py-1.5 whitespace-nowrap">
+                              {gradeCellOf(r.person.id)}
+                            </td>
+                            <td className="px-2 py-1.5">
+                              {pastCell(r.person.id)}
+                            </td>
+                            <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                              <Link
+                                href={`/platform/evaluation2?year=${selectedYear}&phase=${RESULT_PHASE}&who=${r.person.id}`}
+                                className="rounded-md border border-slate-300 px-2 py-0.5 text-[11px] font-medium text-slate-600 hover:bg-white"
+                              >
+                                결과
+                              </Link>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-2 text-[11px] break-keep text-slate-400">
+              성과 · 역량 · 종합은 결과지와 같은 값입니다. 등급은 운영책임 라인
+              안에서 정원표대로 매긴 값이라, 인사팀이 확정하거나 결과를 배포하기
+              전에는 바뀔 수 있습니다. 「지난 등급」은 배포가 끝난 해만 남습니다.
+              {groupMode !== "none" &&
+                grouped &&
+                " 묶어 놓으면 정렬이 묶음 안에서만 돕니다 — 전체를 한 줄로 세우려면 묶음을 끄세요."}
+            </p>
           </div>
         </div>
       </section>
@@ -7080,14 +7294,30 @@ export default async function Evaluation2Page({
     없었다. 팀장에게는 자기 평가 대상자를, 인사팀에게는 평가자별로 묶은 전체를
     보여 준다. 대시보드에서만 읽는다 — 목록 화면마다 세면 화면이 느려진다.
   */
+  /*
+    **누가 누구를 보는가.** 예전에는 «내가 1차 평가자인 사람»만 보였다. 팀장에게는
+    그게 곧 팀원이라 맞는데, 책임과 운영책임에게는 자기 라인의 팀장 몇 명만 뜨고
+    그 아래 팀원들이 통째로 빠졌다 — 정작 라인 전체를 견줘 보려고 여는 화면인데.
+
+    그래서 조직도를 따라 넓힌다. 아래 세 가지 중 하나에 걸리면 보인다.
+      ① 내가 그 사람의 1차 평가자다        — 팀장 → 팀원
+      ② 그 사람이 내 부문(책임 라인)에 있다 — 책임 → 부문 전체
+      ③ 그 사람이 내 운영책임 라인에 있다   — 운영책임 → 라인 전체
+    사장과 인사팀(관리자)은 전사를 본다.
+
+    라인 위쪽으로는 넓히지 않는다 — 팀장이 옆 팀을, 담당이 팀을 보는 길은 없다.
+  */
+  const seesEveryone = isAdmin || me?.position === "CEO";
   const statusPeople = progressView
     ? people.filter(
         (p) =>
           /* 모수는 다른 화면과 같다 — 조직도 기준 담당 · 팀장. 기능직·계약직이
              평가 대상자 목록에 섞이면 «왜 이 사람이»가 된다. */
           inEvalPopulation(p) &&
-          (isAdmin ||
-            evaluatorByPerson.get(p.id)?.first?.id === session!.user.id),
+          (seesEveryone ||
+            evaluatorByPerson.get(p.id)?.first?.id === session!.user.id ||
+            deptLineByPerson.get(p.id)?.head?.id === session!.user.id ||
+            unitOf(p) === session!.user.id),
       )
     : [];
   const statusForm =
@@ -7118,21 +7348,65 @@ export default async function Evaluation2Page({
           },
         })
       : [];
-  const statusScores =
-    statusPeople.length > 0
-      ? await loadUnitScores(
-          selectedYear,
-          statusPeople.map((p) => p.id),
-          yearCycles,
-          finalCycle,
-          rankOfCycle,
-        )
-      : new Map();
+  /*
+    점수와 등급. **등급은 운영책임 라인 안에서 매겨지므로**(상대평가·정원표) 보이는
+    사람만 놓고 계산할 수 없다 — 팀원 다섯 명으로 순위를 내면 그중 한 명이 S가
+    된다. 그래서 보이는 사람이 속한 라인의 **전원**을 불러 라인별로 등급을 매기고,
+    화면에는 볼 수 있는 사람의 줄만 그린다. HR REPORT와 같은 함수·같은 규칙이라
+    두 화면의 등급이 어긋날 수 없다.
+  */
+  const statusUnitKeys = new Set(statusPeople.map((p) => unitOf(p)));
+  const statusUnitPeople = progressView
+    ? people.filter((p) => inEvalPopulation(p) && statusUnitKeys.has(unitOf(p)))
+    : [];
+  const [statusScores, statusPlans, statusQuota, statusFixed] =
+    statusUnitPeople.length > 0
+      ? await Promise.all([
+          loadUnitScores(
+            selectedYear,
+            statusUnitPeople.map((p) => p.id),
+            yearCycles,
+            finalCycle,
+            rankOfCycle,
+          ),
+          loadUnitPlans(selectedYear),
+          loadQuotaTable(selectedYear),
+          loadFixedGrades(
+            selectedYear,
+            statusUnitPeople.map((p) => p.id),
+          ),
+        ])
+      : [new Map(), new Map(), new Map(), new Map()];
+  /** 사람 → 그 라인에서 매겨진 등급. */
+  const statusGrades = (() => {
+    const out = new Map<string, ResolvedGrade>();
+    const byUnit = new Map<string, typeof statusUnitPeople>();
+    for (const p of statusUnitPeople) {
+      const u = unitOf(p);
+      byUnit.set(u, [...(byUnit.get(u) ?? []), p]);
+    }
+    for (const [unit, members] of byUnit) {
+      const orgGrade = statusPlans.get(unit) ?? null;
+      const ratios: GradeRatios | null = orgGrade
+        ? (statusQuota.get(orgGrade) ?? null)
+        : null;
+      const grades = resolveUnitGrades(
+        members.map((p) => ({
+          userId: p.id,
+          total: statusScores.get(p.id)?.total ?? null,
+        })),
+        ratios,
+        statusFixed,
+      );
+      for (const [id, g] of grades) out.set(id, g);
+    }
+    return out;
+  })();
   const statusRows =
     statusPeople.length > 0
       ? await loadEvalStatus(
           selectedYear,
-          yearCycles.map((c) => c.id),
+          yearCycles.map((c) => ({ id: c.id, name: c.name })),
           finalCycle,
           statusPeople.map((p) => ({
             id: p.id,
