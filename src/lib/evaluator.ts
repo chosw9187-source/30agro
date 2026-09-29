@@ -299,14 +299,18 @@ export function buildEvaluatorMap(
       흔하고, 그때는 아무 말도 없었다. 폼에 뜨는 것은 「1차 평가자」라는 머리글
       뿐이라 «평가자가 왜 저 사람이지»를 화면만 보고는 풀 수 없었다.
     */
+    /*
+      말은 «누가 되었는지»까지 적는다. 예전에는 「그 윗자리가 1차 평가자가
+      되었습니다」로 끝나서, 읽는 사람이 «1차 평가자가 없다는 말인가»로 받았다 —
+      실제로는 빈 것은 한 칸(부문 책임)이고 1차 평가자는 그 위 사람으로 정해져
+      있다. 그 사람 이름을 적어 두면 «왜 저 사람이지»가 그 줄에서 끝난다.
+    */
     const note = !first.person
       ? p.position !== "CEO"
         ? "조직도에서 평가자를 찾지 못했습니다 (사장이 등록되어 있는지 확인해 주세요)"
         : null
       : first.missing.length > 0
-        ? first.person.position === "CEO"
-          ? `조직도에 ${first.missing.join(", ")}이(가) 없어 사장으로 올라갔습니다`
-          : `조직도에 ${first.missing.join(", ")}이(가) 없어 그 윗자리가 1차 평가자가 되었습니다`
+        ? `조직도에 ${first.missing.join(", ")}이(가) 없어 ${evaluatorLabel(first.person)}이(가) 1차 평가자가 되었습니다`
         : null;
     map.set(p.id, { first: first.person, second: second.person, note });
   }
