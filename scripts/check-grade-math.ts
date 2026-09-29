@@ -16,7 +16,6 @@ import { buildDivisionLineMap, buildUnitHeadMap } from "../src/lib/evaluator";
 import { COMPETENCY_MAX, competencyAverage } from "../src/lib/competency";
 import {
   competencyScore100,
-  gapNote,
   overallScore,
   strengthsAndWeaknesses,
 } from "../src/lib/competency-result";
@@ -191,10 +190,20 @@ eq(
   [picked.strengths.map((r) => r.area), picked.weaknesses.map((r) => r.area)],
   [["높음"], ["낮음"]],
 );
-// 차이 문턱도 만점을 따라간다 — 1~10에서는 2점·4점이다.
-eq("자기가 2점 높으면 셀프 피드백", gapNote(-2), "셀프 피드백");
-eq("한 점 차이는 아무 말도 하지 않는다", gapNote(-1), null);
-eq("팀장이 4점 높으면 1:1 미팅", gapNote(4), "1:1 미팅");
+/*
+  차이에 붙던 「셀프 피드백 / 1:1 미팅」 딱지는 걷었다 — 표에서는 숫자와 색으로만
+  본다. 벌어진 정도가 남아서 쓰이는 곳은 강점·약점 뽑기의 «차이가 크면 제외»
+  하나이므로 그것만 확인한다(1~10에서 4점).
+*/
+const wide = strengthsAndWeaknesses([
+  { itemKey: "w", group: "핵심가치", area: "크게 다름", self: 10, lead: 4, avg: 7, gap: -6 },
+  { itemKey: "n", group: "핵심가치", area: "비슷함", self: 8, lead: 8, avg: 8, gap: 0 },
+]);
+eq(
+  "차이가 4점 이상인 역량은 강점에서 뺀다",
+  wide.strengths.map((r) => r.area),
+  ["비슷함"],
+);
 // 한 칸도 안 적힌 사람은 0점이 아니라 «아직 없음»이다.
 const blank = competencyAverage([
   { itemKey: "a", selfScore: null, leadScore: null },

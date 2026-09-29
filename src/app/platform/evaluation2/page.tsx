@@ -155,7 +155,6 @@ import {
   overallScore,
   buildResultRow,
   strengthsAndWeaknesses,
-  gapNote,
   type CompetencyResultRow,
 } from "@/lib/competency-result";
 import {
@@ -2296,8 +2295,8 @@ export default async function Evaluation2Page({
     /*
       강점·약점 딱지. 강점은 브랜드 초록, 약점은 호박색이다 — 빨강은 쓰지 않는다:
       이 앱에서 빨강은 «지연·미입력» 같은 «잘못됐다»는 뜻이고, 본인이 받는
-      결과지에서 약점이 그렇게 읽히면 안 된다. 표의 「1:1 미팅 추천」 딱지와 같은
-      색을 써서 «챙겨 볼 자리»라는 뜻을 맞춰 둔다.
+      결과지에서 약점이 그렇게 읽히면 안 된다. «잘못»이 아니라 «챙겨 볼 자리»라는
+      뜻이라 호박색을 쓴다.
     */
     const pickList = (
       list: CompetencyResultRow[],
@@ -2812,7 +2811,6 @@ export default async function Evaluation2Page({
                     </thead>
                     <tbody>
                       {rows.map((r, i) => {
-                        const note = gapNote(r.gap);
                         const prevGroup = i > 0 ? rows[i - 1].group : null;
                         const newGroup = r.group !== prevGroup;
                         return (
@@ -2892,11 +2890,6 @@ export default async function Evaluation2Page({
                                     ? `+${r.gap}`
                                     : r.gap}
                               </span>
-                              {note && (
-                                <span className="ml-1.5 rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
-                                  {note}
-                                </span>
-                              )}
                             </td>
                           </tr>
                         );
@@ -2943,18 +2936,6 @@ export default async function Evaluation2Page({
                     </tfoot>
                   </table>
                 </div>
-                <p className="mt-2 text-[11px] break-keep text-slate-400">
-                  차이는 팀장평가 − 자기평가입니다 —{" "}
-                  <b className="font-semibold text-status-critical">
-                    붉은 −는 자기평가가 더 높은 칸
-                  </b>
-                  ,{" "}
-                  <b className="font-semibold text-goal-2">
-                    파란 +는 팀장평가가 더 높은 칸
-                  </b>
-                  입니다. 자기평가가 팀장보다 1점 이상 높으면 셀프 피드백을,
-                  팀장이 2점 이상 높으면 팀장과의 1:1 미팅을 권합니다.
-                </p>
               </div>
             </div>
           )}

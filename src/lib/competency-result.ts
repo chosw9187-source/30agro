@@ -90,8 +90,6 @@ export function buildResultRow(
 const STRENGTH_THRESHOLD = COMPETENCY_MAX * 0.6;
 /** 자기평가와 팀장평가가 이만큼 벌어지면 강점·약점에서 뺀다 — 양식의 «차이가 클 경우는 제외». */
 const GAP_EXCLUDE = COMPETENCY_MAX * 0.4;
-/** 자기가 팀장보다 이만큼 높게 봤으면 셀프 피드백을 권한다. */
-const SELF_FEEDBACK_GAP = COMPETENCY_MAX * 0.2;
 const MAX_PICKS = 3;
 
 /**
@@ -143,19 +141,12 @@ export function strengthsAndWeaknesses(rows: CompetencyResultRow[]): {
   return { strengths, weaknesses, relativelyLow };
 }
 
-/**
- * 차이에 붙는 안내. 결과지에 적힌 두 문턱을 그대로 읽는다 — 「팀장과 자기 평가의
- * 차이가 -1 이상인 경우 셀프 피드백이 필요하며, 2 이상인 역량의 경우 팀장과의
- * 1:1 미팅을 통한 셀프 피드백을 추천드립니다.」
- *
- * 여기서 «-1 이상»은 자기가 팀장보다 1점 이상 높게 본 경우를 말한다(차이 ≤ -1).
- *
- * 딱지는 «필요 · 추천»을 떼고 짧게 둔다 — 표의 한 칸에 열 줄이 나란히 붙는 자리라
- * 길면 칸을 밀어 내고, 무엇을 권하는지는 표 아래 한 줄이 그대로 적어 준다.
- */
-export function gapNote(gap: number | null): string | null {
-  if (gap == null) return null;
-  if (gap <= -SELF_FEEDBACK_GAP) return "셀프 피드백";
-  if (gap >= GAP_EXCLUDE) return "1:1 미팅";
-  return null;
-}
+/*
+  차이에 「셀프 피드백 / 1:1 미팅」 딱지를 붙이던 `gapNote`는 걷었다(양식의
+  «-1 이상이면 셀프 피드백, 2 이상이면 1:1 미팅» 문구를 옮긴 것이었다). 표에서는
+  차이를 숫자와 색으로만 보여 준다 — 마이너스는 붉게, 플러스는 파랗게.
+
+  벌어진 정도를 쓰는 곳은 아래 강점·약점 뽑기 한 군데로 남는다(`GAP_EXCLUDE`) —
+  두 사람이 크게 다르게 본 역량은 «강점»도 «보완점»도 아니라고 보는 양식의
+  «차이가 클 경우는 제외» 규칙이다.
+*/
