@@ -4264,9 +4264,19 @@ export default async function Evaluation2Page({
       처럼 일감으로 갈라 두었는데, 화면 위쪽 진행 띠와 이름이 달라서 어느 줄이
       어느 단계인지 맞춰 보아야 했다.
 
-      단계마다 **대상**이 다르다. 그 단계에 목표가 없는 사람은 그 줄에서 빠진다 —
-      할 수 없는 일을 안 했다고 세면 안 된다. 그래서 중간평가 단계가 없는 해나
-      상반기 목표가 없는 사람은 그 줄의 «해당 없음»으로 남는다.
+      **대상은 다섯 줄이 모두 같다 — 그 해 평가 대상 전원이다.**
+
+      처음에는 줄마다 대상을 달리 두었다(그 단계에 목표가 있는 사람만). 할 수 없는
+      일을 안 했다고 세지 않으려는 규칙이었는데, 화면에서는 「목표설정 2/206」
+      바로 아래에 「성과평가(최종) 2/2 완료」가 떴다 — 목표가 없는 204명이 분모에서
+      빠져 **평가가 끝난 것처럼** 읽혔다. 다섯 줄의 분모가 다르면 어느 단계가
+      뒤처졌는지 견줄 수도 없다.
+
+      그래서 목표가 아직 없는 사람, 역량 문항이 배정되지 않은 사람도 대상에 넣고
+      «아직 못 함»으로 센다. 목표를 세우지 않은 것도 진행이 안 된 것이다 — 그 이유는
+      표 아래 한 줄과 오른쪽 목록의 「진행 중」이 말해 준다.
+
+      단계 자체가 없는 해(예: 중간평가를 만들지 않은 해)는 그 줄만 «해당 없음»이다.
     */
     const cycleOfRank = (rank: number) =>
       yearCycles.find((c) => cyclePhaseRank(c) === rank) ?? null;
@@ -4276,10 +4286,6 @@ export default async function Evaluation2Page({
     const stage = (r: StatusRow, cycle: { id: string } | null) =>
       cycle ? (r.st?.byCycle.get(cycle.id) ?? null) : null;
 
-    /** 그 단계에 할 일이 있는 사람만. */
-    const withStage = (cycle: { id: string } | null) =>
-      all.filter((r) => (stage(r, cycle)?.goals ?? 0) > 0);
-    const hasComp = all.filter((r) => (r.st?.compItems ?? 0) > 0);
     /*
       목표설정은 «목표가 있는가»가 곧 완료다. 목표설정 단계가 따로 없는 해(예전
       해)는 어느 단계든 목표가 있으면 세운다 — 단계가 없다고 모두 미등록으로
@@ -4290,20 +4296,22 @@ export default async function Evaluation2Page({
         ? (stage(r, planCycle)?.goals ?? 0) > 0
         : (r.st?.goals ?? 0) > 0,
     ).length;
-    /** 성과평가 한 단계 — 자기평가와 1차 점수가 **모두** 적혀야 완료다. */
-    const perfBar = (label: string, cycle: { id: string } | null) => {
-      const list = withStage(cycle);
-      return {
-        label,
-        owner: "본인 · 1차 평가자",
-        total: list.length,
-        done: list.filter((r) => {
-          const st = stage(r, cycle)!;
-          return st.self >= st.goals && st.first >= st.goals;
-        }).length,
-      };
-    };
-    const finalList = withStage(lastCycle);
+    /**
+     * 성과평가 한 단계 — 자기평가와 1차 점수가 **모두** 적혀야 완료다.
+     * 그 단계에 목표가 없는 사람은 «아직 못 함»이다(분모에서 빼지 않는다).
+     */
+    const perfBar = (label: string, cycle: { id: string } | null) => ({
+      label,
+      owner: "본인 · 1차 평가자",
+      /* 단계 자체가 없는 해만 «해당 없음»이다. */
+      total: cycle ? all.length : 0,
+      done: cycle
+        ? all.filter((r) => {
+            const st = stage(r, cycle);
+            return !!st && st.goals > 0 && st.self >= st.goals && st.first >= st.goals;
+          }).length
+        : 0,
+    });
     const bars = [
       {
         label: "목표설정",
@@ -4316,9 +4324,10 @@ export default async function Evaluation2Page({
       {
         label: "역량평가",
         owner: "본인 · 1차 평가자",
-        total: hasComp.length,
-        done: hasComp.filter(
+        total: all.length,
+        done: all.filter(
           (r) =>
+            (r.st?.compItems ?? 0) > 0 &&
             r.st!.compSelf >= r.st!.compItems &&
             r.st!.compLead >= r.st!.compItems,
         ).length,
@@ -4326,11 +4335,13 @@ export default async function Evaluation2Page({
       {
         label: "평가완료",
         owner: "1차 평가자",
-        total: finalList.length,
-        done: finalList.filter((r) => {
-          const st = stage(r, lastCycle)!;
-          return st.done >= st.goals;
-        }).length,
+        total: lastCycle ? all.length : 0,
+        done: lastCycle
+          ? all.filter((r) => {
+              const st = stage(r, lastCycle);
+              return !!st && st.goals > 0 && st.done >= st.goals;
+            }).length
+          : 0,
       },
     ];
     const noGoalCount = all.length - planDone;
@@ -4439,9 +4450,9 @@ export default async function Evaluation2Page({
           <EvalProgress
             bars={bars}
             unitLabel="단계"
-            caption={`완료 기준 — 목표설정은 개인목표 등록, 성과평가는 자기평가와 1차 점수가 모두 적힘, 역량평가는 자기·팀장 두 칸, 평가완료는 「평가완료」 확정입니다.${
+            caption={`다섯 줄의 대상은 모두 그 해 평가 대상 ${all.length}명입니다. 완료 기준 — 목표설정은 개인목표 등록, 성과평가는 자기평가와 1차 점수가 모두 적힘, 역량평가는 자기·팀장 두 칸, 평가완료는 「평가완료」 확정입니다.${
               noGoalCount > 0
-                ? ` 목표가 아직 없는 ${noGoalCount}명은 성과평가 줄의 대상에서도 빠져 있습니다.`
+                ? ` 목표가 아직 없는 ${noGoalCount}명도 대상에 넣고 「아직 못 함」으로 셉니다 — 목표를 세우지 않은 것도 진행이 안 된 것입니다.`
                 : ""
             }`}
           />
