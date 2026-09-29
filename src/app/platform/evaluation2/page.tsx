@@ -166,6 +166,7 @@ import {
   competencyFormStateLabel,
 } from "@/lib/competency-form";
 import { CompetencyItemGroup } from "./competency-items";
+import { StatusTable, type StatusTableRow } from "./status-table";
 import { YearPhaseSelect, ParamSelect } from "./cycle-select";
 import { ActionForm } from "@/components/action-form";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -551,10 +552,14 @@ export default async function Evaluation2Page({
     rgroup?: string;
     /** HR REPORT 표의 정렬. 「칸-방향」(예: perf-desc). */
     rsort?: string;
-    /** 평가 진행 현황의 상세표 정렬. 「칸-방향」(예: perf-desc · grade). */
+    /**
+     * 평가 진행 현황 상세표의 **첫 정렬**. 「칸-방향」(예: perf-desc · grade).
+     *
+     * 화면에서 정렬을 누르는 일은 브라우저가 하므로(`StatusTable`) 주소는
+     * 바뀌지 않는다. 이 값은 지난번에 남겨 둔 주소로 들어왔을 때 어느 순서로
+     * 처음 세울지에만 쓴다.
+     */
     ssort?: string;
-    /** 상세표를 라인별로 묶을지. 「flat」이면 전원을 한 줄로 세운다. */
-    sgroup?: string;
   }>;
 }) {
   if (!(await checkModuleAccess("EVALUATION_V2"))) {
@@ -3253,8 +3258,11 @@ export default async function Evaluation2Page({
       <th
         className={`px-3 py-1.5 font-medium ${align === "right" ? "text-right" : "text-left"}`}
       >
+        {/* `scroll={false}` — 표가 화면 아래에 있어서, 정렬을 누를 때마다 맨
+            위로 튀면 표를 다시 찾아 내려와야 한다. */}
         <Link
           href={rHref(key)}
+          scroll={false}
           className="hover:text-slate-800 hover:underline"
         >
           {label}
@@ -4322,93 +4330,13 @@ export default async function Evaluation2Page({
       ── 오른쪽: 점수 · 등급 상세표 ────────────────────────────────
 
       «우리 사람들이 전반적으로 몇 점이고, 등급이 어떻게 갈렸나»를 견주는 표다.
-      성과 · 역량 · 종합 · 등급을 한 줄에 놓고, 칸 머리를 눌러 높은 순 · 낮은 순으로
-      세운다. 등급은 S → A+ → A → B → C 순으로 세운다(글자순으로 세우면 S가 맨
-      아래로 간다 — `gradeOrder`).
+      줄은 여기서 만들고(점수·등급은 결과지와 같은 함수에서 나온 값), **세우는
+      일은 브라우저가** 한다(`StatusTable`) — 정렬을 주소에 담았더니 누를 때마다
+      화면이 맨 위로 튀어서, 표를 다시 찾아 내려와야 했다.
 
       **등급은 라인 안에서 매겨진 값**이다(상대평가). 보이는 사람만으로 다시
       계산하지 않는다 — 팀원 다섯 명으로 순위를 내면 그중 한 명이 S가 된다.
     */
-    const [sKey, sDir] = (params.ssort ?? "total-desc").split("-");
-    const sDesc = sDir === "desc";
-    /*
-      묶어 볼지. 라인이 클수록 묶음이 필요하지만(운영책임 → 부문별), 묶어 두면
-      정렬이 **묶음 안에서만** 돌아서 «라인 전체에서 성과가 낮은 순»이 보이지
-      않는다. 그래서 끌 수 있게 둔다 — HR REPORT의 책임별 묶음과 같은 규칙이다.
-    */
-    const grouped = params.sgroup !== "flat";
-    const statusHref = (over: Record<string, string>) => {
-      const qs = new URLSearchParams();
-      qs.set("year", String(selectedYear));
-      qs.set("phase", selectedPhase);
-      if (params.ssort) qs.set("ssort", params.ssort);
-      if (!grouped) qs.set("sgroup", "flat");
-      for (const [k, v] of Object.entries(over)) {
-        if (v) qs.set(k, v);
-        else qs.delete(k);
-      }
-      return `/platform/evaluation2?${qs.toString()}`;
-    };
-    /** 같은 칸을 다시 누르면 방향이 뒤집힌다. */
-    const sHref = (key: string) =>
-      statusHref({ ssort: sKey === key && !sDesc ? `${key}-desc` : key });
-    const sortHead = (
-      key: string,
-      label: string,
-      align: "left" | "right" = "left",
-    ) => (
-      <th
-        className={`py-1.5 font-medium whitespace-nowrap ${
-          align === "right" ? "px-1.5 text-right" : "px-2 text-left"
-        }`}
-      >
-        <Link
-          href={sHref(key)}
-          className="hover:text-slate-800 hover:underline"
-        >
-          {label}
-          {sKey === key ? (sDesc ? " ↓" : " ↑") : ""}
-        </Link>
-      </th>
-    );
-
-    const sortRows = (rows: StatusRow[]) => {
-      const key = (r: StatusRow): string | number | null => {
-        const sc = statusScores.get(r.person.id);
-        switch (sKey) {
-          case "name":
-            return r.person.name;
-          case "team":
-            return r.person.team?.name ?? r.person.division ?? "";
-          case "perf":
-            return sc?.performance ?? null;
-          case "comp":
-            return sc?.competency ?? null;
-          case "grade":
-            return gradeOrder(statusGrades.get(r.person.id)?.grade);
-          default:
-            return sc?.total ?? null;
-        }
-      };
-      /* 값이 없는 사람은 늘 아래로 — 낮은 순으로 볼 때 «미입력»이 맨 위를 차지하면
-         정작 읽으려던 낮은 점수가 화면 밖으로 밀린다. */
-      return [...rows].sort((a, b) => {
-        const x = key(a);
-        const y = key(b);
-        if (x == null && y == null)
-          return a.person.name.localeCompare(b.person.name);
-        if (x == null) return 1;
-        if (y == null) return -1;
-        const n =
-          typeof x === "number" && typeof y === "number"
-            ? x - y
-            : String(x).localeCompare(String(y));
-        return (
-          (sDesc ? -n : n) || a.person.name.localeCompare(b.person.name)
-        );
-      });
-    };
-
     /*
       묶음은 **보는 사람의 자리**에 따라 다르다. 팀장은 팀원뿐이라 묶을 것이
       없고, 책임은 팀별로, 운영책임은 부문(책임 라인)별로 봐야 «어느 라인이
@@ -4431,91 +4359,45 @@ export default async function Evaluation2Page({
         return r.person.team?.name ?? r.person.division ?? "소속 미지정";
       return "";
     };
-    const groups = (() => {
-      if (groupMode === "none" || !grouped)
-        return [{ label: "", rows: sortRows(all), head: false }];
-      const by = new Map<string, StatusRow[]>();
-      for (const r of all) {
-        const k = groupLabelOf(r);
-        by.set(k, [...(by.get(k) ?? []), r]);
-      }
-      const keys = [...by.keys()].sort((a, b) => a.localeCompare(b));
-      return keys.map((label) => ({
-        label,
-        rows: sortRows(by.get(label)!),
-        head: keys.length > 1,
-      }));
-    })();
-
-    /** 점수 한 칸 — 아직 없으면 회색 «–». */
-    const scoreCellOf = (v: number | null | undefined, strong = false) => (
-      <td
-        className={`px-1.5 py-1.5 text-right tabular-nums ${
-          v == null
-            ? "text-slate-300"
-            : strong
-              ? "text-sm font-bold text-slate-900"
-              : "text-slate-700"
-        }`}
-      >
-        {v ?? "–"}
-      </td>
-    );
-
-    /** 등급 한 칸. 아직 배포하지 않은 해는 «산출값»이라 옅게 둔다. */
-    const gradeCellOf = (userId: string) => {
-      const g = statusGrades.get(userId);
-      if (!g?.grade)
-        return (
-          <span className="text-[11px] text-slate-300">
-            {statusScores.get(userId)?.total == null ? "평가 중" : "정원 미정"}
-          </span>
-        );
-      return (
-        <span className="inline-flex items-center gap-1 whitespace-nowrap">
-          <span
-            className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
-              (PERSON_GRADE_CLASS as Record<string, string>)[g.grade] ??
-              "bg-slate-500 text-white"
-            }`}
-          >
-            {g.grade}
-          </span>
-          {g.fixed && (
-            <span className="text-[10px] text-slate-400">확정</span>
-          )}
-        </span>
-      );
-    };
 
     /** 지난 해 등급 — 배포된 것만 남아 있다(`PerformanceHistory`). */
-    const pastCell = (userId: string) => {
-      const past = statusHistory
+    const pastOf = (userId: string) =>
+      statusHistory
         .filter((h) => h.userId === userId && h.year < selectedYear && h.grade)
         .sort((a, b) => b.year - a.year)
         .slice(0, 2);
-      if (past.length === 0)
-        return <span className="text-[11px] text-slate-300">–</span>;
-      /* 딱지 대신 글자로 둔다 — 두 해를 딱지로 두면 칸이 넓어져 표가 화면
-         밖으로 밀린다. 점수는 손을 올리면 뜬다. */
-      return (
-        <span
-          className="text-[11px] whitespace-nowrap text-slate-500"
-          title={past
-            .map(
-              (h) =>
-                `${h.year}년 ${h.grade}${h.score != null ? ` · ${h.score}점` : ""}`,
-            )
-            .join(" / ")}
-        >
-          {past
-            .map((h) => `${String(h.year).slice(2)} ${h.grade}`)
-            .join(" · ")}
-        </span>
-      );
-    };
 
-    const colCount = 7;
+    const tableRows: StatusTableRow[] = all.map((r) => {
+      const sc = statusScores.get(r.person.id);
+      const g = statusGrades.get(r.person.id) ?? null;
+      const past = pastOf(r.person.id);
+      return {
+        id: r.person.id,
+        name: r.person.name,
+        positionLabel: POSITION_LABEL[r.person.position],
+        team: r.person.team?.name ?? r.person.division ?? "-",
+        perf: sc?.performance ?? null,
+        comp: sc?.competency ?? null,
+        total: sc?.total ?? null,
+        grade: g?.grade ?? null,
+        gradeFixed: !!g?.fixed,
+        /* 등급이 없는 이유를 그 자리에 적는다 — 빈 칸만 두면 «왜 없지»가 된다. */
+        gradeNote: sc?.total == null ? "평가 중" : "정원 미정",
+        past: past
+          .map((h) => `${String(h.year).slice(2)} ${h.grade}`)
+          .join(" · "),
+        pastTitle: past
+          .map(
+            (h) =>
+              `${h.year}년 ${h.grade}${h.score != null ? ` · ${h.score}점` : ""}`,
+          )
+          .join(" / "),
+        todo: r.todo,
+        group: groupLabelOf(r),
+        resultHref: `/platform/evaluation2?year=${selectedYear}&phase=${RESULT_PHASE}&who=${r.person.id}`,
+      };
+    });
+
 
     return (
       <section className={CARD_CLASS}>
@@ -4554,149 +4436,17 @@ export default async function Evaluation2Page({
                 : ""
             }`}
           />
-          <div className="min-w-0">
-            {/* 자주 쓰는 정렬은 칸 머리를 찾지 않아도 되게 칩으로 둔다. */}
-            <div className="mb-2 flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] whitespace-nowrap text-slate-400">
-                정렬
-              </span>
-              {[
-                { key: "total-desc", label: "종합 높은 순" },
-                { key: "perf-desc", label: "성과 높은 순" },
-                { key: "perf", label: "성과 낮은 순" },
-                { key: "comp-desc", label: "역량 높은 순" },
-                { key: "comp", label: "역량 낮은 순" },
-                { key: "grade", label: "등급순 (S→C)" },
-                { key: "name", label: "이름순" },
-              ].map((c) => {
-                const on = (params.ssort ?? "total-desc") === c.key;
-                return (
-                  <Link
-                    key={c.key}
-                    href={statusHref({ ssort: c.key })}
-                    className={`rounded-full px-2.5 py-0.5 text-[11px] whitespace-nowrap transition-colors ${
-                      on
-                        ? "bg-goal-4 font-semibold text-white"
-                        : "border border-slate-300 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    {c.label}
-                  </Link>
-                );
-              })}
-              {groupMode !== "none" && (
-                <Link
-                  href={statusHref({ sgroup: grouped ? "flat" : "" })}
-                  className="ml-1 rounded-full border border-slate-300 px-2.5 py-0.5 text-[11px] whitespace-nowrap text-slate-600 hover:bg-slate-50"
-                >
-                  {grouped
-                    ? groupMode === "evaluator"
-                      ? "평가자 묶음 끄기"
-                      : "라인 묶음 끄기"
-                    : groupMode === "evaluator"
-                      ? "평가자별로 묶기"
-                      : "라인별로 묶기"}
-                </Link>
-              )}
-            </div>
-            <div className="min-w-0 overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full min-w-[34rem] text-sm">
-                <thead className="bg-slate-100 text-xs text-slate-600">
-                  <tr>
-                    {sortHead("name", "이름")}
-                    {sortHead("perf", "성과", "right")}
-                    {sortHead("comp", "역량", "right")}
-                    {sortHead("total", "종합", "right")}
-                    {sortHead("grade", "등급")}
-                    <th
-                      className="px-2 py-1.5 text-left font-medium whitespace-nowrap"
-                      title="지난 해 등급 — 결과 배포가 끝난 해만 남습니다"
-                    >
-                      지난
-                    </th>
-                    <th className="px-2 py-1.5" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {groups.map((g) => (
-                    <Fragment key={g.label || "__flat__"}>
-                      {g.head && (
-                        <tr className="border-t border-slate-200 bg-slate-50">
-                          <td
-                            colSpan={colCount}
-                            className="px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-slate-700"
-                          >
-                            {g.label}
-                            <span className="ml-2 font-normal text-slate-400">
-                              {g.rows.length}명
-                            </span>
-                          </td>
-                        </tr>
-                      )}
-                      {g.rows.map((r) => {
-                        const sc = statusScores.get(r.person.id);
-                        return (
-                          <tr
-                            key={r.person.id}
-                            className="border-t border-slate-100 hover:bg-slate-50/70"
-                          >
-                            {/* 소속은 이름 아래에 붙인다 — 칸으로 두면 표가 화면
-                                밖으로 밀려 오른쪽 등급이 잘린다. */}
-                            <td className="px-2 py-1.5 whitespace-nowrap">
-                              <span className="text-sm font-medium text-slate-900">
-                                {r.person.name}
-                              </span>
-                              <span className="ml-1 text-[11px] text-slate-400">
-                                {POSITION_LABEL[r.person.position]}
-                              </span>
-                              <span className="block text-[11px] text-slate-400">
-                                {r.person.team?.name ?? r.person.division ?? "-"}
-                                {/* 아직 칸이 덜 찬 사람은 점수가 중간값이라
-                                    표시해 둔다. 남은 일은 딱지에 얹어 둔다. */}
-                                {r.todo.length > 0 && (
-                                  <span
-                                    className="ml-1.5 rounded bg-slate-100 px-1 text-[10px] whitespace-nowrap text-slate-500"
-                                    title={r.todo.join(" · ")}
-                                  >
-                                    진행 중
-                                  </span>
-                                )}
-                              </span>
-                            </td>
-                            {scoreCellOf(sc?.performance)}
-                            {scoreCellOf(sc?.competency)}
-                            {scoreCellOf(sc?.total, true)}
-                            <td className="px-2 py-1.5 whitespace-nowrap">
-                              {gradeCellOf(r.person.id)}
-                            </td>
-                            <td className="px-2 py-1.5">
-                              {pastCell(r.person.id)}
-                            </td>
-                            <td className="px-2 py-1.5 text-right whitespace-nowrap">
-                              <Link
-                                href={`/platform/evaluation2?year=${selectedYear}&phase=${RESULT_PHASE}&who=${r.person.id}`}
-                                className="rounded-md border border-slate-300 px-2 py-0.5 text-[11px] font-medium text-slate-600 hover:bg-white"
-                              >
-                                결과
-                              </Link>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="mt-2 text-[11px] break-keep text-slate-400">
-              성과 · 역량 · 종합은 결과지와 같은 값입니다. 등급은 운영책임 라인
-              안에서 정원표대로 매긴 값이라, 인사팀이 확정하거나 결과를 배포하기
-              전에는 바뀔 수 있습니다. 「지난 등급」은 배포가 끝난 해만 남습니다.
-              {groupMode !== "none" &&
-                grouped &&
-                " 묶어 놓으면 정렬이 묶음 안에서만 돕니다 — 전체를 한 줄로 세우려면 묶음을 끄세요."}
-            </p>
-          </div>
+          <StatusTable
+            rows={tableRows}
+            groupNoun={
+              groupMode === "none"
+                ? ""
+                : groupMode === "evaluator"
+                  ? "평가자"
+                  : "라인"
+            }
+            initialSort={params.ssort}
+          />
         </div>
       </section>
     );
