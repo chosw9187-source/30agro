@@ -4423,7 +4423,10 @@ export default async function Evaluation2Page({
       <section className={CARD_CLASS}>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
           <h2 className="text-sm font-bold whitespace-nowrap text-slate-900">
-            {seesEveryone ? "평가 진행 현황" : "내 평가 대상자"}
+            {/* 위의 진행 띠가 「평가 진행 현황」이라, 여기는 «사람 기준»이라는
+                것이 드러나는 이름을 쓴다 — 같은 이름 두 개면 어느 카드를 말하는지
+                가릴 수 없다. */}
+            {seesEveryone ? "평가 대상자 현황" : "내 평가 대상자"}
           </h2>
           <span className="text-xs break-keep text-slate-500">
             {all.length}명 중 {doneCount}명 완료
@@ -4908,11 +4911,20 @@ export default async function Evaluation2Page({
     return (
       <section className={`${CARD_CLASS} px-4 py-1.5`}>
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          {/*
+            카드 이름은 늘 같은 말이다. 예전에는 단계가 굴러가는 동안에는
+            「「역량평가」 기간」, 아닐 때는 「2026년 평가 진행 현황」으로 이름
+            자체가 바뀌어서 같은 카드를 두 가지 이름으로 부르게 됐다. 이름은
+            고정하고 «지금 어느 단계인가»는 옆에 작게 붙인다.
+          */}
           <h2 className="text-sm font-semibold text-slate-800">
-            {activeCycle
-              ? `「${cyclePhaseLabel(activeCycle)}」 기간`
-              : `${selectedYear}년 평가 진행 현황`}
+            평가 진행 현황
           </h2>
+          {activeCycle && (
+            <span className="text-xs font-medium text-slate-500">
+              「{cyclePhaseLabel(activeCycle)}」 기간
+            </span>
+          )}
           {remainDays !== null && (
             <span
               className={`text-xs font-medium ${
@@ -7705,8 +7717,20 @@ export default async function Evaluation2Page({
               중간평가·최종평가에서만 띄운다.
             */
             <>
-              {/* 층별 카드보다 먼저 «지금 어느 단계인가»를 읽는다. */}
+              {/*
+                읽는 순서: ① 지금 어느 단계인가(진행 띠) ② 내 사람들이 어디까지
+                왔나(평가 대상자 현황) ③ 내 팀·내 목표가 몇 %인가(층별 카드).
+
+                ②를 ③보다 위에 둔다. 평가자에게 이 화면의 용건은 «누구를
+                독촉할까»라서 화면을 열자마자 보여야 한다 — 아래에 두면 반기 카드
+                두 장을 지나야 닿는다. 평가 대상자가 없는 사람(담당)에게는 ②가
+                아예 없으므로 진행 띠 다음에 바로 카드가 온다.
+
+                전사 목표 표는 대시보드에 두지 않는다 — 바로 옆의 「전사목표」 탭이
+                같은 표를 통째로 보여 준다.
+              */}
               {stageTimeline()}
+              {evalStatusBoard()}
               {showsProgress && (
                 <div className="grid gap-4 sm:grid-cols-2">
                   {DASHBOARD_LEVELS.map((level) => (
@@ -7714,14 +7738,6 @@ export default async function Evaluation2Page({
                   ))}
                 </div>
               )}
-              {/*
-                전사 목표 표는 대시보드에 두지 않는다 — 바로 옆의 「전사목표」
-                탭이 같은 표를 통째로 보여 준다. 대시보드는 «내 팀과 내 목표가
-                어디까지 왔나»와 «누가 무엇을 남겼나»를 읽는 자리이고, 회사 목표
-                여섯 줄을 여기서 한 번 더 지나가면 정작 아래 진행 현황이 한
-                화면에서 밀려난다.
-              */}
-              {evalStatusBoard()}
             </>
           ) : (
             // key에 탭을 넣어 탭을 옮길 때마다 이 안을 새로 그린다. 안 그러면
