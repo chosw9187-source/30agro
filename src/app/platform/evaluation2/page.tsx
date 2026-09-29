@@ -2868,7 +2868,24 @@ export default async function Evaluation2Page({
                               </span>
                             </td>
                             <td className="px-2 py-2.5 text-right whitespace-nowrap">
-                              <span className="text-sm tabular-nums text-slate-600">
+                              {/*
+                                차이는 방향이 곧 뜻이다 — 팀장이 더 준 쪽(+)과
+                                내가 더 준 쪽(−)을 숫자 부호만으로 가르면 표를
+                                훑을 때 놓친다. 그래서 색으로도 가른다: 마이너스는
+                                붉게, 플러스는 파랗게, 0은 그대로 회색이다(같다는
+                                것도 하나의 값이라 색을 주지 않는다).
+                              */}
+                              <span
+                                className={`text-sm font-semibold tabular-nums ${
+                                  r.gap == null
+                                    ? "text-slate-400"
+                                    : r.gap < 0
+                                      ? "text-status-critical"
+                                      : r.gap > 0
+                                        ? "text-goal-2"
+                                        : "text-slate-600"
+                                }`}
+                              >
                                 {r.gap == null
                                   ? "–"
                                   : r.gap > 0
@@ -2927,9 +2944,16 @@ export default async function Evaluation2Page({
                   </table>
                 </div>
                 <p className="mt-2 text-[11px] break-keep text-slate-400">
-                  차이는 팀장평가 − 자기평가입니다. 자기평가가 팀장보다 1점 이상
-                  높으면 셀프 피드백을, 팀장이 2점 이상 높으면 팀장과의 1:1
-                  미팅을 권합니다.
+                  차이는 팀장평가 − 자기평가입니다 —{" "}
+                  <b className="font-semibold text-status-critical">
+                    붉은 −는 자기평가가 더 높은 칸
+                  </b>
+                  ,{" "}
+                  <b className="font-semibold text-goal-2">
+                    파란 +는 팀장평가가 더 높은 칸
+                  </b>
+                  입니다. 자기평가가 팀장보다 1점 이상 높으면 셀프 피드백을,
+                  팀장이 2점 이상 높으면 팀장과의 1:1 미팅을 권합니다.
                 </p>
               </div>
             </div>
