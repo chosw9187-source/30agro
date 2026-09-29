@@ -5116,6 +5116,11 @@ export default async function Evaluation2Page({
       어느 쪽이 어느 반기인지 헷갈리지 않는다. 지금 굴러가는 반기에는 「진행 중」을
       달아 둔다.
     */
+    /** 반기마다 도넛 색. 딱지·테두리와 같은 색을 쓴다. */
+    const HALF_DONUT: Record<string, string> = {
+      [GOAL_HALVES[0]]: "var(--color-brand-green)",
+      [GOAL_HALVES[1]]: "var(--color-goal-3)",
+    };
     const halfPanel = (h: (typeof halves)[number]) => {
       const tone = HALF_TONE[h.half] ?? HALF_TONE[HALF_UNSET];
       const running = h.half === shownHalf;
@@ -5137,46 +5142,45 @@ export default async function Evaluation2Page({
             )}
           </div>
           {h.has ? (
-            <>
-              <div className="mt-1.5 flex items-baseline gap-1.5">
-                <span
-                  className={`text-2xl leading-none font-bold tabular-nums ${tone.text}`}
-                >
-                  {h.percent}
-                </span>
-                <span className="text-xs text-slate-400">%</span>
-                <span className="ml-auto text-[10px] whitespace-nowrap text-slate-500">
-                  {level === "COMPANY" ? "가중평균" : "평균 달성률"}
-                </span>
-              </div>
-              <span
-                className="mt-1 block h-1.5 w-full overflow-hidden rounded-full bg-white/70"
-                aria-hidden="true"
-              >
-                <span
-                  className={`block h-full rounded-full ${
-                    h.half === GOAL_HALVES[0] ? "bg-brand-green" : "bg-goal-3"
-                  }`}
-                  style={{ width: `${Math.min(100, h.percent)}%` }}
+            <div className="mt-1.5 flex items-center gap-3">
+              {/* 도넛은 반기 색으로 — 카드 두 장·네 칸이 색만으로 갈린다. */}
+              <div className="relative shrink-0">
+                <ProgressDonut
+                  value={h.percent}
+                  color={HALF_DONUT[h.half] ?? "var(--color-brand-gray)"}
+                  size={188}
+                  stroke={18}
+                  className="h-auto w-[72px] sm:w-20"
                 />
-              </span>
-              <dl className="mt-1.5 flex items-baseline gap-x-3 gap-y-0.5 text-[11px] whitespace-nowrap">
-                <span className="flex items-baseline gap-1">
-                  <dt className="text-slate-500">전체</dt>
-                  <dd className="font-semibold tabular-nums text-slate-800">
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-lg leading-none font-bold tabular-nums text-slate-900">
+                    {h.percent}
+                    <span className="ml-0.5 text-xs font-normal text-slate-400">
+                      %
+                    </span>
+                  </span>
+                  <span className="mt-0.5 text-[9px] leading-none text-slate-500">
+                    {level === "COMPANY" ? "가중평균" : "평균 달성률"}
+                  </span>
+                </div>
+              </div>
+              <dl className="grid min-w-0 flex-1 grid-cols-3 gap-1 text-center">
+                <div>
+                  <dt className="text-[11px] text-slate-500">전체</dt>
+                  <dd className="text-lg leading-tight font-semibold tabular-nums text-slate-800">
                     {h.count}
                   </dd>
-                </span>
-                <span className="flex items-baseline gap-1">
-                  <dt className="text-slate-500">완료</dt>
-                  <dd className="font-semibold tabular-nums text-brand-green-dark">
+                </div>
+                <div>
+                  <dt className="text-[11px] text-slate-500">완료</dt>
+                  <dd className="text-lg leading-tight font-semibold tabular-nums text-brand-green-dark">
                     {h.done}
                   </dd>
-                </span>
-                <span className="flex items-baseline gap-1">
-                  <dt className="text-slate-500">지연</dt>
+                </div>
+                <div>
+                  <dt className="text-[11px] text-slate-500">지연</dt>
                   <dd
-                    className={`font-semibold tabular-nums ${
+                    className={`text-lg leading-tight font-semibold tabular-nums ${
                       h.overdue > 0
                         ? "text-status-critical"
                         : "text-slate-400"
@@ -5184,9 +5188,9 @@ export default async function Evaluation2Page({
                   >
                     {h.overdue}
                   </dd>
-                </span>
+                </div>
               </dl>
-            </>
+            </div>
           ) : (
             /* 목표가 없는 반기는 0%가 아니라 «아직 없음»이다. */
             <p className="mt-2 text-[11px] break-keep text-slate-500">
