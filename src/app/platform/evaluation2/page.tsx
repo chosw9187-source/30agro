@@ -5060,22 +5060,31 @@ export default async function Evaluation2Page({
         : all.filter((g) =>
             usesHalf(level) ? inGoalHalf(g, half) : teamInHalf(g, half),
           );
-    /** 그 반기로 본 달성률 — 팀목표는 그 반기 개인목표만으로 다시 굴린다. */
+    /**
+     * 그 반기로 본 달성률 — 팀목표는 그 반기 개인목표만으로 다시 굴린다.
+     *
+     * **「전체」로 센 줄과 같은 줄로 평균을 낸다.** 예전에는 그 반기에 딸린
+     * 개인목표가 있는 팀목표만 골라 평균을 냈는데, 「전체」는 여섯 줄을 세고
+     * 있어서 「전체 6 · 92%」처럼 분모가 어긋난 칸이 떴다 — 여섯 줄 중 셋만으로
+     * 낸 92%였다. 그 반기에 굴러온 것이 없는 팀목표(하위가 아직 없거나 다른
+     * 반기 것뿐인 줄)는 0%로 센다. 목록 화면도 그런 줄을 「하위 목표가 없어
+     * 0%입니다」로 적고 평균에 넣으므로, 두 화면이 같은 규칙이 된다.
+     */
     const percentIn = (half: string) => {
       if (level === "COMPANY")
         return all.length > 0 ? weightedProgress(all) : 0;
       if (level !== "TEAM") return levelAverage(level, rowsIn(half));
-      const per = all
-        .map((t) => teamRollupIn(t, half))
-        .filter((v): v is number => v !== null);
-      if (per.length === 0) return 0;
+      const rows = rowsIn(half).filter(countsTowardProgress);
+      if (rows.length === 0) return 0;
+      const per = rows.map((t) => teamRollupIn(t, half) ?? 0);
       return Math.round(per.reduce((a, b) => a + b, 0) / per.length);
     };
     /** 그 반기로 본 «완료» — 팀목표는 그 반기 달성률이 100%를 채웠는지로 본다. */
     const doneIn = (half: string) =>
       level === "TEAM"
-        ? all.filter((t) => !t.excluded && (teamRollupIn(t, half) ?? 0) >= 100)
-            .length
+        ? rowsIn(half).filter(
+            (t) => !t.excluded && (teamRollupIn(t, half) ?? 0) >= 100,
+          ).length
         : rowsIn(half).filter((g) => g.rollupStatus === "DONE" && !g.excluded)
             .length;
 
