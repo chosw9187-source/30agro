@@ -42,7 +42,6 @@ import {
   loadUnitScores,
   resolveUnitGrades,
 } from "@/lib/final-grade-data";
-import { COMPETENCY_WEIGHT, PERFORMANCE_WEIGHT } from "@/lib/competency-result";
 import { PERSON_GRADES, type GradeRatios } from "@/lib/final-grade";
 
 const NO_UNIT = "__no_head__";
@@ -137,6 +136,21 @@ export async function GET(req: NextRequest) {
     const head = people.find((p) => p.id === key);
     return head ? `${head.name} ${POSITION_LABEL[head.position]}` : "운영책임";
   };
+  /**
+   * 「업무 단위」 한 칸 — 그 사람이 속한 **조직도상 가장 작은 단위 이름**이다.
+   *
+   * 부문(책임 라인)이 있으면 그 이름(「영업고객관리」), 부문 층이 없는 라인은
+   * 사업단위 이름(「재무경영관리」). 예전에는 부문 · 책임 · 운영책임 라인 세 칸을
+   * 따로 내보냈는데, 부문을 두지 않는 라인에서는 부문 칸이 통째로 비어 피벗의
+   * 열쇠로 쓸 수 없었다. 한 칸으로 합치고 빈 칸이 없게 둔다.
+   */
+  const teamOrgById = new Map(teams.map((t) => [t.id, t]));
+  const workUnitOf = (p: (typeof people)[number]) => {
+    const dept = deptLine.get(p.id)?.key;
+    if (dept) return dept;
+    const team = p.teamId ? teamOrgById.get(p.teamId) : undefined;
+    return (team?.businessUnit ?? p.businessUnit ?? "").trim();
+  };
 
   const [scores, plans, quota, fixed, perf] = await Promise.all([
     loadUnitScores(year, ids, yearCycles, finalCycle, rankOfCycle),
@@ -177,43 +191,38 @@ export async function GET(req: NextRequest) {
 
   const dateOnly = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "");
 
-  /* ── ① 종합 ─────────────────────────────────────────────── */
+  /*
+    ── ① 종합 ─────────────────────────────────────────────────
+
+    **열다섯 칸만 둔다.** 예전에는 스물여덟 칸이었다 — 성과 목표수 · 평가완료수 ·
+    가중치합 · 표대로 등급 · 인사팀 확정 · 확정 사유 · 라인 인원 · 라인 순위 ·
+    조직등급까지. 셈을 따져 보려면 있어야 하는 값이지만, 보상 검토와 경영 보고에
+    쓰는 표에서는 옆으로 스무 칸을 밀어야 등급에 닿았다. 셈의 근거는 아래 두 장
+    (성과 상세 · 역량 상세)과 「라인 요약」이 그대로 들고 있으므로, 이 장은 «사람
+    한 줄에 결과 하나»로 좁힌다.
+  */
   const summary = targets.map((p) => {
     const sc = scores.get(p.id);
     const gr = gradeOf(p.id);
     const chain = chains.get(p.id) ?? null;
-    const unit = unitHead.get(p.id)?.id ?? NO_UNIT;
-    const dept = deptLine.get(p.id);
-    const info = unitInfo.find((u) => u.key === unit);
-    const pf = perf.get(p.id);
     return {
       사번: p.employeeNumber,
       이름: p.name,
       직책: POSITION_LABEL[p.position],
       직급: p.jobGrade ?? "",
       소속팀: p.team?.name ?? "",
-      "부문(책임 라인)": dept?.key ?? "",
-      책임: dept?.head ? dept.head.name : "",
-      "운영책임 라인": unitLabel(unit),
+      "업무 단위": workUnitOf(p),
       고용형태: p.employmentType ?? "",
       입사일: dateOnly(p.hireDate),
       "1차 평가자": chain?.first ? evaluatorLabel(chain.first) : "",
       "2차 평가자": chain?.second ? evaluatorLabel(chain.second) : "",
-      [`성과 ${Math.round(PERFORMANCE_WEIGHT * 100)}%`]: cell(sc?.performance),
-      "성과 목표수": pf?.goals.length ?? 0,
-      "성과 평가완료수": pf?.filled ?? 0,
-      "성과 가중치합(%)": pf?.weightSum ?? 0,
-      [`역량 ${Math.round(COMPETENCY_WEIGHT * 100)}%`]: cell(sc?.competency),
+      /* 가중치(60% · 40%)는 칸 이름에서 뺀다 — 해마다 바뀔 수 있는 값이라
+         엑셀 머리글에 박아 두면 지난 파일과 칸 이름이 달라진다. */
+      성과평가: cell(sc?.performance),
+      역량평가: cell(sc?.competency),
       가산점: sc?.bonus ?? 0,
-      "가산점 사유": sc?.bonusNote ?? "",
       최종점수: cell(sc?.total),
       등급: gr?.grade ?? "",
-      "표대로 등급": gr?.computed ?? "",
-      "인사팀 확정": gr?.fixed ? "Y" : "",
-      "확정 사유": gr?.fixedNote ?? "",
-      "라인 인원": gr?.of ?? "",
-      "라인 순위": gr?.rank ?? "",
-      조직등급: info?.orgGrade ?? "",
     };
   });
 
