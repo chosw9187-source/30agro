@@ -1,0 +1,20 @@
+{
+  "_안내": "steps 의 selector 값은 2_화면녹화 결과를 보고 채웁니다. {ID}/{PW} 는 계정등록 값, {TODAY}/{YESTERDAY} 는 날짜로 자동 치환됩니다.",
+  "url": "http://www.sgerp.com/",
+  "browser_channel": "msedge",
+  "headless": true,
+  "save_folder_name": "ERP자동업로드",
+  "file_prefix": "SGERP",
+  "date_format": "%Y-%m-%d",
+  "timeout_sec": 60,
+  "retries": 2,
+  "steps": [
+    { "desc": "아이디 입력",   "action": "fill",  "selector": "", "value": "{ID}" },
+    { "desc": "비밀번호 입력", "action": "fill",  "selector": "", "value": "{PW}" },
+    { "desc": "로그인 클릭",   "action": "click", "selector": "" },
+    { "desc": "로그인 대기",   "action": "wait",  "ms": 3000 },
+    { "desc": "메뉴 이동",     "action": "click", "selector": "" },
+    { "desc": "조회 클릭",     "action": "click", "selector": "" },
+    { "desc": "엑셀 다운로드", "action": "download", "selector": "" }
+  ]
+}
