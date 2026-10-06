@@ -2210,8 +2210,7 @@ export default async function Evaluation2Page({
     const base = overallScore(perfScore, compScore);
     const total = targetScores?.total ?? base;
 
-    const { strengths, weaknesses, relativelyLow } =
-      strengthsAndWeaknesses(rows);
+    const { strengths, weaknesses } = strengthsAndWeaknesses(rows);
     const axes: CompetencyRadarAxis[] = rows.map((r) => ({
       label: r.area,
       self: r.self,
@@ -2747,31 +2746,29 @@ export default async function Evaluation2Page({
               <span className="w-24 shrink-0 text-xs font-semibold text-slate-500">
                 주요 약점 역량
               </span>
-              {weaknesses.length > 0 ? (
-                pickList(weaknesses, "", "watch")
-              ) : relativelyLow.length > 0 ? (
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm text-slate-400">
-                    {STRENGTH_THRESHOLD}점 미만 역량 없음
-                  </span>
-                  <span className="text-xs text-slate-400">
-                    · 상대적으로 낮은 역량
-                  </span>
-                  {pickList(relativelyLow, "", "watch")}
-                </span>
-              ) : (
-                <span className="text-sm text-slate-400">해당 없음</span>
+              {/*
+                약점은 문턱으로 가르지 않는다 — 그중 낮은 쪽 세 개다. 예전에는
+                6점 미만만 약점으로 적고, 없으면 「6점 미만 역량 없음 · 상대적으로
+                낮은 역량」을 덧붙였는데, 읽는 사람에게는 같은 이야기라 칸을 하나로
+                합쳤다.
+              */}
+              {pickList(
+                weaknesses,
+                rows.some((r) => r.avg != null)
+                  ? "역량 점수가 모두 같습니다"
+                  : "역량 점수가 아직 없습니다",
+                "watch",
               )}
             </div>
             {/*
-              규칙을 화면에 적어 둔다 — 왜 이 역량이 강점으로 뽑혔는지 결과지만
-              보고는 알 수 없다. 문턱은 코드에서 읽어 와서, 눈금이 바뀌어도 적힌
-              숫자와 실제가 어긋나지 않는다.
+              규칙을 화면에 적어 둔다 — 왜 이 역량이 뽑혔는지 결과지만 보고는 알
+              수 없다. 문턱은 코드에서 읽어 와서, 눈금이 바뀌어도 적힌 숫자와
+              실제가 어긋나지 않는다.
             */}
             <p className="text-[11px] break-keep text-slate-400">
-              자기평가와 팀장평가의 평균이 {STRENGTH_THRESHOLD}점을 넘으면 강점,{" "}
-              {STRENGTH_THRESHOLD}점 미만이면 약점으로 봅니다 (평균이 높은 순으로
-              세 개까지).
+              자기평가와 팀장평가의 평균으로 뽑습니다 — 강점은{" "}
+              {STRENGTH_THRESHOLD}점을 넘는 역량 중 높은 순, 약점은 낮은 순으로
+              각각 세 개까지입니다.
             </p>
           </div>
         </section>

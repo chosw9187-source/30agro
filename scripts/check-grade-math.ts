@@ -186,9 +186,9 @@ const picked = strengthsAndWeaknesses([
   },
 ]);
 eq(
-  "만점의 60%(6점) 초과만 강점",
+  "강점은 6점 초과만 · 약점은 문턱 없이 낮은 순",
   [picked.strengths.map((r) => r.area), picked.weaknesses.map((r) => r.area)],
-  [["높음"], ["낮음"]],
+  [["높음"], ["낮음", "가운데"]],
 );
 /*
   자기평가와 팀장평가의 차이는 뽑기에 끼어들지 않는다 — 예전에는 4점 이상

@@ -95,20 +95,22 @@ const MAX_PICKS = 3;
 /**
  * 주요 강점 · 약점 역량.
  *
- * 결과지에 적힌 규칙을 만점 비율로 옮겨 쓴다 — 「자기 평가와 팀장 평가의 평균이 만점의 60% 초과인
- * 경우 강점 역량으로, 미만인 경우 약점 역량으로 구분하고 있습니다. (차이가 클
- * 경우는 제외)」. 3점 초과가 열 개 다 해당될 수 있으므로 평균이 높은 순으로 셋만
- * 고른다.
+ * **강점**은 양식의 규칙대로 «평균이 만점의 60%(6점)를 넘는» 역량 중 높은 순
+ * 셋이다.
  *
- * 3점 미만이 하나도 없으면 약점은 **비워 둔다**. 없는 약점을 만들어 적으면
- * 결과지를 받은 사람이 «내가 이걸 못한다고 적혀 있다»로 읽는다. 대신 상대적으로
- * 낮은 역량을 따로 알려 준다 — 그건 약점이 아니라 «그중에서는 낮은 쪽»이다.
+ * **약점**은 문턱으로 가르지 않고 «그중에서 낮은 쪽» 셋을 뽑는다. 6점 미만만
+ * 약점으로 적었더니, 점수가 전반적으로 높은 사람은 그 칸이 늘 비어 「6점 미만
+ * 역량 없음」만 남았다 — 면담에서 «그래도 어디를 더 보면 좋은가»에 답하지 못하는
+ * 칸이다. 상대적으로 낮은 쪽을 그냥 약점 칸에 적는다(예전에는 그것을 「상대적으로
+ * 낮은 역량」이라는 다른 이름으로 따로 띄웠는데, 읽는 사람에게는 같은 이야기라
+ * 한 칸으로 합쳤다).
+ *
+ * 강점으로 이미 뽑힌 역량은 약점에서 뺀다 — 문항이 다섯 개뿐인 사람은 높은 순
+ * 셋과 낮은 순 셋이 겹쳐, 같은 역량이 강점과 약점에 동시에 적히게 된다.
  */
 export function strengthsAndWeaknesses(rows: CompetencyResultRow[]): {
   strengths: CompetencyResultRow[];
   weaknesses: CompetencyResultRow[];
-  /** 3점 미만이 없을 때의 «상대적으로 낮은 역량». */
-  relativelyLow: CompetencyResultRow[];
 } {
   const scored = rows.filter((r) => r.avg != null);
 
@@ -117,25 +119,23 @@ export function strengthsAndWeaknesses(rows: CompetencyResultRow[]): {
     .sort((a, b) => b.avg! - a.avg! || a.area.localeCompare(b.area))
     .slice(0, MAX_PICKS);
 
-  const weaknesses = [...scored]
-    .filter((r) => r.avg! < STRENGTH_THRESHOLD)
-    .sort((a, b) => a.avg! - b.avg! || a.area.localeCompare(b.area))
-    .slice(0, MAX_PICKS);
+  /*
+    모든 역량이 같은 점수면 «낮은 쪽»이라는 말이 성립하지 않는다 — 10점이 열 개인
+    사람의 결과지에 「주요 약점: 윤리의식 10점」이 적히면 그 칸이 거짓말을 한다.
+    그때는 비워 두고 화면이 «모두 같은 점수»라고 적는다.
+  */
+  const lowest = Math.min(...scored.map((r) => r.avg!));
+  const highest = Math.max(...scored.map((r) => r.avg!));
+  const pickedStrength = new Set(strengths.map((r) => r.itemKey));
+  const weaknesses =
+    scored.length === 0 || lowest === highest
+      ? []
+      : [...scored]
+          .filter((r) => !pickedStrength.has(r.itemKey))
+          .sort((a, b) => a.avg! - b.avg! || a.area.localeCompare(b.area))
+          .slice(0, MAX_PICKS);
 
-  let relativelyLow: CompetencyResultRow[] = [];
-  if (weaknesses.length === 0 && scored.length > 0) {
-    const lowest = Math.min(...scored.map((r) => r.avg!));
-    const highest = Math.max(...scored.map((r) => r.avg!));
-    // 모든 역량이 같은 점수면 «낮은 쪽»이라는 말이 성립하지 않는다.
-    if (lowest < highest) {
-      relativelyLow = scored
-        .filter((r) => r.avg === lowest)
-        .sort((a, b) => a.area.localeCompare(b.area))
-        .slice(0, MAX_PICKS);
-    }
-  }
-
-  return { strengths, weaknesses, relativelyLow };
+  return { strengths, weaknesses };
 }
 
 /*
