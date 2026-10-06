@@ -262,6 +262,11 @@ export async function applyErpBatch(batchId: string, dryRun = false): Promise<Ap
             continue;
           }
 
+          // 행 하나가 DB 제약(예: 이메일 중복) 위반으로 실패하면 Postgres는 트랜잭션
+          // 전체를 "aborted" 상태로 만들어버려서, 그 뒤 행들까지 전부 연쇄 실패하고
+          // 결국 요청 전체가 500으로 터진다. SAVEPOINT로 행 단위 실패를 격리해
+          // 한 행이 실패해도 나머지 행은 정상 반영되게 한다.
+          await tx.$executeRawUnsafe("SAVEPOINT row_apply");
           try {
             if (fresh.status === "TERMINATION") {
               if (!existing) continue;
@@ -342,6 +347,10 @@ export async function applyErpBatch(batchId: string, dryRun = false): Promise<Ap
               });
             }
           } catch (e) {
+            // 실패한 행이 만든 부분 변경만 되돌리고, 트랜잭션 자체는 계속 쓸 수 있는
+            // 상태로 복구한다 — 이게 없으면 이 행 이후의 모든 행이 "transaction is
+            // aborted" 에러로 연쇄 실패한다.
+            await tx.$executeRawUnsafe("ROLLBACK TO SAVEPOINT row_apply");
             result.errors.push(`${row.name}(${row.employeeNumber}): ${e instanceof Error ? e.message : "반영 실패"}`);
             if (!dryRun) {
               await tx.erpImportRow.update({
@@ -350,6 +359,7 @@ export async function applyErpBatch(batchId: string, dryRun = false): Promise<Ap
               });
             }
           }
+          await tx.$executeRawUnsafe("RELEASE SAVEPOINT row_apply");
         }
 
         if (dryRun) {
