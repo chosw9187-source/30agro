@@ -5395,9 +5395,25 @@ export default async function Evaluation2Page({
       : personOptions.filter((o) =>
           viewer.ledTeamIds.includes(teamIdOfPerson.get(o.value) ?? "__none__"),
         );
-    // 「담당자」가 아니라 「피평가자」다 — 이 목표로 평가받는 사람이고, 위의
-    // 평가자와 짝이 맞는 말이라야 누가 누구를 보는지가 한 번에 읽힌다.
-    const ownerLabel = level === "INDIVIDUAL" ? "피평가자" : "책임자";
+    /*
+      **「피평가자」가 아니라 「목표 담당자」로 적는다.**
+
+      이 칸은 «이 목표를 누구의 것으로 저장할지»를 고르는 자리다. 그런데 이름이
+      「피평가자」라, 역량평가 화면의 「피평가자」(지금 누구 것을 채우는 중인가)와
+      같은 말로 보여서 «내 평가자를 고르는 칸인가»로 읽혔다. 실제로 「인사팀
+      박성훈의 피평가자가 왜 조성완 팀장이지?」라는 물음이 여기서 나왔다 — 그
+      목표가 조성완 팀장의 목표로 저장돼 있었던 것이고, 칸 이름이 그 사실을 가린
+      것이다.
+    */
+    const ownerLabel = level === "INDIVIDUAL" ? "목표 담당자" : "책임자";
+    /* 지금 저장돼 있는 담당자와, 그 사람이 받는 1차 평가자. 칸 아래에 적어 두면
+       «이 목표는 누구 것이고 누가 평가하는가»가 그 자리에서 끝난다. */
+    const ownerNow = goal?.ownerId
+      ? (personById.get(goal.ownerId) ?? null)
+      : null;
+    const ownerFirst = ownerNow
+      ? (evaluatorByPerson.get(ownerNow.id)?.first ?? null)
+      : null;
 
     /*
       이 목표를 누가 평가하게 되는지 폼에서 미리 보여 준다. 조직도에서 따라
@@ -5453,7 +5469,7 @@ export default async function Evaluation2Page({
                 {ownerLabel}
                 {level === "INDIVIDUAL" && (
                   <span className="ml-1 font-normal text-slate-400">
-                    — 누구의 목표로 등록할지 고릅니다 (팀은 따라옵니다)
+                    — 이 목표로 평가받는 사람입니다 (팀은 따라옵니다)
                   </span>
                 )}
               </label>
@@ -5464,6 +5480,24 @@ export default async function Evaluation2Page({
                 placeholder="이름 검색"
                 required={req}
               />
+              {level === "INDIVIDUAL" && (
+                <p className="mt-1 text-[11px] break-keep text-slate-500">
+                  {ownerNow ? (
+                    <>
+                      지금 이 목표는{" "}
+                      <b className="font-semibold text-slate-700">
+                        {evaluatorLabel(ownerNow)}
+                      </b>
+                      의 목표로 저장되어 있습니다 · 1차 평가자{" "}
+                      <b className="font-semibold text-slate-700">
+                        {ownerFirst ? evaluatorLabel(ownerFirst) : "미지정"}
+                      </b>
+                    </>
+                  ) : (
+                    "고른 사람의 목표가 됩니다 — 1차 평가자는 그 사람의 조직도를 따라 자동으로 정해집니다"
+                  )}
+                </p>
+              )}
             </div>
           )}
         </div>
