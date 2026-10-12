@@ -373,6 +373,7 @@ export default function DesignPreviewPage() {
     ["e4", "E-4 역량 문항 칸"],
     ["e5", "E-5 결과지 인쇄"],
     ["e6", "E-6 모바일 자기평가"],
+    ["e7", "E-7 최종등급 합의 / 이의제기"],
   ];
 
   return (
@@ -383,8 +384,8 @@ export default function DesignPreviewPage() {
             인사평가 디자인 미리보기
           </h1>
           <span className="text-xs break-keep text-slate-500">
-            인사평가 화면만 다룹니다 · 「지금」과 「바꾼 뒤」를 나란히 봅니다 — 이
-            화면은 그림일 뿐, 아무것도 저장하지 않습니다.
+            인사평가 화면만 다룹니다 · 「지금」과 「바꾼 뒤」를 나란히 봅니다 —
+            이 화면은 그림일 뿐, 아무것도 저장하지 않습니다.
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-2">
@@ -885,6 +886,210 @@ export default function DesignPreviewPage() {
             </div>
             <p className="mt-1 text-[8px] break-keep text-slate-500">
               한 화면에 목표 하나. 자주 쓰는 값은 눌러서 고릅니다.
+            </p>
+          </div>
+        }
+      />
+
+      {/* ── E-7 ─────────────────────────────────────────────── */}
+      <Item
+        id="e7"
+        where="평가결과 · 배포 뒤"
+        title="최종등급에 동의하거나 이의를 제기하는 칸"
+        why="배포된 결과에 대해 「합의」와 「이의제기」 중 하나를 고르는 자리입니다. 지금은 띠 한 줄에 단추만 두 개 있고 등급은 다른 칸에 있어, 눌렀을 때 «무엇에 동의한 것인지»가 한 화면에 같이 남지 않습니다."
+        effort="1~2일 (등급 칸 + 고르개 한 벌). 저장되는 값은 지금 쓰는 이의신청 줄(동의 시각 · 사유 · 답변) 그대로여서 새로 만들 표는 없습니다."
+        now={
+          <div className="flex flex-col gap-2">
+            <div className="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="text-[10px] font-bold whitespace-nowrap text-slate-800">
+                  평가결과 확인
+                </span>
+                <span className="min-w-0 flex-1 text-[8px] break-keep text-slate-500">
+                  결과를 확인하셨으면 동의를, 다시 봐 주셨으면 하는 점이 있으면
+                  이의신청을 눌러 주세요.
+                </span>
+                <span className="flex shrink-0 items-center gap-1">
+                  <span className="rounded bg-brand-green px-1.5 py-1 text-[8px] text-white">
+                    평가결과 동의
+                  </span>
+                  <span className="rounded border border-slate-300 px-1.5 py-1 text-[8px] text-slate-600">
+                    이의신청
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-semibold text-slate-700">
+                  1. 결과 요약
+                </span>
+                <span className="ml-auto flex items-center gap-1">
+                  <span className="text-[8px] font-semibold text-slate-500">
+                    최종등급
+                  </span>
+                  <span className="rounded bg-goal-2 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                    A+
+                  </span>
+                </span>
+              </div>
+              <div className="mt-1 grid grid-cols-3 gap-1 border-t border-slate-100 pt-1 text-center">
+                {[
+                  ["성과평가", "96"],
+                  ["역량평가", "90"],
+                  ["종합점수", "93.6"],
+                ].map(([k, v]) => (
+                  <div key={k}>
+                    <p className="text-[7px] text-slate-400">{k}</p>
+                    <p className="text-[9px] font-bold text-slate-800">{v}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p className="text-[9px] break-keep text-status-critical">
+              ↑ 단추는 맨 위, 등급은 그 아래 다른 칸에 있습니다. 「이의신청」은
+              화면 한참 아래의 다른 칸으로 데려가고, 거기서 사유를 적습니다 —
+              고르는 일과 고른 대상이 떨어져 있습니다.
+            </p>
+          </div>
+        }
+        next={
+          <div className="flex flex-col gap-2">
+            <div className="rounded-lg border border-brand-green/50 bg-white p-2">
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span className="text-[10px] font-bold text-slate-900">
+                  최종등급 확인
+                </span>
+                <span className="text-[8px] text-slate-500">
+                  2026년 · 2026. 12. 20. 배포
+                </span>
+                <span className="ml-auto rounded bg-amber-100 px-1.5 py-0.5 text-[8px] font-medium text-amber-800">
+                  아직 고르지 않았습니다
+                </span>
+              </div>
+
+              {/* 무엇에 대한 선택인지를 고르개 바로 위에 세운다. */}
+              <div className="mt-2 flex items-center gap-2 rounded-md bg-slate-50 px-2 py-1.5">
+                <span className="rounded-md bg-goal-2 px-2 py-1 text-[15px] leading-none font-bold text-white">
+                  A+
+                </span>
+                <span className="min-w-0">
+                  <p className="text-[9px] font-semibold text-slate-800">
+                    종합 93.6점 · 팀 내 2위 / 12명
+                  </p>
+                  <p className="text-[8px] text-slate-500">
+                    성과 96 (60%) · 역량 90 (40%)
+                  </p>
+                </span>
+              </div>
+
+              {/* 고르개 — 둘 중 하나. 고른 것만 테가 진해진다. */}
+              <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                <div className="rounded-md border border-slate-300 bg-white p-1.5">
+                  <p className="flex items-center gap-1 text-[9px] font-semibold text-slate-700">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full border border-slate-400" />
+                    이 등급에 합의합니다
+                  </p>
+                  <p className="mt-0.5 pl-3.5 text-[8px] break-keep text-slate-500">
+                    결과를 확인했고 더 볼 것이 없습니다.
+                  </p>
+                </div>
+                <div className="rounded-md border-2 border-goal-4 bg-goal-4/5 p-1.5">
+                  <p className="flex items-center gap-1 text-[9px] font-semibold text-goal-4">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full border-[3px] border-goal-4" />
+                    이의를 제기합니다
+                  </p>
+                  <p className="mt-0.5 pl-3.5 text-[8px] break-keep text-slate-500">
+                    다시 봐 주셨으면 하는 점을 적습니다.
+                  </p>
+                </div>
+              </div>
+
+              {/* 고른 쪽에 딸린 칸만 그 자리에서 펼쳐진다 — 다른 화면으로 보내지 않는다. */}
+              <div className="mt-1.5 rounded-md border border-goal-4/40 bg-white p-1.5">
+                <p className="text-[8px] font-medium text-slate-600">
+                  이의 사유 <span className="text-slate-400">(필수)</span>
+                </p>
+                <div className="mt-0.5 h-8 rounded border border-slate-300 bg-slate-50" />
+                <div className="mt-1 flex items-center gap-1">
+                  <span className="text-[7px] break-keep text-slate-400">
+                    인사팀이 답하기 전까지는 고칠 수 있습니다.
+                  </span>
+                  <span className="ml-auto rounded bg-goal-4 px-2 py-1 text-[8px] font-medium whitespace-nowrap text-white">
+                    이의 제출
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 고른 뒤의 모습 — 두 갈래를 나란히 보여 둔다. */}
+            <p className="text-[8px] font-semibold text-slate-500">
+              고른 뒤 — 같은 칸이 이렇게 바뀝니다
+            </p>
+            <div className="grid gap-1.5 sm:grid-cols-2">
+              <div className="rounded-lg border border-slate-200 bg-white p-1.5">
+                <div className="flex items-center gap-1">
+                  <span className="rounded bg-brand-green-light px-1.5 py-0.5 text-[8px] font-medium text-brand-green-dark">
+                    합의 완료
+                  </span>
+                  <span className="text-[7px] text-slate-500">
+                    2026. 12. 21.
+                  </span>
+                </div>
+                <p className="mt-1 text-[8px] break-keep text-slate-600">
+                  <b className="font-semibold text-slate-800">A+</b> 등급에
+                  합의하셨습니다.
+                </p>
+                <p className="mt-0.5 text-[7px] text-slate-400">
+                  마감 전까지는 「합의 취소」로 되돌릴 수 있습니다.
+                </p>
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-white p-1.5">
+                <div className="flex items-center gap-1">
+                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[8px] font-medium text-amber-800">
+                    이의 접수
+                  </span>
+                  <span className="text-[7px] text-slate-500">
+                    2026. 12. 22.
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center gap-0.5">
+                  {[
+                    ["접수", true],
+                    ["인사팀 검토", true],
+                    ["답변", false],
+                  ].map(([label, on], i) => (
+                    <span key={label as string} className="flex items-center">
+                      {i > 0 && (
+                        <span className="mx-0.5 text-[7px] text-slate-300">
+                          ›
+                        </span>
+                      )}
+                      <span
+                        className={`rounded px-1 py-0.5 text-[7px] ${
+                          on
+                            ? "bg-goal-4/10 font-medium text-goal-4"
+                            : "bg-slate-100 text-slate-400"
+                        }`}
+                      >
+                        {label as string}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-0.5 text-[7px] break-keep text-slate-400">
+                  답변이 달리면 같은 칸에 그대로 실립니다.
+                </p>
+              </div>
+            </div>
+            <p className="text-[9px] break-keep text-slate-500">
+              등급 · 점수 · 순위와 고르개가 한 칸에 있고, 고른 뒤에도 그 칸이
+              기록으로 남습니다. 인사팀 명단(HR REPORT)의 「확인」 칸은 지금처럼
+              <b className="font-medium text-slate-700">
+                {" "}
+                미확인 · 합의 · 이의
+              </b>
+              로 뜹니다.
             </p>
           </div>
         }
