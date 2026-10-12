@@ -1448,7 +1448,7 @@ export async function submitEvalAppeal(formData: FormData) {
   if (mine?.status === "ANSWERED") {
     return {
       error:
-        "이미 답변이 달린 이의신청입니다 — 추가로 하실 말씀은 인사팀에 직접 전해 주세요.",
+        "이미 답변이 달린 이의입니다 — 추가로 하실 말씀은 인사팀에 직접 전해 주세요.",
     };
   }
 
@@ -1459,7 +1459,7 @@ export async function submitEvalAppeal(formData: FormData) {
     update: { reason, status: "OPEN", agreedAt: null },
   });
   revalidatePath(PATH);
-  return { message: "이의신청을 접수했습니다. 인사팀이 확인합니다." };
+  return { message: "이의를 접수했습니다. 인사팀이 확인합니다." };
 }
 
 /**
@@ -1484,7 +1484,7 @@ export async function agreeEvalResult(year: number) {
   });
   if (mine?.status === "ANSWERED") {
     return {
-      error: "답변이 달린 이의신청이 있습니다 — 인사팀에 문의해 주세요.",
+      error: "답변이 달린 이의가 있습니다 — 인사팀에 문의해 주세요.",
     };
   }
 
@@ -1499,7 +1499,7 @@ export async function agreeEvalResult(year: number) {
     update: { status: "AGREED", agreedAt: new Date(), reason: null },
   });
   revalidatePath(PATH);
-  return { message: "평가결과에 동의하셨습니다." };
+  return { message: "최종등급에 합의하셨습니다." };
 }
 
 /** 동의를 거둔다 — 잘못 눌렀을 때. */

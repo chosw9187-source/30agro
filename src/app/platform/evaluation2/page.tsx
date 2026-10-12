@@ -167,6 +167,7 @@ import {
 } from "@/lib/competency-form";
 import { CompetencyItemGroup } from "./competency-items";
 import { StatusTable, type StatusTableRow } from "./status-table";
+import { ResultAckCard } from "./result-ack";
 import { YearPhaseSelect, ParamSelect } from "./cycle-select";
 import { ActionForm } from "@/components/action-form";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -1991,7 +1992,11 @@ export default async function Evaluation2Page({
             1,
             "핵심가치",
             `${
-              (picked.core ? picked.core.kind === "CORE_LEADER" : target.position === "TEAM_LEADER")
+              (
+                picked.core
+                  ? picked.core.kind === "CORE_LEADER"
+                  : target.position === "TEAM_LEADER"
+              )
                 ? "팀장용"
                 : "팀원용"
             } · 전사 공통`,
@@ -2458,87 +2463,63 @@ export default async function Evaluation2Page({
         </section>
 
         {/*
-          **결과 확인** — 「1. 결과 요약」 바로 위, 결과지를 열면 가장 먼저 닿는
-          자리다. 할 수 있는 일은 둘뿐이다: 동의하거나, 이의를 내거나.
+          **최종등급 확인** — 「1. 결과 요약」 바로 위, 결과지를 열면 가장 먼저 닿는
+          자리다. 할 수 있는 일은 둘뿐이다: 이 등급에 합의하거나, 이의를 내거나.
 
-          배포된 뒤 본인 결과지에서만 뜬다. 등급이 아직 공개되지 않았는데 «동의»를
-          받아 두면 무엇에 동의한 것인지 남지 않는다.
+          등급 · 점수를 고르개 바로 위에 함께 세운다. 예전에는 단추만 있는 띠였고
+          등급은 아래 「1. 결과 요약」에, 사유 칸은 화면 한참 아래 「5. 이의신청」에
+          따로 있어서 «무엇에 동의한 것인지»가 한 화면에 남지 않았다.
+
+          배포된 뒤 본인 결과지에서만 뜬다. 등급이 아직 공개되지 않았는데 «합의»를
+          받아 두면 무엇에 합의한 것인지 남지 않는다.
         */}
         {resultsReleased && target.id === session!.user.id && (
-          <section className={CARD_CLASS}>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
-              <span className="shrink-0 text-sm font-bold text-slate-900">
-                평가결과 확인
-              </span>
-              {myAppeal?.status === "AGREED" ? (
-                <>
-                  <span className="rounded-md bg-brand-green-light px-2 py-1 text-xs font-medium text-brand-green-dark">
-                    {myAppeal.agreedAt?.toLocaleDateString("ko-KR")} 동의함
-                  </span>
-                  <span className="text-xs break-keep text-slate-500">
-                    결과를 확인하고 동의하셨습니다.
-                  </span>
-                  <ActionForm
-                    action={cancelEvalAgreement.bind(null, selectedYear)}
-                    successMessage="동의를 거두었습니다."
-                    className="ml-auto shrink-0"
-                  >
-                    <button
-                      type="submit"
-                      className="text-xs text-slate-500 underline hover:text-slate-700"
-                    >
-                      동의 취소
-                    </button>
-                  </ActionForm>
-                </>
-              ) : myAppeal ? (
-                <>
-                  <span
-                    className={`rounded-md px-2 py-1 text-xs font-medium ${
-                      myAppeal.status === "ANSWERED"
-                        ? "bg-goal-4/10 text-goal-4"
-                        : "bg-amber-100 text-amber-800"
-                    }`}
-                  >
-                    이의신청{" "}
-                    {myAppeal.status === "ANSWERED" ? "답변 완료" : "접수됨"}
-                  </span>
-                  <span className="text-xs break-keep text-slate-500">
-                    {myAppeal.status === "ANSWERED"
-                      ? "인사팀 답변이 아래 「5. 이의신청」에 실려 있습니다."
-                      : "인사팀이 확인하고 있습니다 — 내용은 아래 「5. 이의신청」에 있습니다."}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span className="text-xs break-keep text-slate-500">
-                    결과를 확인하셨으면 동의를, 다시 봐 주셨으면 하는 점이
-                    있으면 이의신청을 눌러 주세요.
-                  </span>
-                  <span className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
-                    <ActionForm
-                      action={agreeEvalResult.bind(null, selectedYear)}
-                      successMessage="평가결과에 동의하셨습니다."
-                      confirmMessage="이 결과에 동의하시겠습니까? 동의하면 인사팀 명단에 «동의»로 표시됩니다."
-                    >
-                      <button
-                        type="submit"
-                        className="rounded-md bg-brand-green px-4 py-2 text-sm font-medium whitespace-nowrap text-white hover:bg-brand-green-dark"
-                      >
-                        평가결과 동의
-                      </button>
-                    </ActionForm>
-                    <a
-                      href="#eval-appeal"
-                      className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-50"
-                    >
-                      이의신청
-                    </a>
-                  </span>
-                </>
-              )}
-            </div>
-          </section>
+          <ResultAckCard
+            cardClass={CARD_CLASS}
+            inputClass={INPUT_CLASS}
+            year={selectedYear}
+            grade={shownGrade?.grade ?? null}
+            gradeClass={
+              (shownGrade && PERSON_GRADE_CLASS[shownGrade.grade]) ||
+              "bg-slate-500 text-white"
+            }
+            totalLabel={total != null ? `종합 ${total}점` : "종합점수 미정"}
+            scoreLine={`성과 ${perfScore ?? "-"} (${Math.round(
+              PERFORMANCE_WEIGHT * 100,
+            )}%) · 역량 ${compScore ?? "-"} (${Math.round(
+              COMPETENCY_WEIGHT * 100,
+            )}%)${
+              targetBonus
+                ? ` · 가산점 ${targetBonus > 0 ? "+" : "−"}${Math.abs(targetBonus)}점`
+                : ""
+            }`}
+            releasedLabel={
+              yearRelease?.releasedAt?.toLocaleDateString("ko-KR") ?? ""
+            }
+            state={
+              myAppeal == null
+                ? "none"
+                : myAppeal.status === "AGREED"
+                  ? "agreed"
+                  : myAppeal.status === "ANSWERED"
+                    ? "answered"
+                    : "open"
+            }
+            agreedLabel={
+              myAppeal?.agreedAt?.toLocaleDateString("ko-KR") ?? null
+            }
+            appliedLabel={
+              myAppeal?.createdAt.toLocaleDateString("ko-KR") ?? null
+            }
+            answeredLabel={
+              myAppeal?.answeredAt?.toLocaleDateString("ko-KR") ?? null
+            }
+            reason={myAppeal?.reason ?? null}
+            answer={myAppeal?.answer ?? null}
+            agreeAction={agreeEvalResult.bind(null, selectedYear)}
+            cancelAction={cancelEvalAgreement.bind(null, selectedYear)}
+            appealAction={submitEvalAppeal}
+          />
         )}
 
         {/* 1. 결과 요약 */}
@@ -3095,81 +3076,6 @@ export default async function Evaluation2Page({
             당신에게 감사드리며, 한 해 동안 고생하셨습니다.
           </p>
         </section>
-
-        {/*
-          5. 이의신청 — **배포된 뒤, 본인 결과지에서만** 뜬다.
-
-          등급은 보상으로 이어지므로 «아니라고 말할 길»이 절차로 있어야 한다. 말로
-          오가면 누가 언제 무엇을 물었고 무엇이라 답했는지가 남지 않는다. 한 해에
-          한 건이고, 인사팀이 답을 달면 그 줄에 나란히 실린다.
-        */}
-        {resultsReleased && target.id === session!.user.id && (
-          <section id="eval-appeal" className={CARD_CLASS}>
-            {sectionHead(
-              "5. 이의신청",
-              myAppeal
-                ? myAppeal.status === "ANSWERED"
-                  ? "인사팀 답변이 달렸습니다"
-                  : "접수되었습니다 — 인사팀이 확인하고 있습니다"
-                : "결과에 다시 봐 주셨으면 하는 점이 있으면 적어 주세요",
-            )}
-            <div className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3">
-              {myAppeal?.reason && (
-                <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-                  <p className="text-[11px] text-slate-400">
-                    {myAppeal.createdAt.toLocaleDateString("ko-KR")} 접수
-                  </p>
-                  <p className="text-sm leading-relaxed break-keep whitespace-pre-wrap text-slate-700">
-                    {myAppeal.reason}
-                  </p>
-                  {myAppeal.status === "ANSWERED" && (
-                    <div className="border-t border-slate-200 pt-2">
-                      <p className="text-[11px] font-medium text-goal-4">
-                        인사팀 답변
-                        {myAppeal.answeredAt &&
-                          ` · ${myAppeal.answeredAt.toLocaleDateString("ko-KR")}`}
-                      </p>
-                      <p className="mt-1 text-sm leading-relaxed break-keep whitespace-pre-wrap text-slate-700">
-                        {myAppeal.answer}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-              {myAppeal?.status === "ANSWERED" ? (
-                <p className="text-xs break-keep text-slate-500">
-                  답변이 달린 이의신청은 화면에서 고칠 수 없습니다 — 더 하실
-                  말씀은 인사팀에 직접 전해 주세요.
-                </p>
-              ) : (
-                <ActionForm
-                  action={submitEvalAppeal}
-                  successMessage="이의신청을 접수했습니다."
-                  className="flex flex-col gap-2"
-                >
-                  <input type="hidden" name="year" value={selectedYear} />
-                  <textarea
-                    name="reason"
-                    rows={3}
-                    required
-                    defaultValue={myAppeal?.reason ?? ""}
-                    placeholder="예: 하반기 3번 목표의 달성률이 실제와 다릅니다 — 8월에 완료한 건이 반영되지 않은 것 같습니다."
-                    className={INPUT_CLASS}
-                  />
-                  <span className="flex flex-wrap items-center gap-3">
-                    <button type="submit" className={PRIMARY_BUTTON_CLASS}>
-                      {myAppeal ? "이의신청 고치기" : "이의신청 보내기"}
-                    </button>
-                    <span className="text-[11px] break-keep text-slate-400">
-                      점수 · 등급이 어떻게 나왔는지는 위의 「등급 근거」와
-                      「성과평가 상세」에 적혀 있습니다.
-                    </span>
-                  </span>
-                </ActionForm>
-              )}
-            </div>
-          </section>
-        )}
       </div>
     );
   }
@@ -3309,8 +3215,8 @@ export default async function Evaluation2Page({
     };
 
     /*
-      **결과 확인** — 본인이 결과지에서 누른 것이 여기 한 칸으로 온다. 동의인지,
-      이의신청인지, 아직 열어 보지도 않았는지. 점수를 고치는 자리에서 «이 사람이
+      **결과 확인** — 본인이 결과지에서 누른 것이 여기 한 칸으로 온다. 합의인지,
+      이의인지, 아직 열어 보지도 않았는지. 점수를 고치는 자리에서 «이 사람이
       무엇이라 했는지»가 같은 줄에 있어야 한다.
     */
     const ackByUser = new Map(appeals.map((a) => [a.userId, a]));
@@ -3322,7 +3228,7 @@ export default async function Evaluation2Page({
       if (a.status === "AGREED")
         return (
           <span className="rounded-md bg-brand-green-light px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap text-brand-green-dark">
-            동의 {a.agreedAt?.toLocaleDateString("ko-KR").slice(5)}
+            합의 {a.agreedAt?.toLocaleDateString("ko-KR").slice(5)}
           </span>
         );
       if (a.status === "ANSWERED")
@@ -3333,7 +3239,7 @@ export default async function Evaluation2Page({
         );
       return (
         <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap text-amber-800">
-          이의신청
+          이의 접수
         </span>
       );
     };
@@ -3817,7 +3723,7 @@ export default async function Evaluation2Page({
           <section className={CARD_CLASS}>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
               <h2 className="text-sm font-bold whitespace-nowrap text-slate-900">
-                이의신청
+                이의제기
               </h2>
               <span className="text-xs text-slate-500">
                 {appeals.length}건 · 답변 대기{" "}
@@ -4305,7 +4211,12 @@ export default async function Evaluation2Page({
       done: cycle
         ? all.filter((r) => {
             const st = stage(r, cycle);
-            return !!st && st.goals > 0 && st.self >= st.goals && st.first >= st.goals;
+            return (
+              !!st &&
+              st.goals > 0 &&
+              st.self >= st.goals &&
+              st.first >= st.goals
+            );
           }).length
         : 0,
     });
@@ -4414,7 +4325,6 @@ export default async function Evaluation2Page({
         resultHref: `/platform/evaluation2?year=${selectedYear}&phase=${RESULT_PHASE}&who=${r.person.id}`,
       };
     });
-
 
     return (
       <section className={CARD_CLASS}>
@@ -4765,7 +4675,7 @@ export default async function Evaluation2Page({
         되어, 등급 확정이 남았는데 다 끝난 것처럼 읽혔다.
       */
       { label: "최종결과", release: true },
-      /* 여기 「합의」는 결과를 받은 사람이 **동의하거나 이의신청하는** 단계다 —
+      /* 여기 「합의」는 결과를 받은 사람이 **최종등급에 합의하거나 이의를 제기하는** 단계다 —
          목표설정 뒤에 두려던 합의와는 다른 일이라 그대로 둔다. */
       { label: "합의" },
       { label: "종료", end: true },
@@ -4946,7 +4856,7 @@ export default async function Evaluation2Page({
                 : `(남은 기간 ${remainDays}일)`}
             </span>
           )}
-          <HelpMark text="기간과 남은 날짜는 관리자가 「조직 목표 관리」의 목표 사이클에 적어 둔 시작일·마감일을 그대로 읽습니다. 사이클 날짜를 고치면 이 줄도 같이 바뀝니다. 마디는 관리자가 「전체 마감」을 누르거나 내 개인목표가 모두 평가완료되면 지나간 것으로 바뀝니다. 마지막 「합의」는 인사팀이 결과를 배포한 뒤 본인이 동의하거나 이의신청하는 단계입니다." />
+          <HelpMark text="기간과 남은 날짜는 관리자가 「조직 목표 관리」의 목표 사이클에 적어 둔 시작일·마감일을 그대로 읽습니다. 사이클 날짜를 고치면 이 줄도 같이 바뀝니다. 마디는 관리자가 「전체 마감」을 누르거나 내 개인목표가 모두 평가완료되면 지나간 것으로 바뀝니다. 마지막 「합의」는 인사팀이 결과를 배포한 뒤 본인이 최종등급에 합의하거나 이의를 제기하는 단계입니다." />
           {activeCycle && (
             <span className="ml-auto text-xs text-slate-500 tabular-nums">
               {fmtFull(activeCycle.startDate)} ~ {fmtFull(activeCycle.endDate)}
@@ -5124,9 +5034,7 @@ export default async function Evaluation2Page({
       지난 반기 건수는 그 반기 칸의 「전체」가 그대로 적는다.
     */
     const shownCount =
-      halves.find((h) => h.half === shownHalf)?.count ??
-      halves[0]?.count ??
-      0;
+      halves.find((h) => h.half === shownHalf)?.count ?? halves[0]?.count ?? 0;
     /* 반기 칸이 없는 층(전사·책임목표)에서는 예전처럼 한 덩어리로 센다. */
     const nodes = rowsIn(shownHalf);
     const counted = nodes.filter(countsTowardProgress);
@@ -5226,9 +5134,7 @@ export default async function Evaluation2Page({
                   <dt className="text-[11px] text-slate-500">지연</dt>
                   <dd
                     className={`text-lg leading-tight font-semibold tabular-nums ${
-                      h.overdue > 0
-                        ? "text-status-critical"
-                        : "text-slate-400"
+                      h.overdue > 0 ? "text-status-critical" : "text-slate-400"
                     }`}
                   >
                     {h.overdue}

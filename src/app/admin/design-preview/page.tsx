@@ -975,7 +975,7 @@ export default function DesignPreviewPage() {
                 </span>
                 <span className="min-w-0">
                   <p className="text-[9px] font-semibold text-slate-800">
-                    종합 93.6점 · 팀 내 2위 / 12명
+                    종합 93.6점
                   </p>
                   <p className="text-[8px] text-slate-500">
                     성과 96 (60%) · 역량 90 (40%)
@@ -1083,8 +1083,8 @@ export default function DesignPreviewPage() {
               </div>
             </div>
             <p className="text-[9px] break-keep text-slate-500">
-              등급 · 점수 · 순위와 고르개가 한 칸에 있고, 고른 뒤에도 그 칸이
-              기록으로 남습니다. 인사팀 명단(HR REPORT)의 「확인」 칸은 지금처럼
+              등급 · 점수와 고르개가 한 칸에 있고, 고른 뒤에도 그 칸이 기록으로
+              남습니다. 인사팀 명단(HR REPORT)의 「확인」 칸은 지금처럼
               <b className="font-medium text-slate-700">
                 {" "}
                 미확인 · 합의 · 이의
