@@ -4,11 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>본부 AI 워크플로우</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap">
 <style>
-:root{--navy:#0d2340;--bg:#f3f5f9;--line:#e3e8ef;--ink:#1e293b;--sub:#5b6b80;--orange:#f59e0b;--team:#2563eb}
+:root{color-scheme:light;--navy:#0d2340;--bg:#f3f5f9;--line:#e3e8ef;--ink:#1e293b;--sub:#5b6b80;--orange:#f59e0b;--team:#2563eb}
 *{box-sizing:border-box}
-body{margin:0;font-family:Pretendard,'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+body{margin:0;font-family:'Noto Sans KR',Pretendard,'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
 button{font-family:inherit}
 .top{background:linear-gradient(90deg,#0d2340,#173a66);color:#fff}
 .top-in,.bar-in,.days-in,main,footer{max-width:1480px;margin:0 auto}
@@ -36,7 +37,7 @@ button{font-family:inherit}
 .profedit label{display:flex;flex-direction:column;font-size:11px;color:#b9c7dc;gap:3px}
 .profedit input{border:0;border-radius:8px;padding:7px 10px;font:inherit;font-size:13px;width:170px}
 .profedit .sv{background:var(--orange);color:#fff;border:0;border-radius:8px;padding:8px 16px;font-weight:800;cursor:pointer}
-.days{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+.days{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:env(safe-area-inset-top,0px);z-index:10}
 .days-in{padding:0 12px;display:flex;gap:2px;overflow-x:auto}
 .days button{border:0;background:none;padding:12px 12px 9px;font-size:13px;color:var(--sub);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;display:flex;gap:6px;align-items:center}
 .days .no{font-size:10px;background:#eef2f7;border-radius:999px;padding:1px 6px;font-weight:700}
@@ -597,7 +598,7 @@ approve(t){return `<div class="grid2"><div>${card('진행','결재 올리기 전
 
 /* ===================== 내 프롬프트 ===================== */
 function renderMy(){const list=S.myAll?S.saved:S.saved.filter(x=>x.team===S.team);
- return `${card('진행','⭐ 내 프롬프트 — '+(S.myAll?'전체 팀':T().name),`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><button class="mini" data-act="myall">${S.myAll?T().name+'만 보기':'전체 팀 보기'}</button><button class="mini" data-act="export">⬇ 텍스트 파일로 저장</button><button class="mini del" data-act="clear">모두 지우기</button></div>
+ return `${card('진행','⭐ 내 프롬프트 — '+(S.myAll?'전체 팀':T().name),`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><button class="mini" data-act="myall">${S.myAll?T().name+'만 보기':'전체 팀 보기'}</button><button class="mini" data-act="export">⬇ 텍스트 파일로 저장</button><button class="mini" data-act="copyall">전체 복사</button><button class="mini del" data-act="clear">${S.clearArm?'한 번 더 누르면 모두 삭제':'모두 지우기'}</button></div>
  ${list.length?list.map(x=>{const tm=TEAMS.find(y=>y.id===x.team)||TEAMS[0];return `<div class="my-item"><div class="pc-h"><span class="tchip" style="background:${tm.color}">${tm.name}</span><b>${esc(x.title)}</b><span class="muted">${esc(x.ts)}</span><span class="sp"></span><button class="mini" data-cp="${x.id}">복사</button><button class="mini del" data-del="${x.id}">삭제</button></div><div class="pc-b">${fmt(x.text)}</div></div>`}).join(''):'<div class="empty">아직 담은 프롬프트가 없습니다.<br>각 카드의 <b>＋담기</b>를 누르면 여기에 모입니다.</div>'}`)}`}
 
 /* ===================== 렌더 ===================== */
@@ -640,11 +641,12 @@ document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)r
  else if(d.act==='print'){window.print()}
  else if(d.act==='profile'){const pe=$('profedit');pe.hidden=!pe.hidden;if(!pe.hidden){$('pf-company').value=S.profile.company;$('pf-industry').value=S.profile.industry;$('pf-size').value=S.profile.size;$('pf-role').value=role();$('pf-role-l').textContent=T().name+' 내 직무'}}
  else if(d.act==='psave'){S.profile.company=$('pf-company').value.trim()||'우리 회사';S.profile.industry=$('pf-industry').value.trim()||'제조업';S.profile.size=$('pf-size').value.trim()||'-';S.profile.roles[S.team]=$('pf-role').value.trim()||T().role;$('profedit').hidden=true;save();render();toast('프로필을 반영했습니다')}
+ else if(d.act==='copyall'){const list=S.myAll?S.saved:S.saved.filter(x=>x.team===S.team);if(!list.length){toast('복사할 프롬프트가 없습니다');return}copy(list.map(x=>`■ [${(TEAMS.find(y=>y.id===x.team)||{}).name}] ${x.title}\n\n${x.text}`).join('\n\n────────────────────\n\n'))}
  else if(d.act==='myall'){S.myAll=!S.myAll;save();render()}
  else if(d.act==='export'){const list=S.myAll?S.saved:S.saved.filter(x=>x.team===S.team);if(!list.length){toast('저장할 프롬프트가 없습니다');return}
   const txt=list.map(x=>`■ [${(TEAMS.find(y=>y.id===x.team)||{}).name}] ${x.title} (${x.ts})\n\n${x.text}`).join('\n\n────────────────────\n\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain;charset=utf-8'}));a.download='내_프롬프트.txt';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
- else if(d.act==='clear'){if(confirm('담아 둔 프롬프트를 모두 지울까요?')){S.saved=S.myAll?[]:S.saved.filter(x=>x.team!==S.team);save();render()}}
+ else if(d.act==='clear'){if(!S.clearArm){S.clearArm=true;render();setTimeout(()=>{if(S.clearArm){S.clearArm=false;render()}},4000)}else{S.clearArm=false;S.saved=S.myAll?[]:S.saved.filter(x=>x.team!==S.team);save();render();toast('모두 지웠습니다')}}
 });
 document.addEventListener('input',e=>{const el=e.target;if(!el.dataset||!el.dataset.f)return;S.forms[S.team+'.'+el.dataset.f]=el.value;save();
  const w=el.closest('[data-builder]');if(w)updateBuilder(w.dataset.builder);
