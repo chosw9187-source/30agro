@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>본부 AI 워크플로우</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+:root{--navy:#0d2340;--bg:#f3f5f9;--line:#e3e8ef;--ink:#1e293b;--sub:#5b6b80;--orange:#f59e0b;--team:#2563eb}
+*{box-sizing:border-box}
+body{margin:0;font-family:Pretendard,'Malgun Gothic','Apple SD Gothic Neo',sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+button{font-family:inherit}
+.top{background:linear-gradient(90deg,#0d2340,#173a66);color:#fff}
+.top-in,.bar-in,.days-in,main,footer{max-width:1480px;margin:0 auto}
+.top-in{padding:12px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.brand{display:flex;gap:12px;align-items:center;flex:1;min-width:260px}
+.logo{width:38px;height:38px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:19px;flex:none}
+.brand h1{margin:0;font-size:16px;font-weight:800;letter-spacing:-.3px}
+.brand p{margin:2px 0 0;font-size:11.5px;color:#b9c7dc}
+.ctrl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.zoom{display:flex;align-items:center;gap:4px;border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:4px 6px;font-size:11px;color:#b9c7dc}
+.zoom button{width:24px;height:24px;border-radius:6px;border:0;background:#fff;color:#0d2340;font-weight:800;cursor:pointer}
+.zoom b{background:var(--orange);color:#fff;border-radius:6px;padding:2px 8px;font-size:12px}
+.hbtn{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:10px;padding:7px 12px;font-weight:700;font-size:12px;cursor:pointer}
+.pill-o{border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:5px 12px;font-size:11.5px;font-weight:700}
+.bar{background:#102b4d;color:#fff}
+.bar-in{padding:8px 20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.prof{display:flex;gap:8px;align-items:center;background:none;border:0;color:#dbe6f5;font-size:12px;cursor:pointer;padding:0;text-align:left}
+.prof .okb{background:#16a34a;color:#fff;border-radius:999px;padding:2px 9px;font-weight:700;font-size:11px;flex:none}
+.prof .edit{color:#93b4dc;text-decoration:underline;font-size:11px;flex:none}
+.teams{display:flex;gap:6px;flex-wrap:wrap}
+.teams button{border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:#dbe6f5;border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:700;cursor:pointer}
+.teams button.on{background:#fff;color:var(--team);border-color:#fff}
+.profedit{max-width:1480px;margin:0 auto;padding:4px 20px 14px;display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.profedit[hidden]{display:none}
+.profedit label{display:flex;flex-direction:column;font-size:11px;color:#b9c7dc;gap:3px}
+.profedit input{border:0;border-radius:8px;padding:7px 10px;font:inherit;font-size:13px;width:170px}
+.profedit .sv{background:var(--orange);color:#fff;border:0;border-radius:8px;padding:8px 16px;font-weight:800;cursor:pointer}
+.days{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+.days-in{padding:0 12px;display:flex;gap:2px;overflow-x:auto}
+.days button{border:0;background:none;padding:12px 12px 9px;font-size:13px;color:var(--sub);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;display:flex;gap:6px;align-items:center}
+.days .no{font-size:10px;background:#eef2f7;border-radius:999px;padding:1px 6px;font-weight:700}
+.days button.on{color:var(--team);font-weight:800;border-bottom-color:var(--team)}
+.days button.on .no{background:var(--team);color:#fff}
+main{padding:20px}
+.secbar{background:#fff;border:1px solid var(--line);border-radius:16px;padding:10px;display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.secbar button{border:1px solid var(--line);background:#f6f8fb;border-radius:999px;padding:9px 18px;font-weight:700;color:#475569;cursor:pointer;font-size:13.5px}
+.secbar button.on{background:var(--team);color:#fff;border-color:var(--team);box-shadow:0 4px 12px color-mix(in srgb,var(--team) 35%,transparent)}
+.hero{background:linear-gradient(120deg,#0d2340 30%,color-mix(in srgb,var(--team) 70%,#0d2340));color:#fff;border-radius:18px;padding:22px 24px;margin-bottom:18px}
+.hero .hb{background:var(--orange);color:#fff;border-radius:999px;padding:3px 12px;font-weight:800;font-size:12.5px;vertical-align:middle}
+.hero h2{display:inline;font-size:19px;margin:0 0 0 8px;vertical-align:middle}
+.hero p{margin:6px 0 0;color:#dbe6f5}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+.chips button{border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.08);color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer}
+.chips button.on{background:#fff;color:#0d2340}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+.grid2>div{min-width:0}
+@media(max-width:1000px){.grid2{grid-template-columns:1fr}}
+.card{background:#fff;border:1px solid var(--line);border-radius:16px;margin-bottom:18px;overflow:hidden}
+.card-h{padding:15px 20px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center}
+.card-h h3{margin:0;font-size:15.5px;letter-spacing:-.2px}
+.tag{font-size:11px;font-weight:800;border-radius:999px;padding:2px 10px;color:#fff;background:#0d2340;flex:none}
+.tag.진행{background:var(--orange)}.tag.실습{background:#16a34a}.tag.참고{background:#64748b}
+.card-b{padding:18px 20px}
+.lead{font-size:16px;font-weight:800;margin:0 0 4px;letter-spacing:-.3px}
+.leadp{color:#475569;margin:0 0 4px}
+.box{border:1px solid var(--line);border-radius:12px;padding:13px 16px;margin-bottom:10px}
+.box h4{margin:0 0 4px;font-size:14.5px}
+.box p{margin:0;color:#475569}
+.story{background:color-mix(in srgb,var(--team) 7%,#fff);border:1px solid color-mix(in srgb,var(--team) 30%,#fff);border-radius:12px;padding:16px 18px}
+.story p{margin:0 0 6px}
+.story ul{margin:10px 0 0;padding-left:0;list-style:none}
+.story li{margin:3px 0}
+.note{background:#f8fafc;border-left:3px solid var(--orange);border-radius:8px;padding:10px 14px;color:#64748b;font-size:12.5px;margin:12px 0}
+.warn{background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:12px 16px;margin:12px 0;color:#7c2d12}
+.danger{background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:12px 16px;margin:12px 0;color:#7f1d1d}
+.good{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;margin:12px 0;color:#14532d}
+.sub{display:flex;gap:8px;align-items:center;font-weight:800;margin:20px 0 10px;font-size:14px}
+.sub:first-child{margin-top:0}
+.sub::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--team);flex:none}
+.tw{overflow-x:auto}
+table.t{width:100%;border-collapse:collapse;font-size:13px}
+.t th{background:#f1f4f8;text-align:left;padding:8px 10px;font-weight:700;border-bottom:1px solid var(--line);white-space:nowrap}
+.t td{padding:8px 10px;border-bottom:1px solid #eef1f5;vertical-align:top}
+.chk{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid #eef1f5;cursor:pointer}
+.chk:last-child{border-bottom:0}
+.chk input{width:18px;height:18px;margin-top:2px;accent-color:var(--team);flex:none}
+.chk b{display:block}
+.chk span{color:#64748b;font-size:12.5px}
+.pc{border:1px solid var(--line);border-radius:12px;margin:12px 0;overflow:hidden;background:#fbfcfe}
+.pc-h{display:flex;gap:6px;align-items:center;padding:9px 12px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.pc-h b{font-size:13.5px}
+.rl{width:20px;height:20px;border-radius:5px;font-size:11px;font-weight:800;color:#fff;display:inline-grid;place-items:center;flex:none}
+.rl.r{background:#2563eb}.rl.i{background:#16a34a}.rl.c{background:#ea580c}.rl.e{background:#7c3aed}
+.sp{flex:1}
+.mini{border:1px solid var(--line);background:#fff;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;color:#334155}
+.mini.add{background:var(--team);color:#fff;border-color:var(--team)}
+.mini.del{color:#b91c1c}
+.pc-b{padding:12px 14px;white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.75}
+.pc-b .lbl{color:var(--team)}
+.ph{background:#fef3c7;color:#92400e;border-radius:4px;padding:0 3px}
+.form{display:grid;gap:12px}
+.form label{font-weight:700;font-size:13px;display:grid;gap:4px}
+.form label small{font-weight:400;color:var(--sub)}
+.form input,.form textarea{border:1px solid #d4dbe5;border-radius:10px;padding:9px 12px;font:inherit;font-size:13px;width:100%;background:#fff}
+.form textarea{min-height:76px;resize:vertical}
+.form input:focus,.form textarea:focus{outline:2px solid color-mix(in srgb,var(--team) 40%,transparent);border-color:var(--team)}
+.st{font-weight:700;white-space:nowrap}
+.vd{font-size:11px;font-weight:800;border-radius:6px;padding:1px 7px;white-space:nowrap;margin-left:4px}
+.vd.a{background:#dcfce7;color:#166534}.vd.r{background:#fee2e2;color:#991b1b}.vd.p{background:#fef9c3;color:#854d0e}.vd.x{background:#e2e8f0;color:#334155}
+.cands{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:6px;margin:10px 0}
+.cands span{background:#f6f8fb;border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px}
+.flow{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;margin:6px 0 12px}
+.flow>div{flex:1;min-width:130px;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;position:relative}
+.flow>div b{display:block;font-size:14px}
+.flow>div span{font-size:12px;color:var(--sub)}
+.flow .arrow{flex:0 0 auto;min-width:0;border:0;background:none;display:grid;place-items:center;color:#94a3b8;padding:0}
+.steps{counter-reset:s;margin:8px 0;padding:0;list-style:none}
+.steps li{counter-increment:s;position:relative;padding:9px 12px 9px 44px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;background:#fff}
+.steps li::before{content:counter(s);position:absolute;left:12px;top:9px;width:22px;height:22px;border-radius:50%;background:var(--team);color:#fff;font-weight:800;font-size:12px;display:grid;place-items:center}
+.final{border:2px solid var(--team);border-radius:12px;padding:12px 16px;font-weight:700;background:color-mix(in srgb,var(--team) 5%,#fff)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:6px}
+.kpi{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff}
+.kpi small{color:var(--sub);font-weight:700}
+.kpi .v{font-size:26px;font-weight:800;color:var(--team);letter-spacing:-.5px;line-height:1.3}
+.kpi .d{font-size:12px;color:#94a3b8}
+.teamgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.tcard{background:#fff;border:1px solid var(--line);border-top:4px solid var(--c);border-radius:14px;padding:16px;cursor:pointer;text-align:left;font:inherit;color:inherit;display:flex;flex-direction:column;gap:6px}
+.tcard:hover{box-shadow:0 6px 18px rgba(15,35,64,.08)}
+.tcard .ti{font-size:24px}
+.tcard b{font-size:15.5px}
+.tcard span{color:#475569;font-size:13px}
+.tcard em{font-style:normal;color:var(--c);font-weight:800;font-size:12.5px;margin-top:auto}
+.seg{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+.seg button{flex:1;min-width:220px;text-align:left;border:2px solid var(--line);background:#fff;border-radius:12px;padding:12px 14px;cursor:pointer;color:inherit}
+.seg button b{display:block;margin-bottom:2px}
+.seg button span{color:#64748b;font-size:12.5px}
+.seg button.on{border-color:var(--team);background:color-mix(in srgb,var(--team) 6%,#fff)}
+.hand{background:#fffbeb;border:1px dashed #f59e0b;border-radius:12px;padding:12px 16px;margin:0 0 12px}
+.my-item{border:1px solid var(--line);border-radius:12px;background:#fff;margin-bottom:12px;overflow:hidden}
+.tchip{font-size:11px;font-weight:800;border-radius:999px;padding:1px 8px;color:#fff;flex:none}
+.empty{text-align:center;color:#94a3b8;padding:40px 10px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translate(-50%,20px);background:#0d2340;color:#fff;padding:10px 18px;border-radius:999px;opacity:0;transition:.25s;pointer-events:none;font-weight:700;z-index:50}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+footer{padding:6px 20px 40px;text-align:center;color:#94a3b8;font-size:12px}
+.muted{color:#64748b;font-size:12.5px}
+@media(max-width:640px){main{padding:14px 16px}.top-in,.bar-in{padding-left:16px;padding-right:16px}.card-b{padding:14px}.hero{padding:18px}.hero h2{display:block;margin:8px 0 0}.profedit input{width:100%}.profedit label{flex:1 1 140px}}
+@media print{.ctrl,.bar,.days,.secbar,.mini,.toast,.chips{display:none!important}body{background:#fff}main{max-width:none;padding:0}.card,.pc,.box,.kpi{break-inside:avoid}.top,.hero,.tag,.rl,.vd{-webkit-print-color-adjust:exact;print-color-adjust:exact}.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><div class="logo">🏢</div><div><h1>본부 AI 워크플로우 — 질문 · 숫자 · 결재</h1><p id="subtitle"></p></div></div>
+    <div class="ctrl">
+      <div class="zoom"><span>글자</span><button data-zoom="-10" aria-label="글자 작게">−</button><b id="zoomv">100%</b><button data-zoom="10" aria-label="글자 크게">+</button></div>
+      <button class="hbtn" data-act="print">⬇ PDF 저장</button>
+      <span class="pill-o">3단계 · 팀별 실습</span>
+    </div>
+  </div>
+</header>
+<div class="bar">
+  <div class="bar-in">
+    <button class="prof" data-act="profile"><span class="okb">✔ 반영됨</span><span id="profsum"></span><span class="edit">내 회사 프로필 수정</span></button>
+    <nav class="teams" id="teams" aria-label="파트 선택"></nav>
+  </div>
+  <div class="profedit" id="profedit" hidden>
+    <label>회사명<input id="pf-company"></label>
+    <label>업종<input id="pf-industry"></label>
+    <label>규모(인원)<input id="pf-size"></label>
+    <label><span id="pf-role-l">내 직무</span><input id="pf-role"></label>
+    <button class="sv" data-act="psave">반영</button>
+  </div>
+</div>
+<nav class="days"><div class="days-in" id="days"></div></nav>
+<main id="main"></main>
+<footer id="foot"></footer>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================== 팀별 콘텐츠 ===================== */
+const TEAMS=[
+{id:'hr',name:'인사팀',icon:'👥',color:'#2563eb',role:'인사기획담당',
+ issue:'생산직 1년 내 퇴사율 17.5% → 26.3%',
+ story:'<b>새솔산업㈜(가상)</b>은 작년 생산직 초임을 7% 올리고 입사축하금 100만 원을 새로 만들었습니다. 채용 비용만 1억 2천만 원이 더 들었습니다.</p><p>그런데 생산직 입사 1년 내 퇴사율은 <b>17.5% → 26.3%</b>로 올랐습니다. 퇴사자 10명 중 4명이 2공장에서 나왔습니다.',
+ days:['돈 문제인지 아닌지, 자료로 가릴 수 있는 질문을 만듭니다','생산직 380명의 입·퇴사 기록으로 그 질문을 숫자로 판정합니다','판정 결과를 대표이사 보고서로 쓰고, 반대 논리로 스스로 공격합니다'],
+ cEls:[['제도 이력','작년 초임 7% 인상·입사축하금 도입, 2년 전 4조3교대 전환','이미 해 본 처방(급여 인상)을 또 권한다'],['노사 지형','노조 있음, 임단협 3개월 앞, 교대제 변경은 협의 사항','협의 사항을 일방 결정처럼 쓴다'],['경영진 성향','대표는 비용 대비 효과를 숫자로 요구','"공감대 형성" 같은 말로 반려된다'],['조직 구조','생산직 380명 / 2개 공장 / 조장 24명','본사 사무직 기준의 일반론이 온다'],['진짜 목적','추가 인건비 없이 이탈을 줄일 수 있다는 걸 보여 주기','결론의 무게 중심이 어긋난다']],
+ axes:['채용','온보딩','근무형태','현장리더','보상','근무환경'],
+ roles:[['HR Business Partner','HR 비즈니스 파트너'],['Organization Development Consultant','조직개발 컨설턴트'],['Labor Relations Advisor','노무 자문'],['People Analytics Lead','인사 데이터 분석 담당'],['Talent Acquisition Expert','채용 전문가'],['Compensation Specialist','보상 전문가']],
+ R:'너는 제조업 생산직 인력 이탈 문제를 15년간 다뤄 온 HR 컨설턴트야. 통념보다 자료를 먼저 본다.',
+ I:'생산직 입사 1년 내 퇴사 원인 가설을 채용·온보딩·근무형태·현장리더·보상·근무환경 6개 축으로 12개 제시해. 가설마다 확인할 자료 항목과 참/거짓 판정 기준을 숫자로 붙여. 내가 주지 않은 숫자는 만들지 마.',
+ E:'A4 1장, 결론 먼저, 표 중심.\n| 축 | 가설 | 확인할 자료 | 판정 기준(숫자) | 참이면 할 일 |',
+ prob:{sym:'요즘 신입들이 너무 빨리 나간다',nums:'생산직 1년 내 퇴사율 17.5% → 26.3%, 퇴사자의 41%가 2공장',
+  steps:['숫자를 붙인다 — 생산직 1년 내 퇴사율 17.5% → 26.3%','범위를 좁힌다 — 퇴사자의 41%가 2공장, 그중 야간조 비중이 높다','판정 기준을 단다 — 야간조 1년 내 퇴사율이 주간조의 1.5배 이상이면 근무형태 문제로 본다'],
+  final:'2공장 야간조 신입의 1년 내 퇴사율은 주간조보다 얼마나 높은가, 그리고 그 차이는 멘토 배정 여부로 설명되는가?'},
+ research:{topics:['제조업 생산직 1년 내 이직률 공개 통계','교대제 형태별 신입 정착 사례','신입 멘토링·버디 제도의 정착 효과 연구','야간·교대근로 관련 법령과 최근 개정 사항'],src:'고용노동부·한국고용정보원 통계, 산업연구원, 학술지(KCI), 법령정보센터'},
+ bs:{hand:'생산직 신입이 1년 안에 나가는 이유',
+  case:'인사팀 회의. 생산직 1년 내 퇴사율이 17.5%에서 26.3%로 올랐습니다. 2공장이 퇴사자의 41%를 차지합니다. 20분 만에 원인 후보 10개가 나왔습니다.',
+  cands:['급여 경쟁력 부족','야간 교대 부담','현장 조장의 관리 방식','직무 강도·신체 부담','채용 경로 미스매치','온보딩·멘토 부재','긴 통근 거리','인근 공단 경쟁사 채용','기숙사·식당 등 생활 여건','요즘 사람들의 끈기 부족'],
+  cols:'공장 · 조(주/야) · 직무 · 입사경로 · 근속개월 · 조장코드 · 멘토배정 · 교육이수 · 초과근무 · 통근거리 · 기본급',
+  rows:[['야간 교대 부담','ok','조 × 1년 내 퇴사 — 야간조 34.0% vs 주간조 15.2% (2.2배)','채택'],['온보딩·멘토 부재','ok','멘토배정 × 퇴사 — 미배정 38.1% vs 배정 13.9%. 2공장 배정률 31% (1공장 78%)','채택'],['급여 경쟁력 부족','ok','기본급 — 인근 공단 대비 106%, 퇴사자·재직자 차이 없음','기각'],['긴 통근 거리','ok','30km 이상 25.0% vs 미만 22.4% — 차이 작음','기각'],['현장 조장의 관리 방식','part','조장코드 × 퇴사로 편차만 확인. 원인은 면담 필요, 개인 지목 금지',''],['채용 경로 미스매치','part','입사경로별 3개월 내 퇴사 비중으로 간접 확인',''],['직무 강도·신체 부담','no','강도 지표 없음 → 근골격계 유해요인 조사·보건실 기록 필요',''],['인근 공단 경쟁사 채용','no','퇴사 사유 상세 없음 → 퇴사 면담 기록(비식별) 필요',''],['기숙사·식당 등 생활 여건','no','자료 없음 → 5문항 짧은 설문으로 보완',''],['요즘 사람들의 끈기 부족','no','참·거짓을 가릴 수 없는 문장 → 회의록에서 삭제','삭제']],
+  lesson:'급여는 기각됐습니다. 작년에 쓴 돈이 효과가 없었던 이유입니다. 남은 두 가설(야간조·멘토)은 돈보다 <b>운영</b>의 문제입니다.',
+  bias:['생존자 편향','재직자 설문에는 이미 나간 사람의 목소리가 없습니다. 만족도 점수는 실제보다 높게 나옵니다. 응답률이 낮은 조는 침묵 자체가 신호일 수 있으니 점수보다 응답률을 먼저 보십시오.'],
+  frame:['직원 생애주기 6단계',['채용','온보딩','배치·근무형태','육성','평가·보상','퇴직']],
+  topicEx:'생산직 신입이 1년을 못 버팁니다. 작년에 초임을 올렸는데 오히려 더 나갑니다.'},
+ sec:{g:['사내 규정 중 공개된 부분','가상 데이터','집계된 퇴사율·평균'],y:['사번을 코드로 바꾼 명부','5명 이상으로 묶은 평가 분포','급여를 지수로 바꾼 표'],r:['성명·주민번호·연락처','개인별 급여·평가 원본','징계·질병·노조 가입 정보']},
+ d2:{cols:[['사원코드','E001 형식','사번·성명 삭제 후 코드 부여'],['공장','1공장/2공장','그대로'],['조','주간/야간','그대로'],['직무','조립·가공·검사 등','그대로'],['입사경로','공채·추천·파견전환','그대로'],['입사월','YYYY-MM','일자는 월로 낮춤'],['퇴사여부·근속개월','Y/N, 숫자','그대로'],['조장코드','L01 형식','실명 삭제'],['멘토배정','Y/N','그대로'],['기본급지수','전사 평균=100','금액 → 지수']],
+  sim:'생산직 380명. 1년 내 퇴사율 약 26%. 야간조 퇴사율 약 34%, 주간조 약 15%. 멘토 미배정자 퇴사율 약 38%, 배정자 약 14%. 2공장 멘토 배정률 약 31%, 1공장 약 78%. 기본급지수는 퇴사 여부와 무관하게 분포.',
+  kpis:[['1년 내 퇴사율','26.3%','전년 17.5%'],['야간조 퇴사율','34.0%','주간조 15.2%'],['2공장 멘토 배정률','31%','1공장 78%'],['채용 1인당 비용','312만 원','전년 241만 원']],
+  charts:['공장 × 조별 1년 내 퇴사율 막대','근속개월별 잔존율 곡선(멘토 배정/미배정)','월별 입사·퇴사 인원 추이']},
+ aud:[['대표이사','Report','Direct','ExecutiveSummary','비용 대비 효과 — 돈을 더 쓰지 않고 줄이는 방법'],['생산본부장','Corporate','Persuasive','ActionPlan','현장 운영 변경(멘토 시간·교대 편성)과 담당·기한'],['노사협의회','Formal','Cautious','FAQ','교대 편성은 협의 사항임을 전제로, 근로자 이익 중심'],['조장 대상 안내','Plain','Empathetic','ActionPlan','멘토 역할이 무엇이고 무엇을 지원받는지']],
+ red:['야간조 수당을 올리면 되는 것 아닌가?','멘토가 원인이 아니라, 원래 버틸 사람이 멘토를 배정받은 것 아닌가(역인과)?','2공장만의 일시적 현상 아닌가 — 기간을 늘려도 유지되는가?','멘토 시간 비용은 얼마이고, 줄어든 채용비로 회수되는가?','노조와 협의 없이 교대 편성을 바꿀 수 있는가?'],
+ ask:'2공장 신입 멘토 의무 배정(3개월) 시범 운영과 조장 멘토 시간 주 2시간 인정'},
+
+{id:'fin',name:'재경팀',icon:'💰',color:'#059669',role:'재무회계담당',
+ issue:'매출 +6.2%인데 영업이익률 7.8% → 4.9%',
+ story:'<b>새솔산업㈜(가상)</b>의 작년 매출은 1,168억에서 1,240억으로 <b>6.2% 늘었습니다</b>. 그런데 영업이익은 91억에서 61억으로 줄어 영업이익률이 <b>7.8% → 4.9%</b>가 됐습니다.</p><p>대표이사는 "많이 팔았는데 왜 남는 게 없나"를 묻고, 이사회는 3주 뒤입니다.',
+ days:['이익이 어디서 샜는지 확인 가능한 질문으로 쪼갭니다','제품군·계정별 손익 자료로 감소분 30억을 분해합니다','이사회 보고용 손익 분석서와 대응안을 만듭니다'],
+ cEls:[['회계 정책 이력','작년 감가상각 내용연수 단축, 재고평가 방법 변경','정책 변경 효과를 영업 실적으로 오해한다'],['외부 환경','원재료 비중 52%, 수출 18%(USD), 원자재 일부 수입','환율·원자재 영향을 과장하거나 빠뜨린다'],['경영진 성향','대표는 "그래서 얼마"를 먼저 묻는다, 이사회는 보수적','금액 없는 원인 나열로 반려된다'],['사업 구조','3개 제품군(A·B·C), 매출 1,240억, 상위 10개 고객 70%','제품군 믹스 효과가 평균에 묻힌다'],['진짜 목적','일회성 요인과 구조적 요인을 나눠 내년 목표를 지키기','방어용인지 개선용인지 톤이 흔들린다']],
+ axes:['물량','판가','제품믹스','재료비','가공비','판관비'],
+ roles:[['FP&A Manager','재무계획·분석 담당'],['Cost Accountant','원가회계 전문가'],['CFO Advisor','CFO 자문역'],['External Auditor','외부 감사인'],['Treasury Analyst','자금·환 관리 담당'],['Tax Specialist','세무 전문가']],
+ R:'너는 제조업 손익 분석 15년 차 FP&A 매니저야. 이익 변동을 물량·판가·믹스·원가로 쪼개서 본다.',
+ I:'매출 증가에도 영업이익률이 떨어진 원인 가설을 물량·판가·제품믹스·재료비·가공비·판관비 6개 축으로 12개 제시해. 가설마다 확인할 계정과 판정 기준(금액 또는 %p)을 붙여. 내가 주지 않은 숫자는 만들지 말고 "자료 필요"로 표시해.',
+ E:'결론 먼저, 감소분 합계가 실제 손익과 맞아야 함.\n| 축 | 가설 | 확인할 계정·자료 | 판정 기준 | 영향 추정 방식 |',
+ prob:{sym:'팔았는데 남는 게 없다',nums:'매출 +6.2%(1,168억 → 1,240억), 영업이익 91억 → 61억, 영업이익률 7.8% → 4.9%',
+  steps:['숫자를 붙인다 — 매출 +6.2%, 영업이익 -30억, 이익률 7.8% → 4.9%','범위를 좁힌다 — -30억이 어느 제품군·계정에서 생겼는지로 나눈다','판정 기준을 단다 — 한 요인이 감소분의 30% 이상이면 핵심 요인으로 본다'],
+  final:'영업이익 감소 30억 원 중 재료비 단가 효과와 제품믹스 효과는 각각 얼마이며, 둘의 합이 감소분의 절반을 넘는가?'},
+ research:{topics:['주요 원자재(구리·레진 등) 가격지수 추이','동종 상장사 영업이익률·매출원가율 공시 비교','원가 연동 판가 조정(에스컬레이션) 조항 사례','환율 변동의 손익 영향 분석 방법'],src:'DART 전자공시, 한국은행 경제통계시스템, 조달청 원자재 가격정보, 업종 협회'},
+ bs:{hand:'매출이 늘었는데 이익이 줄어든 이유',
+  case:'재경팀 회의. 매출은 1,168억에서 1,240억으로 늘었는데 영업이익은 91억에서 61억으로 줄었습니다. 30분 만에 원인 후보 10개가 나왔습니다.',
+  cands:['원재료 단가 상승','저마진 제품 비중 증가','판가 인하·할인 확대','감가상각 등 고정비 증가','물류·운반비 증가','대손 비용 증가','환율 변동','불량·재작업 비용 증가','영업의 가격 협상력 부족','경기가 안 좋아서'],
+  cols:'제품군 · 월 · 고객코드 · 매출액 · 판매수량 · 재료비 · 노무비 · 제조경비 · 판관비 계정 · 환율',
+  rows:[['원재료 단가 상승','ok','품목별 단가 × 수량 — 단가 효과 -14억 (감소분의 47%)','채택'],['저마진 제품 비중 증가','ok','B제품군 비중 24% → 35%, 공헌이익률 A 31% · B 12% — 믹스 효과 -11억','채택'],['판가 인하·할인 확대','ok','평균 판가 -0.1% — 효과 -1억','기각'],['감가상각 등 고정비 증가','ok','신규 설비 감가 +6억, 그중 내용연수 변경분 포함 — 일부는 회계정책 효과','부분'],['물류·운반비 증가','ok','매출 대비 2.1% → 2.3% — -3억','약함'],['대손 비용 증가','ok','대손상각비 +0.4억 — 영향 미미','기각'],['환율 변동','part','수출 18%분만 확인 가능, 원자재 수입분 환율 효과는 구매 자료 필요',''],['불량·재작업 비용 증가','part','실패비용이 별도 계정이 아님 → 품질팀 자료 필요',''],['영업의 가격 협상력 부족','no','협상 기록 없음 → 견적가·최종가 차이 자료 필요',''],['경기가 안 좋아서','no','참·거짓을 가릴 수 없는 문장 → 보고서에서 삭제','삭제']],
+  lesson:'감소분 30억 중 단가(-14억)와 믹스(-11억)가 <b>83%</b>를 설명합니다. 물량은 오히려 +7억 기여했습니다. "경기 탓"은 판정할 수 없는 문장이므로 보고서에서 뺍니다.',
+  bias:['평균의 함정과 일회성 항목','전사 원가율은 단가가 그대로여도 제품 믹스가 바뀌면 움직입니다. 또 회계정책 변경·일회성 비용을 빼지 않으면 구조적 문제처럼 보입니다. "일회성 제외" 기준선을 반드시 따로 두십시오.'],
+  frame:['이익 브리지(Profit Bridge)',['물량','판가','제품믹스','재료비','가공비','판관비']],
+  topicEx:'매출은 늘었는데 영업이익이 30억 줄었습니다. 이사회에서 원인과 대책을 물을 겁니다.'},
+ sec:{g:['공시된 재무제표','가상 손익 자료','일반 회계기준 질의'],y:['고객명을 코드로 바꾼 매출','전년=100 지수로 바꾼 손익','계정 단위로 집계한 표'],r:['공시 전 실적','계좌·인감·비밀번호','세무조사·소송 관련 문서']},
+ d2:{cols:[['제품군','A/B/C','그대로'],['월','YYYY-MM','그대로'],['고객코드','C01 형식','고객명 삭제'],['매출액','백만 원','필요 시 지수화'],['판매수량','개','그대로'],['재료비·노무비·제조경비','백만 원','필요 시 지수화'],['판관비 계정','계정별 금액','계정 단위 집계'],['환율','월평균 USD','그대로']],
+  sim:'제품군 3개 × 24개월(전년·당년) × 고객 15개. 매출 전년 1,168억, 당년 1,240억. 영업이익 전년 91억, 당년 61억. 재료비율 52.1% → 54.0%. B제품군 비중 24% → 35%, 공헌이익률 A 31% · B 12% · C 22%.',
+  kpis:[['영업이익률','4.9%','전년 7.8%'],['재료비율','54.0%','전년 52.1%'],['B제품군 매출 비중','35%','전년 24%'],['매출채권 회전일수','71일','전년 52일']],
+  charts:['이익 브리지(폭포) — 91억에서 61억까지','제품군별 공헌이익률 비교','월별 재료비율 추이']},
+ aud:[['대표이사','Report','Direct','ExecutiveSummary','감소 30억의 구성과 내년에 되돌릴 수 있는 금액'],['이사회·감사위원회','Report','Authoritative','RiskMatrix','일회성 vs 구조적 요인 구분, 회계정책 변경 효과'],['영업본부','Corporate','Persuasive','ActionPlan','B제품군 판가 재협상 대상과 일정'],['구매팀','Corporate','Neutral','MarkdownTable','단가 효과 -14억의 품목별 구성']],
+ red:['단가 상승은 시장 전체 현상인데, 경쟁사 이익률도 같이 떨어졌는가?','믹스 악화는 영업 전략의 결과인가, 고객 수요 변화인가?','내용연수 변경 효과를 빼면 결론이 바뀌는가?','판가 연동 조항을 넣으면 수주가 줄 위험은?','30억 분해 합계가 실제 손익과 맞는가 — 설명 안 된 잔차는 얼마인가?'],
+ ask:'B제품군 판가 재협상(원가 연동 조항) 추진과 제품군별 공헌이익 월간 보고 신설'},
+
+{id:'plan',name:'경영기획팀',icon:'🧭',color:'#7c3aed',role:'경영기획담당',
+ issue:'상반기 사업계획 달성률 매출 91% · 영업이익 74%',
+ story:'<b>새솔산업㈜(가상)</b>의 상반기 실적은 사업계획 대비 <b>매출 91%, 영업이익 74%</b>입니다. 3년 연속 하반기에 몰아서 연간 목표를 맞춰 왔지만, 올해는 수주잔고가 전년보다 12% 적습니다.</p><p>대표이사는 "계획이 틀린 건가, 실행이 틀린 건가"를 묻습니다.',
+ days:['계획과 실적의 차이를 확인 가능한 질문으로 바꿉니다','월별 계획·실적·수주 자료로 갭을 분해합니다','하반기 전망 수정안과 의사결정 요청서를 만듭니다'],
+ cEls:[['계획 수립 방식','하향식 목표 배분, 전년 +10% 관행, 롤링 전망 없음','계획 자체의 상향 편향을 놓친다'],['시장·고객','상위 5개 고객 매출 62%, 주력 고객 신차 일정 지연','외부 요인과 내부 요인이 섞인다'],['경영진 성향','대표는 목표 하향을 싫어함, 대안과 함께 보고 원함','"목표 조정" 결론만 내서 반려된다'],['조직 구조','3개 사업부, 사업부장 KPI는 매출 중심','이익 갭의 책임 소재가 흐려진다'],['진짜 목적','하반기 전망을 현실화하되 대응 투자 승인 받기','방어와 제안의 균형이 무너진다']],
+ axes:['시장','고객','제품','가격','운영','계획 품질'],
+ roles:[['Corporate Strategy Manager','전략기획 매니저'],['FP&A Lead','계획·분석 리더'],['Management Consultant','경영 컨설턴트'],['Market Analyst','시장 분석가'],['Board Secretary','이사회 사무국'],['Devil’s Advocate','반론 담당']],
+ R:'너는 제조업 경영기획 15년 차 전략 매니저야. 계획의 품질과 실행의 품질을 나눠서 본다.',
+ I:'상반기 계획 대비 실적 갭의 원인 가설을 시장·고객·제품·가격·운영·계획 품질 6개 축으로 12개 제시해. 가설마다 확인할 자료와 판정 기준을 숫자로 붙여. 특히 "계획이 애초에 과대했는가"를 따로 판정할 방법을 제시해.',
+ E:'결론 먼저, A4 1장.\n| 축 | 가설 | 확인할 자료 | 판정 기준 | 하반기 영향 |',
+ prob:{sym:'올해도 계획을 못 맞출 것 같다',nums:'상반기 매출 계획 620억 대비 실적 564억(91%), 영업이익 달성률 74%, 수주잔고 전년 대비 -12%',
+  steps:['숫자를 붙인다 — 상반기 달성률 매출 91%(-56억), 영업이익 74%','범위를 좁힌다 — 미달 56억을 사업부·고객·계획 근거별로 나눈다','판정 기준을 단다 — 계획 수립 때 수주 근거가 없던 금액이 미달액의 절반을 넘으면 계획 문제로 본다'],
+  final:'상반기 매출 미달 56억 원 중 계획 수립 때 수주 근거가 없던 금액은 얼마이며, 그 비중이 절반을 넘는가?'},
+ research:{topics:['주요 고객사 신제품·생산 일정 공개 정보','업종 경기 전망(하반기)','롤링 포캐스트 도입 사례와 효과','동종사의 실적 전망 정정 사례'],src:'산업연구원 경기전망, 고객사 IR·공시 자료, DART, 업종 협회'},
+ bs:{hand:'상반기 계획을 못 맞춘 이유',
+  case:'경영기획팀 회의. 상반기 매출이 계획 620억 대비 564억(91%)에 그쳤습니다. 원인 후보 10개가 나왔습니다.',
+  cands:['계획 자체의 과대 설정','주력 고객 일정 지연','시장 수요 둔화','가격 경쟁 심화','생산 차질·납기 문제','신제품 출시 지연','사업부 KPI가 매출 중심','예산 집행 지연','경쟁사 신규 진입','현장의 실행력 부족'],
+  cols:'사업부 · 월 · 고객코드 · 제품군 · 계획매출 · 실적매출 · 계획영업이익 · 실적영업이익 · 수주잔고 · 계획근거(수주확정/협의중/목표보정)',
+  rows:[['계획 자체의 과대 설정','ok','미달 56억 중 수주 근거 없던 "목표 보정분" 34억 (61%)','채택'],['주력 고객 일정 지연','ok','고객 C01 계획 대비 -15억, 신차 양산 3개월 지연 시점과 일치','채택'],['시장 수요 둔화','ok','업종 출하지수 -2.1% vs 당사 계획 +10%','부분'],['가격 경쟁 심화','ok','평균 판가 계획 대비 -0.5% — 영향 미미','기각'],['예산 집행 지연','ok','마케팅·설비 예산 집행률 48% — 매출 갭과 상관 낮음','기각'],['생산 차질·납기 문제','part','생산실적은 있으나 지연 사유 코드 없음 → 생산관리 자료 필요',''],['신제품 출시 지연','part','출시 일정 변경 이력만 있음, 매출 영향은 추정 필요',''],['사업부 KPI가 매출 중심','part','KPI 구조는 확인되나 행동 영향은 면담 필요',''],['경쟁사 신규 진입','no','실주 사유 기록 없음 → 영업 실주 리포트 필요',''],['현장의 실행력 부족','no','정의되지 않은 말 → 측정 가능한 지표로 바꾸거나 삭제','삭제']],
+  lesson:'갭의 <b>61%</b>는 실행이 아니라 계획에서 생겼습니다. "실행력 부족"으로 보고했다면 엉뚱한 조직을 문책할 뻔했습니다.',
+  bias:['앵커링과 확증 편향','"전년 +10%"라는 출발점에 맞춰 근거를 나중에 끼워 맞추면 계획이 부풀어집니다. AI에게도 "계획이 맞다"는 전제를 주지 말고, 계획이 틀렸을 가능성부터 검토시키십시오.'],
+  frame:['계획-실적 갭 트리',['시장','고객','제품','가격','운영','계획 품질']],
+  topicEx:'하반기 전망을 다시 짜야 합니다. 목표를 낮추자고 하면 반려될 것 같고, 그대로 두면 연말에 또 못 맞춥니다.'},
+ sec:{g:['공개 시장·경기 자료','가상 사업계획','공시된 경쟁사 정보'],y:['사업부를 코드로 바꾼 계획·실적','고객명을 코드로 바꾼 수주','금액을 지수로 바꾼 표'],r:['미발표 M&A·투자 계획','의결 전 이사회 안건 원문','고객사와 비밀유지 약정한 자료']},
+ d2:{cols:[['사업부','BU1/BU2/BU3','코드화'],['월','YYYY-MM','그대로'],['고객코드','C01 형식','고객명 삭제'],['제품군','A/B/C','그대로'],['계획매출·실적매출','억 원','필요 시 지수화'],['계획·실적 영업이익','억 원','필요 시 지수화'],['수주잔고','억 원','그대로'],['계획근거','수주확정/협의중/목표보정','그대로']],
+  sim:'3개 사업부 × 6개월 × 고객 10개. 상반기 계획 매출 620억, 실적 564억. 계획근거 3종(수주확정/협의중/목표보정) 중 목표보정분 달성률이 가장 낮게. 고객 C01은 3개월 지연 패턴.',
+  kpis:[['매출 달성률','91%','계획 620억'],['영업이익 달성률','74%','계획 대비'],['수주잔고','412억','전년 대비 -12%'],['목표 보정분 비중','61%','미달액 중']],
+  charts:['계획 vs 실적 월별 누적선','미달 56억 갭 분해(폭포)','계획근거 유형별 달성률']},
+ aud:[['대표이사','Report','Direct','DecisionMemo','계획 문제와 실행 문제의 구분, 수정 전망과 대응 투자'],['이사회','Report','Authoritative','ExecutiveSummary','전망 수정 사유와 재발 방지(롤링 포캐스트)'],['사업부장 회의','Corporate','Persuasive','ActionPlan','하반기 사업부별 목표·대응 과제'],['전사 공유','Announcement','Neutral','ExecutiveSummary','불안을 키우지 않는 상황 설명과 하반기 방향']],
+ red:['하반기 몰아치기가 3년 연속 통했는데, 올해만 다르다는 근거는?','목표 보정분을 빼면 내년 계획이 너무 보수적이지 않은가?','고객 일정 지연은 회복되는가, 영구 손실인가?','전망을 낮추면 사업부 동기가 떨어지지 않는가?','수정 전망의 범위(낙관·기준·보수)는?'],
+ ask:'하반기 매출 전망 수정(-38억) 승인과 분기 롤링 포캐스트 도입'},
+
+{id:'buy',name:'구매팀',icon:'📦',color:'#ea580c',role:'구매기획담당',
+ issue:'매입단가 +11.4%(시장 +6.0%) · 납기 지연 4.1% → 9.3%',
+ story:'<b>새솔산업㈜(가상)</b>의 주요 원자재 매입단가는 작년 <b>11.4% 올랐습니다</b>. 같은 기간 시장 가격지수는 6.0% 올랐습니다. 그 사이 납기 지연률은 <b>4.1% → 9.3%</b>로 두 배가 넘었습니다.</p><p>대표이사는 "시장보다 비싸게 사면서 늦게 받는 이유"를 묻습니다.',
+ days:['단가·납기 문제를 확인 가능한 질문으로 바꿉니다','발주·입고 기록으로 품목·협력사별 원인을 판정합니다','소싱 전략 변경안을 결재 문서로 만듭니다'],
+ cEls:[['계약·소싱 이력','2년 전 협력사 통폐합(42 → 28개), 단가 연동 조항 없음','이미 줄인 협력사를 더 줄이라고 권한다'],['공급 시장 지형','핵심 소재 상위 3개사 과점, 리드타임 6주','현실성 없는 경쟁 입찰을 권한다'],['경영진 성향','대표는 원가 절감 금액을 분기마다 확인','절감 효과 없는 리스크 대응안이 반려된다'],['조직·품목 구조','구매 담당 6명, 품목 1,200개, 상위 50개가 금액의 80%','모든 품목에 같은 전략을 적용한다'],['진짜 목적','단가 협상력 회복과 이원화 투자 승인','방어용인지 공격용인지 흐려진다']],
+ axes:['가격','계약','협력사','수요계획','품질','물류'],
+ roles:[['Strategic Sourcing Manager','전략 소싱 매니저'],['Category Manager','품목(카테고리) 관리자'],['Supply Chain Risk Analyst','공급망 리스크 분석가'],['Cost Engineer','원가 분석 담당'],['Negotiation Coach','협상 코치'],['Procurement Auditor','구매 감사역']],
+ R:'너는 제조업 전략 소싱 15년 차 카테고리 매니저야. 단가만이 아니라 총소유비용(TCO)과 공급 리스크를 같이 본다.',
+ I:'매입단가가 시장보다 더 오르고 납기 지연이 늘어난 원인 가설을 가격·계약·협력사·수요계획·품질·물류 6개 축으로 12개 제시해. 가설마다 확인할 자료와 판정 기준을 숫자로 붙여. 협력사는 코드로만 다뤄.',
+ E:'결론 먼저, A4 1장.\n| 축 | 가설 | 확인할 자료 | 판정 기준 | 참이면 할 일 |',
+ prob:{sym:'협력사들이 단가를 너무 올리고 납기도 안 지킨다',nums:'상위 50개 품목 매입단가 +11.4%(시장지수 +6.0%), 납기 지연률 4.1% → 9.3%',
+  steps:['숫자를 붙인다 — 매입단가 +11.4%(시장 +6.0%), 납기 지연 4.1% → 9.3%','범위를 좁힌다 — 시장 초과분 5.4%p가 어느 품목·협력사에서 나왔는지 나눈다','판정 기준을 단다 — 단일 소싱 품목의 상승률이 복수 소싱의 2배 이상이면 구조 문제로 본다'],
+  final:'시장지수를 넘는 단가 상승분 5.4%p 중 단일 소싱 품목의 기여는 얼마이며, 이 품목들의 납기 지연률은 복수 소싱 품목보다 높은가?'},
+ research:{topics:['주요 원자재 시장 가격지수 추이','원가 연동(에스컬레이션) 계약 조항 표준','공급망 이원화(듀얼 소싱) 사례와 비용','하도급·상생협력 관련 단가 조정 규정'],src:'조달청 원자재 가격정보, 한국무역협회, 공정거래위원회 고시·표준계약서, 업종 협회'},
+ bs:{hand:'단가는 오르고 납기는 늦어지는 이유',
+  case:'구매팀 회의. 상위 50개 품목의 매입단가가 11.4% 올랐고 시장지수는 6.0% 올랐습니다. 납기 지연률은 9.3%입니다. 원인 후보 10개가 나왔습니다.',
+  cands:['원자재 시장가 상승','단일 소싱(협력사 의존)','단가 연동 기준 부재','긴급 발주 증가','협력사 생산능력 부족','사내 소요계획 잦은 변경','입고 품질 불량·반품','물류·운송 차질','구매 담당자 협상력','협력사들이 짜고 올린다'],
+  cols:'품목코드 · 품목군 · 협력사코드 · 소싱구분(단일/복수) · 발주일 · 요청납기 · 입고일 · 단가 · 수량 · 시장지수 · 긴급여부 · 입고불량',
+  rows:[['단일 소싱(협력사 의존)','ok','단일 소싱 품목 단가 +16.8% vs 복수 +7.2%, 납기 지연 13.5% vs 5.1%','채택'],['단가 연동 기준 부재','ok','시장 하락기(3분기) 단가 인하 반영 0건 — 오를 때만 반영','채택'],['긴급 발주 증가','ok','요청일 7일 이내 긴급 발주 11% → 23%, 긴급 건 단가 +4%','채택'],['원자재 시장가 상승','ok','시장지수 +6.0% — 상승분의 절반만 설명','부분'],['입고 품질 불량·반품','ok','입고 불량률 0.8% → 0.9% — 변화 미미','기각'],['협력사 생산능력 부족','part','가동률 자료 없음, 납기 회신 지연으로 간접 확인',''],['사내 소요계획 잦은 변경','part','발주 변경 횟수는 있으나 사유 코드 없음 → 생산관리 자료 필요',''],['물류·운송 차질','part','입고 지연 중 운송 사유는 일부만 기록',''],['구매 담당자 협상력','no','협상 기록 없음 → 견적가·최종가 차이 자료 필요',''],['협력사들이 짜고 올린다','no','자료로 판정할 수 없고 함부로 쓰면 법적 리스크 → 회의록에서 삭제','삭제']],
+  lesson:'단가 상승의 절반은 시장, 나머지는 <b>우리가 만든 구조</b>(단일 소싱·연동 기준 부재·긴급 발주)에서 왔습니다. 협력사 탓만 하면 다음 협상에서도 집니다.',
+  bias:['단가만 보는 함정','단가가 낮은 협력사가 불량·지연·긴급 운송비 때문에 더 비쌀 수 있습니다. 판정은 단가가 아니라 총소유비용(TCO)으로 하십시오. 협력사 평가 자료는 우리가 기록한 것만 남아 있다는 점도 기억하십시오.'],
+  frame:['공급 리스크 6축',['가격','계약','협력사','수요계획','품질','물류']],
+  topicEx:'핵심 소재 단가가 시장보다 더 올랐고 납기도 자주 늦습니다. 협력사를 바꾸자니 품질 인증이 6개월 걸립니다.'},
+ sec:{g:['공개 원자재 시세','표준 계약서 양식','가상 발주 자료'],y:['협력사명을 코드로 바꾼 발주 내역','단가를 지수로 바꾼 표','품목 코드 단위 집계'],r:['협력사 견적서·계약서 원본','협력사 재무·기술 자료','진행 중인 입찰 정보']},
+ d2:{cols:[['품목코드','M001 형식','품명 일반화'],['품목군','소재·부품·포장 등','그대로'],['협력사코드','S01 형식','협력사명 삭제'],['소싱구분','단일/복수','그대로'],['발주일·요청납기·입고일','YYYY-MM-DD','그대로'],['단가','원','지수화(전년 평균=100)'],['수량','개·kg','그대로'],['시장지수','월별','그대로'],['긴급여부','요청일 7일 이내 Y','그대로'],['입고불량','Y/N','그대로']],
+  sim:'상위 50개 품목 × 협력사 20개 × 12개월 발주 약 1,500건. 단일 소싱 품목 단가 상승 약 17%, 복수 소싱 약 7%. 긴급 발주 비중 상반기 11% → 하반기 23%. 납기 지연률 단일 약 13.5%, 복수 약 5%.',
+  kpis:[['매입단가 상승률','+11.4%','시장지수 +6.0%'],['납기 지연률','9.3%','전년 4.1%'],['긴급 발주 비중','23%','전년 11%'],['단일 소싱 금액 비중','46%','상위 50개 품목']],
+  charts:['품목별 단가 상승률 vs 시장지수 산점도','소싱구분별 납기 지연률','월별 긴급 발주 비중']},
+ aud:[['대표이사','Report','Direct','DecisionMemo','시장 초과 상승분의 원인과 회수 가능한 금액'],['생산본부','Corporate','Persuasive','ActionPlan','긴급 발주를 줄이기 위한 소요계획 고정 구간'],['협력사 대상 공문','Formal','Neutral','ExecutiveSummary','원가 연동 기준 도입 안내(상호 공정성 강조)'],['재경팀','Corporate','Neutral','MarkdownTable','원가 영향 금액과 반영 시점']],
+ red:['이원화하면 물량이 쪼개져 오히려 단가가 오르지 않는가?','긴급 발주는 구매가 아니라 생산계획 문제 아닌가 — 책임은 누구에게?','연동 조항을 넣으면 시장 급등 때 우리 부담도 커지는데?','신규 협력사 품질 인증 기간·비용은?','관계가 나빠져 공급이 끊길 위험은?'],
+ ask:'단일 소싱 상위 8개 품목 이원화(신규 협력사 인증 예산 1.2억)와 원가 연동 조항 표준 계약서 도입'},
+
+{id:'sup',name:'경영지원팀',icon:'🛠️',color:'#0891b2',role:'경영지원담당',
+ issue:'일반관리비 +14% · 사내 요청 처리 3.2일 → 6.8일',
+ story:'<b>새솔산업㈜(가상)</b>의 일반관리비는 작년 <b>14% 늘었습니다</b>(매출 +6%). 그런데 사내 요청(IT·시설·차량·총무) 처리 기간은 <b>평균 3.2일 → 6.8일</b>로 길어졌고, 내부 만족도는 3.9점에서 3.2점으로 떨어졌습니다.</p><p>"돈은 더 쓰는데 서비스는 나빠졌다"는 말이 나옵니다.',
+ days:['비용과 서비스 문제를 확인 가능한 질문으로 바꿉니다','요청 기록·비용 계정으로 병목과 새는 돈을 판정합니다','개선안과 예산 조정안을 결재 문서로 만듭니다'],
+ cEls:[['운영 이력','작년 IT 헬프데스크 외주 전환, 시설 용역 업체 교체','이미 바꾼 외주 구조를 또 권한다'],['내부 고객','12개 부서, 본사 + 2개 공장, 공장 요청이 60%','본사 기준 해법만 나온다'],['경영진 성향','대표는 간접비 증가에 민감, 증원은 최후 수단','증원 결론만 내면 반려된다'],['조직 구조','경영지원팀 9명(총무 4·IT 3·안전시설 2), 요청 월 640건','1인 의존 업무가 안 보인다'],['진짜 목적','증원 없이 처리 기간을 줄이고, 새는 계약 비용 찾기','비용 절감과 서비스 개선 사이에서 흔들린다']],
+ axes:['요청량','업무유형','인력','승인절차','외주계약','시스템'],
+ roles:[['Shared Services Manager','지원조직(공유서비스) 매니저'],['Process Improvement Consultant','프로세스 개선 컨설턴트'],['IT Service Manager','IT 서비스 관리자'],['Facility Manager','시설 관리 전문가'],['Contract Analyst','계약 검토 담당'],['Internal Auditor','내부 감사역']],
+ R:'너는 제조업 공유서비스(총무·IT·시설) 운영을 15년간 개선해 온 프로세스 컨설턴트야. 감이 아니라 요청 기록으로 병목을 찾는다.',
+ I:'일반관리비가 늘면서 요청 처리 기간도 길어진 원인 가설을 요청량·업무유형·인력·승인절차·외주계약·시스템 6개 축으로 12개 제시해. 가설마다 확인할 자료와 판정 기준을 숫자로 붙여. 담당자 개인을 지목하는 판정은 하지 마.',
+ E:'결론 먼저, A4 1장.\n| 축 | 가설 | 확인할 자료 | 판정 기준 | 참이면 할 일 |',
+ prob:{sym:'경영지원이 일을 너무 늦게 처리한다',nums:'사내 요청 평균 처리 기간 3.2일 → 6.8일, 일반관리비 +14%(매출 +6%), 내부 만족도 3.9 → 3.2점',
+  steps:['숫자를 붙인다 — 평균 처리 3.2일 → 6.8일, 일반관리비 +14%','범위를 좁힌다 — 지연이 어떤 요청 유형·어느 단계(접수·승인·처리)에서 생기는지 나눈다','판정 기준을 단다 — 한 단계가 전체 처리 기간의 50% 이상이면 그 단계를 병목으로 본다'],
+  final:'요청 처리 기간 6.8일 중 승인 대기는 며칠이며, 그 비중이 절반을 넘는 요청 유형은 무엇인가?'},
+ research:{topics:['사내 헬프데스크 처리 기간 기준(SLA) 사례','시설·청소·경비 용역 단가 시장 수준','자동 갱신 계약 관리와 간접구매 통제 사례','중대재해처벌법 등 시설·안전 관련 의무'],src:'조달청 나라장터 용역 계약 정보, 공공기관 공개 SLA, 고용노동부 고시, ITIL 등 ITSM 표준'},
+ bs:{hand:'요청 처리가 느려지고 비용이 늘어난 이유',
+  case:'경영지원팀 회의. 요청 처리 기간이 3.2일에서 6.8일로 늘었고 일반관리비는 14% 올랐습니다. 원인 후보 10개가 나왔습니다.',
+  cands:['요청량 증가','승인 단계 과다','IT 외주 전환 후 이관 지연','1인 의존 업무','자동 갱신 계약 방치','소모품 과다 사용','시설 노후화 수선 증가','공장-본사 거리','요청서 작성 품질','다른 부서가 비협조적'],
+  cols:'요청코드 · 요청부서 · 사업장 · 유형(IT/시설/차량/총무) · 접수일시 · 승인완료일시 · 처리완료일시 · 담당자코드 · 외주여부 · 금액 · 재요청여부',
+  rows:[['승인 단계 과다','ok','처리 6.8일 중 승인 대기 3.9일(57%) — 50만 원 이하 건도 3단계 결재','채택'],['IT 외주 전환 후 이관 지연','ok','IT 요청 처리 2.1일 → 7.4일, 외주 이관 건 재요청률 18%','채택'],['자동 갱신 계약 방치','ok','용역·리스 계약 37건 중 14건 자동 갱신, 평균 단가 +9%','채택'],['요청량 증가','ok','월 590건 → 640건(+8%) — 처리 기간 2배를 설명 못 함','기각'],['소모품 과다 사용','ok','소모품비 +3% — 관리비 증가분의 4%','기각'],['1인 의존 업무','part','담당자코드 × 유형으로 집중도만 확인. 개인 평가 금지',''],['시설 노후화 수선 증가','part','수선비 계정은 있으나 설비 연식 자료 필요',''],['공장-본사 거리','part','공장 요청이 1.6일 더 걸림 — 원인은 현장 확인 필요',''],['요청서 작성 품질','no','반려 사유 기록 없음 → 반려 코드 신설 필요',''],['다른 부서가 비협조적','no','판정할 수 없는 문장 → 회의록에서 삭제','삭제']],
+  lesson:'처리 기간 증가는 "일이 많아서"가 아니라 <b>승인 대기와 외주 이관</b>에서 생겼습니다. 증원보다 결재 기준 조정이 먼저입니다.',
+  bias:['목소리 큰 요청 편향','불만이 자주 들리는 부서의 요청이 실제보다 많아 보입니다. 체감이 아니라 요청 기록으로 판정하십시오. 또 시스템 밖(전화·메신저)으로 처리된 요청은 데이터에 없다는 점을 보고서에 적으십시오.'],
+  frame:['서비스 프로세스(SIPOC)',['요청자','접수','승인','처리','완료 확인','공급자(외주)']],
+  topicEx:'사내 요청 처리가 너무 늦다는 불만이 많습니다. 증원은 어렵고, 외주로 바꾼 뒤에 오히려 늦어졌습니다.'},
+ sec:{g:['사내 공지된 규정','가상 요청 데이터','일반 IT·시설 질의'],y:['요청자를 부서 단위로 묶은 기록','담당자를 코드로 바꾼 표','계약 금액을 지수로 바꾼 목록'],r:['계정 비밀번호·서버 접속정보','CCTV·출입 기록','직원 차량번호·연락처']},
+ d2:{cols:[['요청코드','T00001 형식','그대로'],['요청부서','부서명','5명 미만 부서는 상위 조직으로 묶음'],['사업장','본사/1공장/2공장','그대로'],['유형','IT/시설/차량/총무','그대로'],['접수·승인·완료 일시','YYYY-MM-DD HH','그대로'],['담당자코드','A01 형식','실명 삭제'],['외주여부','Y/N','그대로'],['금액','원','그대로 또는 구간화'],['재요청여부','Y/N','그대로']],
+  sim:'12개월 요청 약 7,400건(월 590 → 640건). 유형 IT/시설/차량/총무. 평균 처리 6.8일, 승인 대기 평균 3.9일. IT 외주 이관 건 재요청률 약 18%. 공장 요청이 본사보다 평균 1.6일 길게.',
+  kpis:[['평균 처리 기간','6.8일','전년 3.2일'],['승인 대기 비중','57%','처리 기간 중'],['일반관리비 증가율','+14%','매출 +6%'],['자동 갱신 계약','14건','전체 37건 중']],
+  charts:['유형별 단계 소요시간(접수·승인·처리) 누적 막대','월별 평균 처리 기간 추이','계약별 갱신 단가 인상률']},
+ aud:[['대표이사','Report','Direct','DecisionMemo','증원 없이 처리 기간을 줄이는 방법과 절감 금액'],['본부장','Corporate','Persuasive','ActionPlan','전결 기준 변경과 실행 일정'],['전 직원 안내','Announcement','Empathetic','FAQ','요청 방법이 어떻게 바뀌고 무엇이 빨라지는지'],['외주 업체','Formal','Neutral','ExecutiveSummary','SLA 재협의 요청(처리 기간·재요청률 기준)']],
+ red:['결재 단계를 줄이면 통제는 누가 하는가 — 부정 리스크는?','IT 외주 문제는 업체 교체로 끝나는 것 아닌가?','자동 갱신을 해지하면 대체 업체 전환 비용은?','처리 기간보다 만족도가 진짜 목표 아닌가?','시스템 밖 요청까지 넣으면 숫자가 달라지는가?'],
+ ask:'50만 원 이하 요청 전결 기준 하향(3단계 → 1단계), IT 외주 SLA 재협의, 자동 갱신 계약 14건 재입찰'}
+];
+
+/* ===================== 공통 콘텐츠 ===================== */
+const STYLES=[['Formal','격식체','대외 공문·협의회 안건'],['Corporate','비즈니스 문체','타 부서 공유'],['Report','보고서체','대표이사·이사회 보고'],['Proposal','제안서체','예산·투자 승인 요청'],['Announcement','공지문','전사 안내'],['Plain','쉬운 말','현장·신입 대상 안내']];
+const TONES=[['Neutral','중립','불안을 키우지 않을 때'],['Direct','직설','결론과 요청을 분명히'],['Persuasive','설득','승인을 받아야 할 때'],['Cautious','신중','법·노사·대외 민감 사안'],['Empathetic','공감','구성원·현장 대상'],['Authoritative','권위','이사회·감사 대응']];
+const FORMATS=[['ExecutiveSummary','3줄 요약'],['MarkdownTable','표'],['DecisionMemo','의사결정 요청 메모'],['ActionPlan','실행계획(담당·기한·예산)'],['RiskMatrix','리스크 매트릭스'],['FAQ','예상 질문과 답']];
+const DAYS=[['ov','00','🧭','개요'],['d1','D1','❓','Day1 · 질문'],['d2','D2','📊','Day2 · 숫자'],['d3','D3','✍️','Day3 · 결재'],['my','','⭐','내 프롬프트']];
+const SECS={
+ d1:[['open','오프닝'],['frame','진단 프레임·보안'],['rice','RICE'],['problem','문제인식'],['research','리서치'],['brain','브레인스토밍'],['agent','에이전트·정리']],
+ d2:[['data','데이터 준비'],['judge','가설 판정'],['check','검산'],['dash','대시보드']],
+ d3:[['report','보고서 골격'],['aud','대상별 변환'],['red','레드팀 검토'],['approve','결재 패키지']]};
+const HERO={
+ d1:['Day1 · 질문',t=>t.name+' 관점의 AI 워크플로우 — 무엇을 물어야 하나',['Day1의 목표는 답이 아니라 질문입니다. 우리 팀 자료로 맞고 틀림을 가릴 수 있는 질문 하나를 완성합니다.','이 질문이 Day2에 숫자로 판정되고, Day3에 결재 문서로 바뀝니다.']],
+ d2:['Day2 · 숫자',t=>'질문을 숫자로 판정한다 — '+t.name+' 데이터',['어제 만든 가설을 가상 데이터로 하나씩 채택·기각·보류로 나눕니다.','AI가 낸 숫자는 엑셀로 다시 계산해 봅니다. 맞는지 확인한 숫자만 Day3에 넘어갑니다.']],
+ d3:['Day3 · 결재',t=>'판정을 결재 문서로 — '+t.name+' 보고서',['결론부터 쓰고, 보고 대상에 맞게 바꾸고, 반대 논리로 스스로 공격합니다.','반박을 이겨낸 문장만 결재 문서에 남깁니다.']]};
+
+/* ===================== 상태 ===================== */
+const KEY='aiwf.v1';
+function def(){return{team:'hr',day:'ov',sec:{d1:'open',d2:'data',d3:'report'},zoom:100,profile:{company:'한국삼공(주)',industry:'제조업',size:'250명',roles:{}},saved:[],checks:{},forms:{},bsMode:'free',aud:0,myAll:false}}
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY)||'{}');const d=def();return Object.assign(d,s,{sec:Object.assign(d.sec,s.sec||{}),profile:Object.assign(d.profile,s.profile||{})})}catch(e){return def()}}
+let S=load();
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+const T=()=>TEAMS.find(x=>x.id===S.team)||TEAMS[0];
+const role=()=>S.profile.roles[S.team]||T().role;
+const fv=k=>S.forms[S.team+'.'+k]||'';
+
+/* ===================== 헬퍼 ===================== */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function fill(s){const p=S.profile;return s.replace(/\{\{회사\}\}/g,p.company||'{{회사}}').replace(/\{\{업종\}\}/g,p.industry||'{{업종}}').replace(/\{\{규모\}\}/g,p.size||'{{규모}}').replace(/\{\{직무\}\}/g,role()).replace(/\{\{팀\}\}/g,T().name)}
+function fmt(s){return esc(s).replace(/\{\{(.+?)\}\}/g,'<span class="ph">{{$1}}</span>').replace(/^(R\(Role\)|I\(Instruction\)|C\(Context\)|E\(Example\/Format\)):/gm,'<b class="lbl">$1:</b>')}
+const rice=(R,I,C,E)=>`R(Role):\n${R}\n\nI(Instruction):\n${I}\n\nC(Context):\n${C}\n\nE(Example/Format):\n${E}`;
+let P={},pn=0,BUILD={};
+function pcard(title,text,o={}){const id=o.id||('p'+(pn++));P[id]={title,text:fill(text)};
+ return `<div class="pc"><div class="pc-h">${o.rice?'<span class="rl r">R</span><span class="rl i">I</span><span class="rl c">C</span><span class="rl e">E</span>':''}<b>${esc(title)}</b><span class="sp"></span><button class="mini" data-copy="${id}">복사</button><button class="mini add" data-save="${id}">＋담기</button></div><div class="pc-b" id="pb-${id}">${fmt(P[id].text)}</div></div>`}
+function builder(name,title,fn,isRice){BUILD[name]={title,fn};return pcard(title,fn(),{id:'b-'+name,rice:isRice})}
+function updateBuilder(name){const b=BUILD[name];if(!b)return;const id='b-'+name;P[id]={title:b.title,text:fill(b.fn())};const el=$('pb-'+id);if(el)el.innerHTML=fmt(P[id].text)}
+function field(k,label,ph,o={}){const v=esc(fv(k));const tag=o.area?`<textarea data-f="${k}" placeholder="${esc(ph)}">${v}</textarea>`:`<input data-f="${k}" value="${v}" placeholder="${esc(ph)}">`;return `<label>${label}${o.hint?` <small>${esc(o.hint)}</small>`:''}${tag}</label>`}
+const or=(k,d)=>fv(k).trim()||d;
+function card(tag,title,body){return `<section class="card"><div class="card-h"><span class="tag ${tag}">${tag}</span><h3>${title}</h3></div><div class="card-b">${body}</div></section>`}
+const sub=s=>`<div class="sub">${s}</div>`;
+function table(head,rows){return `<div class="tw"><table class="t"><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}
+function checks(key,items){return items.map((it,i)=>{const k=key+'.'+i;return `<label class="chk"><input type="checkbox" data-chk="${k}" ${S.checks[k]?'checked':''}><div><b>${it[0]}</b>${it[1]?`<span>${it[1]}</span>`:''}</div></label>`}).join('')}
+const ST={ok:'⭕ 가능',part:'🟡 부분',no:'❌ 불가'};
+function vd(v){if(!v)return'';const c=v==='채택'?'a':v==='기각'?'r':v==='삭제'?'x':'p';return `<span class="vd ${c}">${v}</span>`}
+const accepted=t=>t.bs.rows.filter(r=>r[3]==='채택').map(r=>r[0]);
+const rejected=t=>t.bs.rows.filter(r=>r[3]==='기각').map(r=>r[0]);
+function ctxBlock(t){return t.cEls.map((c,i)=>`[${c[0]}] ${fv('c'+(i+1)).trim()||'{{'+c[0]+'}}'}`).join('\n')}
+
+/* ===================== 개요 ===================== */
+function renderOverview(){const t=T();
+ return `<div class="hero"><span class="hb">사용 안내</span><h2>본부 5개 팀이 같은 방법, 다른 사례로 배웁니다</h2>
+ <p>질문 → 숫자 → 결재. 세 단계는 같고, 사례·맥락·프롬프트는 팀마다 다릅니다. 위쪽에서 우리 팀을 고르면 모든 화면이 우리 팀 버전으로 바뀝니다.</p></div>
+ ${card('교재','3단계 흐름',`<div class="flow"><div><b>❓ Day1 · 질문</b><span>현안을 자료로 맞고 틀림을 가릴 수 있는 질문으로 바꾼다</span></div><div class="arrow">→</div><div><b>📊 Day2 · 숫자</b><span>가상 데이터로 가설을 채택·기각·보류로 판정하고 검산한다</span></div><div class="arrow">→</div><div><b>✍️ Day3 · 결재</b><span>결론부터 쓰고, 대상별로 바꾸고, 반박을 이겨낸 문장만 남긴다</span></div></div>`)}
+ ${card('진행','팀 선택 — 우리 팀 사례로 시작하기',`<div class="teamgrid">${TEAMS.map(x=>`<button class="tcard" style="--c:${x.color}" data-go="${x.id}"><span class="ti">${x.icon}</span><b>${x.name}</b><span>${x.issue}</span><em>${x.name} Day1 시작 →</em></button>`).join('')}</div>`)}
+ <div class="grid2"><div>${card('참고','이렇게 쓰십시오',`<ol class="steps"><li><b>내 회사 프로필</b>을 먼저 채웁니다. 상단 초록 「반영됨」을 누르면 회사명·업종·규모·직무를 바꿀 수 있고, 모든 프롬프트에 바로 반영됩니다.</li><li><b>우리 팀</b>을 고릅니다. 사례·가설·데이터·보고 대상이 팀별로 바뀝니다.</li><li>프롬프트 카드의 <b>복사</b>로 AI에 붙여 넣고, 잘 된 것은 <b>＋담기</b>로 「내 프롬프트」에 모읍니다.</li><li>노란색 <span class="ph">{{빈칸}}</span>은 직접 채울 곳입니다. 생성기 칸에 적으면 자동으로 채워집니다.</li><li><b>PDF 저장</b>을 누르면 지금 보는 화면을 인쇄·PDF로 남길 수 있습니다.</li></ol>`)}</div>
+ <div>${card('진행','지금 선택된 팀 — '+t.icon+' '+t.name,`<div class="story"><p>${t.story}</p><ul>${t.days.map((d,i)=>`<li>· <b>Day${i+1}</b> — ${d}</li>`).join('')}</ul></div><div class="note">💡 입력 내용과 담은 프롬프트는 이 브라우저에만 저장되며 외부로 전송되지 않습니다.</div>`)}</div></div>`}
+
+/* ===================== Day1 ===================== */
+const D1={
+open(t){return `<div class="grid2"><div>${card('교재','AI를 쓰기 전에 알아야 할 성질 3가지',`
+ <div class="box"><h4>① 확률로 답합니다</h4><p>같은 질문에도 매번 조금씩 다른 답이 나옵니다. 옆 사람과 결과가 다른 게 정상입니다. 그래서 관리할 대상은 답이 아니라 <b>질문</b>입니다. 잘 된 질문은 저장해 두고 다시 씁니다.</p></div>
+ <div class="box"><h4>② 모르면 그럴듯하게 채웁니다</h4><p>업계 평균, 법 조항, 시장 단가, 통계 수치처럼 <b>숫자와 출처</b>가 가장 위험합니다. 그럴듯할수록 의심하십시오. 출처를 요구하고, 없으면 "확인 불가"라고 쓰게 합니다.</p></div>
+ <div class="box"><h4>③ 주는 만큼만 압니다</h4><p>AI는 우리 회사 사정, 우리 팀이 해 온 일, 대표이사가 무엇을 보는지 모릅니다. 역할·지시·맥락·형식(RICE)을 채워 주는 만큼 결과가 <b>우리 팀 것</b>이 됩니다.</p></div>
+ ${sub('📍 3일을 관통하는 사례 하나')}
+ <div class="story"><p>${t.story}</p><ul>${t.days.map((d,i)=>`<li>· <b>Day${i+1}</b> — ${d}</li>`).join('')}</ul></div>
+ <div class="note">💡 새솔산업㈜는 실습용 가상 기업이며 모든 수치는 교육용입니다. 상단 「내 회사 프로필」을 채우면 프롬프트가 ${esc(S.profile.company)} 기준으로 바뀝니다.</div>`)}</div>
+ <div>${card('진행','시작 전에 — 준비물과 약속',`
+ ${sub('💻 준비물 3가지')}
+ ${table(['무엇','왜','언제 쓰나'],[['ChatGPT · Claude · Gemini 중 1개<br><span class="muted">회사 승인 계정 우선</span>','모든 실습의 기본 도구','Day1부터'],['엑셀 또는 구글 시트','가상 데이터 판정·검산·차트','Day2'],['NotebookLM 또는 AI의 프로젝트 기능','사내 규정·자료 안에서만 답하게 하기','Day3']])}
+ ${sub('📌 함께 지킬 약속 5가지')}
+ ${checks('promise',[['정답 하나를 기대하지 않습니다','두세 번 돌려서 공통으로 나오는 것을 봅니다.'],['막히면 화면을 그대로 붙여 넣습니다','"안 돼요"보다 오류 문구와 결과 화면을 AI에 보여 주는 쪽이 훨씬 빠릅니다.'],['실제 개인정보·기밀은 올리지 않습니다','실습은 가상 데이터로 합니다. 실제 자료는 「진단 프레임·보안」의 3등급 기준을 거친 뒤에만.'],['한 번에 끝내려 하지 않습니다','기본 → 추가 → 보완. 세 번 주고받는 것이 한 번의 긴 프롬프트보다 낫습니다.'],['잘 된 프롬프트는 ＋담기로 모읍니다','Day2·Day3에서 오늘 만든 질문 카드를 다시 꺼내 씁니다.']])}
+ ${sub('🎁 3일 뒤 가져가는 것')}
+ ${checks('take',[['질문 카드 1장','숫자로 시작하고 판정 기준이 있는 질문'],['가설 판정표 1장','채택·기각·자료 필요로 나눈 표'],['결재용 보고서 초안 1부','결론 먼저, 보고 대상별 버전 포함'],[t.name+' 전용 에이전트 지시문 1개','내일부터 바로 쓰는 것']])}`)}</div></div>`},
+
+frame(t){const s=t.sec;return `<div class="grid2"><div>${card('교재','좋은 질문의 4가지 조건',`
+ <p class="lead">좋은 질문은 자료를 열면 답이 갈립니다</p><p class="leadp">"왜 그럴까?"는 회의를 길게 만들고, "몇 %이고 기준을 넘는가?"는 회의를 끝냅니다.</p>
+ <ol class="steps"><li><b>숫자로 시작한다</b> — "많다·늦다" 대신 "${esc(t.prob.steps[0].split('— ')[1])}"</li><li><b>볼 자료가 정해져 있다</b> — 어느 파일의 어느 항목을 볼지</li><li><b>참·거짓 기준이 있다</b> — "1.5배 이상이면 참"처럼</li><li><b>참이면 할 일이 있다</b> — 판정 뒤에 무엇을 할지</li></ol>
+ ${sub('🔁 같은 고민, 다른 질문')}
+ <div class="danger">❌ <b>나쁜 질문</b> — "${esc(t.prob.sym)}. 왜 그럴까?"</div>
+ <div class="good">⭕ <b>좋은 질문</b> — ${esc(t.prob.final)}</div>
+ ${sub('🧭 3일의 흐름')}
+ <div class="flow"><div><b>❓ 질문</b><span>판정 기준이 있는 질문</span></div><div class="arrow">→</div><div><b>📊 숫자</b><span>채택·기각·보류</span></div><div class="arrow">→</div><div><b>✍️ 결재</b><span>결론과 요청</span></div></div>`)}</div>
+ <div>${card('진행','보안 3등급 — 무엇을 올려도 되나',`
+ <div class="good"><b>🟢 올려도 됨</b><br>${s.g.join(' · ')}</div>
+ <div class="warn"><b>🟡 가공한 뒤에만</b><br>${s.y.join(' · ')}</div>
+ <div class="danger"><b>🔴 절대 금지</b><br>${s.r.join(' · ')}</div>
+ ${sub('✂️ 비식별 요령 5가지')}
+ ${table(['원본','이렇게 바꿉니다'],[['이름·사번·거래처명','코드로 (E001, S01, C01)'],['금액','지수(전년=100) 또는 구간으로'],['날짜','월 단위로'],['5명(건) 미만인 칸','상위 그룹과 합치기'],['자유 서술(면담·의견)','고유명사·사건 특정 표현 삭제 후 요약만']])}
+ <div class="note">💡 판단이 서지 않으면 올리지 않습니다. 회사가 승인한 AI 계정과 데이터 학습 차단 설정을 먼저 확인하십시오.</div>`)}</div></div>`},
+
+rice(t){const ex=t.cEls;
+ const full=rice(t.R,t.I,`{{회사}} · {{업종}} · {{규모}}. 내 역할은 {{직무}}.\n현안: ${t.prob.nums}\n${ex.map(c=>`[${c[0]}] ${c[1]}`).join('\n')}`,t.E);
+ return `<div class="hero" style="padding:16px 22px"><p style="margin:0;color:#fff;font-weight:800;font-size:16px">R·I·E는 어느 팀이나 비슷하게 씁니다. 결과를 ${t.name} 것으로 만드는 건 C(맥락)입니다.</p><p>회사 규모·업종만 넣으면 어느 회사에나 맞는 답이 옵니다. ${t.name}의 C에는 ${ex.map(c=>c[0]).join('·')}가 들어가야 합니다.</p></div>
+ <div class="grid2"><div>${card('교재','RICE 4요소',`
+ <div class="box"><h4><span class="rl r">R</span> Role — 누구의 눈으로 볼지</h4><p>내부 담당자가 아니라 경험 많은 외부 전문가의 시각을 씌웁니다. 그래야 당연하게 여기던 전제를 의심합니다.</p><p class="muted">예) "${esc(t.R)}"</p></div>
+ <div class="box"><h4><span class="rl i">I</span> Instruction — 할 일을 못 박기</h4><p>"알려줘"가 아니라 개수·순서·포함할 항목까지 정합니다. 빠진 항목은 보고서가 반려되는 이유가 됩니다.</p><p class="muted">예) "${t.axes.join('·')} 6개 축으로 12개, 각각 판정 기준 포함"</p></div>
+ <div class="box" style="border-color:#fdba74;background:#fff7ed"><h4><span class="rl c">C</span> Context — ★ 오늘의 핵심</h4><p>${t.name}의 맥락은 아래 5요소입니다.</p><p><b>${ex.map(c=>c[0]).join(' · ')}</b></p></div>
+ <div class="box"><h4><span class="rl e">E</span> Example — 결과의 모양</h4><p>표의 열 이름, 분량(A4 1장), "결론 먼저" 같은 규칙을 미리 보여 줍니다. 길면 읽히지 않습니다.</p></div>
+ ${pcard('RICE 전체 예시 — '+t.name+' 버전',full,{rice:true})}
+ <div class="note">💡 하나만 빠져도 결과가 무너집니다. R이 없으면 누구 입장인지 몰라 교과서 답이, I가 없으면 매번 다른 모양이, <b>C가 없으면 어느 회사에나 맞는 일반론</b>이, E가 없으면 다시 정리해야 하는 긴 줄글이 옵니다.</div>
+ ${sub('🧠 함께 쓰면 좋은 기법 3가지')}
+ <div class="box"><h4>🔗 단계별 사고 (CoT)</h4><p>"결론을 내기 전에 계산 과정을 단계별로 보여줘." 판정·계산이 들어가는 일에 씁니다.</p></div>
+ <div class="box"><h4>🔄 질문 다시 쓰기 (RaR)</h4><p>"내 질문을 더 명확하게 고쳐 쓴 다음 답해줘." 질문이 막연할 때, 문제인식 단계에서 바로 씁니다.</p></div>
+ <div class="box"><h4>📋 예시 먼저 보여 주기 (Few-shot)</h4><p>원하는 결과 예시를 2~3개 먼저 붙입니다. 사내 보고 양식이 정해져 있을 때 가장 효과가 큽니다.</p></div>`)}</div>
+ <div>${card('실습','한 줄씩 붙여 가며 3단계로 비교하기',`
+ <div class="note">💡 세 개를 차례로 돌려 보고 문체와 구성이 어떻게 달라지는지 보십시오.</div>
+ ${pcard('① 기본','{{회사}} {{팀}}이 올해 가장 먼저 풀어야 할 과제 3가지를 알려줘')}
+ ${pcard('② + writing style','{{회사}} {{팀}}이 올해 가장 먼저 풀어야 할 과제 3가지를 알려줘\nwriting style: Report')}
+ ${pcard('③ + tone + format','{{회사}} {{팀}}이 올해 가장 먼저 풀어야 할 과제 3가지를 알려줘\nwriting style: Report\ntone: Direct\nformat: ExecutiveSummary')}
+ <div class="note">💡 한 줄만 붙여도 결과의 모양이 통째로 바뀝니다. 보고 대상이 바뀌면 붙이는 줄이 바뀝니다. Day3에서 그대로 씁니다.</div>`)}
+ ${card('교재','★ '+t.name+'의 C(맥락) 5요소',table(['요소','예시','빠지면 생기는 일'],ex.map((c,i)=>[`<b>${i+1}. ${c[0]}</b>`,esc(c[1]),esc(c[2])]))+`<div class="note">💡 「진짜 목적」을 솔직하게 쓰는 순간 결과의 질이 바뀝니다. 프롬프트는 남에게 보여 주는 문서가 아닙니다. 최종 보고서에는 이 문장이 남지 않습니다.</div>`)}
+ </div></div>
+ ${card('실습','🧪 프롬프트 생성기 ① — '+t.name+' RICE 빌더',`<div class="grid2" data-builder="rice"><div class="form">
+  <div class="note" style="margin:0">💡 R·I·E는 채워져 있습니다. 현안 한 줄과 C 5요소만 넣으면 전체 프롬프트가 완성됩니다. 여기 적은 C는 「에이전트·정리」에도 그대로 쓰입니다.</div>
+  ${field('issue','① 지금 다루는 현안 ★','예: '+t.prob.nums,{hint:'한 줄로, 숫자와 함께'})}
+  ${ex.map((c,i)=>field('c'+(i+1),`${i+2}. ${c[0]}${i===4?' ★':''}`,'예: '+c[1],{area:false})).join('')}
+ </div><div>${builder('rice','RICE 빌더 결과',()=>rice(t.R,`"${or('issue','{{현안}}')}"에 대한 원인 가설을 ${t.axes.join('·')} 6개 축으로 12개 제시해. 가설마다 확인할 자료와 참/거짓 판정 기준을 숫자로 붙여. 내가 주지 않은 숫자는 만들지 말고 "자료 필요"로 표시해.`,`{{회사}} · {{업종}} · {{규모}}. 내 역할은 {{직무}}.\n${ctxBlock(t)}`,t.E),true)}</div></div>`)}
+ ${card('참고','📋 프롬프트 메뉴판 — 끝에 한 줄씩 붙여 쓰는 말',`<div class="grid2"><div>
+  ${sub('① Role — '+t.name)}${table(['English','한글'],t.roles.map(r=>[r[0],r[1]]))}
+  ${sub('② Writing style')}${table(['English','한글','어디에'],STYLES)}</div><div>
+  ${sub('③ Tone')}${table(['English','한글','어디에'],TONES)}
+  ${sub('④ Format')}${table(['English','한글'],FORMATS)}
+  <div class="note">💡 조합 예 — 대표이사 보고라면 끝에 <b>writing style: Report · tone: Direct · format: ExecutiveSummary</b> 세 줄을 붙입니다.</div></div></div>`)}`},
+
+problem(t){const p=t.prob;return `<div class="grid2"><div>${card('교재','증상과 문제는 다릅니다',`
+ <p class="lead">증상은 느낌이고, 문제는 숫자·범위·기준이 있는 문장입니다</p>
+ <div class="danger">😟 증상 — "${esc(p.sym)}"</div>
+ <ol class="steps">${p.steps.map(s=>`<li>${esc(s)}</li>`).join('')}</ol>
+ <div class="final">🎯 ${esc(p.final)}</div>
+ ${sub('🧾 문제 정의서 7칸')}
+ ${table(['칸','쓰는 법'],[['현상','지금 숫자 — 기간·단위 포함'],['기대 수준','목표 또는 비교 기준(전년·업계)'],['차이(갭)','기대와 현상의 차이를 숫자로'],['영향','금액·인원·고객으로 환산'],['범위','어디서·언제·누구에게서 생기는가'],['판정 기준','무엇이 확인되면 참으로 볼 것인가'],['기한','언제까지 누구에게 보고하는가']])}
+ <div class="note">💡 "왜?"를 다섯 번 묻되, 답마다 <b>확인할 자료</b>를 붙이십시오. 자료가 없는 "왜"는 추측입니다.</div>`)}</div>
+ <div>${card('실습','🧪 프롬프트 생성기 ② — 증상을 문제로',`<div class="form" data-builder="prob">
+  ${field('sym','지금 느끼는 증상','예: '+p.sym,{hint:'편하게 한 줄'})}
+  ${field('nums','가진 숫자','예: '+p.nums,{hint:'없으면 비워 두세요'})}
+ </div>${builder('prob','문제 정의 프롬프트',()=>rice(`너는 ${t.roles[0][1]} 출신의 문제 정의 코치야. 해결책보다 문제 문장을 먼저 다듬는다.`,'아래 증상을 먼저 더 명확한 질문으로 고쳐 쓴 뒤(RaR), "왜?"를 5번 물어 원인 층위를 내려가. 그다음 문제 정의서 7칸을 채워. 내가 주지 않은 숫자는 [확인 필요]로 남겨.',`{{회사}} {{팀}}. 증상: "${or('sym',p.sym)}"\n가진 숫자: ${or('nums','{{가진 숫자}}')}\n가진 자료 항목: ${t.bs.cols}`,'① 고쳐 쓴 질문 1문장\n② 5 Whys 표 | 왜 | 답 | 확인할 자료 |\n③ 문제 정의서 | 현상 | 기대 수준 | 갭 | 영향 | 범위 | 판정 기준 | 기한 |\n④ 최종 질문 1문장 — 숫자·범위·판정 기준 포함'),true)}`)}</div></div>`},
+
+research(t){const r=t.research;const topics=r.topics.map(x=>'- '+x).join('\n');return `<div class="grid2"><div>${card('교재','리서치 — AI가 가장 많이 지어내는 곳',`
+ <p class="lead">리서치 결과는 결론이 아니라 비교 기준입니다</p><p class="leadp">업계 평균은 우리 숫자 옆에 놓을 때만 의미가 있습니다. 그리고 그 평균이 진짜인지부터 확인해야 합니다.</p>
+ ${checks('rrule',[['출처 없는 숫자는 쓰지 않는다','기관명·발행연도·링크가 없으면 버립니다.'],['서로 다른 출처 2개로 확인한다','한 곳에만 있는 숫자는 "참고"로만.'],['원문을 직접 연다','AI 요약의 숫자와 원문 숫자가 다른 경우가 흔합니다.'],['발행 연도를 본다','3년이 지난 통계는 표시해 둡니다.']])}
+ ${sub('🔎 '+t.name+'이 찾아볼 것')}
+ <ul>${r.topics.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>
+ <div class="note">📚 믿을 만한 출처 — ${esc(r.src)}</div>`)}</div>
+ <div>${card('실습','리서치 프롬프트',`${pcard(t.name+' 리서치',rice(`너는 ${t.name} 업무를 돕는 리서치 애널리스트야. 확인된 사실과 추정을 엄격히 나눈다.`,'아래 주제를 조사해. 모든 수치에는 기관명·발행연도·링크를 붙이고, 서로 다른 출처 2개 이상으로 확인해. 찾지 못한 것은 지어내지 말고 "확인 불가"라고 적어. 마지막에 우리 숫자와 비교할 때 주의할 점을 3줄로 적어.',`{{회사}}({{업종}}, {{규모}}) {{팀}}. 현안: ${t.prob.nums}\n조사 주제:\n${topics}`,'| 주제 | 핵심 내용 | 수치 | 출처(기관·연도·링크) | 신뢰도 상/중/하 |'),{rice:true})}
+ <div class="form" data-builder="res">${field('rtopic','내가 더 찾아볼 주제','예: '+r.topics[0])}</div>
+ ${builder('res','주제 하나 깊게 파기',()=>`"${or('rtopic','{{주제}}')}"에 대해 조사해줘.\n1) 먼저 이 주제를 더 정확한 검색 질문 3개로 바꿔 쓰고\n2) 각 질문에 대해 찾은 사실을 출처(기관·연도·링크)와 함께 정리하고\n3) 출처가 없거나 서로 다른 숫자는 따로 표시해줘.\n찾지 못하면 "확인 불가"라고 써. 추정은 [추정]이라고 표시해.`)}
+ <div class="warn">⚠️ 법령·판례·회계기준은 AI 답을 그대로 쓰지 말고 반드시 원문(법령정보센터, 회계기준원 등)이나 담당 전문가에게 확인하십시오.</div>`)}</div></div>`},
+
+brain(t){const b=t.bs;const mode=S.bsMode;
+ const quick=`${t.prob.nums}.\n이유가 될 만한 것을 20개 이상 적어줘. 처음엔 판단하지 말고 나열만 해.\n나열이 끝나면 우리 자료(${b.cols})로 확인 가능한 것에 ⭕, 일부만 가능한 것에 🟡, 불가능한 것에 ❌를 붙여줘.`;
+ const freeP=()=>rice('너는 회의 퍼실리테이터다. 결론을 대신 내리지 않는다. 넓게 펼친 뒤 좁힌다.','1단계 펼치기 — 20개 이상, 평가 금지. 현업 담당자·팀장·경영진·내부 고객·다른 회사·반대편 여섯 관점을 고루 쓰고, 엉뚱해 보이는 것도 5개 섞어.\n2단계 묶기 — 비슷한 것끼리 4~6개 그룹으로 묶고 이름을 붙여.\n3단계 고르기 — 효과 × 실행 쉬움으로 [바로 실행 / 키울 것 / 보류 / 버림]으로 나눠.\n4단계 다듬기 — 3개를 골라 한 줄 설명 · 이유 · 이번 주 첫 행동 · 확인할 지표 · 예상 반대를 붙여.',`주제: ${or('topic',b.topicEx)}\n제약: ${or('cons','{{예산·기간·승인 등 제약}}')}\n조직: {{회사}} {{팀}}`,'1단계 번호 목록 → 2단계 그룹 표 → 3단계 2×2 표 → 4단계 Top 3 카드');
+ const frameP=()=>rice(`너는 ${b.frame[0]} 관점으로 진단하는 ${t.roles[0][1]}다. 그럴듯함보다 확인 가능성을 먼저 본다.`,`${b.frame[1].join('·')} 각 축마다 원인 가설 2개씩 총 12개를 내. 가설마다 ① 우리 자료 중 볼 항목 ② 참/거짓 판정 기준(숫자) ③ 지금 자료로 판정 가능 여부(⭕/🟡/❌) ④ ❌이면 추가로 받아올 자료를 붙여.\n마지막에 악마의 변호인이 되어 가장 유력한 가설 2개를 각각 3가지 방식으로 반박해.`,`주제: ${or('topic',b.topicEx)}\n제약: ${or('cons','{{예산·기간·승인 등 제약}}')}\n가진 자료 항목: ${b.cols}\n조직: {{회사}} {{팀}}`,'| 축 | 가설 | 볼 항목 | 판정 기준 | 판정 가능 | 추가 자료 |\n이어서 반박 3개 × 2');
+ return `<div class="hero" style="padding:16px 22px"><p style="margin:0;color:#fff;font-weight:800;font-size:16px">원인 후보는 늘 익숙한 서너 개에서 멈춥니다</p><p>나머지를 넓게 찾아낸 뒤, 그중 우리 자료로 확인할 수 있는 것만 남깁니다. 그리고 남긴 결론을 다시 의심합니다.</p></div>
+ <div class="hand">✋ <b>AI를 켜기 전에 30초.</b> 「${esc(b.hand)}」 — 떠오르는 원인 3개를 종이에 적으십시오. 아래 판정표를 본 뒤 다시 꺼냅니다.</div>
+ <div class="grid2"><div>${card('실습','⚡ 몸풀기 — 펼치기와 고르기는 다른 일',`
+ <div class="note">💡 업무 얘기 전에 가볍게. 같은 주제를 두 방식으로 돌려 차이를 보십시오.</div>
+ ${pcard('기본 버전','다음 달 팀 워크숍 아이디어 20개를 한 줄씩 자유롭게 던져줘.')}
+ ${pcard('RICE 버전',rice('너는 사내 행사를 100번 넘게 기획한 퍼실리테이터야.','아이디어 25개를 평가 없이 먼저 내고(1단계), 그중 5개를 골라 예산 구간·준비 기간·첫 준비물을 붙여줘(2단계).','대상: {{팀}} 8~12명, 예산 1인 5만 원 이내, 근무시간 중 반나절.','1단계: 아이디어 | 예산 구간 | 분위기 태그\n2단계: 아이디어 | 고른 이유 | 준비 기간 | 첫 준비물'),{rice:true})}
+ <div class="note">💡 앞은 아이디어만 쏟아지고, 뒤는 기준이 붙어 다섯 개로 좁혀집니다. 업무도 같습니다. 고르는 기준이 있어야 회의가 끝납니다. 오늘의 기준은 <b>"우리 자료로 확인 가능한가"</b>입니다.</div>`)}</div>
+ <div>${card('교재','📌 실습 사례 — 후보 10개 중 몇 개가 살아남나',`
+ <p>${esc(b.case)}</p><div class="cands">${b.cands.map((c,i)=>`<span>${'①②③④⑤⑥⑦⑧⑨⑩'[i]} ${esc(c)}</span>`).join('')}</div>
+ <p>모두 그럴듯합니다. 그런데 우리 손에 있는 자료 항목은 이것뿐입니다.</p><div class="note" style="border-left-color:var(--team);color:#334155"><b>${esc(b.cols)}</b></div>
+ <p>이 항목으로 <b>오늘</b> 참·거짓을 가릴 수 있는 건 몇 개일까요? 가릴 수 없는 것은 "무엇을 더 받아오면 가려지는지"까지 적어 둡니다.</p>`)}</div></div>
+ ${card('교재','🔍 10개를 실제로 걸러 보면',table(['후보','검증 가능?','볼 항목 / 판정 결과'],b.rows.map(r=>[`<b>${esc(r[0])}</b>`,`<span class="st">${ST[r[1]]}</span>`,esc(r[2])+vd(r[3])]))+`
+ <div class="warn">🔥 <b>종이를 다시 꺼내십시오.</b> ${b.lesson}</div>
+ <div class="note">💡 ❌를 버리라는 뜻이 아닙니다. "이 자료로는 확인 불가 — OO 자료 필요"라고 남기는 것도 좋은 산출물입니다. 다만 <b>${esc(b.rows.find(r=>r[3]==='삭제')[0])}</b> 같은 문장은 자료가 없어서가 아니라 애초에 참·거짓을 가릴 수 없는 말이므로 지웁니다.</div>
+ <div class="danger">🚨 <b>${esc(b.bias[0])}</b> — ${esc(b.bias[1])} 그래서 아래 프롬프트는 결론을 낸 뒤 스스로 반박하게 되어 있습니다.</div>`)}
+ ${card('실습','🎛 두 가지 모드 — 넓게 펼칠 때 / 원인을 진단할 때',`
+ <div class="seg"><button class="${mode==='free'?'on':''}" data-mode="free"><b>💡 자유 발산</b><span>주제 제한 없음 — 원인 후보, 개선 아이디어, 새 제도 이름까지. 펼치고 → 묶고 → 골라 → 다듬습니다.</span></button><button class="${mode==='frame'?'on':''}" data-mode="frame"><b>🧭 ${esc(b.frame[0])}</b><span>원인을 진단할 때. ${b.frame[1].join('·')} 축으로 빠짐없이 훑고, 자료로 판정할 가설 카드를 만듭니다.</span></button></div>
+ ${pcard('⚡ 간단 프롬프트',quick)}
+ <div class="grid2" data-builder="bs"><div class="form">
+  <div class="note" style="margin:0">💡 한 칸에 편하게 적으면 R·I·C·E가 조립됩니다. 두 모드가 같은 입력을 쓰므로, 모드를 바꿔 같은 고민을 다른 각도로 볼 수 있습니다.</div>
+  ${field('topic','지금 고민하고 있는 것','예: '+b.topicEx,{area:true})}
+  ${field('cons','제약 (예산·기간·승인)','예: 인건비 증액 불가, 3주 뒤 대표이사 보고')}
+ </div><div>${builder('bs','프롬프트 생성기 ③ — '+(mode==='free'?'💡 자유 발산':'🧭 '+b.frame[0]),mode==='free'?freeP:frameP,true)}</div></div>`)}`},
+
+agent(t){const sys=()=>`[역할]\n너는 {{회사}} {{팀}}의 현안 진단 보조 에이전트다. ${t.R.replace(/^너는 /,'관점: ')}\n\n[항상 지키는 규칙]\n1. 결론을 첫 문장에 쓴다.\n2. 내가 주지 않은 숫자·출처는 만들지 않는다. 모르면 "확인 불가"라고 쓴다.\n3. 모든 판단에 확인할 자료와 판정 기준(숫자)을 붙인다.\n4. 개인·거래처를 식별할 수 있는 정보는 다루지 않는다. 코드로만 다룬다.\n5. 결과는 표 중심, A4 1장 이내.\n6. 결론을 낸 뒤 반대 논리 2개로 스스로 검토한다.\n\n[MY CONTEXT — 우리 팀 사정]\n- 회사: {{회사}} · {{업종}} · {{규모}} / 내 역할: {{직무}}\n${ctxBlock(t).split('\n').map(x=>'- '+x).join('\n')}\n\n[주로 맡기는 일]\n- 현안을 검증 가능한 질문으로 바꾸기\n- 원인 가설 12개와 판정표 만들기 (${t.axes.join('·')})\n- 판정 결과를 보고 대상별 문서로 바꾸기\n- 보고서를 반대 입장에서 공격하기`;
+ const qc=()=>`[질문 카드 — {{팀}}]\n현안(숫자): ${or('q1','{{현안}}')}\n핵심 질문: ${or('q2','{{핵심 질문}}')}\n볼 자료: ${or('q3','{{볼 자료}}')}\n판정 기준: ${or('q4','{{판정 기준}}')}\n참이면 할 일: ${or('q5','{{참이면 할 일}}')}`;
+ return `<div class="grid2"><div>${card('교재','에이전트 = 매번 쓰는 지시를 저장해 둔 것',`
+ <p class="lead">같은 맥락을 매번 다시 쓰지 않습니다</p><p class="leadp">오늘 만든 역할·규칙·맥락을 한 번 저장해 두면, 내일부터는 현안 한 줄만 던지면 됩니다.</p>
+ ${table(['도구','어디에 넣나'],[['ChatGPT','프로젝트 → 지침 또는 GPT 만들기 → 지침'],['Claude','프로젝트 → 프로젝트 지침'],['Gemini','Gem 만들기 → 지침']])}
+ ${builder('agent',t.name+' 현안 진단 에이전트 — 지시문',sys)}
+ <div class="note">💡 노란 칸은 「RICE」의 생성기 ①에서 C 5요소를 채우면 자동으로 들어갑니다.</div>`)}</div>
+ <div>${card('실습','📇 오늘의 산출물 — 질문 카드',`<div class="form" data-builder="qc">
+  ${field('q1','현안(숫자)','예: '+t.prob.nums)}
+  ${field('q2','핵심 질문','예: '+t.prob.final,{area:true})}
+  ${field('q3','볼 자료','예: '+t.bs.cols)}
+  ${field('q4','판정 기준','예: '+t.prob.steps[2].split('— ')[1])}
+  ${field('q5','참이면 할 일','예: '+t.ask)}
+ </div>${builder('qc','질문 카드',qc)}
+ <div class="note">💡 ＋담기로 저장해 두십시오. Day2에서 이 카드의 가설을 숫자로 판정합니다.</div>`)}
+ ${card('진행','Day1 정리 체크',checks('d1end',[['AI의 성질 3가지를 설명할 수 있다'],['우리 팀 C 5요소를 채웠다'],['증상 문장을 문제 문장으로 바꿨다'],['가설 10개를 ⭕🟡❌로 나눴다'],['질문 카드와 에이전트 지시문을 ＋담기로 저장했다']]))}</div></div>`}
+};
+
+/* ===================== Day2 ===================== */
+const D2={
+data(t){const d=t.d2;return `<div class="grid2"><div>${card('교재','데이터 준비 — 판정은 정리된 표에서 시작합니다',`
+ <p class="lead">AI에 올리기 전에 표부터 정리합니다</p>
+ ${table(['항목','형식','비식별 방법'],d.cols.map(c=>[`<b>${esc(c[0])}</b>`,esc(c[1]),esc(c[2])]))}
+ ${sub('📐 AI가 잘 읽는 표의 조건')}
+ ${checks('tidy',[['첫 행은 머리글 한 줄','병합 셀·여러 줄 머리글 금지'],['한 행 = 한 건','사람 1명, 거래 1건, 요청 1건'],['단위를 머리글에','"매출액(백만 원)"처럼'],['빈칸과 0을 구분','모르는 값은 비워 두고 0으로 채우지 않기']])}`)}</div>
+ <div>${card('실습','🧪 실습용 가상 데이터 만들기',`
+ <div class="note">💡 실제 자료 대신, Day1 사례와 같은 경향을 가진 가상 데이터를 AI로 만들어 실습합니다.</div>
+ ${pcard('가상 데이터 생성',rice('너는 교육용 가상 데이터를 만드는 데이터 엔지니어야. 실제 사람·회사와 겹치지 않게 만든다.',`아래 열로 CSV 데이터를 만들어. 아래 경향이 드러나되, 무작위 잡음을 섞어 너무 깔끔하지 않게 해. 마지막에 데이터에 심어 둔 경향을 3줄로 적어.`,`열: ${d.cols.map(c=>c[0]).join(', ')}\n경향: ${d.sim}`,'CSV 코드 블록 1개 (머리글 포함). 실제 이름·회사명 사용 금지.'),{rice:true})}
+ <div class="warn">⚠️ 행이 많으면 AI가 중간에 끊습니다. "엑셀에서 돌릴 수 있는 생성 수식이나 파이썬 코드로 줘"라고 요청하면 더 많은 행을 만들 수 있습니다.</div>`)}</div></div>`},
+
+judge(t){const hy=t.bs.rows.filter(r=>r[1]!=='no');return `<div class="grid2"><div>${card('교재','가설 판정 — 숫자로 채택·기각·보류',`
+ <p class="lead">Day1의 ⭕·🟡 가설만 판정합니다</p>
+ ${table(['가설','Day1 분류'],hy.map(r=>[esc(r[0]),ST[r[1]]]))}
+ ${sub('📏 판정 3원칙')}
+ ${checks('jrule',[['분자·분모·표본 수를 같이 본다','"34%"보다 "34% (41/120명)"'],['표본 30 미만은 보류','작은 칸의 큰 차이는 우연일 수 있습니다'],['상관은 원인이 아니다','다른 설명(역인과·제3의 요인)을 반드시 1개 적습니다']])}`)}</div>
+ <div>${card('실습','판정 프롬프트',`${pcard('가설 판정 — '+t.name,rice(`너는 ${t.name} 데이터를 다루는 분석가야. 계산 과정을 숨기지 않는다.`,'첨부한 파일로 아래 가설을 하나씩 판정해. 판정마다 ① 사용한 열 ② 분자/분모와 표본 수 ③ 엑셀에서 재현할 수식 또는 피벗 설정 ④ 판정(채택/기각/보류)을 적어. 표본이 30 미만이면 "보류". 상관이 보여도 원인이라고 단정하지 말고 다른 설명 1개를 함께 적어.',`{{회사}} {{팀}}. 현안: ${t.prob.nums}\n판정할 가설:\n${hy.map((r,i)=>`${i+1}. ${r[0]}`).join('\n')}`,'| 가설 | 사용한 열 | 계산 결과(분자/분모, n) | 엑셀 수식·피벗 | 판정 | 다른 설명 |\n표 아래에 결론 3줄.'),{rice:true})}
+ ${sub('📊 사례의 판정 결과 (참고)')}
+ ${table(['가설','결과'],hy.map(r=>[esc(r[0]),esc(r[2])+vd(r[3])]))}`)}</div></div>`},
+
+check(t){const k=t.d2.kpis;return `<div class="grid2"><div>${card('교재','검산 — AI가 낸 숫자는 한 번 더',`
+ <p class="lead">결재 문서에 들어갈 숫자는 사람이 재현할 수 있어야 합니다</p><p class="leadp">AI는 계산 실수를 하고도 자신 있게 말합니다. 핵심 숫자 3개는 엑셀로 직접 다시 계산합니다.</p>
+ ${checks('chk',[['합계가 원본과 맞는가','행 수·금액 합계부터'],['분모가 맞는가','전체 대비인지, 해당 그룹 대비인지'],['표본이 충분한가','30건 미만은 보류'],['이상치가 결과를 끌고 가지 않는가','가장 큰 1건을 빼고 다시 계산'],['기간이 같은가','전년과 당년의 비교 구간 일치']])}`)}</div>
+ <div>${card('실습','검산 프롬프트',`${pcard('엑셀로 재현하기',`방금 판정한 숫자 중 핵심 3개(${k.slice(0,3).map(x=>x[0]).join(', ')})를 내가 엑셀에서 직접 재현하려고 해.\n1) 피벗 테이블 설정(행·열·값·필터)과 수식을 단계별로 알려줘.\n2) 내 결과가 네 결과와 다르게 나올 수 있는 흔한 실수 3가지를 알려줘.\n3) 합계 검증용 수식 1줄을 줘.`)}
+ ${pcard('결과가 서로 다를 때',`네가 낸 ${k[0][0]}는 ${k[0][1]}인데, 내가 엑셀로 계산하니 {{내 계산 값}}이 나왔어.\n어느 쪽이 맞는지 판단하지 말고, 두 계산의 분자·분모·필터 조건 차이를 표로 비교해줘.`)}`)}</div></div>`},
+
+dash(t){const d=t.d2;return `${card('교재','대시보드 — 한 화면에 결론이 보이게',`
+ <div class="kpis">${d.kpis.map(x=>`<div class="kpi"><small>${esc(x[0])}</small><div class="v">${esc(x[1])}</div><div class="d">${esc(x[2])}</div></div>`).join('')}</div>
+ <p class="muted">▲ 사례 기준 KPI 4개 (가상)</p>
+ ${sub('📈 함께 둘 차트 3개')}<ol class="steps">${d.charts.map(c=>`<li>${esc(c)}</li>`).join('')}</ol>
+ <div class="note">💡 차트 제목은 설명이 아니라 결론 문장으로 씁니다. "월별 추이" 대신 "하반기부터 두 배로 늘었다".</div>`)}
+ <div class="grid2"><div>${card('실습','HTML 대시보드 만들기',pcard('대시보드 생성',rice('너는 경영 대시보드를 만드는 데이터 시각화 담당이야.',`첨부 데이터로 브라우저에서 바로 열리는 HTML 파일 하나짜리 대시보드를 만들어. 위에 KPI 카드 4개(${d.kpis.map(x=>x[0]).join(', ')}), 아래에 차트 3개(${d.charts.join(' / ')}). 데이터를 외부 서버로 보내지 말 것. 차트 제목은 결론 문장으로.`,`보는 사람: 대표이사, ${t.name}장. 화면 한 장에 끝나야 함.`,'색은 2가지 이내, 강조할 숫자 1개만 진하게. 차트마다 아래에 1줄 해설.'),{rice:true}))}</div>
+ <div>${card('실습','엑셀 차트로 만들기',pcard('엑셀 차트 가이드',`내 엑셀 데이터로 아래 차트 3개를 만들려고 해. 차트마다 ① 필요한 피벗 구조 ② 추천 차트 종류와 이유 ③ 결론형 제목 예시를 알려줘.\n${d.charts.map((c,i)=>`${i+1}. ${c}`).join('\n')}`))}</div></div>`}
+};
+
+/* ===================== Day3 ===================== */
+const D3={
+report(t){const a=accepted(t),r=rejected(t);return `<div class="grid2"><div>${card('교재','보고서 골격 — 결론 먼저',`
+ <ol class="steps"><li><b>결론과 요청</b> — 1~2문장. 대표이사가 여기까지만 읽어도 되게</li><li><b>근거 3개</b> — 각각 숫자 1개 이상</li><li><b>기각된 가설</b> — "OO 때문이 아니었다"가 가장 설득력 있는 문장입니다</li><li><b>대안 비교</b> — 2~3개, 비용·효과·리스크·기간</li><li><b>요청 사항</b> — 무엇을, 언제까지 결재해 달라는지</li><li><b>확인하지 못한 것</b> — 추가로 필요한 자료</li></ol>
+ ${sub('📌 사례에서 넘어온 것')}
+ <div class="good"><b>채택</b> — ${a.map(esc).join(' · ')}</div><div class="danger"><b>기각</b> — ${r.map(esc).join(' · ')}</div><div class="warn"><b>요청</b> — ${esc(t.ask)}</div>`)}</div>
+ <div>${card('실습','대표이사 보고서 프롬프트',`${pcard('보고서 초안 — '+t.name,rice(`너는 대표이사 보고서를 20년간 써 온 ${t.name} 임원이야. 결론 먼저, 근거는 숫자로.`,'아래 판정 결과로 대표이사 보고서를 써. 구성: ① 결론과 요청 1~2문장 ② 근거 3개(각각 숫자 1개 이상) ③ 기각된 가설과 기각 근거 ④ 대안 2~3개 비교(비용·효과·리스크·기간) ⑤ 결재 요청 사항 ⑥ 확인하지 못한 것과 추가로 필요한 자료. 내가 주지 않은 숫자는 [확인 필요]로 남겨.',`{{회사}} {{팀}}. 현안: ${t.prob.nums}\n채택된 가설: ${a.join(', ')}\n기각된 가설: ${r.join(', ')}\n요청하려는 것: ${t.ask}\n경영진 성향: ${fv('c3').trim()||t.cEls[2][1]}\n(여기에 Day2 판정표를 붙여 넣으세요)`,'writing style: Report\ntone: Direct\nformat: ExecutiveSummary + MarkdownTable\nA4 1장, 결론 먼저.'),{rice:true})}`)}</div></div>`},
+
+aud(t){const i=Math.min(S.aud,t.aud.length-1);const a=t.aud[i];return `${card('교재','같은 결론, 다른 문서 — 보고 대상별 변환',table(['대상','writing style','tone','format','강조점'],t.aud.map((x,j)=>[`<button class="mini ${j===i?'add':''}" data-aud="${j}">${esc(x[0])}</button>`,x[1],x[2],x[3],esc(x[4])]))+`<div class="note">💡 대상을 누르면 아래 프롬프트가 바뀝니다. 각 말의 뜻은 Day1 「RICE」의 프롬프트 메뉴판을 참고하십시오.</div>`)}
+ <div class="grid2"><div>${card('실습','변환 프롬프트 — '+a[0],pcard(a[0]+'용으로 변환',`위 보고서를 [${a[0]}]용으로 다시 써줘.\nwriting style: ${a[1]}\ntone: ${a[2]}\nformat: ${a[3]}\n강조점: ${a[4]}\n빼야 할 것: 내부 검토 과정, 개인·거래처를 알아볼 수 있는 정보, 확정되지 않은 숫자.\n분량: 원문의 절반 이하.`))}</div>
+ <div>${card('참고','변환할 때 자주 하는 실수',checks('audm',[['숫자가 대상마다 달라진다','변환 뒤 숫자만 따로 뽑아 원문과 대조합니다.'],['현장 안내에 경영 용어가 남는다','"공헌이익·SLA" 같은 말을 쉬운 말로 바꾸라고 한 줄 더 붙입니다.'],['대외 문서에 내부 사정이 들어간다','협의회·협력사·외주 대상은 「진짜 목적」 문장이 빠졌는지 확인합니다.']]))}</div></div>`},
+
+red(t){return `<div class="grid2"><div>${card('교재','레드팀 — 결재권자보다 먼저 공격하기',`
+ <p class="lead">반박을 이겨낸 문장만 결재 문서에 남깁니다</p><p class="leadp">보고서가 반려되는 이유는 대개 예상 가능한 질문입니다. AI에게 반대편 역할을 맡겨 먼저 맞아 봅니다.</p>
+ ${sub('🎯 '+t.name+' 사례에서 꼭 나올 질문')}
+ ${checks('red.'+t.id,t.red.map(q=>[q,'']))}
+ <div class="note">💡 답을 준비한 질문에 체크하십시오. 답이 없는 질문은 보고서의 「확인하지 못한 것」으로 옮깁니다.</div>`)}</div>
+ <div>${card('실습','레드팀 프롬프트',pcard('보고서 공격하기',rice('너는 이 보고서를 반려할 이유를 찾는 사람이다. 세 입장을 번갈아 맡는다: ① 대표이사 ② 내부 감사 ③ 이 결론 때문에 일이 늘어나는 유관 부서장.','입장마다 가장 아픈 질문 3개씩 던지고, 질문마다 보고서가 이미 답하고 있는지(⭕/❌)와 보완할 문장·자료를 적어. 아래 예상 질문도 반드시 포함해.',`{{회사}} {{팀}} 보고서 (위에 붙여 넣음)\n예상 질문:\n${t.red.map(q=>'- '+q).join('\n')}`,'| 입장 | 질문 | 보고서에 답이 있나 | 보완할 문장·자료 |\n마지막에 "이 보고서가 반려된다면 가장 유력한 이유" 1문장.'),{rice:true}))}</div></div>`},
+
+approve(t){return `<div class="grid2"><div>${card('진행','결재 올리기 전 최종 점검',checks('apv.'+t.id,[['결론과 요청이 첫 문단에 있다'],['모든 숫자에 기간·단위·출처가 있다'],['기각된 가설이 적혀 있다'],['대안 비교에 비용이 숫자로 있다'],['개인·거래처를 알아볼 수 있는 정보가 없다'],['예상 질문 6개에 답이 준비돼 있다'],['AI가 낸 핵심 숫자를 엑셀로 재현했다']]))}
+ ${card('진행','🎁 3일 산출물',checks('out.'+t.id,[['질문 카드 1장'],['가설 판정표 1장'],['결재용 보고서 초안 1부 + 대상별 버전'],[t.name+' 전용 에이전트 지시문 1개']]))}</div>
+ <div>${card('실습','기안문 + 예상 질문',`${pcard('결재 기안문 만들기',`위 보고서를 결재 기안문으로 바꿔줘.\n항목: 제목 / 목적 / 현황(숫자) / 검토 내용 / 대안 및 추천안 / 소요 예산 / 기대 효과(숫자) / 일정 / 요청 사항\n이어서 결재권자가 물을 법한 질문 6개와 각각 2~3문장 답을 붙여줘.\n요청 사항: ${t.ask}\nwriting style: Formal\ntone: Direct\nformat: DecisionMemo + FAQ`)}
+ <div class="note">💡 회사 기안 양식이 있다면 양식 예시 1~2개를 먼저 붙여 넣으십시오(Few-shot). 형식이 그대로 따라옵니다.</div>`)}</div></div>`}
+};
+
+/* ===================== 내 프롬프트 ===================== */
+function renderMy(){const list=S.myAll?S.saved:S.saved.filter(x=>x.team===S.team);
+ return `${card('진행','⭐ 내 프롬프트 — '+(S.myAll?'전체 팀':T().name),`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><button class="mini" data-act="myall">${S.myAll?T().name+'만 보기':'전체 팀 보기'}</button><button class="mini" data-act="export">⬇ 텍스트 파일로 저장</button><button class="mini del" data-act="clear">모두 지우기</button></div>
+ ${list.length?list.map(x=>{const tm=TEAMS.find(y=>y.id===x.team)||TEAMS[0];return `<div class="my-item"><div class="pc-h"><span class="tchip" style="background:${tm.color}">${tm.name}</span><b>${esc(x.title)}</b><span class="muted">${esc(x.ts)}</span><span class="sp"></span><button class="mini" data-cp="${x.id}">복사</button><button class="mini del" data-del="${x.id}">삭제</button></div><div class="pc-b">${fmt(x.text)}</div></div>`}).join(''):'<div class="empty">아직 담은 프롬프트가 없습니다.<br>각 카드의 <b>＋담기</b>를 누르면 여기에 모입니다.</div>'}`)}`}
+
+/* ===================== 렌더 ===================== */
+function render(){P={};pn=0;BUILD={};const t=T();
+ document.documentElement.style.setProperty('--team',t.color);
+ $('subtitle').textContent=`${S.profile.company} 본부 실무자 AI 활용 실습교재 · 인사 · 재경 · 경영기획 · 구매 · 경영지원`;
+ $('profsum').textContent=`${S.profile.company} · ${S.profile.industry} · ${S.profile.size} · ${role()}`;
+ $('teams').innerHTML=TEAMS.map(x=>`<button class="${x.id===S.team?'on':''}" data-team="${x.id}">${x.icon} ${x.name}</button>`).join('');
+ $('days').innerHTML=DAYS.map(d=>`<button class="${S.day===d[0]?'on':''}" data-day="${d[0]}">${d[1]?`<span class="no">${d[1]}</span>`:''}${d[2]} ${d[3]}${d[0]==='my'?` ${S.saved.length}`:''}</button>`).join('');
+ let h='';
+ if(S.day==='ov')h=renderOverview();
+ else if(S.day==='my')h=renderMy();
+ else{const secs=SECS[S.day],cur=S.sec[S.day],H=HERO[S.day],M={d1:D1,d2:D2,d3:D3}[S.day];
+  h=`<div class="secbar">${secs.map(s=>`<button class="${s[0]===cur?'on':''}" data-sec="${s[0]}">◎ ${s[1]}</button>`).join('')}</div>
+  <div class="hero"><span class="hb">${H[0]}</span><h2>${esc(H[1](t))}</h2>${H[2].map(x=>`<p>${x}</p>`).join('')}<p style="margin-top:8px">📌 ${t.icon} ${t.name} 사례 — <b style="color:#fff">${esc(t.issue)}</b></p>
+  <div class="chips">${secs.map(s=>`<button class="${s[0]===cur?'on':''}" data-sec="${s[0]}">◎ ${s[1]}</button>`).join('')}</div></div>${M[cur](t)}`}
+ $('main').innerHTML=h;
+ $('main').style.zoom=S.zoom/100;$('zoomv').textContent=S.zoom+'%';
+ $('foot').innerHTML=`${esc(S.profile.company)} 본부 사내 배포용 실습교재 · 사례의 새솔산업㈜는 실재하지 않는 가상 기업이며 모든 수치는 교육용 가상 자료입니다.`;
+ Object.keys(BUILD).forEach(updateBuilder)}
+
+/* ===================== 이벤트 ===================== */
+function toast(m){const el=$('toast');el.textContent=m;el.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('on'),1600)}
+function copy(text){const fb=()=>{const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy')}catch(e){}ta.remove()};
+ if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(text).catch(fb);else fb();toast('복사했습니다 — AI 창에 붙여 넣으세요')}
+function goTop(){window.scrollTo({top:0,behavior:'smooth'})}
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+ if(d.team){S.team=d.team;save();render();toast(TEAMS.find(x=>x.id===d.team).name+' 버전으로 바꿨습니다')}
+ else if(d.go){S.team=d.go;S.day='d1';S.sec.d1='open';save();render();goTop()}
+ else if(d.day){S.day=d.day;save();render();goTop()}
+ else if(d.sec){S.sec[S.day]=d.sec;save();render();goTop()}
+ else if(d.copy){copy(P[d.copy].text)}
+ else if(d.save){const p=P[d.save];S.saved.unshift({id:Date.now()+Math.random().toString(36).slice(2,6),team:S.team,title:p.title,text:p.text,ts:new Date().toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})});save();
+  const tab=document.querySelector('[data-day="my"]');if(tab)tab.lastChild.textContent=' 내 프롬프트 '+S.saved.length;toast('＋ 내 프롬프트에 담았습니다')}
+ else if(d.mode){S.bsMode=d.mode;save();render()}
+ else if(d.aud){S.aud=+d.aud;save();render()}
+ else if(d.cp){const x=S.saved.find(y=>y.id===d.cp);if(x)copy(x.text)}
+ else if(d.del){S.saved=S.saved.filter(y=>y.id!==d.del);save();render()}
+ else if(d.zoom){S.zoom=Math.max(70,Math.min(160,S.zoom+ +d.zoom));save();$('main').style.zoom=S.zoom/100;$('zoomv').textContent=S.zoom+'%'}
+ else if(d.act==='print'){window.print()}
+ else if(d.act==='profile'){const pe=$('profedit');pe.hidden=!pe.hidden;if(!pe.hidden){$('pf-company').value=S.profile.company;$('pf-industry').value=S.profile.industry;$('pf-size').value=S.profile.size;$('pf-role').value=role();$('pf-role-l').textContent=T().name+' 내 직무'}}
+ else if(d.act==='psave'){S.profile.company=$('pf-company').value.trim()||'우리 회사';S.profile.industry=$('pf-industry').value.trim()||'제조업';S.profile.size=$('pf-size').value.trim()||'-';S.profile.roles[S.team]=$('pf-role').value.trim()||T().role;$('profedit').hidden=true;save();render();toast('프로필을 반영했습니다')}
+ else if(d.act==='myall'){S.myAll=!S.myAll;save();render()}
+ else if(d.act==='export'){const list=S.myAll?S.saved:S.saved.filter(x=>x.team===S.team);if(!list.length){toast('저장할 프롬프트가 없습니다');return}
+  const txt=list.map(x=>`■ [${(TEAMS.find(y=>y.id===x.team)||{}).name}] ${x.title} (${x.ts})\n\n${x.text}`).join('\n\n────────────────────\n\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain;charset=utf-8'}));a.download='내_프롬프트.txt';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+ else if(d.act==='clear'){if(confirm('담아 둔 프롬프트를 모두 지울까요?')){S.saved=S.myAll?[]:S.saved.filter(x=>x.team!==S.team);save();render()}}
+});
+document.addEventListener('input',e=>{const el=e.target;if(!el.dataset||!el.dataset.f)return;S.forms[S.team+'.'+el.dataset.f]=el.value;save();
+ const w=el.closest('[data-builder]');if(w)updateBuilder(w.dataset.builder);
+ if(/^c\d$/.test(el.dataset.f))updateBuilder('agent')});
+document.addEventListener('change',e=>{const k=e.target.dataset&&e.target.dataset.chk;if(k){S.checks[k]=e.target.checked;save()}});
+render();
+</script>
+</body>
+</html>
