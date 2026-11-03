@@ -1,4 +1,4 @@
-<title>SG한국삼공 Pay-band 시뮬레이터</title>
+<title>SG한국삼공 보상 체계 분석</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,20 +13,20 @@
   --crit:#b9372b; --crit-soft:#fae2de; --warn:#b85f0c; --warn-soft:#fce9d3; --care:#8a6d00; --care-soft:#f8f0c8;
   --ok:#21784a; --ok-soft:#dcf0e3; --under:#2a5ea3; --under-soft:#dde8f8;
   --font:"IBM Plex Sans KR","Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",system-ui,sans-serif;
-  --r:6px;
+  --r:6px; --hl:rgba(240,150,20,.13);
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0f1512; --surface:#161e1a; --surface-2:#1d2722; --ink:#e4ece7; --muted:#97a69e; --line:#2a3630; --line-2:#3a4942;
   --accent:#3fb877; --accent-ink:#06130c; --accent-soft:#183326; --navy:#9cc2ea;
   --input:#4a4318; --stay:#3a3519; --cap:#5a3a22; --ovr:#1d3a52; --ov12:#1f4a2c; --ov23:#1f3a55; --ov34:#5a3624; --cell-ink:#e4ece7;
   --crit:#ff7b6b; --crit-soft:#46201b; --warn:#f2a256; --warn-soft:#432d16; --care:#e3c75a; --care-soft:#3a3315;
-  --ok:#5fcf8f; --ok-soft:#173826; --under:#7fb1f0; --under-soft:#1a2c46; color-scheme:dark;}}
+  --ok:#5fcf8f; --ok-soft:#173826; --under:#7fb1f0; --under-soft:#1a2c46; --hl:rgba(242,162,86,.16); color-scheme:dark;}}
 :root[data-theme="dark"]{
   --bg:#0f1512; --surface:#161e1a; --surface-2:#1d2722; --ink:#e4ece7; --muted:#97a69e; --line:#2a3630; --line-2:#3a4942;
   --accent:#3fb877; --accent-ink:#06130c; --accent-soft:#183326; --navy:#9cc2ea;
   --input:#4a4318; --stay:#3a3519; --cap:#5a3a22; --ovr:#1d3a52; --ov12:#1f4a2c; --ov23:#1f3a55; --ov34:#5a3624; --cell-ink:#e4ece7;
   --crit:#ff7b6b; --crit-soft:#46201b; --warn:#f2a256; --warn-soft:#432d16; --care:#e3c75a; --care-soft:#3a3315;
-  --ok:#5fcf8f; --ok-soft:#173826; --under:#7fb1f0; --under-soft:#1a2c46; color-scheme:dark;}
+  --ok:#5fcf8f; --ok-soft:#173826; --under:#7fb1f0; --under-soft:#1a2c46; --hl:rgba(242,162,86,.16); color-scheme:dark;}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5;font-variant-numeric:tabular-nums}
@@ -35,6 +35,9 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 header.top{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
 header.top .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding-block:10px}
 .brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand .logo{display:inline-flex;background:#fff;border-radius:6px;padding:3px 6px;flex:none}
+.brand .logo img{display:block;height:30px;width:auto}
+.brand b{font-size:16px}
 .brand .mark{width:28px;height:28px;border-radius:6px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:700;font-size:13px;flex:none}
 .brand b{font-size:15px;letter-spacing:-.01em}
 .brand span{color:var(--muted);font-size:12px}
@@ -97,8 +100,16 @@ th.filtered .fbtn{background:#ffe066;border-color:#ffe066}
 th.filtered .fbtn::before{content:"⏷";font-size:9px}
 th.filtered .fbtn{font-size:0}
 th.fth:hover .fbtn{outline:2px solid var(--accent)}
-.fcount{font-size:12px;color:var(--warn);background:var(--warn-soft);padding:4px 8px;border-radius:6px;margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.fcount{font-size:12px;color:var(--ink);background:var(--warn-soft);border:1px solid var(--warn);padding:4px 8px;border-radius:6px;margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .fcount button{font-size:12px;padding:2px 8px}
+.fcount .tagS,.fcount .tagF{font-size:11px;font-weight:700;padding:1px 6px;border-radius:4px;background:var(--warn);color:#fff}
+.fcount .tagF{margin-left:6px}
+thead th.sorted,thead th.filtered{background:var(--warn)!important;color:#fff!important}
+td.colhl{background-image:linear-gradient(var(--hl),var(--hl));box-shadow:inset 2px 0 0 var(--warn),inset -2px 0 0 var(--warn)}
+tr:last-child td.colhl{box-shadow:inset 2px 0 0 var(--warn),inset -2px 0 0 var(--warn),inset 0 -2px 0 var(--warn)}
+.c-miss{background:var(--surface-2);color:var(--muted);font-style:italic}
+tr.ev-cur td{background-image:linear-gradient(var(--hl),var(--hl))}
+tr.man-row td{border-top:2px solid var(--line-2)}
 .fmenu{position:absolute;z-index:40;width:270px;background:var(--surface);color:var(--ink);border:1px solid var(--line-2);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:6px;font-size:13px}
 .fmenu hr{border:0;border-top:1px solid var(--line);margin:4px 0}
 .fmenu .fi{display:flex;gap:8px;align-items:center;width:100%;border:0;background:transparent;text-align:left;padding:6px 8px;border-radius:4px}
@@ -181,11 +192,11 @@ textarea{width:100%;min-height:110px;font:12px/1.4 ui-monospace,Menlo,Consolas,m
 </style>
 
 <header class="top"><div class="wrap">
-  <div class="brand"><div class="mark">30</div><div><b>Pay-band 시뮬레이터</b><br><span>SG한국삼공 인사팀 · 직급 Pay-band 분류 / 임금분석 / 인건비 분석</span></div></div>
+  <div class="brand"><span class="logo"><img src="data:image/jpeg;base64,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" alt="SG 한국삼공" width="120" height="40"></span><b>SG한국삼공 보상 체계 분석</b></div>
   <nav class="apps" aria-label="사이트 전환">
     <a href="#payband" id="nav-payband">① Pay-band 분류·시뮬레이션</a>
     <a href="#analysis" id="nav-analysis">② 임금분석</a>
-    <a href="#labor" id="nav-labor">③ 인건비 분석 <small style="font-weight:500">예정</small></a>
+    <a href="#labor" id="nav-labor">③ 인건비 분석</a>
   </nav>
   <div class="tools">
     <span id="srcbadge" class="srcbadge">예시 데이터</span>
@@ -222,7 +233,12 @@ function defaultCrit(){return{
   stay:[[4,0],[4,0],[5,0]],                                           // ④ 기준 연수 / 누락 연수
   rate:0.025,                                                         // ④ 연 상승률
   mode:'배치 연차 기준',                                               // ④ 첫 승진 시점 산정
-  ovr:[Array(30).fill(''),Array(30).fill(''),Array(30).fill(''),Array(30).fill('')] // ⑥ 수기 조정 (G1..G4)
+  ovr:[Array(30).fill(''),Array(30).fill(''),Array(30).fill(''),Array(30).fill('')], // ⑥ 수기 조정 (G1..G4)
+  promo:[350,400,350],                                                // ④ 승진 정액 인상(만원): G2·G3·G4 승진 시
+  firstYear:2028, baseYear:2026,                                      // ④ 최초 승진 가능 연도 / 현 연봉 기준연도
+  target:{G1:['','',''],G2:['','',''],G3:['G1','G2','G3'],G4:['G2','G3','G4'],G5:['G2','G3','G4'],G6:['','','']}, // ⑦ 현직급별 시뮬레이션 대상 직급
+  evalTbl:{S:[0,'G4'],'A+':[1,'G4'],A:[2,'G4'],B:[3,'G3'],C:[4,'G3']}, // ⑧ 인사평가별 진급누락 횟수 / 최고 도달 직급
+  delayPer:1                                                          // ⑧ 누락 1회당 지연(년)
 };}
 function demoPeople(){
   // 가상의 예시 인원 — 실제 직원 아님
@@ -251,7 +267,8 @@ function demoPeople(){
    [ 50309,'조아라',40,'경영지원팀','일반직','책임','G4','2012-07-02','2019-04-01',72400000],
    [ 40721,'유건우',45,'연구소','연구직','수석','G6','2007-03-02','2015-04-01',99000000],
    [ 30130,'노지원',29,'재무팀','일반직','담당','G1','2022-07-01','2022-07-01',45600000]];
-  return R.map(r=>({id:String(r[0]).padStart(6,'0'),name:r[1],age:r[2],dept:r[3],job:r[4],title:r[5],grade:r[6],hire:r[7],gdate:r[8],period:'',adj:'',salary:r[9]}));
+  const EV=['A','S','A+','A','B','A','B','A+','S','A','B','C','A','A+','A','B','S','A','A+','A','B','A','S','A'];
+  return R.map((r,i)=>({id:String(r[0]).padStart(6,'0'),name:r[1],age:r[2],dept:r[3],job:r[4],title:r[5],grade:r[6],hire:r[7],gdate:r[8],period:'',adj:'',salary:r[9],eval:EV[i]||''}));
 }
 function defaultAn(rate){return{basis:'lower',rate:rate,byGrade:false,gRates:[rate,rate,rate,rate],bandRate:0,horizon:5,scen:'A',qadj:[1.0,0.5,0,-1.0],th1:75,th2:90,
   f:{status:'all',grade:'all',dept:'all',q:''},cf:{grade:'all',status:'all',q:''}};}
@@ -260,7 +277,7 @@ function demoCurBands(){return[[3800,'',5000],[4400,'',6000],[5200,'',7200],[620
 function fresh(){const c=defaultCrit();return{crit:c,people:demoPeople(),source:'demo',sourceName:'',sel:'',sheet:'info',an:defaultAn(+(c.rate*100).toFixed(2)),
   curBands:demoCurBands(),curDemo:true,anTab:'cur',findG:'',nameBasis:'app'};}
 let S=(()=>{try{const s=JSON.parse(localStorage.getItem(LS_KEY));if(s&&s.crit&&Array.isArray(s.people)){const d=fresh();
-  const m=Object.assign({curBands:d.curBands,curDemo:true,anTab:'cur',findG:'',nameBasis:'app'},s);
+  const m=Object.assign({curBands:d.curBands,curDemo:true,anTab:'cur',findG:'',nameBasis:'app'},s);m.crit=Object.assign(defaultCrit(),s.crit);
   const f=Object.assign({},d.an.f,(s.an||{}).f||{}),cf=Object.assign({},d.an.cf,(s.an||{}).cf||{});m.an=Object.assign(d.an,s.an||{});m.an.f=f;m.an.cf=cf;return m;}}catch(e){}return fresh();})();
 function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(S))}catch(e){}}
 
@@ -292,36 +309,46 @@ function stdTable(c){ // ⑤ 직급·연차별 기준연봉표 (원), T[g][1..30
       cls[g][y]=o!=null?'c-ovr':(v>=MX?'c-cap':(g<4&&y>stayYears(c,g)?'c-stay':''));}}
   return{T,cls};
 }
-function scenario(p,g,c,tab){ // 계산 시트 J~DD(①) / DF~HA(②)
-  const sal=num(p.salary);const F=remYears(p,c)??0;const row=tab.T[g];
-  let n0=0;for(let y=1;y<=30;y++)if(row[y]<=sal)n0++;n0=Math.max(1,n0);
-  const d1=g>=4?999:(c.mode==='현 시점부터 기준연수'?stayYears(c,g):Math.max(stayYears(c,g)-n0,0)+1);
-  const d2=g>=3?999:d1+stayYears(c,g+1);
-  const d3=g>=2?999:d2+stayYears(c,g+2);
-  const gr=t=>g+(t>=d1)+(t>=d2)+(t>=d3);
+const EVALS=['S','A+','A','B','C'];
+function evalInfo(c,ev){const k=EVALS.includes(ev)?ev:'S';const e=(c.evalTbl||{})[k]||[0,'G4'];
+  const kx=(+e[0]||0)*(+c.delayPer||0);const ky=/^G[1-4]$/.test(e[1]||'')?+e[1][1]:4;return{k,kx,ky,miss:+e[0]||0,label:EVALS.includes(ev)?ev:'S(미입력)'};}
+// 계산 시트 J~DD(①) / DF~GZ(②) / HB~KV(③) / 303행(수기) — 인사평가 누락·최고직급·승진 정액 반영
+function scenario(p,g,c,tab,ev){
+  const sal=num(p.salary);const F=remYears(p,c)??0;const E=evalInfo(c,ev===undefined?p.eval:ev);const kx=E.kx;
+  const row=tab.T[g];let n0=0;for(let y=1;y<=30;y++)if(row[y]<=sal)n0++;n0=Math.max(1,n0);
+  const first=(+c.firstYear||0)-(+c.baseYear||0);
+  const d1=g>=4?999:Math.max(first,(c.mode==='현 시점부터 기준연수'?stayYears(c,g):Math.max(stayYears(c,g)-n0,0)+1))+kx;
+  const d2=g>=3?999:d1+stayYears(c,g+1)+kx;
+  const d3=g>=2?999:d2+stayYears(c,g+2)+kx;
+  const top=Math.max(g,E.ky);const gr=t=>Math.min(top,g+(t>=d1)+(t>=d2)+(t>=d3));
+  const end=F+1;const MX=gg=>c.bands[gg-1][1]*10000;
   const G=[],W=[];
   for(let t=0;t<=45;t++){G[t]=gr(t);
     if(t===0){W[0]=sal;continue;}
-    const prev=W[t-1];
-    if(t>F){W[t]=prev;continue;}
-    const gt=G[t];let idx=t>=d3?t-d3+1:t>=d2?t-d2+1:t>=d1?t-d1+1:n0+t;idx=Math.min(30,idx);
-    W[t]=Math.max(prev,Math.min(c.bands[gt-1][1]*10000,Math.max(prev*(1+c.rate),tab.T[gt][idx])));}
-  const fi=Math.min(F,45);const age=num(p.age);
+    const prev=W[t-1];if(t>end){W[t]=prev;continue;}
+    W[t]=Math.min(MX(G[t]),prev*(1+c.rate)+(G[t]>G[t-1]?(+c.promo[G[t]-2]||0)*10000:0));}
+  const fi=Math.min(end,45);const age=num(p.age)||0;const D=[d1,d2,d3];
   let path;
   if(g>=4)path='최고 직급';
-  else{const parts=[];[d1,d2,d3].forEach((d,k)=>{if(d<=F&&g+k+1<=4)parts.push(`${age+d}세 G${g+k+1}`);});path=parts.length?parts.join(' → '):'승진 없음(정년 도달)';}
-  const cagr=F>0&&sal>0?Math.pow(W[fi]/sal,1/F)-1:null;
-  return{g,n0,d:[d1,d2,d3],G,W,final:W[fi],finalG:G[fi],path,F,cagr};
+  else{const parts=[];D.forEach((d,k)=>{if(d<=end&&g+k+1<=top)parts.push(`${age-1+d}세 G${g+k+1}${kx>0?`(누락 ${kx}년)`:''}`);});path=parts.length?parts.join(' → '):'승진 없음(정년 도달)';}
+  const missAt=t=>kx>0&&D.some((d,k)=>t>=d-kx&&t<d&&g+k+1<=top);
+  const final=Math.min(W[fi],MX(G[fi]));
+  const cagr=sal>0?Math.pow(final/sal,1/(F+1))-1:null;
+  return{g,n0,d:D,G,W,final,finalG:G[fi],path,F,end,cagr,kx,ky:E.ky,ev:E.label,missAt};
 }
+function simTargets(p,k,c){const t=(c.target||{})[p.grade]||[];const gv=v=>/^G[1-4]$/.test(v||'')?+v[1]:null;
+  const q=gv(t[0]);if(q)return[q,gv(t[1]),gv(t[2])];
+  const g1=k===''?null:k==='밴드 미달'?1:k==='밴드 초과'?4:+k[1];return[g1,k.includes(',')?+k[5]:null,null];}
 function computeAll(){
   const c=S.crit,tab=stdTable(c);
   const rows=S.people.filter(p=>String(p.name||'').trim()!=='').map(p=>{
     const sal=num(p.salary);const k=classify(sal,c);
     const g1=k===''?null:k==='밴드 미달'?1:k==='밴드 초과'?4:+k[1];
     const g2=k.includes(',')?+k[5]:null;
-    const sc1=g1&&sal?scenario(p,g1,c,tab):null;const sc2=g2&&sal?scenario(p,g2,c,tab):null;
+    const tg=k===''?[null,null,null]:simTargets(p,k,c);
+    const [sc1,sc2,sc3]=tg.map(g=>g&&sal?scenario(p,g,c,tab):null);
     const fin=/^G[1-4]$/.test(p.final||'')?+p.final[1]:null;
-    return{p,sal,k,g1,g2,fin,app:fin||g1,rem:remYears(p,c),sc1,sc2};});
+    return{p,sal,k,g1,g2,tg,fin,app:fin||g1,rem:remYears(p,c),sc1,sc2,sc3,ev:evalInfo(c,p.eval).label};});
   return{c,tab,rows};
 }
 
@@ -369,9 +396,17 @@ function applySort(tbl,id){const st=SORTST[id];const hr=tbl.tHead.rows[tbl.tHead
     const d=(typeof va==='number'&&typeof vb==='number')?va-vb:String(va).localeCompare(String(vb),'ko',{numeric:true});return d*st.d;});
     rows.forEach(r=>tb.appendChild(r));fixed.forEach(r=>tb.appendChild(r));}
   let shown=0;rows.forEach(r=>{if(r.cells.length<2){return;}const ok=rowPass(r,id,-1);r.hidden=!ok;if(ok)shown++;});
+  // 정렬·필터 중인 열 강조
+  const act=new Set(Object.keys(f).map(Number));if(st)act.add(st.i);
+  [...hr.cells].forEach((th,i)=>th.classList.toggle('sorted',!!st&&st.i===i));
+  rows.forEach(r=>[...r.cells].forEach((td,i)=>td.classList.toggle('colhl',act.has(i))));
   let cap=tbl.parentElement.querySelector(':scope > .fcount');const nf=Object.keys(f).length;
-  if(nf){if(!cap){cap=document.createElement('div');cap.className='fcount';tbl.parentElement.insertBefore(cap,tbl);}
-    cap.innerHTML=`필터 적용 중: <b>${shown}</b> / ${rows.length}행 표시 <button type="button">모든 필터 해제</button>`;cap.querySelector('button').onclick=()=>{delete FILTST[id];applySort(tbl,id);};}
+  if(nf||st){if(!cap){cap=document.createElement('div');cap.className='fcount';tbl.parentElement.insertBefore(cap,tbl);}
+    const lb=i=>esc(thLabel(hr.cells[i]));
+    cap.innerHTML=(st?`<span class="tagS">정렬</span> <b>${lb(st.i)}</b> ${st.d>0?'오름차순 ▲':'내림차순 ▼'}`:'')+
+      (nf?`<span class="tagF">필터</span> <b>${Object.keys(f).map(i=>lb(+i)).join(', ')}</b> · ${shown} / ${rows.length}행 표시`:'')+
+      (st?'<button type="button" data-x="s">정렬 해제</button>':'')+(nf?'<button type="button" data-x="f">모든 필터 해제</button>':'');
+    cap.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(b.dataset.x==='s')delete SORTST[id];else delete FILTST[id];applySort(tbl,id);});}
   else cap?.remove();}
 function closeFilter(){document.querySelector('.fmenu')?.remove();document.removeEventListener('mousedown',outsideFilter,true);}
 function outsideFilter(e){if(!e.target.closest('.fmenu'))closeFilter();}
@@ -425,7 +460,6 @@ const SHEETS=[['info','기본정보'],['class','분류'],['life','생애연봉 �
 function renderPayband(){
   const v=document.getElementById('view-payband');
   v.innerHTML=`<h1>직급 Pay-band 분류</h1>
-  <p class="sub">엑셀 「직급_PayBand_분류_업로드용」과 같은 산식입니다. 노란 칸을 고치면 분류·기준연봉표·생애연봉 시뮬레이션이 즉시 다시 계산됩니다. 표 머리글 ▾를 누르면 엑셀처럼 정렬·필터할 수 있습니다. 연봉 단위: 원 / 기준 단위: 만원.</p>
   <div class="sheettabs" role="tablist">${SHEETS.map(([k,l])=>`<button role="tab" data-sheet="${k}" aria-selected="${S.sheet===k}">${l}</button>`).join('')}</div>
   <div id="sheet-body"></div>`;
   v.querySelectorAll('[data-sheet]').forEach(b=>b.onclick=()=>{S.sheet=b.dataset.sheet;save();renderPayband();});
@@ -435,12 +469,12 @@ function renderPayband(){
 /* ---- 기본정보 ---- */
 const INFO_COLS=[['id','사번','text',72],['name','이름','text',66],['age','나이','number',46],['dept','부서','text',96],['job','직군','text',62],['title','직책','text',52],
   ['grade','현직급<br>(6단계)','grade',60],['hire','입사년도','date',124],['_rem','남은<br>정년','auto',46],['gdate','현직급<br>발령일','date',124],['period','현직급<br>기간','text',64],
-  ['adj','조정<br>(±년)','number',46],['salary','현 연봉(원)','won',112],['_cls','분류 직급<br>(1차 자동)','auto',78],['final','최종 분류 직급<br>(수기 확정)','final',118]];
+  ['adj','조정<br>(±년)','number',46],['salary','현 연봉(원)','won',112],['_cls','분류 직급<br>(1차 자동)','auto',78],['eval','인사평가','eval',70],['final','최종 분류 직급<br>(수기 확정)','final',118]];
 const singleGrade=k=>k==='밴드 미달'?'G1':k==='밴드 초과'?'G4':(/^G\d$/.test(k||'')?k:'');
 const isCand=(k,f)=>!f||!k||k.includes(f)||(k==='밴드 미달'&&f==='G1')||(k==='밴드 초과'&&f==='G4');
 function sheetInfo(){
   const body=document.getElementById('sheet-body');const c=S.crit;
-  body.innerHTML=`<div class="panel"><div class="bar"><h2 class="grow" style="margin:0">인원 입력 <span class="sub">(엑셀 A~M열 + 최종 분류 직급)</span></h2>
+  body.innerHTML=`<div class="panel"><div class="bar"><h2 class="grow" style="margin:0">인원 입력</h2>
      <span id="fin-status" class="sub"></span>
      <button id="fill-single" type="button" title="분류가 한 직급뿐인 인원(밴드 미달→G1, 초과→G4 포함)의 최종 직급을 채웁니다. 이미 입력한 칸은 그대로 둡니다.">단일 직급 자동 채우기</button>
      <button id="clear-single" type="button" title="「단일 직급 자동 채우기」로 채운 값만 지웁니다. 직접 고른 최종 직급은 그대로 둡니다.">자동 채우기 해제</button>
@@ -461,12 +495,25 @@ function sheetInfo(){
        </div>
        <p class="note">※ 경계값(예: 6,700)이 두 중첩구간에 걸리면 상위 구간 우선 / 중첩구간 밖 금액은 단일 직급, 밴드 밖은 '밴드 미달/초과' / 이 기준이 ② 임금분석의 신규 Pay-band로 그대로 연동됩니다.</p></div>
      <div class="panel"><h2>④ 생애연봉 시뮬레이션 기준</h2>
-       <table class="crit-tbl"><thead><tr><th>구분</th><th>기준 연수</th><th>누락(지연) 연수</th><th>적용 연수</th></tr></thead><tbody>
-       ${['G1 체류 → G2 승진','G2 체류 → G3 승진','G3 체류 → G4 승진'].map((l,i)=>`<tr><td class="l">${l}</td><td class="in"><input type="number" data-crit="stay.${i}.0" value="${c.stay[i][0]}"></td><td class="in"><input type="number" data-crit="stay.${i}.1" value="${c.stay[i][1]}"></td><td class="auto" id="stay-app-${i}">${stayYears(c,i+1)}</td></tr>`).join('')}
+       <div class="scroll"><table class="crit-tbl"><thead><tr><th>구분</th><th>기준 연수</th><th>누락(지연) 연수</th><th>적용 연수</th><th>승진 정액<br>인상(만원)</th></tr></thead><tbody>
+       ${['G1 체류 → G2 승진','G2 체류 → G3 승진','G3 체류 → G4 승진'].map((l,i)=>`<tr><td class="l">${l}</td><td class="in"><input type="number" data-crit="stay.${i}.0" value="${c.stay[i][0]}"></td><td class="in"><input type="number" data-crit="stay.${i}.1" value="${c.stay[i][1]}"></td><td class="auto" id="stay-app-${i}">${stayYears(c,i+1)}</td><td class="in"><input type="number" data-crit="promo.${i}" value="${c.promo[i]}"></td></tr>`).join('')}
        <tr><td class="l">연 상승률</td><td class="in"><input type="number" step="0.1" data-crit="ratePct" value="${+(c.rate*100).toFixed(3)}"></td><td colspan="2" class="l note" style="margin:0">% (예: 2.5)</td></tr>
-       <tr><td class="l">첫 승진 시점 산정</td><td class="in" colspan="3"><select data-crit="mode"><option ${c.mode==='배치 연차 기준'?'selected':''}>배치 연차 기준</option><option ${c.mode==='현 시점부터 기준연수'?'selected':''}>현 시점부터 기준연수</option></select></td></tr>
+       <tr><td class="l">첫 승진 시점 산정</td><td class="in" colspan="3"><select data-crit="mode"><option ${c.mode==='배치 연차 기준'?'selected':''}>배치 연차 기준</option><option ${c.mode==='현 시점부터 기준연수'?'selected':''}>현 시점부터 기준연수</option></select></td><td></td></tr>
+       <tr><td class="l">최초 승진 가능 연도</td><td class="in"><input type="number" data-crit="firstYear" value="${c.firstYear}"></td><td class="l">현 연봉 기준연도</td><td class="in" colspan="2"><input type="number" data-crit="baseYear" value="${c.baseYear}"></td></tr>
+       </tbody></table></div>
+       <p class="note">※ 매년 연봉 = 전년 × (1+상승률) / 승진 연도 = 전년 × (1+상승률) + 승진 정액 / 직급초임 없음 / 직급 상한(${c.bands.map(b=>b[1].toLocaleString('ko-KR')).join('·')}만원) 초과 불가 / 누락 연수 +1 → 1년 늦게 승진</p>
+       <p class="note">※ 현 연봉 = ${String(c.baseYear).slice(2)}년 연봉(나이−1세) / ${String(+c.baseYear+1).slice(2)}년은 상승률만 / ${String(c.firstYear).slice(2)}년부터 승진 / 나이는 ${String(+c.baseYear+1).slice(2)}년 기준</p></div>
+     <div class="panel"><h2>⑦ 현직급별 시뮬레이션 대상 직급 <span class="sub">(노란색 수정 가능)</span></h2>
+       <table class="crit-tbl"><thead><tr><th>현직급</th><th>시나리오①</th><th>시나리오②</th><th>시나리오③</th></tr></thead><tbody>
+       ${GRADE6.map(g=>`<tr><td><b>${g}</b></td>${[0,1,2].map(j=>`<td class="in"><select data-crit="target.${g}.${j}"><option value="">(비움)</option>${['G1','G2','G3','G4'].map(x=>`<option ${(c.target[g]||[])[j]===x?'selected':''}>${x}</option>`).join('')}</select></td>`).join('')}</tr>`).join('')}
        </tbody></table>
-       <p class="note">※ 상승률은 ⑤표·시뮬레이션 동일 적용 / 누락 연수 +1 → 1년 늦게 승진 / 배치 연차 기준: 원직 경로 초과(체류) 인원은 익년 승진</p></div>
+       <p class="note">※ 비워 두면 현 연봉 기준 분류(중첩 구간 2개 직급)로 시뮬레이션 / 입력 시 해당 직급들로 시뮬레이션 (시나리오①이 비면 ②·③도 무시)</p></div>
+     <div class="panel"><h2>⑧ 인사평가별 진급 누락 기준 <span class="sub">(노란색 수정 가능)</span></h2>
+       <table class="crit-tbl"><thead><tr><th>평가등급</th><th>직급별 진급누락(회)</th><th>최고 도달 직급</th><th>승진마다 지연</th></tr></thead><tbody>
+       ${EVALS.map(e=>`<tr><td><b>${e}</b></td><td class="in"><input type="number" min="0" data-crit="evalTbl.${e}.0" value="${c.evalTbl[e][0]}"></td><td class="in"><select data-crit="evalTbl.${e}.1">${['G1','G2','G3','G4'].map(x=>`<option ${c.evalTbl[e][1]===x?'selected':''}>${x}</option>`).join('')}</select></td><td class="auto" data-evd="${e}">${(+c.evalTbl[e][0]||0)*(+c.delayPer||0)}년</td></tr>`).join('')}
+       <tr><td class="l">누락 1회당 지연</td><td class="in"><input type="number" min="0" data-crit="delayPer" value="${c.delayPer}"></td><td colspan="2" class="l note" style="margin:0">년</td></tr>
+       </tbody></table>
+       <p class="note">※ 기본정보 「인사평가」 열 기준 / 미입력 시 S 적용 / 모든 승진 단계마다 누락 횟수 × 지연 연수만큼 늦어짐 (예: A = 매 승진 2년 지연) / 최고 도달 직급 이상 승진 불가</p></div>
    </div>
    <div class="grid2eq" style="margin-top:16px">
      <div class="panel"><h2>③ 분류 결과 집계 <span class="sub">(현직급 × 분류 직급(1차 자동), 단위: 명)</span></h2><div class="scroll" id="matrix"></div></div>
@@ -482,6 +529,7 @@ function sheetInfo(){
   tb.innerHTML=S.people.map((p,i)=>`<tr data-i="${i}"><td><button class="row-del" type="button" data-del="${i}" aria-label="${esc(p.name)} 행 삭제">×</button></td>${INFO_COLS.map(([k,,t])=>{
     if(t==='auto')return`<td class="auto" data-auto="${k}"></td>`;
     if(t==='final')return`<td class="fin" data-fin><div class="finbox"><select data-f="final" aria-label="최종 분류 직급"><option value="">미확정</option>${['G1','G2','G3','G4'].map(g=>`<option ${p.final===g?'selected':''}>${g}</option>`).join('')}</select><span class="fintag">확정</span></div></td>`;
+    if(t==='eval')return`<td class="in"><select data-f="eval" aria-label="인사평가"><option value="">미입력</option>${EVALS.map(e=>`<option ${p.eval===e?'selected':''}>${e}</option>`).join('')}</select></td>`;
     if(t==='grade')return`<td class="in"><select data-f="${k}"><option value=""></option>${GRADE6.map(g=>`<option ${p[k]===g?'selected':''}>${g}</option>`).join('')}</select></td>`;
     if(t==='date')return`<td class="in"><input type="date" data-f="${k}" value="${esc(dateStr(p[k]))}"></td>`;
     if(t==='won')return`<td class="in"><input type="text" inputmode="numeric" data-f="${k}" data-won value="${num(p[k])==null?'':fW(num(p[k]))}" style="text-align:right"></td>`;
@@ -507,7 +555,12 @@ function setCrit(path,val){const c=S.crit;
   if(path==='ratePct'){c.rate=(+val||0)/100;return;}
   if(path==='mode'){c.mode=val;return;}
   if(path==='retAge'){c.retAge=+val||0;return;}
-  const [a,i,j]=path.split('.');c[a][+i][+j]=+val||0;}
+  if(['firstYear','baseYear','delayPer'].includes(path)){c[path]=+val||0;return;}
+  const [a,i,j]=path.split('.');
+  if(a==='promo'){c.promo[+i]=+val||0;return;}
+  if(a==='target'){(c.target[i]=c.target[i]||['','',''])[+j]=val;return;}
+  if(a==='evalTbl'){c.evalTbl[i][+j]=j==='0'?(+val||0):val;return;}
+  c[a][+i][+j]=+val||0;}
 function refreshInfo(){
   const {c,tab}=computeAll();
   document.querySelectorAll('#info-tbl tbody tr').forEach(tr=>{const p=S.people[+tr.dataset.i];if(!p)return;
@@ -517,6 +570,7 @@ function refreshInfo(){
     const fc=tr.querySelector('[data-fin]');if(fc){fc.dataset.v=finRank(p.final);fc.classList.toggle('on',!!p.final);fc.classList.toggle('auto',!!p.final&&p.finalAuto===true);const tg=fc.querySelector('.fintag');if(tg)tg.textContent=p.finalAuto===true?'자동':'수기';fc.classList.toggle('bad',!!p.final&&!isCand(cl,p.final));}
     tr.classList.toggle('confirmed',!!p.final);});
   for(let i=0;i<3;i++){const e=document.getElementById('stay-app-'+i);if(e)e.textContent=stayYears(c,i+1);}
+  document.querySelectorAll('[data-evd]').forEach(e=>{e.textContent=((+c.evalTbl[e.dataset.evd][0]||0)*(+c.delayPer||0))+'년';});
   const named=S.people.filter(p=>String(p.name||'').trim());const undec=named.filter(p=>!p.final).length;const fs=document.getElementById('fin-status');
   if(fs)fs.innerHTML=`최종 확정 <b style="color:var(--accent)">${named.length-undec}명</b> / 미확정 <b>${undec}명</b>`;
   const cnt={};GRADE6.forEach(g=>{cnt[g]={};CLASS_KEYS.forEach(k=>cnt[g][k]=0);});
@@ -541,8 +595,8 @@ function stdTableHTML(c,tab,n){
 }
 function copyText(title,txt,ok){navigator.clipboard?.writeText(txt).then(()=>toast(ok),()=>showText(title,txt)) ?? showText(title,txt);}
 function copyTSV(){
-  const head=['사번','이름','나이','부서','직군','직책','현직급','입사년도','남은 정년 년수','현직급발령일','현직급 기간','조정','현 연봉','분류 직급','최종 분류 직급'];
-  const c=S.crit;const lines=[head.join('\t')].concat(S.people.map(p=>[p.id,p.name,p.age,p.dept,p.job,p.title,p.grade,dotDate(p.hire),remYears(p,c)??'',dotDate(p.gdate),periodText(p),p.adj,p.salary,classify(num(p.salary),c),p.final||''].join('\t')));
+  const head=['사번','이름','나이','부서','직군','직책','현직급','입사년도','남은 정년 년수','현직급발령일','현직급 기간','조정','현 연봉','분류 직급','인사평가','최종 분류 직급'];
+  const c=S.crit;const lines=[head.join('\t')].concat(S.people.map(p=>[p.id,p.name,p.age,p.dept,p.job,p.title,p.grade,dotDate(p.hire),remYears(p,c)??'',dotDate(p.gdate),periodText(p),p.adj,p.salary,classify(num(p.salary),c),p.eval||'',p.final||''].join('\t')));
   copyText('표 복사',lines.join('\n'),'표를 복사했습니다. 엑셀에 붙여넣으세요.');
 }
 
@@ -559,7 +613,7 @@ function sheetClass(){
     <label class="field">기준<select id="nb"><option value="app" ${basis==='app'?'selected':''}>적용 직급 (최종 확정 우선)</option><option value="auto" ${basis==='auto'?'selected':''}>분류 직급 (1차 자동, 중첩 포함)</option></select></label></div>
     <div class="ncards">${keys.filter(k=>basis==='app'||grp[k].length).map(k=>`<div class="ncard ${basis==='auto'?classCss(k):''}"><div class="nh"><b>${k}</b><span>${grp[k].length}명</span></div>
       <ol>${grp[k].sort((a,b)=>b.sal-a.sal).map(r=>`<li><span>${esc(r.p.name)}${r.fin?'<span class="fintag on">확정</span>':''}</span><small>${esc(r.p.grade)} · ${fW(r.sal)}</small></li>`).join('')||'<li class="note">해당 없음</li>'}</ol></div>`).join('')}</div></div>
-  <div class="panel" style="margin-top:16px"><div class="bar"><h2 class="grow" style="margin:0">개인별 분류 결과 <span class="sub">${rows.length}명 · 머리글 ▾로 정렬·필터</span></h2>
+  <div class="panel" style="margin-top:16px"><div class="bar"><h2 class="grow" style="margin:0">개인별 분류 결과(${rows.length}명)</h2>
     <label class="field">적용 직급<select id="cf"><option value="all">전체</option>${['G1','G2','G3','G4'].map(g=>`<option ${cf===g?'selected':''}>${g}</option>`).join('')}<option value="none" ${cf==='none'?'selected':''}>미확정만</option></select></label></div>
   <div class="scroll"><table id="class-tbl"><thead><tr><th>사번</th><th>이름</th><th>나이</th><th>부서</th><th>직책</th><th>현직급</th><th>남은 정년 년수</th><th>현 연봉(원)</th><th>분류 직급<br>(1차 자동)</th><th>이동가능<br>직급 수</th><th>최종 분류 직급<br>(수기)</th><th>적용 직급</th><th>구분</th></tr></thead><tbody>
   ${rows.filter(r=>cf==='all'||(cf==='none'?!r.fin:'G'+r.app===cf)).map(r=>`<tr class="${r.fin?'confirmed':''}"><td>${esc(r.p.id)}</td><td>${esc(r.p.name)}</td><td>${esc(r.p.age)}</td><td class="l">${esc(r.p.dept)}</td><td>${esc(r.p.title)}</td><td>${esc(r.p.grade)}</td><td>${r.rem??''}</td>
@@ -598,69 +652,94 @@ function bindFinder(rows,fn){
 }
 
 /* ---- 생애연봉 시뮬레이션 ---- */
+const SC_LBL=['시나리오 ①','시나리오 ②','시나리오 ③'];const SC_COL=['var(--accent)','var(--warn)','var(--navy)','var(--crit)'];
+const evOf=r=>r.ev;
 function sheetLife(){
   const {c,tab,rows}=computeAll();const body=document.getElementById('sheet-body');const r=selRow(rows);
-  const cap=c.bands[3][1]*10000;
-  const line=(lbl,sc)=>sc?`<tr><td class="l">${lbl}${r.fin===sc.g?'<span class="fintag on">최종 확정</span>':''}</td><td>G${sc.g}</td><td class="num ${sc.final>cap?'c-over':''}">${fW(sc.final)}</td><td>G${sc.finalG}</td></tr>`:`<tr><td class="l">${lbl}</td><td>-</td><td class="num">-</td><td>-</td></tr>`;
+  const cap=c.bands[3][1]*10000;const scs=r?[r.sc1,r.sc2,r.sc3]:[];
+  const line=(i,sc)=>sc?`<tr><td class="l">${SC_LBL[i]}${r.fin===sc.g?'<span class="fintag on">최종 확정</span>':''}</td><td>G${sc.g}</td><td class="l">${sc.path}</td><td>G${sc.finalG}</td><td class="num ${sc.final>=cap?'c-over':''}">${fW(sc.final)}</td></tr>`:`<tr><td class="l">${SC_LBL[i]}</td><td>-</td><td>-</td><td>-</td><td class="num">-</td></tr>`;
+  const capCnt=k=>rows.filter(x=>[x.sc1,x.sc2,x.sc3].some((s,i)=>(k==null||i===k)&&s&&s.final>=cap)).length;
   body.innerHTML=`<div class="panel">${finderHTML(rows)}</div>
-   <div class="grid2" style="margin-top:16px"><div class="panel"><h2>만 ${c.retAge}세 최종연봉 비교 ${r?`<span class="sub">— ${esc(r.p.name)} (${esc(r.p.grade)} · 분류 ${r.k}${r.fin?` · 최종 ${esc(r.p.final)}`:''})</span>`:''}</h2>
-    ${r?`<table><thead><tr><th>시나리오</th><th>시작 직급</th><th>${c.retAge}세 최종연봉(원)</th><th>${c.retAge}세 직급</th></tr></thead><tbody>${line('① 하위·단일 직급',r.sc1)}${line('② 상위 직급(중첩)',r.sc2)}</tbody></table>
-    <p class="note">※ 빨간색 = 최종연봉이 G4 상한(${c.bands[3][1].toLocaleString('ko-KR')}만원, 기본정보 Pay-band 연동) 초과</p>`:'<p class="sub">해당 직급에 인원이 없습니다.</p>'}</div>
-    <div class="panel">${r?lifeChart(r,c):''}</div></div>
-    <div class="panel" style="margin-top:16px"><h2>연봉 기준표 <span class="sub">(직급·연차별 하한, 단위: 원)</span></h2><div class="scroll">${stdTableHTML(c,tab,30)}</div>
+   <div class="grid2" style="margin-top:16px"><div class="panel"><h2>만 ${c.retAge}세 최종연봉 비교 ${r?`<span class="sub">— ${esc(r.p.name)} (현직급 ${esc(r.p.grade)} · 분류 ${r.k}${r.fin?` · 최종 ${esc(r.p.final)}`:''} · 인사평가 <b>${esc(r.ev)}</b>)</span>`:''}</h2>
+    ${r?`<div class="scroll"><table><thead><tr><th>시나리오</th><th>시작 직급</th><th>승진 경로(나이)</th><th>${c.retAge}세 직급</th><th>${c.retAge}세 최종연봉(원)</th></tr></thead><tbody>${scs.map((s,i)=>line(i,s)).join('')}</tbody></table></div>
+    <p class="note">※ 빨간색 = 만 ${c.retAge}세 최종연봉이 G4 상한(${c.bands[3][1].toLocaleString('ko-KR')}만원) 도달 / 시나리오 직급 3가지는 기본정보 ⑦ 현직급별 대상 직급 기준(미입력 시 연봉 기준 중첩 분류) / 인사평가 ${esc(r.ev)} → 승진마다 ${r.sc1?r.sc1.kx:0}년 지연, 최고 G${r.sc1?r.sc1.ky:4}</p>`:'<p class="sub">해당 직급에 인원이 없습니다.</p>'}</div>
+    <div class="panel">${r?lifeChart(r,c,scs.map((s,i)=>s&&{s,l:SC_LBL[i],col:SC_COL[i]}).filter(Boolean)):''}</div></div>
+   <div class="panel" style="margin-top:16px"><h2>G4 상한(${c.bands[3][1].toLocaleString('ko-KR')}만원) 도달 인원 <span class="sub">(만 ${c.retAge}세 기준, 단위: 명)</span></h2>
+    <div class="scroll"><table style="width:auto"><thead><tr><th>구분</th><th>시나리오 ①</th><th>시나리오 ②</th><th>시나리오 ③</th><th>전체 (중복 제외)</th></tr></thead><tbody>
+    <tr><td>인원</td>${[0,1,2].map(k=>`<td class="num">${capCnt(k)}</td>`).join('')}<td class="num"><b>${capCnt(null)}</b></td></tr></tbody></table></div></div>
+   <div class="panel" style="margin-top:16px"><h2>연봉 기준표 <span class="sub">(직급·연차별 하한, 단위: 원)</span></h2><div class="scroll">${stdTableHTML(c,tab,30)}</div>
     <p class="note">※ 흰색 = 원직 경로 / 연노랑 = 체류 구간 / 주황 = 상한 도달·동결 / 수정은 기본정보 ④·⑤·⑥에서</p></div>`;
   bindFinder(rows,sheetLife);
 }
-function lifeChart(r,c){
-  const F=r.rem??0;if(!r.sc1)return'';const series=[r.sc1,r.sc2].filter(Boolean);
-  const W=560,H=240,L=58,Rp=14,T=14,B=30;const xs=t=>L+(F?t/F:0)*(W-L-Rp);
-  const vals=series.flatMap(s=>s.W.slice(0,F+1));const lo=Math.min(...vals)*0.95,hi=Math.max(...vals)*1.03;const ys=v=>T+(1-(v-lo)/(hi-lo||1))*(H-T-B);
+function lifeChart(r,c,series){
+  if(!series.length)return'';const E=series[0].s.end;const age0=(num(r.p.age)||0)-1;
+  const W=560,H=250,L=58,Rp=14,T=14,B=30;const xs=t=>L+(E?t/E:0)*(W-L-Rp);
+  const vals=series.flatMap(o=>o.s.W.slice(0,E+1));const lo=Math.min(...vals)*0.95,hi=Math.max(...vals)*1.03;const ys=v=>T+(1-(v-lo)/(hi-lo||1))*(H-T-B);
   let g='';for(let i=0;i<=4;i++){const v=lo+(hi-lo)*i/4;g+=`<line x1="${L}" x2="${W-Rp}" y1="${ys(v)}" y2="${ys(v)}" stroke="var(--line)"/><text x="${L-6}" y="${ys(v)+4}" text-anchor="end">${fM(v)}</text>`;}
-  const step=F>20?5:F>10?2:1;for(let t=0;t<=F;t+=step)g+=`<text x="${xs(t)}" y="${H-10}" text-anchor="middle">${(num(r.p.age)||0)+t}세</text>`;
-  const cols=['var(--accent)','var(--warn)'];
-  const lines=series.map((s,i)=>`<polyline fill="none" stroke="${cols[i]}" stroke-width="2.2" points="${s.W.slice(0,F+1).map((v,t)=>`${xs(t)},${ys(v)}`).join(' ')}"/>`+
-    s.d.filter(d=>d<=F).map(d=>`<circle cx="${xs(d)}" cy="${ys(s.W[d])}" r="4" fill="var(--surface)" stroke="${cols[i]}" stroke-width="2"/>`).join('')+
-    `<circle cx="${xs(F)}" cy="${ys(s.W[F])}" r="4" fill="${cols[i]}"/>`).join('');
+  const step=E>20?5:E>10?2:1;for(let t=0;t<=E;t+=step)g+=`<text x="${xs(t)}" y="${H-10}" text-anchor="middle">${age0+t}세</text>`;
+  const lines=series.map(o=>{const s=o.s;return`<polyline fill="none" stroke="${o.col}" stroke-width="2.2" points="${s.W.slice(0,E+1).map((v,t)=>`${xs(t)},${ys(v)}`).join(' ')}"/>`+
+    s.G.slice(1,E+1).map((gg,i)=>gg>s.G[i]?`<circle cx="${xs(i+1)}" cy="${ys(s.W[i+1])}" r="4" fill="var(--surface)" stroke="${o.col}" stroke-width="2"/>`:'').join('')+
+    `<circle cx="${xs(E)}" cy="${ys(s.W[E])}" r="4" fill="${o.col}"/>`;}).join('');
   return`<h2>${esc(r.p.name)} · 연도별 연봉 추이 <span class="sub">(만원, ○ = 승진)</span></h2>
    <div class="scroll"><svg class="chart" viewBox="0 0 ${W} ${H}" width="100%" style="min-width:420px" role="img" aria-label="연도별 연봉 추이">${g}${lines}</svg></div>
-   <div class="legend"><span><i style="background:var(--accent)"></i>① 하위·단일 직급 시작</span>${r.sc2?'<span><i style="background:var(--warn)"></i>② 상위 직급 시작</span>':''}</div>`;
+   <div class="legend">${series.map(o=>`<span><i style="background:${o.col}"></i>${o.l} (G${o.s.g} 시작)</span>`).join('')}</div>`;
 }
 
 /* ---- 시뮬레이션 상세 ---- */
 function sheetDetail(){
-  const {c,rows}=computeAll();const body=document.getElementById('sheet-body');const r=selRow(rows);
-  const allPanel=`<div class="panel" style="margin-top:16px"><div class="bar"><h2 class="grow" style="margin:0">■ 전체 인원 생애연봉 시뮬레이션 <span class="sub">머리글 ▾로 정렬·필터 · 행을 누르면 위에서 상세 보기</span></h2>
+  const {c,tab,rows}=computeAll();const body=document.getElementById('sheet-body');const r=selRow(rows);
+  const allPanel=`<div class="panel" style="margin-top:16px"><div class="bar"><h2 class="grow" style="margin:0">■ 전체 인원 생애연봉 시뮬레이션 <span class="sub">행을 누르면 위에서 상세 보기</span></h2>
    <label class="field">적용 직급<select id="det-f"><option value="">전체</option>${['G1','G2','G3','G4'].map(g=>`<option ${S.detF===g?'selected':''}>${g}</option>`).join('')}</select></label></div>
    <div class="scroll" id="det-all"></div></div>`;
   if(!r){body.innerHTML=`<div class="panel">${finderHTML(rows)}<p class="sub">해당 직급에 인원이 없습니다.</p></div>`+allPanel;bindFinder(rows,sheetDetail);drawDetAll(rows,c);return;}
-  const F=r.rem??0;
-  const scRow=(lbl,sc)=>sc?`<tr><td class="l">${lbl}${r.fin===sc.g?'<span class="fintag on">최종 확정</span>':''}</td><td>G${sc.g}</td><td>${sc.n0}년차</td><td class="l">${sc.path}</td><td>G${sc.finalG}</td><td class="num">${fW(sc.final)}</td><td class="num">${fW(sc.final-r.sal)}</td><td class="num">${fP(sc.cagr,2)}</td></tr>`
-    :`<tr><td class="l">${lbl}</td>${'<td>-</td>'.repeat(7)}</tr>`;
-  const yrs=Array.from({length:F+1},(_,t)=>t);
-  const trow=(lbl,sc,kind)=>`<tr><td class="l"><b>${lbl}</b></td>${yrs.map(t=>{if(!sc)return'<td></td>';const promo=sc.d.includes(t)&&t<=F;return kind==='g'?`<td class="${promo?'c-promo':''}">G${sc.G[t]}</td>`:`<td class="num ${promo?'c-promo':''}">${fW(sc.W[t])}</td>`;}).join('')}</tr>`;
+  const mg=/^G[1-4]$/.test(S.manualG||'')?+S.manualG[1]:null;
+  const man=mg&&r.sal?scenario(r.p,mg,c,tab):null;
+  const list=[[SC_LBL[0],r.sc1],[SC_LBL[1],r.sc2],[SC_LBL[2],r.sc3],['수기 시나리오',man]];
+  const fins=list.map(x=>x[1]&&x[1].final).filter(v=>v!=null);
+  const E=r.rem!=null?r.rem+1:1;const age0=(num(r.p.age)||0)-1;const by=+c.baseYear||BASE_YEAR;
+  const scRow=([lbl,sc],i)=>sc?`<tr class="${i===3?'man-row':''}"><td class="l">${lbl}${r.fin===sc.g?'<span class="fintag on">최종 확정</span>':''}</td><td>G${sc.g}</td><td>${sc.n0}년차</td><td class="l">${sc.path}</td><td>G${sc.finalG}</td><td class="num">${fW(sc.final)}</td><td class="num">${fW(sc.final-r.sal)}</td><td class="num">${fP(sc.cagr,2)}</td></tr>`
+    :`<tr class="${i===3?'man-row':''}"><td class="l">${lbl}</td>${'<td>-</td>'.repeat(7)}</tr>`;
+  // 인사평가별 진급누락 시나리오
+  const evRows=EVALS.map(ev=>{const ei=evalInfo(c,ev);const s=list.map(([,sc])=>sc?scenario(r.p,sc.g,c,tab,ev):null);return{ev,ei,s};});
+  const base=evRows[0];
+  const yrs=Array.from({length:E+1},(_,t)=>t);
+  const trow=(lbl,sc,kind)=>`<tr><td class="l"><b>${lbl}</b></td>${yrs.map(t=>{if(!sc)return'<td></td>';const promo=t>0&&sc.G[t]>sc.G[t-1];const miss=sc.missAt(t);
+    return kind==='g'?`<td class="${promo?'c-promo':miss?'c-miss':''}">G${sc.G[t]}${miss?' 누락':''}</td>`:`<td class="num ${promo?'c-promo':''}">${fW(sc.W[t])}</td>`;}).join('')}</tr>`;
   body.innerHTML=`<div class="panel">${finderHTML(rows)}</div>
-   <div class="panel" style="margin-top:16px"><h2>생애연봉 시뮬레이션 상세</h2>
-   <div class="scroll"><table><thead><tr><th>사번</th><th>이름</th><th>나이</th><th>현직급</th><th>현 연봉(원)</th><th>분류 직급(1차 자동)</th><th>최종 분류 직급(수기)</th><th>남은 정년 년수</th></tr></thead><tbody>
-   <tr><td>${esc(r.p.id)}</td><td><b>${esc(r.p.name)}</b></td><td>${esc(r.p.age)}</td><td>${esc(r.p.grade)}</td><td class="num">${fW(r.sal)}</td><td class="${classCss(r.k)}">${r.k}</td><td class="${r.fin?'c-fin':'note'}">${r.fin?'G'+r.fin:'미확정'}</td><td>${F}</td></tr></tbody></table></div>
+   <div class="panel" style="margin-top:16px"><div class="bar"><h2 class="grow" style="margin:0">생애연봉 시뮬레이션 상세</h2>
+     <label class="field">인사평가 (이 인원)<select id="det-ev" class="mini-sel"><option value="">미입력 (S 적용)</option>${EVALS.map(e=>`<option ${r.p.eval===e?'selected':''}>${e}</option>`).join('')}</select></label>
+     <label class="field">수기 시나리오 ▶ 시작 직급<select id="det-man" class="mini-sel"><option value="">선택 안 함</option>${[1,2,3,4].map(g=>`<option ${mg===g?'selected':''}>G${g}</option>`).join('')}</select></label></div>
+   <div class="scroll"><table><thead><tr><th>사번</th><th>이름</th><th>나이</th><th>현직급</th><th>현 연봉(원)</th><th>분류 직급(1차 자동)</th><th>최종 분류 직급(수기)</th><th>남은 정년 년수(${String(by+1).slice(2)}년~)</th><th>인사평가</th></tr></thead><tbody>
+   <tr><td>${esc(r.p.id)}</td><td><b>${esc(r.p.name)}</b></td><td>${esc(r.p.age)}</td><td>${esc(r.p.grade)}</td><td class="num">${fW(r.sal)}</td><td class="${classCss(r.k)}">${r.k}</td><td class="${r.fin?'c-fin':'note'}">${r.fin?'G'+r.fin:'미확정'}</td><td>${r.rem??''}</td><td><b>${esc(r.ev)}</b></td></tr></tbody></table></div>
    <h2 style="margin-top:16px">■ 만 ${c.retAge}세 기점 최종연봉 시뮬레이션</h2>
    <div class="scroll"><table><thead><tr><th>시나리오</th><th>시작 직급</th><th>배치 연차</th><th>승진 경로(나이)</th><th>${c.retAge}세 직급</th><th>${c.retAge}세 최종연봉(원)</th><th>현 연봉 대비 증가(원)</th><th>연평균 증가율</th></tr></thead><tbody>
-   ${scRow('① 하위·단일 직급',r.sc1)}${scRow('② 상위 직급(중첩)',r.sc2)}
-   <tr><td class="l">차이 (② − ①)</td><td></td><td></td><td></td><td></td><td class="num"><b>${r.sc1&&r.sc2?fW(r.sc2.final-r.sc1.final):'-'}</b></td><td></td><td></td></tr></tbody></table></div>
-   <p class="note">※ ②는 중첩 구간 인원(이동가능 직급 2개)만 산출 / 단일 직급 인원은 ①만 표시 / 배치 연차 = ⑤기준연봉표에서 현 연봉 이하인 마지막 연차</p>
+   ${list.map(scRow).join('')}
+   <tr><td class="l">최고 − 최저 차이</td><td></td><td></td><td></td><td></td><td class="num"><b>${fins.length>=2?fW(Math.max(...fins)-Math.min(...fins)):'-'}</b></td><td></td><td></td></tr></tbody></table></div>
+   <p class="note">※ 수기 시나리오: 위 「수기 시나리오 ▶ 시작 직급」을 고르면 이 인원을 그 직급에서 시작시킨 결과가 표시됩니다 / 시나리오 ①~③ = 기본정보 ⑦ 현직급별 대상 직급(미입력 시 연봉 기준 중첩 분류) / 인사평가 ${esc(r.ev)} = 승진마다 ${r.sc1?r.sc1.kx:0}년 지연, 최고 도달 G${r.sc1?r.sc1.ky:4}</p>
+   <h2 style="margin-top:16px">■ 인사평가별 진급누락 시나리오 <span class="sub">(같은 인원에게 평가등급만 바꿔 적용, ${c.retAge}세 최종연봉 · 단위: 원)</span></h2>
+   <div class="scroll"><table><thead><tr><th>인사평가</th><th>직급별 진급누락</th><th>승진마다 지연</th><th>최고 도달 직급</th>${list.map(([l,sc])=>sc?`<th>${l}<br><span style="font-weight:400">G${sc.g} 시작</span></th>`:'').join('')}</tr></thead><tbody>
+   ${evRows.map(x=>`<tr class="${x.ev===evalInfo(c,r.p.eval).k?'ev-cur':''}"><td><b>${x.ev}</b>${x.ev===evalInfo(c,r.p.eval).k?'<span class="fintag on">현재</span>':''}</td><td>${x.ei.miss}회</td><td>${x.ei.kx}년</td><td>G${x.ei.ky}</td>
+     ${x.s.map((s,i)=>s?`<td class="num" title="${esc(s.path)}"><b>${fW(s.final)}</b><br><span class="note" style="margin:0">G${s.finalG} · S 대비 ${base.s[i]?fW(s.final-base.s[i].final):'-'}</span></td>`:(list[i][1]?'<td>-</td>':'')).join('')}</tr>`).join('')}
+   </tbody></table></div>
+   <p class="note">※ 예: A+ = 승진할 때마다 1회(${evalInfo(c,'A+').kx}년) 누락 후 승진 / 등급별 기준은 기본정보 ⑧에서 수정 / 칸에 마우스를 올리면 승진 경로가 보입니다</p>
    <h2 style="margin-top:16px">■ 연도별 생애연봉 추이 <span class="sub">(단위: 원)</span></h2>
-   <div class="scroll"><table><thead><tr><th>경과 년수</th>${yrs.map(t=>`<th>${t}</th>`).join('')}</tr></thead><tbody>
-   <tr><td class="l"><b>나이</b></td>${yrs.map(t=>`<td>${(num(r.p.age)||0)+t}</td>`).join('')}</tr>
-   ${trow('① 직급',r.sc1,'g')}${trow('① 연봉',r.sc1,'w')}${trow('② 직급',r.sc2,'g')}${trow('② 연봉',r.sc2,'w')}</tbody></table></div>
-   <p class="note">※ 연노랑 = 승진 시점 / 연봉 = MAX(전년×(1+상승률), ⑤표 해당 연차 하한), 직급 상한 도달 시 동결</p></div>`+allPanel;
+   <div class="scroll"><table><thead><tr><th>연도</th>${yrs.map(t=>`<th>${String(by+t).slice(2)}년</th>`).join('')}</tr></thead><tbody>
+   <tr><td class="l"><b>나이</b></td>${yrs.map(t=>`<td>${age0+t}</td>`).join('')}</tr>
+   ${list.map(([l,sc],i)=>sc?trow(l.replace('시나리오 ','')+' 직급',sc,'g')+trow(l.replace('시나리오 ','')+' 연봉',sc,'w'):'').join('')}</tbody></table></div>
+   <p class="note">※ 연노랑 = 승진 시점 / 회색 '누락' = 인사평가에 따른 진급누락 연도 / 연봉 = 전년×(1+상승률), 승진 연도는 + 승진 정액 / 직급 상한 초과 불가 / ${String(by).slice(2)}년 = 현 연봉</p></div>`+allPanel;
+  body.querySelector('#det-ev').onchange=e=>{r.p.eval=e.target.value;save();sheetDetail();toast(`${r.p.name}의 인사평가를 ${e.target.value||'미입력'}(으)로 바꿨습니다. 기본정보에도 반영됩니다.`);};
+  body.querySelector('#det-man').onchange=e=>{S.manualG=e.target.value;save();sheetDetail();};
   bindFinder(rows,sheetDetail);drawDetAll(rows,c);
 }
 function drawDetAll(rows,c){
   const sel=document.getElementById('det-f');sel.onchange=()=>{S.detF=sel.value;save();drawDetAll(rows,c);};const f=S.detF||'';
   const el=document.getElementById('det-all');
-  el.innerHTML=`<table id="det-tbl"><thead><tr><th>사번</th><th>이름</th><th>나이</th><th>부서</th><th>현직급</th><th>현 연봉(원)</th><th>분류 직급</th><th>최종(수기)</th><th>적용 직급</th><th>남은 정년</th><th>① 시작</th><th>① ${c.retAge}세 직급</th><th>① ${c.retAge}세 최종연봉</th><th>② 시작</th><th>② ${c.retAge}세 직급</th><th>② ${c.retAge}세 최종연봉</th><th>차이(②−①)</th></tr></thead><tbody>
-    ${rows.filter(x=>!f||'G'+x.app===f).map(x=>`<tr data-key="${esc(pkey(x.p))}" class="${x.fin?'confirmed':''}" style="cursor:pointer"><td>${esc(x.p.id)}</td><td>${esc(x.p.name)}</td><td>${esc(x.p.age)}</td><td class="l">${esc(x.p.dept)}</td><td>${esc(x.p.grade)}</td><td class="num">${fW(x.sal)}</td><td class="${classCss(x.k)}" data-v="${x.k in CLS_RANK?CLS_RANK[x.k]:''}">${x.k}</td>
+  const sc=(s,k)=>s?(k==='g'?'G'+s.g:k==='f'?'G'+s.finalG:fW(s.final)):'';
+  el.innerHTML=`<table id="det-tbl"><thead><tr><th>사번</th><th>이름</th><th>나이</th><th>부서</th><th>현직급</th><th>인사평가</th><th>현 연봉(원)</th><th>분류 직급</th><th>최종(수기)</th><th>적용 직급</th><th>남은 정년</th>
+    ${[1,2,3].map(i=>`<th>${'①②③'[i-1]} 시작</th><th>${'①②③'[i-1]} ${c.retAge}세 직급</th><th>${'①②③'[i-1]} ${c.retAge}세 최종연봉</th>`).join('')}<th>최고−최저 차이</th></tr></thead><tbody>
+    ${rows.filter(x=>!f||'G'+x.app===f).map(x=>{const S3=[x.sc1,x.sc2,x.sc3];const fs=S3.filter(Boolean).map(s=>s.final);return`<tr data-key="${esc(pkey(x.p))}" class="${x.fin?'confirmed':''}" style="cursor:pointer"><td>${esc(x.p.id)}</td><td>${esc(x.p.name)}</td><td>${esc(x.p.age)}</td><td class="l">${esc(x.p.dept)}</td><td>${esc(x.p.grade)}</td><td>${esc(x.ev)}</td><td class="num">${fW(x.sal)}</td><td class="${classCss(x.k)}" data-v="${x.k in CLS_RANK?CLS_RANK[x.k]:''}">${x.k}</td>
       <td data-v="${finRank(x.p.final)}" class="${x.fin?'c-fin':'note'}">${x.fin?'G'+x.fin:'미확정'}</td><td data-v="${x.app??''}"><b>${appTxt(x)}</b></td><td>${x.rem??''}</td>
-      <td>${x.sc1?'G'+x.sc1.g:''}</td><td>${x.sc1?'G'+x.sc1.finalG:''}</td><td class="num">${x.sc1?fW(x.sc1.final):''}</td><td>${x.sc2?'G'+x.sc2.g:''}</td><td>${x.sc2?'G'+x.sc2.finalG:''}</td><td class="num">${x.sc2?fW(x.sc2.final):''}</td><td class="num">${x.sc1&&x.sc2?fW(x.sc2.final-x.sc1.final):''}</td></tr>`).join('')}</tbody></table>`;
+      ${S3.map(s=>`<td>${sc(s,'g')}</td><td>${sc(s,'f')}</td><td class="num">${sc(s,'w')}</td>`).join('')}<td class="num">${fs.length>=2?fW(Math.max(...fs)-Math.min(...fs)):''}</td></tr>`;}).join('')}</tbody></table>`;
   el.querySelectorAll('tr[data-key]').forEach(tr=>tr.onclick=()=>{S.sel=tr.dataset.key;const x=rows.find(y=>pkey(y.p)===S.sel);if(x&&S.findG&&'G'+x.app!==S.findG)S.findG='';save();sheetDetail();window.scrollTo({top:0,behavior:'smooth'});});
   sortable(el.querySelector('#det-tbl'),'det');
 }
@@ -899,14 +978,14 @@ function showText(title,txt){const box=document.getElementById('dlg-box');box.in
   box.querySelector('#dlg-ta').value=txt;const d=document.getElementById('dlg');d.hidden=false;box.querySelector('#dlg-close').onclick=()=>d.hidden=true;box.querySelector('#dlg-ta').select();}
 
 /* =========================================================
-   6. 사이트 ③ 인건비 분석 (향후 개발 예정)
+   6. 사이트 ③ 인건비 분석
    ========================================================= */
 function renderLabor(){
   const {rows}=computeAll();const pay=rows.reduce((a,r)=>a+(r.sal||0),0);
-  document.getElementById('view-labor').innerHTML=`<h1>인건비 분석 <span class="pill p-watch" style="vertical-align:4px">향후 개발 예정</span></h1>
-  <p class="sub">①·②에서 정한 직급과 인상률을 인건비 총액으로 옮겨 보는 화면입니다. 아래 범위로 개발할 예정입니다.</p>
+  document.getElementById('view-labor').innerHTML=`<h1>인건비 분석</h1>
+  <p class="sub">①·②에서 정한 직급과 인상률을 인건비 총액으로 옮겨 보는 화면입니다. 아래 범위로 개발합니다.</p>
   <div class="kpis"><div class="kpi"><div class="k">현재 연봉 총액 (참고)</div><div class="v">${fEok(pay)}<small>억원</small></div><div class="d">불러온 ${rows.length}명의 현 연봉 합계 · 4대보험·퇴직급여 미포함</div></div></div>
-  <div class="panel"><h2>개발 예정 범위</h2><div class="scroll"><table><thead><tr><th>구분</th><th>내용</th><th>필요 데이터</th></tr></thead><tbody>
+  <div class="panel"><h2>개발 범위</h2><div class="scroll"><table><thead><tr><th>구분</th><th>내용</th><th>필요 데이터</th></tr></thead><tbody>
    <tr><td>인건비 총액 추이</td><td class="l">연도별 연봉 총액 + 법정복리비(4대보험) + 퇴직급여 추정</td><td class="l">보험요율, 퇴직급여 산정 기준 — 확인 필요</td></tr>
    <tr><td>직급·부서별 인건비</td><td class="l">적용 직급(G1~G4) · 부서별 인원 · 총액 · 1인당 평균</td><td class="l">① 기본정보 (확보)</td></tr>
    <tr><td>인상률 시나리오별 소요액</td><td class="l">② A안/B안 및 직급별 인상률에 따른 연도별 추가 소요액</td><td class="l">② 시뮬레이션 조건 (확보)</td></tr>
@@ -924,10 +1003,11 @@ function importWorkbook(wb,fname){
   const people=[];const rng=XLSX.utils.decode_range(ws['!ref']||'A1:N301');
   // 「최종 분류 직급」 열이 있으면 함께 읽는다 (1행 머리글에 '최종'이 들어간 O열 이후 칸)
   let finCol=null;for(let ci=14;ci<=Math.min(rng.e.c,60);ci++){const h=cell(XLSX.utils.encode_col(ci)+'1');if(h&&String(h).includes('최종')){finCol=XLSX.utils.encode_col(ci);break;}}
+  const evOfCell=v=>{const s=String(v??'').trim().toUpperCase();return EVALS.includes(s)?s:'';};
   const finOf=v=>{const s=String(v??'').trim().toUpperCase();return /^G[1-4]$/.test(s)?s:'';};
   for(let r=2;r<=Math.min(rng.e.r+1,1000);r++){const g=col=>cell(col+r);if(g('B')==null||String(g('B')).trim()==='')continue;
     people.push({id:String(g('A')??''),name:String(g('B')).trim(),age:num(g('C'))??'',dept:g('D')??'',job:g('E')??'',title:g('F')??'',grade:String(g('G')??'').trim(),
-      hire:g('H') instanceof Date?dateStr(g('H')):(g('H')??''),gdate:g('J') instanceof Date?dateStr(g('J')):(g('J')??''),period:g('K')??'',adj:g('L')??'',salary:num(g('M'))??'',final:finCol?finOf(g(finCol)):'',finalAuto:false});}
+      hire:g('H') instanceof Date?dateStr(g('H')):(g('H')??''),gdate:g('J') instanceof Date?dateStr(g('J')):(g('J')??''),period:g('K')??'',adj:g('L')??'',salary:num(g('M'))??'',final:finCol?finOf(g(finCol)):'',finalAuto:false,eval:evOfCell(g('O'))});}
   if(!people.length)throw new Error('기본정보 시트 B열(이름)에 인원이 없습니다.');
   const c=defaultCrit();const n=a=>num(cell(a));
   [4,5,6,7].forEach((r,i)=>{if(n('Q'+r)!=null)c.bands[i][0]=n('Q'+r);if(n('R'+r)!=null)c.bands[i][1]=n('R'+r);});
@@ -936,6 +1016,12 @@ function importWorkbook(wb,fname){
   [33,34,35].forEach((r,i)=>{if(n('Q'+r)!=null)c.stay[i][0]=n('Q'+r);if(n('R'+r)!=null)c.stay[i][1]=n('R'+r);});
   if(n('Q36')!=null)c.rate=n('Q36');
   if(cell('Q37'))c.mode=String(cell('Q37'));
+  [33,34,35].forEach((r,i)=>{if(n('T'+r)!=null)c.promo[i]=n('T'+r);});            // ④ 승진 정액
+  if(n('V33')!=null)c.firstYear=n('V33');if(n('W33')!=null)c.baseYear=n('W33');  // 최초 승진 가능 연도 / 현 연봉 기준연도
+  const gs=v=>{const s=String(v??'').trim().toUpperCase();return /^G[1-4]$/.test(s)?s:'';};
+  if(cell('P55')!=null||cell('P57')!=null)GRADE6.forEach((g,i)=>{c.target[g]=['Q','R','S'].map(cl=>gs(cell(cl+(57+i))));}); // ⑦
+  if(cell('P67')!=null)EVALS.forEach((e,i)=>{const q=n('Q'+(67+i)),rr=gs(cell('R'+(67+i)));c.evalTbl[e]=[q??0,rr||'G4'];}); // ⑧
+  if(n('Q72')!=null)c.delayPer=n('Q72');
   const cols=[];for(let i=0;i<30;i++)cols.push(XLSX.utils.encode_col(17+i)); // R..AU
   [52,51,50,49].forEach((r,gi)=>{cols.forEach((cl,y)=>{const v=n(cl+r);c.ovr[gi][y]=v==null?'':v;});}); // 52=G1 … 49=G4
   S.people=people;S.crit=c;S.source='file';S.sourceName=fname;S.sel='';S.an.rate=+(c.rate*100).toFixed(2);S.an.gRates=[S.an.rate,S.an.rate,S.an.rate,S.an.rate];save();route();
@@ -946,7 +1032,7 @@ document.getElementById('file-xlsx').addEventListener('change',e=>{const f=e.tar
   const rd=new FileReader();rd.onload=()=>{try{importWorkbook(XLSX.read(rd.result,{type:'array',cellDates:true}),f.name);}catch(err){toast(err.message);}e.target.value='';};rd.readAsArrayBuffer(f);});
 document.getElementById('btn-paste').onclick=()=>{const box=document.getElementById('dlg-box');
   box.innerHTML=`<div class="hd"><h2 style="margin:0">엑셀에서 붙여넣기</h2><button type="button" id="dlg-close">닫기</button></div>
-  <p class="sub">기본정보 시트의 A~M열(사번 · 이름 · 나이 · 부서 · 직군 · 직책 · 현직급 · 입사년도 · 남은정년 · 발령일 · 기간 · 조정 · 현 연봉)을 머리글 없이 복사해 붙여넣으세요. N열(분류 직급) 다음 O열에 최종 분류 직급(G1~G4)이 있으면 함께 읽습니다. 분류 기준은 지금 값을 유지합니다.</p>
+  <p class="sub">기본정보 시트의 A~M열(사번 · 이름 · 나이 · 부서 · 직군 · 직책 · 현직급 · 입사년도 · 남은정년 · 발령일 · 기간 · 조정 · 현 연봉)을 머리글 없이 복사해 붙여넣으세요. N열(분류 직급) 다음 O열 인사평가(S·A+·A·B·C), P열 최종 분류 직급(G1~G4)이 있으면 함께 읽습니다. 분류 기준은 지금 값을 유지합니다.</p>
   <textarea id="paste-ta" placeholder="218012	홍길동	34	작물보호팀	일반직	담당	G2	2018-05-02		2022-10-01	4년3월		52171690"></textarea>
   <div class="bar" style="margin-top:8px"><span class="grow"></span><button type="button" id="paste-cancel">취소</button><button type="button" class="primary" id="paste-ok">인원 교체</button></div>`;
   const d=document.getElementById('dlg');d.hidden=false;const close=()=>d.hidden=true;box.querySelector('#dlg-close').onclick=close;box.querySelector('#paste-cancel').onclick=close;
@@ -954,8 +1040,12 @@ document.getElementById('btn-paste').onclick=()=>{const box=document.getElementB
   box.querySelector('#paste-ok').onclick=()=>{const txt=box.querySelector('#paste-ta').value;const rows=txt.split(/\r?\n/).map(l=>l.split('\t')).filter(c=>c.length>=2&&c[1].trim()!==''&&c[1].trim()!=='이름');
     if(!rows.length){toast('붙여넣은 행이 없습니다. 탭으로 구분된 엑셀 행을 넣으세요.');return;}
     const dt=v=>String(v||'').trim().replace(/\./g,'-').replace(/-$/,'');
-    S.people=rows.map(c=>({id:c[0]?.trim()||'',name:c[1].trim(),age:num(c[2])??'',dept:c[3]?.trim()||'',job:c[4]?.trim()||'',title:c[5]?.trim()||'',grade:c[6]?.trim()||'',hire:dt(c[7]),gdate:dt(c[9]),period:c[10]?.trim()||'',adj:c[11]?.trim()||'',salary:num(c[12])??'',finalAuto:false,final:/^G[1-4]$/.test((c[14]||'').trim().toUpperCase())?(c[14]).trim().toUpperCase():''}));
+    S.people=rows.map(c=>({id:c[0]?.trim()||'',name:c[1].trim(),age:num(c[2])??'',dept:c[3]?.trim()||'',job:c[4]?.trim()||'',title:c[5]?.trim()||'',grade:c[6]?.trim()||'',hire:dt(c[7]),gdate:dt(c[9]),period:c[10]?.trim()||'',adj:c[11]?.trim()||'',salary:num(c[12])??'',finalAuto:false,...pasteTail(c)}));
     S.source='file';S.sourceName='붙여넣기';S.sel='';save();close();route();toast(`${S.people.length}명을 불러왔습니다.`);};};
+// 붙여넣기 O열 이후: 인사평가(O) · 최종 분류 직급(P). 예전 형식(O열 = 최종 직급)도 받는다.
+function pasteTail(c){const u=i=>String(c[i]||'').trim().toUpperCase();
+  if(/^G[1-4]$/.test(u(14)))return{final:u(14),eval:''};
+  return{eval:EVALS.includes(u(14))?u(14):'',final:/^G[1-4]$/.test(u(15))?u(15):''};}
 let resetArmed=false;
 document.getElementById('btn-reset').onclick=e=>{const b=e.currentTarget;if(!resetArmed){resetArmed=true;b.textContent='한 번 더 누르면 초기화';b.classList.add('primary');setTimeout(()=>{resetArmed=false;b.textContent='예시로 초기화';b.classList.remove('primary');},3000);return;}
   resetArmed=false;b.textContent='예시로 초기화';b.classList.remove('primary');S=fresh();save();route();toast('예시 데이터로 되돌렸습니다.');};

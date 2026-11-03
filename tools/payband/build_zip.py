@@ -13,7 +13,7 @@ import sys
 import zipfile
 
 HERE = pathlib.Path(__file__).resolve().parent
-NAME = "PayBand_시뮬레이터"
+NAME = "SG한국삼공_보상체계분석"
 CDN_TAG = '<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>'
 
 
