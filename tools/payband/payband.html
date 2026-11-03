@@ -132,6 +132,9 @@ details.fold[open]>summary::before{transform:rotate(90deg)}
 .salbar span{font-size:11px;color:var(--muted)} .salbar b{font-size:15px} .salbar small{font-size:11px;color:var(--muted)}
 .salbar .hl{background:var(--accent-soft);border-color:var(--accent)} .salbar .hl b{color:var(--accent);font-size:17px}
 .salbar .arrow{background:transparent;border:0;justify-content:center;color:var(--accent);font-weight:700;padding:0 2px}
+.ctip{position:absolute;z-index:50;pointer-events:none;background:var(--ink);color:var(--bg);border-radius:6px;padding:5px 9px;font-size:12px;line-height:1.35;box-shadow:0 4px 12px rgba(0,0,0,.2);text-align:center;white-space:nowrap}
+.ctip b{display:block;font-size:15px} .ctip span{opacity:.85}
+svg .hit{cursor:pointer} svg .pt{pointer-events:none}
 .c-miss{background:var(--surface-2);color:var(--muted);font-style:italic}
 tr.ev-cur td{background-image:linear-gradient(var(--hl),var(--hl))}
 tr.man-row td{border-top:2px solid var(--line-2)}
@@ -477,6 +480,13 @@ function openFilter(tbl,id,ci,th){
   setTimeout(()=>document.addEventListener('mousedown',outsideFilter,true),0);q.focus();
 }
 window.addEventListener('resize',closeFilter);
+// 차트 점 툴팁: data-tip="설명|금액"
+const TIP=document.createElement('div');TIP.className='ctip';TIP.hidden=true;document.body.appendChild(TIP);
+document.addEventListener('mouseover',e=>{const el=e.target.closest&&e.target.closest('[data-tip]');if(!el||!el.closest('svg'))return;
+  const [a,b]=el.dataset.tip.split('|');TIP.innerHTML=`<b>${b||''}</b><span>${a||''}</span>`;TIP.hidden=false;
+  const R=el.getBoundingClientRect();const w=TIP.offsetWidth;TIP.style.left=Math.max(8,Math.min(R.left+R.width/2+window.scrollX-w/2,window.scrollX+document.documentElement.clientWidth-w-8))+'px';TIP.style.top=(R.top+window.scrollY-TIP.offsetHeight-8)+'px';
+  document.querySelectorAll('svg .pt.on').forEach(x=>x.classList.remove('on'));});
+document.addEventListener('mouseout',e=>{if(e.target.closest&&e.target.closest('[data-tip]'))TIP.hidden=true;});
 const CLS_RANK={'밴드 미달':0,'G1':1,'G1, G2':1.5,'G2':2,'G2, G3':2.5,'G3':3,'G3, G4':3.5,'G4':4,'밴드 초과':5};
 const pkey=p=>`${p.id}|${p.name}`;
 const finRank=f=>/^G[1-4]$/.test(f||'')?+f[1]:9;
@@ -721,10 +731,13 @@ function lifeChart(r,c,series){
   let g='';for(let i=0;i<=4;i++){const v=lo+(hi-lo)*i/4;g+=`<line x1="${L}" x2="${W-Rp}" y1="${ys(v)}" y2="${ys(v)}" stroke="var(--line)"/><text x="${L-6}" y="${ys(v)+4}" text-anchor="end">${fM(v)}</text>`;}
   const step=E>20?5:E>10?2:1;for(let t=0;t<=E;t+=step)g+=`<text x="${xs(t)}" y="${H-10}" text-anchor="middle">${age0+t}세</text>`;
   const lines=series.map(o=>{const s=o.s;return`<polyline fill="none" stroke="${o.col}" stroke-width="${o.hl?4:2}" ${o.s.cap?'stroke-dasharray="6 4"':''} points="${s.W.slice(0,E+1).map((v,t)=>`${xs(t)},${ys(v)}`).join(' ')}"/>`+
-    s.G.slice(1,E+1).map((gg,i)=>gg>s.G[i]?`<circle cx="${xs(i+1)}" cy="${ys(s.W[i+1])}" r="4" fill="var(--surface)" stroke="${o.col}" stroke-width="2"/>`:'').join('')+
-    `<circle cx="${xs(E)}" cy="${ys(s.W[E])}" r="4" fill="${o.col}"/>`;}).join('');
-  return`<h2>${esc(r.p.name)} · 연도별 연봉 추이 <span class="sub">(만원, ○ = 승진)</span></h2>
-   <div class="scroll"><svg class="chart" viewBox="0 0 ${W} ${H}" width="100%" style="min-width:420px" role="img" aria-label="연도별 연봉 추이">${g}${lines}</svg></div>
+    s.G.slice(1,E+1).map((gg,i)=>gg>s.G[i]?`<circle class="pt" cx="${xs(i+1)}" cy="${ys(s.W[i+1])}" r="4.5" fill="var(--surface)" stroke="${o.col}" stroke-width="2" data-tip="${tipTxt(o,s,i+1)}"/>`:'').join('')+
+    `<circle class="pt" cx="${xs(E)}" cy="${ys(s.W[E])}" r="4.5" fill="${o.col}" data-tip="${tipTxt(o,s,E)}"/>`;}).join('');
+  // 마우스를 올리면 연봉이 보이도록 연도마다 보이지 않는 점(히트 영역)
+  const hits=series.map(o=>{const s=o.s;return s.W.slice(0,E+1).map((v,t)=>`<circle class="hit" cx="${xs(t)}" cy="${ys(v)}" r="7" fill="transparent" data-tip="${tipTxt(o,s,t)}"/>`).join('');}).join('');
+  function tipTxt(o,s,t){const up=t>0&&s.G[t]>s.G[t-1];return esc(`${o.l} · ${age0+t}세(${String((+c.baseYear||BASE_YEAR)+t).slice(2)}년) · G${s.G[t]}${up?' 승진':''}|${fM(s.W[t])}만원`);}
+  return`<h2>${esc(r.p.name)} · 연도별 연봉 추이 <span class="sub">(만원, ○ = 승진 · 점에 마우스를 올리면 연봉 표시)</span></h2>
+   <div class="scroll"><svg class="chart" viewBox="0 0 ${W} ${H}" width="100%" style="min-width:420px" role="img" aria-label="연도별 연봉 추이">${g}${lines}${hits}</svg></div>
    <div class="legend">${series.map(o=>`<span style="${o.hl?'font-weight:700;color:var(--accent)':''}"><i style="background:${o.col}"></i>${o.l}${o.hl?' ★':''}</span>`).join('')}</div>`;
 }
 
