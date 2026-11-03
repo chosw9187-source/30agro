@@ -266,7 +266,7 @@ function defaultCrit(){return{
   firstYear:2028, baseYear:2026,                                      // ④ 최초 승진 가능 연도 / 현 연봉 기준연도
   target:{G1:['','',''],G2:['','',''],G3:['G1','G2','G3'],G4:['G2','G3','G4'],G5:['G2','G3','G4'],G6:['','','']}, // ⑦ 현직급별 시뮬레이션 대상 직급
   evalTbl:{S:[0,'G4'],'A+':[1,'G4'],A:[2,'G4'],B:[3,'G3'],C:[4,'G3']}, // ⑧ 인사평가별 진급누락 횟수 / 최고 도달 직급
-  ageDate:'2026-11-03',                                              // 만 나이 기준일(생년월일 입력 시)
+  ageYear:2026,                                                       // 나이 기준연도(생년월일 입력 시 나이 = 기준연도 − 출생연도)
   delayPer:1                                                          // ⑧ 누락 1회당 지연(년)
 };}
 function demoPeople(){
@@ -384,10 +384,9 @@ function normBirth(v){if(v==null||v==='')return'';
   return'';}
 const ageRefYear=c=>(+c.baseYear||BASE_YEAR)+1;   // 나이 기준연도(엑셀: 나이는 27년 기준)
 const isBirthLike=v=>v instanceof Date||(typeof v==='number'&&v>10000)||/^\d{6}$|^\d{8}$|^\d{4}[-./]\d{1,2}[-./]\d{1,2}/.test(String(v??'').trim());
-// 만 나이: 기준일(기본정보 ④ 「만 나이 기준일」)에 생일이 지났으면 연도 차, 아직이면 연도 차 − 1
-const ageDate=c=>/^\d{4}-\d{2}-\d{2}$/.test(c.ageDate||'')?c.ageDate:dateStr(TODAY);
-function manAge(b,ref){const [y,m,d]=b.split('-').map(Number);const [ry,rm,rd]=ref.split('-').map(Number);return ry-y-((rm<m||(rm===m&&rd<d))?1:0);}
-function applyBirthAges(){const ref=ageDate(S.crit);S.people.forEach(p=>{const b=normBirth(p.birth);if(b){p.birth=b;p.age=manAge(b,ref);}});}
+// 나이 = 나이 기준연도(기본정보 ④, 기본 2026) − 출생연도. 생일 지남과 무관 (예: 1986-12-31생 40세, 1987-09-22생 39세)
+const ageYear=c=>+c.ageYear||TODAY.getFullYear();
+function applyBirthAges(){const ry=ageYear(S.crit);S.people.forEach(p=>{const b=normBirth(p.birth);if(b){p.birth=b;p.age=ry-(+b.slice(0,4));}});}
 function computeAll(){
   applyBirthAges();
   const c=S.crit,tab=stdTable(c);
@@ -546,7 +545,7 @@ function sheetInfo(){
      <div class="legend"><span><i style="background:var(--input)"></i>입력 칸</span><span><i style="background:var(--surface-2)"></i>자동 계산</span>
        <span><i style="background:var(--accent);border-color:var(--accent)"></i>최종 확정 · 직접 선택(수기)</span><span><i style="background:var(--accent-soft);border:2px solid var(--accent)"></i>최종 확정 · 자동 채우기</span><span><i style="border:2px dashed var(--line-2)"></i>미확정 → 1차 자동 분류 적용</span>
        <span><i style="background:var(--crit-soft);border:2px solid var(--crit)"></i>분류 후보 밖 직급(확인 필요)</span></div>
-     <p class="note">※ 분류는 「분류 직급(1차 자동)」으로 먼저 정하고, 「최종 분류 직급(수기 확정)」을 고르면 그 값이 우선 적용됩니다(분류 시트 · 집계 ③-2 · 생애연봉 검색 · ② 임금분석). 현 연봉은 원 단위로 입력합니다. 생년월일을 넣으면 기준일(${dotDate(ageDate(c))}, 기본정보 ④) 현재 만 나이로 자동 계산됩니다.</p></div>
+     <p class="note">※ 분류는 「분류 직급(1차 자동)」으로 먼저 정하고, 「최종 분류 직급(수기 확정)」을 고르면 그 값이 우선 적용됩니다(분류 시트 · 집계 ③-2 · 생애연봉 검색 · ② 임금분석). 현 연봉은 원 단위로 입력합니다. 생년월일을 넣으면 나이 = ${ageYear(c)} − 출생연도(기본정보 ④ 나이 기준연도, 생일 지남과 무관)로 자동 계산됩니다.</p></div>
    <div class="grid2eq" style="margin-top:16px">
      <div class="panel"><h2>■ 분류 기준 <span class="sub">(노란색 수정 가능, 단위: 만원)</span></h2>
        <div class="bar" style="align-items:flex-start;gap:16px">
@@ -563,7 +562,7 @@ function sheetInfo(){
        <tr><td class="l">연 상승률</td><td class="in"><input type="number" step="0.1" data-crit="ratePct" value="${+(c.rate*100).toFixed(3)}"></td><td colspan="2" class="l note" style="margin:0">% (예: 2.5)</td></tr>
        <tr><td class="l">첫 승진 시점 산정</td><td class="in" colspan="3"><select data-crit="mode"><option ${c.mode==='배치 연차 기준'?'selected':''}>배치 연차 기준</option><option ${c.mode==='현 시점부터 기준연수'?'selected':''}>현 시점부터 기준연수</option></select></td><td></td></tr>
        <tr><td class="l">최초 승진 가능 연도</td><td class="in"><input type="number" data-crit="firstYear" value="${c.firstYear}"></td><td class="l">현 연봉 기준연도</td><td class="in" colspan="2"><input type="number" data-crit="baseYear" value="${c.baseYear}"></td></tr>
-       <tr><td class="l">만 나이 기준일</td><td class="in" colspan="2"><input type="date" data-crit="ageDate" value="${ageDate(c)}"></td><td colspan="2" class="l note" style="margin:0">생년월일 입력 인원에 적용</td></tr>
+       <tr><td class="l">나이 기준연도</td><td class="in" colspan="2"><input type="number" data-crit="ageYear" value="${ageYear(c)}"></td><td colspan="2" class="l note" style="margin:0">나이 = 기준연도 − 출생연도 (생년월일 입력 인원)</td></tr>
        </tbody></table></div>
        <p class="note">※ 매년 연봉 = 전년 × (1+상승률) / 승진 연도 = 전년 × (1+상승률) + 승진 정액 / 직급초임 없음 / 직급 상한(${c.bands.map(b=>b[1].toLocaleString('ko-KR')).join('·')}만원)까지만 인상, 이미 상한 이상이면 동결(삭감 없음, 전 직원 동일) / 누락 연수 +1 → 1년 늦게 승진</p>
        <p class="note">※ ${String(c.baseYear).slice(2)}년 연봉 = 현 연봉 × (1+상승률) (나이−1세) / ${String(+c.baseYear+1).slice(2)}년은 상승률만 / ${String(c.firstYear).slice(2)}년부터 승진 / 나이는 ${String(+c.baseYear+1).slice(2)}년 기준</p></div>
@@ -619,7 +618,7 @@ function setCrit(path,val){const c=S.crit;
   if(path==='ratePct'){c.rate=(+val||0)/100;return;}
   if(path==='mode'){c.mode=val;return;}
   if(path==='retAge'){c.retAge=+val||0;return;}
-  if(path==='ageDate'){c.ageDate=val;applyBirthAges();return;}
+  if(path==='ageYear'){c.ageYear=+val||TODAY.getFullYear();applyBirthAges();return;}
   if(['firstYear','baseYear','delayPer'].includes(path)){c[path]=+val||0;return;}
   const [a,i,j]=path.split('.');
   if(a==='promo'){c.promo[+i]=+val||0;return;}
@@ -629,7 +628,7 @@ function setCrit(path,val){const c=S.crit;
 function refreshInfo(){
   const {c,tab}=computeAll();
   document.querySelectorAll('#info-tbl tbody tr').forEach(tr=>{const p=S.people[+tr.dataset.i];if(!p)return;
-    const ai=tr.querySelector('[data-f="age"]');if(ai){const hb=!!normBirth(p.birth);ai.readOnly=hb;ai.title=hb?`생년월일 기준 만 나이 (기준일 ${dotDate(ageDate(c))})`:'';if(hb)ai.value=p.age;ai.closest('td').classList.toggle('auto',hb);}
+    const ai=tr.querySelector('[data-f="age"]');if(ai){const hb=!!normBirth(p.birth);ai.readOnly=hb;ai.title=hb?`생년월일 기준 자동 (${ageYear(c)} − 출생연도)`:'';if(hb)ai.value=p.age;ai.closest('td').classList.toggle('auto',hb);}
     const r=tr.querySelector('[data-auto="_rem"]'),k=tr.querySelector('[data-auto="_cls"]');const rem=remYears(p,c);const cl=classify(num(p.salary),c);
     r.textContent=rem??'';k.textContent=cl;k.className='auto '+classCss(cl);k.dataset.v=cl in CLS_RANK?CLS_RANK[cl]:'';
     const pi=tr.querySelector('[data-f="period"]');if(pi)pi.placeholder=periodText(p);
