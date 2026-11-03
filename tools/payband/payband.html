@@ -426,19 +426,25 @@ function applySort(tbl,id){const st=SORTST[id];const hr=tbl.tHead.rows[tbl.tHead
   if(st){rows.sort((a,b)=>{const va=sortVal(a.cells[st.i]),vb=sortVal(b.cells[st.i]);if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return -1;
     const d=(typeof va==='number'&&typeof vb==='number')?va-vb:String(va).localeCompare(String(vb),'ko',{numeric:true});return d*st.d;});
     rows.forEach(r=>tb.appendChild(r));fixed.forEach(r=>tb.appendChild(r));}
-  let shown=0;rows.forEach(r=>{if(r.cells.length<2){return;}const ok=rowPass(r,id,-1);r.hidden=!ok;if(ok)shown++;});
+  const q=(SEARCHQ[id]||'').trim();
+  let shown=0;rows.forEach(r=>{if(r.cells.length<2){return;}const ok=rowPass(r,id,-1)&&searchPass(r,q);r.hidden=!ok;if(ok)shown++;});
   // 정렬·필터 중인 열 강조
   const act=new Set(Object.keys(f).map(Number));if(st)act.add(st.i);
   [...hr.cells].forEach((th,i)=>th.classList.toggle('sorted',!!st&&st.i===i));
   rows.forEach(r=>[...r.cells].forEach((td,i)=>td.classList.toggle('colhl',act.has(i))));
   let cap=tbl.parentElement.querySelector(':scope > .fcount');const nf=Object.keys(f).length;
-  if(nf||st){if(!cap){cap=document.createElement('div');cap.className='fcount';tbl.parentElement.insertBefore(cap,tbl);}
+  if(nf||st||q){if(!cap){cap=document.createElement('div');cap.className='fcount';tbl.parentElement.insertBefore(cap,tbl);}
     const lb=i=>esc(thLabel(hr.cells[i]));
     cap.innerHTML=(st?`<span class="tagS">정렬</span> <b>${lb(st.i)}</b> ${st.d>0?'오름차순 ▲':'내림차순 ▼'}`:'')+
-      (nf?`<span class="tagF">필터</span> <b>${Object.keys(f).map(i=>lb(+i)).join(', ')}</b> · ${shown} / ${rows.length}행 표시`:'')+
-      (st?'<button type="button" data-x="s">정렬 해제</button>':'')+(nf?'<button type="button" data-x="f">모든 필터 해제</button>':'');
-    cap.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(b.dataset.x==='s')delete SORTST[id];else delete FILTST[id];applySort(tbl,id);});}
+      (nf?`<span class="tagF">필터</span> <b>${Object.keys(f).map(i=>lb(+i)).join(', ')}</b>`:'')+(q?`<span class="tagF">검색</span> <b>'${esc(q)}'</b>`:'')+((nf||q)?` · ${shown} / ${rows.length}행 표시`:'')+
+      (st?'<button type="button" data-x="s">정렬 해제</button>':'')+(nf?'<button type="button" data-x="f">모든 필터 해제</button>':'')+(q?'<button type="button" data-x="q">검색 지우기</button>':'');
+    cap.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(b.dataset.x==='s')delete SORTST[id];else if(b.dataset.x==='q'){delete SEARCHQ[id];const qi=document.querySelector(`[data-search="${id}"]`);if(qi)qi.value='';}else delete FILTST[id];applySort(tbl,id);});}
   else cap?.remove();}
+// 표 검색: 이름·사번·직급 등 행 안의 글자에 포함되면 표시 (띄어쓰기로 여러 단어 = 모두 포함)
+const SEARCHQ={};
+function searchPass(r,q){if(!q)return true;const txt=[...r.cells].map(cellText).join(' ').toLowerCase();return q.toLowerCase().split(/\s+/).every(w=>txt.includes(w));}
+function searchBoxHTML(id){return`<label class="field">이름 · 사번 · 직급 검색<input type="search" data-search="${id}" placeholder="예: 오동훈, 218012, G2" value="${esc(SEARCHQ[id]||'')}" autocomplete="off" style="width:200px"></label>`;}
+function bindSearch(root,id,tbl){const el=root.querySelector(`[data-search="${id}"]`);if(!el||!tbl)return;el.addEventListener('input',()=>{SEARCHQ[id]=el.value;applySort(tbl,id);});}
 function closeFilter(){document.querySelector('.fmenu')?.remove();document.removeEventListener('mousedown',outsideFilter,true);}
 function outsideFilter(e){if(!e.target.closest('.fmenu'))closeFilter();}
 function openFilter(tbl,id,ci,th){
@@ -513,7 +519,7 @@ const isCand=(k,f)=>!f||!k||k.includes(f)||(k==='밴드 미달'&&f==='G1')||(k==
 function sheetInfo(){
   const body=document.getElementById('sheet-body');const c=S.crit;
   body.innerHTML=`<div class="panel"><div class="bar"><h2 class="grow" style="margin:0">인원 입력</h2>
-     <span id="fin-status" class="sub"></span>
+     ${searchBoxHTML('info')}<span id="fin-status" class="sub"></span>
      <button id="fill-single" type="button" title="분류가 한 직급뿐인 인원(밴드 미달→G1, 초과→G4 포함)의 최종 직급을 채웁니다. 이미 입력한 칸은 그대로 둡니다.">단일 직급 자동 채우기</button>
      <button id="clear-single" type="button" title="「단일 직급 자동 채우기」로 채운 값만 지웁니다. 직접 고른 최종 직급은 그대로 둡니다.">자동 채우기 해제</button>
      <button id="add-row" type="button">행 추가</button><button id="copy-tsv" type="button">표 복사</button></div>
@@ -587,7 +593,7 @@ function sheetInfo(){
   body.querySelector('#copy-tsv').onclick=()=>copyTSV();
   body.querySelectorAll('[data-crit]').forEach(el=>el.addEventListener('change',()=>{setCrit(el.dataset.crit,el.value);save();refreshInfo();}));
   body.querySelectorAll('[data-ovr]').forEach(el=>el.addEventListener('change',()=>{const [g,y]=el.dataset.ovr.split('.').map(Number);S.crit.ovr[g][y]=el.value===''?'':+el.value;save();refreshInfo();}));
-  refreshInfo();sortable(body.querySelector('#info-tbl'),'info');
+  refreshInfo();sortable(body.querySelector('#info-tbl'),'info');bindSearch(body,'info',body.querySelector('#info-tbl'));
 }
 function setCrit(path,val){const c=S.crit;
   if(path==='ratePct'){c.rate=(+val||0)/100;return;}
@@ -652,6 +658,7 @@ function sheetClass(){
     <div class="ncards">${keys.filter(k=>basis==='app'||grp[k].length).map(k=>`<div class="ncard ${basis==='auto'?classCss(k):''}"><div class="nh"><b>${k}</b><span>${grp[k].length}명</span></div>
       <ol>${grp[k].sort((a,b)=>b.sal-a.sal).map(r=>`<li><span>${esc(r.p.name)}${r.fin?'<span class="fintag on">확정</span>':''}</span><small>${esc(r.p.grade)} · ${fW(r.sal)}</small></li>`).join('')||'<li class="note">해당 없음</li>'}</ol></div>`).join('')}</div></details>
   <div class="panel" style="margin-top:16px"><div class="bar"><h2 class="grow" style="margin:0">개인별 분류 결과(${rows.length}명)</h2>
+    ${searchBoxHTML('class')}
     <label class="field">적용 직급<select id="cf"><option value="all">전체</option>${['G1','G2','G3','G4'].map(g=>`<option ${cf===g?'selected':''}>${g}</option>`).join('')}<option value="none" ${cf==='none'?'selected':''}>미확정만</option></select></label></div>
   <div class="scroll"><table id="class-tbl"><thead><tr><th>사번</th><th>이름</th><th>나이</th><th>부서</th><th>직책</th><th>현직급</th><th>남은 정년 년수</th><th>현 연봉(원)</th><th>분류 직급<br>(1차 자동)</th><th>이동가능<br>직급 수</th><th>최종 분류 직급<br>(수기)</th><th>적용 직급</th><th>구분</th></tr></thead><tbody>
   ${rows.filter(r=>cf==='all'||(cf==='none'?!r.fin:'G'+r.app===cf)).map(r=>`<tr class="${r.fin?'confirmed':''}"><td>${esc(r.p.id)}</td><td>${esc(r.p.name)}</td><td>${esc(r.p.age)}</td><td class="l">${esc(r.p.dept)}</td><td>${esc(r.p.title)}</td><td>${esc(r.p.grade)}</td><td>${r.rem??''}</td>
@@ -662,7 +669,7 @@ function sheetClass(){
   body.querySelector('#names-fold').addEventListener('toggle',e=>{S.namesOpen=e.target.open;save();const s=e.target.querySelector('summary .sub');if(s)s.textContent=`(연봉 높은 순 · 눌러서 ${S.namesOpen?'접기':'펼치기'})`;});
   body.querySelector('#nb').onchange=e=>{S.nameBasis=e.target.value;save();sheetClass();};
   body.querySelector('#cf').onchange=e=>{S.classF=e.target.value;save();sheetClass();};
-  sortable(body.querySelector('#class-tbl'),'class');
+  sortable(body.querySelector('#class-tbl'),'class');bindSearch(body,'class',body.querySelector('#class-tbl'));
 }
 
 /* ---- 인원 찾기 (생애연봉 · 상세 공용) ---- */
