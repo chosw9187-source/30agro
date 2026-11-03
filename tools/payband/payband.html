@@ -304,6 +304,7 @@ function fresh(){const c=defaultCrit();return{crit:c,people:demoPeople(),source:
 let S=(()=>{try{const s=JSON.parse(localStorage.getItem(LS_KEY));if(s&&s.crit&&Array.isArray(s.people)){const d=fresh();
   const m=Object.assign({curBands:d.curBands,curDemo:true,anTab:'cur',findG:'',nameBasis:'app'},s);m.crit=Object.assign(defaultCrit(),s.crit);
   const f=Object.assign({},d.an.f,(s.an||{}).f||{}),cf=Object.assign({},d.an.cf,(s.an||{}).cf||{});m.an=Object.assign(d.an,s.an||{});m.an.f=f;m.an.cf=cf;if(m.an.thVer!==2){Object.assign(m.an,{th0:40,th1:70,th2:85,thVer:2});}return m;}}catch(e){}return fresh();})();
+S.manualG='';
 function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(S))}catch(e){}}
 
 /* =========================================================
@@ -665,7 +666,7 @@ function finderHTML(rows){const L=finderRows(rows);
    <label class="field">선택 인원 (${L.length}명)<select id="sel-person">${L.map(r=>`<option value="${esc(pkey(r.p))}" ${pkey(r.p)===S.sel?'selected':''}>${esc(r.p.name)} · ${appTxt(r)}${r.fin?' 확정':''} · ${esc(r.p.id)}</option>`).join('')}</select></label>
    <span class="nav2"><button type="button" id="fd-prev" aria-label="이전 인원">◀</button><button type="button" id="fd-next" aria-label="다음 인원">▶</button></span></div>`;}
 function bindFinder(rows,fn){
-  const go=()=>{save();fn();};
+  const prevSel=S.sel;const go=()=>{if(S.sel!==prevSel)S.manualG='';save();fn();};
   document.getElementById('fd-g').onchange=e=>{S.findG=e.target.value;S.sel='';go();};
   document.getElementById('sel-person').onchange=e=>{S.sel=e.target.value;go();};
   const step=d=>{const L=finderRows(rows);const i=L.findIndex(r=>pkey(r.p)===S.sel);if(!L.length)return;S.sel=pkey(L[(i+d+L.length)%L.length].p);go();};
@@ -681,7 +682,7 @@ function bindFinder(rows,fn){
 
 /* ---- 생애연봉 시뮬레이션 ---- */
 function jumpToLife(p){if(!p||!String(p.name||'').trim()){toast('이름이 있는 행만 볼 수 있습니다.');return;}
-  S.sel=pkey(p);S.findG='';S.sheet='life';S.jump=true;save();renderPayband();}
+  S.sel=pkey(p);S.findG='';S.sheet='life';S.jump=true;S.manualG='';save();renderPayband();}
 // 최종 분류 직급(수기)과 연동되는 시나리오: 승진 반영(①~③에 같은 직급이 없을 때만). CAP은 수기 시나리오에서 직접 고를 때만 표시
 function finScenarios(r,c,tab){if(!r||!r.fin||!r.sal)return[];const f=r.fin;const out=[];
   if(![r.sc1,r.sc2,r.sc3].some(s=>s&&s.g===f))out.push({lbl:`최종 확정 G${f} (승진 반영)`,s:scenario(r.p,f,c,tab),fin:true});
@@ -689,7 +690,7 @@ function finScenarios(r,c,tab){if(!r||!r.fin||!r.sal)return[];const f=r.fin;cons
 const hlCls=(r,s)=>s&&s.manual?'fin-hl':(r&&r.fin&&s&&!s.cap&&s.g===r.fin?'fin-hl':'');
 function manualSel(c){const mm=/^G([1-4])(-CAP)?$/.exec(S.manualG||'');return mm?{g:+mm[1],cap:!!mm[2]}:null;}
 function manualScenario(r,c,tab){const m=manualSel(c);if(!m||!r||!r.sal)return null;const s=scenario(r.p,m.g,c,tab,undefined,m.cap);s.manual=true;s.lbl=m.cap?`수기 시나리오 (G${m.g}-CAP)`:'수기 시나리오 (G'+m.g+')';return s;}
-function manualSelectHTML(c,fin){const star=v=>fin&&v===fin?' ★최종':'';return`<label class="field">수기 시나리오 ▶ 시작 직급<select id="det-man" class="mini-sel"><option value="">선택 안 함</option><optgroup label="승진 반영">${[1,2,3,4].map(g=>`<option value="G${g}" ${S.manualG==='G'+g?'selected':''}>G${g}${star(g)}</option>`).join('')}</optgroup><optgroup label="승진 없이 상한(CAP)에서 동결">${[1,2,3,4].map(g=>`<option value="G${g}-CAP" ${S.manualG==='G'+g+'-CAP'?'selected':''}>G${g}-CAP (${c.bands[g-1][1].toLocaleString('ko-KR')}만원)${star(g)}</option>`).join('')}</optgroup></select></label>`;}
+function manualSelectHTML(c){return`<label class="field">수기 시나리오 ▶ 시작 직급<select id="det-man" class="mini-sel"><option value="">선택 안 함</option><optgroup label="승진 반영">${[1,2,3,4].map(g=>`<option value="G${g}" ${S.manualG==='G'+g?'selected':''}>G${g}</option>`).join('')}</optgroup><optgroup label="승진 없이 상한(CAP)에서 동결">${[1,2,3,4].map(g=>`<option value="G${g}-CAP" ${S.manualG==='G'+g+'-CAP'?'selected':''}>G${g}-CAP (${c.bands[g-1][1].toLocaleString('ko-KR')}만원)</option>`).join('')}</optgroup></select></label>`;}
 const SC_LBL=['시나리오 ①','시나리오 ②','시나리오 ③'];const SC_COL=['var(--accent)','var(--warn)','var(--navy)','var(--crit)'];
 const evOf=r=>r.ev;
 function sheetLife(){
@@ -698,7 +699,7 @@ function sheetLife(){
   const all=[...scs.map((s,i)=>({lbl:SC_LBL[i],s,col:SC_COL[i]})),...finScenarios(r,c,tab).map((o,k)=>({...o,col:k===0&&!o.s.cap?'var(--ink)':'var(--vsafe)'})),...(man?[{lbl:man.lbl,s:man,man:true,col:SC_COL[3]}]:[])];
   const line=o=>o.s?`<tr class="${hlCls(r,o.s)} ${o.man?'man-row':''} ${o.fin?'fin-row':''}"><td class="l">${o.lbl}${!o.fin&&!o.man&&r.fin===o.s.g?'<span class="fintag on">최종 확정</span>':''}</td><td>G${o.s.g}${o.s.cap?'-CAP':''}</td><td class="l">${o.s.path}</td><td>G${o.s.finalG}</td><td class="num ${o.s.final>=cap?'c-over':''}">${fW(o.s.final)}</td></tr>`:`<tr><td class="l">${o.lbl}</td><td>-</td><td>-</td><td>-</td><td class="num">-</td></tr>`;
   const capCnt=k=>rows.filter(x=>[x.sc1,x.sc2,x.sc3].some((s,i)=>(k==null||i===k)&&s&&s.final>=cap)).length;
-  body.innerHTML=`<div class="panel"><div class="bar" style="align-items:flex-end;margin:0"><div class="grow">${finderHTML(rows)}</div>${manualSelectHTML(c,r&&r.fin)}</div></div>
+  body.innerHTML=`<div class="panel"><div class="bar" style="align-items:flex-end;margin:0"><div class="grow">${finderHTML(rows)}</div>${manualSelectHTML(c)}</div></div>
    <div class="grid2" style="margin-top:16px" id="life-sc"><div class="panel"><h2>만 ${c.retAge}세 최종연봉 비교 ${r?`<span class="sub">— ${esc(r.p.name)} (현직급 ${esc(r.p.grade)} · 분류 ${r.k}${r.fin?` · 최종 ${esc(r.p.final)}`:''} · 인사평가 <b>${esc(r.ev)}</b>)</span>`:''}</h2>
     ${r?`<div class="salbar"><div class="hl"><span>현 연봉 (${(c.rate*100).toFixed(1)}% 반영)</span><b>${fW(r.sal*(1+c.rate))}원</b></div></div>
     <div class="scroll"><table><thead><tr><th>시나리오</th><th>시작 직급</th><th>승진 경로(나이)</th><th>${c.retAge}세 직급</th><th>${c.retAge}세 최종연봉(원)</th></tr></thead><tbody>${all.map(line).join('')}</tbody></table></div>${r.fin?`<p class="note fin-note">▣ 굵은 초록 테두리 = 최종 분류 직급 <b>G${r.fin}</b>에서 시작하는 시나리오(승진 반영) + 오른쪽 「수기 시나리오」에서 직접 고른 시나리오(CAP 포함)</p>`:`<p class="note">※ 이 인원은 최종 분류 직급이 미확정입니다. 기본정보에서 최종 직급을 고르면 해당 직급 시나리오에 테두리가 표시됩니다.</p>`}
@@ -749,7 +750,7 @@ function sheetDetail(){
   body.innerHTML=`<div class="panel">${finderHTML(rows)}</div>
    <div class="panel" style="margin-top:16px"><div class="bar"><h2 class="grow" style="margin:0">생애연봉 시뮬레이션 상세</h2>
      <label class="field">인사평가 (이 인원)<select id="det-ev" class="mini-sel"><option value="">미입력 (S 적용)</option>${EVALS.map(e=>`<option ${r.p.eval===e?'selected':''}>${e}</option>`).join('')}</select></label>
-     ${manualSelectHTML(c,r.fin)}</div>
+     ${manualSelectHTML(c)}</div>
    <div class="scroll"><table><thead><tr><th>사번</th><th>이름</th><th>나이</th><th>현직급</th><th>현 연봉(원)</th><th>분류 직급(1차 자동)</th><th>최종 분류 직급(수기)</th><th>남은 정년 년수(${String(by+1).slice(2)}년~)</th><th>인사평가</th></tr></thead><tbody>
    <tr><td>${esc(r.p.id)}</td><td><b>${esc(r.p.name)}</b></td><td>${esc(r.p.age)}</td><td>${esc(r.p.grade)}</td><td class="num">${fW(r.sal)}</td><td class="${classCss(r.k)}">${r.k}</td><td class="${r.fin?'c-fin':'note'}">${r.fin?'G'+r.fin:'미확정'}</td><td>${r.rem??''}</td><td><b>${esc(r.ev)}</b></td></tr></tbody></table></div>
    <h2 style="margin-top:16px">■ 만 ${c.retAge}세 기점 최종연봉 시뮬레이션</h2>
