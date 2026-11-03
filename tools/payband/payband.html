@@ -80,6 +80,7 @@ td.fin{padding:3px;background:var(--surface)}
 td.fin.on .finbox{border:2px solid var(--accent);background:var(--accent)}
 td.fin.on select{color:var(--accent-ink);font-weight:700}
 td.fin.on .fintag{display:inline-block}
+td.fin.on.auto .finbox{border-style:solid;background:var(--accent-soft)} td.fin.on.auto select{color:var(--accent)} td.fin.on.auto .fintag{background:var(--accent);color:var(--accent-ink)}
 td.fin.bad .finbox{border-color:var(--crit);background:var(--crit-soft)}
 td.fin.bad select{color:var(--crit)} td.fin.bad .fintag{background:var(--crit);color:#fff}
 .fintag.on{display:inline-block;background:var(--accent);color:var(--accent-ink);margin-left:5px}
@@ -435,16 +436,18 @@ function renderPayband(){
 const INFO_COLS=[['id','사번','text',72],['name','이름','text',66],['age','나이','number',46],['dept','부서','text',96],['job','직군','text',62],['title','직책','text',52],
   ['grade','현직급<br>(6단계)','grade',60],['hire','입사년도','date',124],['_rem','남은<br>정년','auto',46],['gdate','현직급<br>발령일','date',124],['period','현직급<br>기간','text',64],
   ['adj','조정<br>(±년)','number',46],['salary','현 연봉(원)','won',112],['_cls','분류 직급<br>(1차 자동)','auto',78],['final','최종 분류 직급<br>(수기 확정)','final',118]];
+const singleGrade=k=>k==='밴드 미달'?'G1':k==='밴드 초과'?'G4':(/^G\d$/.test(k||'')?k:'');
 const isCand=(k,f)=>!f||!k||k.includes(f)||(k==='밴드 미달'&&f==='G1')||(k==='밴드 초과'&&f==='G4');
 function sheetInfo(){
   const body=document.getElementById('sheet-body');const c=S.crit;
   body.innerHTML=`<div class="panel"><div class="bar"><h2 class="grow" style="margin:0">인원 입력 <span class="sub">(엑셀 A~M열 + 최종 분류 직급)</span></h2>
      <span id="fin-status" class="sub"></span>
      <button id="fill-single" type="button" title="분류가 한 직급뿐인 인원(밴드 미달→G1, 초과→G4 포함)의 최종 직급을 채웁니다. 이미 입력한 칸은 그대로 둡니다.">단일 직급 자동 채우기</button>
+     <button id="clear-single" type="button" title="「단일 직급 자동 채우기」로 채운 값만 지웁니다. 직접 고른 최종 직급은 그대로 둡니다.">자동 채우기 해제</button>
      <button id="add-row" type="button">행 추가</button><button id="copy-tsv" type="button">표 복사</button></div>
      <div class="scroll"><table id="info-tbl" class="info"><thead><tr><th data-nosort></th>${INFO_COLS.map(x=>`<th style="min-width:${x[3]}px">${x[1]}</th>`).join('')}</tr></thead><tbody></tbody></table></div>
      <div class="legend"><span><i style="background:var(--input)"></i>입력 칸</span><span><i style="background:var(--surface-2)"></i>자동 계산</span>
-       <span><i style="background:var(--accent);border-color:var(--accent)"></i>최종 분류 확정(수기)</span><span><i style="border:2px dashed var(--line-2)"></i>미확정 → 1차 자동 분류 적용</span>
+       <span><i style="background:var(--accent);border-color:var(--accent)"></i>최종 확정 · 직접 선택(수기)</span><span><i style="background:var(--accent-soft);border:2px solid var(--accent)"></i>최종 확정 · 자동 채우기</span><span><i style="border:2px dashed var(--line-2)"></i>미확정 → 1차 자동 분류 적용</span>
        <span><i style="background:var(--crit-soft);border:2px solid var(--crit)"></i>분류 후보 밖 직급(확인 필요)</span></div>
      <p class="note">※ 분류는 「분류 직급(1차 자동)」으로 먼저 정하고, 「최종 분류 직급(수기 확정)」을 고르면 그 값이 우선 적용됩니다(분류 시트 · 집계 ③-2 · 생애연봉 검색 · ② 임금분석). 현 연봉은 원 단위로 입력합니다.</p></div>
    <div class="grid2eq" style="margin-top:16px">
@@ -486,10 +489,14 @@ function sheetInfo(){
     return`<td class="in"><input type="${t}" data-f="${k}" value="${esc(val??'')}" ${k==='period'?`placeholder="${esc(periodText(p))}"`:''}></td>`;}).join('')}</tr>`).join('');
   tb.addEventListener('change',e=>{const el=e.target,tr=el.closest('tr');if(!tr||!el.dataset.f)return;const p=S.people[+tr.dataset.i];const k=el.dataset.f;
     if(el.dataset.won!==undefined){const n=num(el.value);p[k]=n==null?'':n;el.value=n==null?'':fW(n);}
-    else p[k]=(el.type==='number')?(el.value===''?'':+el.value):el.value;save();refreshInfo();});
+    else p[k]=(el.type==='number')?(el.value===''?'':+el.value):el.value;if(k==='final')p.finalAuto=false;save();refreshInfo();});
   tb.addEventListener('click',e=>{const d=e.target.closest('[data-del]');if(!d)return;S.people.splice(+d.dataset.del,1);save();sheetInfo();});
   body.querySelector('#fill-single').onclick=()=>{let n=0;S.people.forEach(p=>{if(p.final)return;const k=classify(num(p.salary),S.crit);
-      const g=k==='밴드 미달'?'G1':k==='밴드 초과'?'G4':(/^G\d$/.test(k)?k:'');if(g){p.final=g;n++;}});save();sheetInfo();toast(`${n}명의 최종 직급을 채웠습니다. 중첩 인원은 직접 고르세요.`);};
+      const g=singleGrade(k);if(g){p.final=g;p.finalAuto=true;n++;}});save();sheetInfo();toast(n?`${n}명의 최종 직급을 자동으로 채웠습니다. 중첩 인원은 직접 고르세요.`:'새로 채울 단일 직급 인원이 없습니다.');};
+  body.querySelector('#clear-single').onclick=()=>{let n=0;S.people.forEach(p=>{if(!p.final)return;
+      // 자동으로 채운 값만 지운다. 이 기능 이전에 채운 값(표시 없음)은 단일 직급과 같을 때만 자동으로 본다.
+      const auto=p.finalAuto===true||(p.finalAuto===undefined&&p.final===singleGrade(classify(num(p.salary),S.crit)));
+      if(auto){p.final='';delete p.finalAuto;n++;}});save();sheetInfo();toast(n?`자동으로 채운 ${n}명을 미확정으로 되돌렸습니다. 직접 고른 값은 유지됩니다.`:'해제할 자동 채우기 값이 없습니다.');};
   body.querySelector('#add-row').onclick=()=>{S.people.push({id:'',name:'',age:'',dept:'',job:'',title:'',grade:'',hire:'',gdate:'',period:'',adj:'',salary:'',final:''});save();delete SORTST.info;sheetInfo();window.scrollTo(0,body.querySelector('#info-tbl').getBoundingClientRect().bottom+window.scrollY-300);};
   body.querySelector('#copy-tsv').onclick=()=>copyTSV();
   body.querySelectorAll('[data-crit]').forEach(el=>el.addEventListener('change',()=>{setCrit(el.dataset.crit,el.value);save();refreshInfo();}));
@@ -507,7 +514,7 @@ function refreshInfo(){
     const r=tr.querySelector('[data-auto="_rem"]'),k=tr.querySelector('[data-auto="_cls"]');const rem=remYears(p,c);const cl=classify(num(p.salary),c);
     r.textContent=rem??'';k.textContent=cl;k.className='auto '+classCss(cl);k.dataset.v=cl in CLS_RANK?CLS_RANK[cl]:'';
     const pi=tr.querySelector('[data-f="period"]');if(pi)pi.placeholder=periodText(p);
-    const fc=tr.querySelector('[data-fin]');if(fc){fc.dataset.v=finRank(p.final);fc.classList.toggle('on',!!p.final);fc.classList.toggle('bad',!!p.final&&!isCand(cl,p.final));}
+    const fc=tr.querySelector('[data-fin]');if(fc){fc.dataset.v=finRank(p.final);fc.classList.toggle('on',!!p.final);fc.classList.toggle('auto',!!p.final&&p.finalAuto===true);const tg=fc.querySelector('.fintag');if(tg)tg.textContent=p.finalAuto===true?'자동':'수기';fc.classList.toggle('bad',!!p.final&&!isCand(cl,p.final));}
     tr.classList.toggle('confirmed',!!p.final);});
   for(let i=0;i<3;i++){const e=document.getElementById('stay-app-'+i);if(e)e.textContent=stayYears(c,i+1);}
   const named=S.people.filter(p=>String(p.name||'').trim());const undec=named.filter(p=>!p.final).length;const fs=document.getElementById('fin-status');
@@ -920,7 +927,7 @@ function importWorkbook(wb,fname){
   const finOf=v=>{const s=String(v??'').trim().toUpperCase();return /^G[1-4]$/.test(s)?s:'';};
   for(let r=2;r<=Math.min(rng.e.r+1,1000);r++){const g=col=>cell(col+r);if(g('B')==null||String(g('B')).trim()==='')continue;
     people.push({id:String(g('A')??''),name:String(g('B')).trim(),age:num(g('C'))??'',dept:g('D')??'',job:g('E')??'',title:g('F')??'',grade:String(g('G')??'').trim(),
-      hire:g('H') instanceof Date?dateStr(g('H')):(g('H')??''),gdate:g('J') instanceof Date?dateStr(g('J')):(g('J')??''),period:g('K')??'',adj:g('L')??'',salary:num(g('M'))??'',final:finCol?finOf(g(finCol)):''});}
+      hire:g('H') instanceof Date?dateStr(g('H')):(g('H')??''),gdate:g('J') instanceof Date?dateStr(g('J')):(g('J')??''),period:g('K')??'',adj:g('L')??'',salary:num(g('M'))??'',final:finCol?finOf(g(finCol)):'',finalAuto:false});}
   if(!people.length)throw new Error('기본정보 시트 B열(이름)에 인원이 없습니다.');
   const c=defaultCrit();const n=a=>num(cell(a));
   [4,5,6,7].forEach((r,i)=>{if(n('Q'+r)!=null)c.bands[i][0]=n('Q'+r);if(n('R'+r)!=null)c.bands[i][1]=n('R'+r);});
@@ -947,7 +954,7 @@ document.getElementById('btn-paste').onclick=()=>{const box=document.getElementB
   box.querySelector('#paste-ok').onclick=()=>{const txt=box.querySelector('#paste-ta').value;const rows=txt.split(/\r?\n/).map(l=>l.split('\t')).filter(c=>c.length>=2&&c[1].trim()!==''&&c[1].trim()!=='이름');
     if(!rows.length){toast('붙여넣은 행이 없습니다. 탭으로 구분된 엑셀 행을 넣으세요.');return;}
     const dt=v=>String(v||'').trim().replace(/\./g,'-').replace(/-$/,'');
-    S.people=rows.map(c=>({id:c[0]?.trim()||'',name:c[1].trim(),age:num(c[2])??'',dept:c[3]?.trim()||'',job:c[4]?.trim()||'',title:c[5]?.trim()||'',grade:c[6]?.trim()||'',hire:dt(c[7]),gdate:dt(c[9]),period:c[10]?.trim()||'',adj:c[11]?.trim()||'',salary:num(c[12])??'',final:/^G[1-4]$/.test((c[14]||'').trim().toUpperCase())?(c[14]).trim().toUpperCase():''}));
+    S.people=rows.map(c=>({id:c[0]?.trim()||'',name:c[1].trim(),age:num(c[2])??'',dept:c[3]?.trim()||'',job:c[4]?.trim()||'',title:c[5]?.trim()||'',grade:c[6]?.trim()||'',hire:dt(c[7]),gdate:dt(c[9]),period:c[10]?.trim()||'',adj:c[11]?.trim()||'',salary:num(c[12])??'',finalAuto:false,final:/^G[1-4]$/.test((c[14]||'').trim().toUpperCase())?(c[14]).trim().toUpperCase():''}));
     S.source='file';S.sourceName='붙여넣기';S.sel='';save();close();route();toast(`${S.people.length}명을 불러왔습니다.`);};};
 let resetArmed=false;
 document.getElementById('btn-reset').onclick=e=>{const b=e.currentTarget;if(!resetArmed){resetArmed=true;b.textContent='한 번 더 누르면 초기화';b.classList.add('primary');setTimeout(()=>{resetArmed=false;b.textContent='예시로 초기화';b.classList.remove('primary');},3000);return;}
