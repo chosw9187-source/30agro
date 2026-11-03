@@ -359,7 +359,10 @@ function scenario(p,g,c,tab,ev,cap){ // cap=true: 승진 없이 g 직급 상한(
     W[t]=prev>=MX(G[t])?prev:Math.min(MX(G[t]),up);}
   const fi=Math.min(end,45);const age=num(p.age)||0;const D=[d1,d2,d3];
   let path;
-  if(cap)path=`G${g} 상한 ${c.bands[g-1][1].toLocaleString('ko-KR')}만원 동결 (승진 없음)`;
+  if(cap){const capM=c.bands[g-1][1].toLocaleString('ko-KR');
+    if(sal>=MX(g))path=`${age-1}세(현재) 이미 상한 이상 → ${fM(sal)}만원 동결 (승진 없음)`;
+    else{const tc=W.findIndex((v,t)=>t<=end&&v>=MX(g));
+      path=tc>=0?`${age-1+tc}세 G${g} 상한 ${capM}만원 도달 → 동결 (승진 없음)`:`G${g} 상한 ${capM}만원 미도달 (승진 없음)`;}}
   else if(g>=4)path='최고 직급';
   else{const parts=[];D.forEach((d,k)=>{if(d<=end&&g+k+1<=top)parts.push(`${age-1+d}세 G${g+k+1}${kx>0?`(누락 ${kx}년)`:''}`);});path=parts.length?parts.join(' → '):'승진 없음(정년 도달)';}
   const missAt=t=>!cap&&kx>0&&D.some((d,k)=>t>=d-kx&&t<d&&g+k+1<=top);
