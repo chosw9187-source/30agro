@@ -115,6 +115,7 @@ tr.rk-vsafe td:first-child{box-shadow:inset 4px 0 0 var(--vsafe)}
 .gtag{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line-2);border-radius:4px;padding:0 4px}
 .gtag.up{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
 .yearsel{display:inline-flex;gap:4px;align-items:center} .yearsel select{font-weight:700;background:var(--input);color:var(--cell-ink)} .yearsel button{padding:4px 8px}
+.p-frz{background:var(--cap);color:var(--cell-ink)} td.yr.frz{background:var(--stay)}
 .c-miss{background:var(--surface-2);color:var(--muted);font-style:italic}
 tr.ev-cur td{background-image:linear-gradient(var(--hl),var(--hl))}
 tr.man-row td{border-top:2px solid var(--line-2)}
@@ -278,7 +279,7 @@ function demoPeople(){
   const EV=['A','S','A+','A','B','A','B','A+','S','A','B','C','A','A+','A','B','S','A','A+','A','B','A','S','A'];
   return R.map((r,i)=>({id:String(r[0]).padStart(6,'0'),name:r[1],age:r[2],dept:r[3],job:r[4],title:r[5],grade:r[6],hire:r[7],gdate:r[8],period:'',adj:'',salary:r[9],eval:EV[i]||''}));
 }
-function defaultAn(rate){return{basis:'lower',rate:rate,byGrade:false,gRates:[rate,rate,rate,rate],bandRate:0,horizon:5,scen:'A',qadj:[1.0,0.5,0,-1.0],th0:40,th1:70,th2:85,thVer:2,yt:5,promo:true,
+function defaultAn(rate){return{basis:'lower',rate:rate,byGrade:false,gRates:[rate,rate,rate,rate],bandRate:0,horizon:5,scen:'A',qadj:[1.0,0.5,0,-1.0],th0:40,th1:70,th2:85,thVer:2,yt:5,promo:true,retCap:true,
   f:{status:'all',grade:'all',dept:'all',q:''},cf:{grade:'all',status:'all',q:''}};}
 // 현행 연봉구간(현직급 6단계, 만원) — 예시값. 실제 구간으로 교체해야 한다.
 function demoCurBands(){return[[3800,'',5000],[4400,'',6000],[5200,'',7200],[6200,'',8600],[7400,'',10000],[8500,'',11500]];}
@@ -777,16 +778,20 @@ function project(r,c,an,scen,tab){
   const L=Math.min(45,Math.max(H,10,R??H));
   const band=(gg,t)=>{const f=Math.pow(1+br,t);return[c.bands[gg-1][0]*1e4*f,c.bands[gg-1][1]*1e4*f];};
   const [mn0,mx0]=band(g0,0);
-  const pts=[{t:0,g:g0,s:r.sal,mn:mn0,mx:mx0,rate:0,promo:false}];let s=r.sal,exitT=null;
+  const pts=[{t:0,g:g0,s:r.sal,mn:mn0,mx:mx0,rate:0,promo:false,sc:r.sal}];let s=r.sal,sc=r.sal,exitT=null;
   for(let t=1;t<=L;t++){const p=pts[t-1];const pr=(p.s-p.mn)/(p.mx-p.mn);const gg=gAt(t);const promo=gg>p.g;
     const base=(an.byGrade?+an.gRates[gg-1]:+an.rate)||0;const rt=base+(scen==='B'?(+an.qadj[quart(pr)]||0):0);
-    s=s*(1+rt/100)+(promo?(+c.promo[gg-2]||0)*1e4:0);const [mn,mx]=band(gg,t);
-    pts.push({t,g:gg,s,mn,mx,rate:rt,promo});
+    const add=promo?(+c.promo[gg-2]||0)*1e4:0;s=s*(1+rt/100)+add;const [mn,mx]=band(gg,t);
+    // 상한 동결 계열: 상한 미만이면 상한까지만, 이미 상한 이상이면 그 금액 유지
+    sc=sc>=mx?sc:Math.min(mx,sc*(1+rt/100)+add);
+    pts.push({t,g:gg,s,mn,mx,rate:rt,promo,sc});
     if(exitT==null&&(R==null||t<=R)&&s>mx&&r.sal<=mx0)exitT=t;}
   pts.forEach(p=>{p.pr=(p.s-p.mn)/(p.mx-p.mn);p.st=(R!=null&&p.t>R)?'ret':yStatus(p.pr,an);});
   const upto=Math.min(H,R??H);let worst='vsafe';for(let t=0;t<=upto;t++){if(YS[pts[t].st].o<YS[worst].o)worst=pts[t].st;}
   const promoYears=pts.filter(p=>p.promo&&p.t<=upto).map(p=>p.t);
-  return{r,g:g0,mn0,mx0,mid0:(mn0+mx0)/2,pr0:pts[0].pr,compa:r.sal/((mn0+mx0)/2),pts,exitT,sH:pts[H].s,prH:pts[H].pr,st:worst,rt:R,ret:R!=null?pts[Math.min(R,45)]:null,promoYears,gH:pts[H].g};
+  let ret=null;if(R!=null){const q=pts[Math.min(R,45)];
+    if(an.retCap!==false){const pr=(q.sc-q.mn)/(q.mx-q.mn);ret={...q,s:q.sc,pr,st:yStatus(pr,an),frozen:q.sc>=q.mx};}else ret={...q,st:yStatus(q.pr,an)};}
+  return{r,g:g0,mn0,mx0,mid0:(mn0+mx0)/2,pr0:pts[0].pr,compa:r.sal/((mn0+mx0)/2),pts,exitT,sH:pts[H].s,prH:pts[H].pr,st:worst,rt:R,ret,promoYears,gH:pts[H].g};
 }
 function analyze(scen){const all=computeAll();const list=all.rows.filter(r=>r.sal&&r.k).map(r=>project(r,all.c,S.an,scen,all.tab));return{...all,list};}
 function summarize(list,an){
@@ -796,7 +801,7 @@ function summarize(list,an){
     exit:cnt('exit'),soon:cnt('soon'),high:cnt('high'),under:cnt('under'),ok:cnt('ok'),vsafe:cnt('vsafe'),
     underCost:list.reduce((a,x)=>a+Math.max(0,x.mn0-x.r.sal),0),
     pay0:list.reduce((a,x)=>a+x.r.sal,0),pay1:list.reduce((a,x)=>a+x.pts[1].s,0),payH:list.reduce((a,x)=>a+x.sH,0),
-    retExit:list.filter(x=>x.ret&&x.ret.pr>1).length,promoN:list.filter(x=>x.promoYears.length).length,compa:n?list.reduce((a,x)=>a+x.compa,0)/n:null};
+    retExit:list.filter(x=>x.ret&&x.ret.pr>1.000001).length,retFrozen:list.filter(x=>x.ret&&x.ret.frozen).length,promoN:list.filter(x=>x.promoYears.length).length,compa:n?list.reduce((a,x)=>a+x.compa,0)/n:null};
 }
 function posBar(p0,pH,midPr,col,label){ // Min-Mid-Max 막대, ● 현재 / ○ 미래
   const W=200,H=34,pad=8;const lo=-0.35,hi=1.35;const X=v=>pad+(Math.max(lo,Math.min(hi,v))-lo)/(hi-lo)*(W-2*pad);
@@ -887,6 +892,7 @@ function anSim(){
     <label class="field">직급별 인상률<select id="an-bygrade"><option value="0" ${!an.byGrade?'selected':''}>일괄 적용</option><option value="1" ${an.byGrade?'selected':''}>직급별 입력</option></select></label>
     ${an.byGrade?[0,1,2,3].map(i=>`<label class="field">G${i+1}(%)<input type="number" step="0.1" data-grate="${i}" value="${an.gRates[i]}" style="width:64px"></label>`).join(''):''}
     <label class="field">승진 반영<select id="an-promo"><option value="1" ${an.promo!==false?'selected':''}>반영 (① 승진 경로)</option><option value="0" ${an.promo===false?'selected':''}>미반영 (현 밴드 유지)</option></select></label>
+    <label class="field">정년 값<select id="an-retcap"><option value="1" ${an.retCap!==false?'selected':''}>상한 동결</option><option value="0" ${an.retCap===false?'selected':''}>인상률 그대로(상한 초과 허용)</option></select></label>
     <label class="field">밴드 연 조정률(%)<input id="an-band" type="number" step="0.1" value="${an.bandRate}"></label>
     <label class="field">종합 판정 기간<select id="an-h">${[1,2,3,4,5,6,7,8,9,10].map(h=>`<option value="${h}" ${h===+an.horizon?'selected':''}>${BASE_YEAR}~${BASE_YEAR+h} (${h}년)</option>`).join('')}</select></label>
     <label class="field">미확정 중첩 인원<select id="an-basis"><option value="lower" ${an.basis==='lower'?'selected':''}>하위 직급 기준</option><option value="upper" ${an.basis==='upper'?'selected':''}>상위 직급 기준</option></select></label>
@@ -906,6 +912,7 @@ function anSim(){
   body.querySelector('#an-bygrade').onchange=e=>{an.byGrade=e.target.value==='1';rer();};
   body.querySelectorAll('[data-grate]').forEach(el=>el.onchange=()=>{an.gRates[+el.dataset.grate]=+el.value||0;re();});
   body.querySelector('#an-promo').onchange=e=>{an.promo=e.target.value==='1';re();};
+  body.querySelector('#an-retcap').onchange=e=>{an.retCap=e.target.value==='1';re();};
   body.querySelector('#an-band').onchange=e=>{an.bandRate=+e.target.value||0;re();};
   body.querySelector('#an-h').onchange=e=>{an.horizon=+e.target.value;re();};
   body.querySelector('#an-basis').onchange=e=>{an.basis=e.target.value;re();};
@@ -926,7 +933,7 @@ function drawSim(){
   const byG=[1,2,3,4].map(g=>{const L=cur.list.filter(x=>x.g===g);return{g,n:L.length,c:ORD.map(k=>[k,L.filter(x=>x.st===k).length])};});
   const better=(a,b,low)=>a===b?['','']:((a<b)===low?['best','']:['','best']);
   const rowsCmp=[['1년차 인상 소요액(억원)',sA.pay1-sA.pay0,sB.pay1-sB.pay0,fEok,true],[`${H}년 누적 연봉 증가(억원)`,sA.payH-sA.pay0,sB.payH-sB.pay0,fEok,true],
-    [`${BASE_YEAR+H}년 밴드 내 비율`,sA.n?sA.inBandH/sA.n:0,sB.n?sB.inBandH/sB.n:0,v=>fP(v),false],[`${H}년 내 이탈 인원(명)`,sA.exit,sB.exit,v=>v,true],[`정년 시점 상한 초과(명)`,sA.retExit,sB.retExit,v=>v,true]];
+    [`${BASE_YEAR+H}년 밴드 내 비율`,sA.n?sA.inBandH/sA.n:0,sB.n?sB.inBandH/sB.n:0,v=>fP(v),false],[`${H}년 내 이탈 인원(명)`,sA.exit,sB.exit,v=>v,true],[an.retCap!==false?`정년 시점 상한 동결(명)`:`정년 시점 상한 초과(명)`,an.retCap!==false?sA.retFrozen:sA.retExit,an.retCap!==false?sB.retFrozen:sB.retExit,v=>v,true]];
   const ycell=(x,t)=>{const p=x.pts[t];if(!p)return'<td></td>';if(p.st==='ret')return`<td class="yr ret" data-v="" data-ft="정년 이후">정년 이후<br><span class="note" style="margin:0">${BASE_YEAR+x.rt}년 퇴직</span></td>`;
     const pr=x.pts.slice(1,t+1).some(q=>q.promo);
     return`<td class="yr" data-v="${p.pr.toFixed(4)}" data-ft="${YS[p.st].l}"><div class="ys">${fW(p.s)}</div><div class="yp"><span class="gtag ${p.g>x.g?'up':''}">G${p.g}${pr?' 승진':''}</span>${fP(p.pr,0)} ${chip(p.st)}</div></td>`;};
@@ -937,7 +944,7 @@ function drawSim(){
     <div class="kpi crit"><div class="k">이탈 (${BASE_YEAR+H}년까지)</div><div class="v">${sm.exit}<small>명</small></div><div class="d">현재 초과 포함</div></div>
     <div class="kpi warn"><div class="k">이탈 임박 / 다소 높음</div><div class="v">${sm.soon}<small>명</small> / ${sm.high}<small>명</small></div><div class="d">위치 ${an.th2}%↑ / ${an.th1}%↑</div></div>
     <div class="kpi ok"><div class="k">안정적 / 매우 안정적</div><div class="v">${sm.ok}<small>명</small> / ${sm.vsafe}<small>명</small></div><div class="d">하한 미달 ${sm.under}명 (보정 ${fEok(sm.underCost)}억원)</div></div>
-    <div class="kpi"><div class="k">정년 시점 상한 초과</div><div class="v">${sm.retExit}<small>명</small></div><div class="d">현 인상률 지속 가정</div></div></div>
+    <div class="kpi"><div class="k">정년 시점 ${an.retCap!==false?'상한 동결':'상한 초과'}</div><div class="v">${an.retCap!==false?sm.retFrozen:sm.retExit}<small>명</small></div><div class="d">${an.retCap!==false?`상한 도달·동결 (이 중 이미 초과 ${sm.retExit}명)`:'현 인상률 지속 가정'}</div></div></div>
   <div class="grid2eq">
     <div class="panel"><h2>직급별 종합 판정 <span class="sub">(현재 밴드 기준 · ${BASE_YEAR}~${BASE_YEAR+H} 중 가장 나쁜 해, 명)</span></h2>
       <div class="statbar">${byG.map(b=>`<div class="row"><b>G${b.g}</b><div class="track">${b.c.filter(([,n])=>n).map(([k,n])=>`<span style="width:${b.n?n/b.n*100:0}%;background:${YCOL[k]}" title="${YS[k].l} ${n}명"></span>`).join('')}</div><span>${b.n}명</span></div>`).join('')}</div>
@@ -961,12 +968,12 @@ function drawSim(){
         <td class="l who" data-v="${esc(p.name)}" data-ft="${esc(p.name)}"><b>${esc(p.name)}</b><span>${esc(p.id)} · ${esc(p.dept)} · ${esc(p.title)}</span></td>
         <td class="band-cell" data-v="${x.g}" data-ft="G${x.g}"><b>G${x.g}</b><br><span class="note" style="margin:0">${fM(x.mn0)}~${fM(x.mx0)}만원</span></td>
         ${ycell(x,0)}${ycell(x,yt)}
-        ${x.ret?`<td class="yr" data-v="${x.ret.pr.toFixed(4)}" data-ft="${YS[x.ret.st==='ret'?'ok':x.ret.st].l}"><div class="note" style="margin:0">${BASE_YEAR+x.rt}년 · ${x.rt}년 후</div><div class="ys">${fW(x.ret.s)}</div><div class="yp"><span class="gtag ${x.ret.g>x.g?'up':''}">G${x.ret.g}</span>${fP(x.ret.pr,0)} ${chip(x.ret.st==='ret'?'ok':x.ret.st)}</div></td>`:'<td data-v="">-</td>'}
+        ${x.ret?`<td class="yr ${x.ret.frozen?'frz':''}" data-v="${x.ret.pr.toFixed(4)}" data-ft="${x.ret.frozen?'상한 동결':YS[x.ret.st].l}"><div class="note" style="margin:0">${BASE_YEAR+x.rt}년 · ${x.rt}년 후</div><div class="ys">${fW(x.ret.s)}</div><div class="yp"><span class="gtag ${x.ret.g>x.g?'up':''}">G${x.ret.g}</span>${fP(x.ret.pr,0)} ${x.ret.frozen?'<span class="pill p-frz">상한 동결</span>':chip(x.ret.st)}</div></td>`:'<td data-v="">-</td>'}
         <td class="pos">${posBar(x.pr0,fut?fut.pr:null,0.5,fut?YCOL[fut.st]:YCOL[x.pts[0].st],fut?`${BASE_YEAR} ${fP(x.pr0)} → ${Y} ${fP(fut.pr)} (G${fut.g})`:`현재 ${fP(x.pr0)}`)}${fut&&fut.g>x.g?`<div class="note" style="margin:0;text-align:center">${Y}년 G${fut.g} 밴드 기준</div>`:''}</td>
         <td data-v="${x.pr0>1?-1:(x.exitT??999)}" data-ft="${x.pr0>1?'이미 초과':x.exitT!=null?(BASE_YEAR+x.exitT)+'년':'정년 전 없음'}">${x.pr0>1?'<b class="c-over">이미 초과</b>':x.exitT!=null?`<b>${BASE_YEAR+x.exitT}년</b><br><span class="note" style="margin:0">${x.exitT}년 후</span>`:'<span class="note" style="margin:0">정년 전 없음</span>'}</td>
         <td data-v="${YS[x.st].o}">${chip(x.st)}</td></tr>`;}).join('')||'<tr><td colspan="99">조건에 맞는 인원이 없습니다.</td></tr>'}
     </tbody></table></div>
-    <p class="note">※ 연도를 바꾸면 ${Y}년 칸과 Pay-band 위치(○)가 그 연도 기준으로 바뀝니다 / 칸 = 예상 연봉(원) · 그해 적용 밴드 · 밴드 안 위치 · 판정 / 승진 반영: ① 생애연봉의 승진 경로(인사평가 누락·최고 도달 직급·최초 승진 ${c.firstYear}년)를 따르고, 승진 연도에는 승진 정액을 더하며 위치는 승진한 직급의 밴드로 다시 계산 / 상한을 넘어도 동결하지 않고 인상률을 그대로 적용(이탈 확인용) / 종합 판정 = ${BASE_YEAR}~${BASE_YEAR+H}년 중 가장 나쁜 판정</p></div>`;
+    <p class="note">※ 연도를 바꾸면 ${Y}년 칸과 Pay-band 위치(○)가 그 연도 기준으로 바뀝니다 / 칸 = 예상 연봉(원) · 그해 적용 밴드 · 밴드 안 위치 · 판정 / 승진 반영: ① 생애연봉의 승진 경로(인사평가 누락·최고 도달 직급·최초 승진 ${c.firstYear}년)를 따르고, 승진 연도에는 승진 정액을 더하며 위치는 승진한 직급의 밴드로 다시 계산 / 연도 칸·이탈 판정은 상한을 넘어도 인상률을 그대로 적용(이탈 시점 확인용) / 정년 칸은 「정년 값」 설정을 따름 — 상한 동결이면 상한까지만 인상하고 이미 상한 이상이면 그 금액 유지 / 종합 판정 = ${BASE_YEAR}~${BASE_YEAR+H}년 중 가장 나쁜 판정</p></div>`;
   const setY=v=>{an.yt=Math.max(1,Math.min(10,v));save();drawSim();};
   out.querySelector('#f-yr').onchange=e=>setY(+e.target.value);
   out.querySelector('#yr-prev').onclick=()=>setY(yt-1);out.querySelector('#yr-next').onclick=()=>setY(yt+1);
@@ -978,7 +985,7 @@ function drawSim(){
   out.querySelector('#copy-an').onclick=()=>{const hd=['사번','이름','부서','직책','적용 밴드','Min','Max',`${BASE_YEAR} 연봉`,`${BASE_YEAR} 판정`].concat(years.flatMap(t=>[`${BASE_YEAR+t} 직급`,`${BASE_YEAR+t} 연봉`,`${BASE_YEAR+t} 판정`]),['정년 연도','정년 연봉','정년 판정','최초 이탈','종합 판정']);
     const yv=(x,t)=>{const p=x.pts[t];return p.st==='ret'?['','','정년 이후']:['G'+p.g,Math.round(p.s),YS[p.st].l];};
     copyText('연도별 시뮬레이션',[hd.join('\t')].concat(list.map(x=>[x.r.p.id,x.r.p.name,x.r.p.dept,x.r.p.title,'G'+x.g,x.mn0,x.mx0,Math.round(x.r.sal),YS[x.pts[0].st].l,...years.flatMap(t=>yv(x,t)),
-      x.ret?BASE_YEAR+x.rt:'',x.ret?Math.round(x.ret.s):'',x.ret?YS[x.ret.st==='ret'?'ok':x.ret.st].l:'',x.pr0>1?'이미 초과':x.exitT!=null?BASE_YEAR+x.exitT:'',YS[x.st].l].join('\t'))).join('\n'),'시뮬레이션 표를 복사했습니다.');};
+      x.ret?BASE_YEAR+x.rt:'',x.ret?Math.round(x.ret.s):'',x.ret?(x.ret.frozen?'상한 동결':YS[x.ret.st].l):'',x.pr0>1?'이미 초과':x.exitT!=null?BASE_YEAR+x.exitT:'',YS[x.st].l].join('\t'))).join('\n'),'시뮬레이션 표를 복사했습니다.');};
   out.querySelectorAll('tbody tr[data-pid]').forEach(tr=>tr.onclick=()=>{const x=cur.list.find(y=>pkey(y.r.p)===tr.dataset.pid);if(x)openDetail(x);});
   sortable(out.querySelector('#sim-tbl'),'sim');
 }
