@@ -362,7 +362,7 @@ function scenario(p,g,c,tab,ev,cap){ // cap=true: 승진 없이 g 직급 상한(
   if(cap){const capM=c.bands[g-1][1].toLocaleString('ko-KR');
     if(sal>=MX(g))path=`${age-1}세(현재) 이미 상한 이상 → ${fM(sal)}만원 동결 (승진 없음)`;
     else{const tc=W.findIndex((v,t)=>t<=end&&v>=MX(g));
-      path=tc>=0?`${age-1+tc}세 G${g} 상한 ${capM}만원 도달 → 동결 (승진 없음)`:`G${g} 상한 ${capM}만원 미도달 (승진 없음)`;}}
+      path=tc>=0?`${age-1+tc}세 G${g} 상한 ${capM}만원 도달 → 동결 (승진 없음)`:`${age-1+end}세(정년)까지 G${g} 상한 ${capM}만원 미도달 → ${fM(W[Math.min(end,45)])}만원 (승진 없음)`;}}
   else if(g>=4)path='최고 직급';
   else{const parts=[];D.forEach((d,k)=>{if(d<=end&&g+k+1<=top)parts.push(`${age-1+d}세 G${g+k+1}${kx>0?`(누락 ${kx}년)`:''}`);});path=parts.length?parts.join(' → '):'승진 없음(정년 도달)';}
   const missAt=t=>!cap&&kx>0&&D.some((d,k)=>t>=d-kx&&t<d&&g+k+1<=top);
@@ -373,7 +373,19 @@ function scenario(p,g,c,tab,ev,cap){ // cap=true: 승진 없이 g 직급 상한(
 function simTargets(p,k,c){const t=(c.target||{})[p.grade]||[];const gv=v=>/^G[1-4]$/.test(v||'')?+v[1]:null;
   const q=gv(t[0]);if(q)return[q,gv(t[1]),gv(t[2])];
   const g1=k===''?null:k==='밴드 미달'?1:k==='밴드 초과'?4:+k[1];return[g1,k.includes(',')?+k[5]:null,null];}
+// 생년월일 정규화: Date / 19900315 / 900315 / 1990-03-15 / 1990.03.15 / 엑셀 일련번호 → 'YYYY-MM-DD'
+function normBirth(v){if(v==null||v==='')return'';
+  if(v instanceof Date&&!isNaN(v))return dateStr(v);
+  let s=String(v).trim();
+  if(typeof v==='number'&&v>10000&&v<80000){const d=new Date(Math.round((v-25569)*864e5));return isNaN(d)?'':`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;}
+  let m=s.match(/^(\d{4})[-./ ](\d{1,2})[-./ ](\d{1,2})/)||s.match(/^(\d{4})(\d{2})(\d{2})$/);if(m)return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  m=s.match(/^(\d{2})(\d{2})(\d{2})$/);if(m){const yy=+m[1];const ref=ageRefYear(S.crit)%100;return`${yy>ref?1900+yy:2000+yy}-${m[2]}-${m[3]}`;}
+  return'';}
+const ageRefYear=c=>(+c.baseYear||BASE_YEAR)+1;   // 나이 기준연도(엑셀: 나이는 27년 기준)
+const isBirthLike=v=>v instanceof Date||(typeof v==='number'&&v>10000)||/^\d{6}$|^\d{8}$|^\d{4}[-./]\d{1,2}[-./]\d{1,2}/.test(String(v??'').trim());
+function applyBirthAges(){const ref=ageRefYear(S.crit);S.people.forEach(p=>{const b=normBirth(p.birth);if(b){p.birth=b;p.age=ref-(+b.slice(0,4));}});}
 function computeAll(){
+  applyBirthAges();
   const c=S.crit,tab=stdTable(c);
   const rows=S.people.filter(p=>String(p.name||'').trim()!=='').map(p=>{
     const sal=num(p.salary);const k=classify(sal,c);
@@ -514,7 +526,7 @@ function renderPayband(){
 }
 
 /* ---- 기본정보 ---- */
-const INFO_COLS=[['id','사번','text',72],['name','이름','text',66],['age','나이','number',46],['dept','부서','text',96],['job','직군','text',62],['title','직책','text',52],
+const INFO_COLS=[['id','사번','text',72],['name','이름','text',66],['birth','생년월일','date',124],['age','나이','number',46],['dept','부서','text',96],['job','직군','text',62],['title','직책','text',52],
   ['grade','현직급<br>(6단계)','grade',60],['hire','입사년도','date',124],['_rem','남은<br>정년','auto',46],['gdate','현직급<br>발령일','date',124],['period','현직급<br>기간','text',64],
   ['adj','조정<br>(±년)','number',46],['salary','현 연봉(원)','won',112],['_cls','분류 직급<br>(1차 자동)','auto',78],['eval','인사평가','eval',70],['final','최종 분류 직급<br>(수기 확정)','final',150]];
 const singleGrade=k=>k==='밴드 미달'?'G1':k==='밴드 초과'?'G4':(/^G\d$/.test(k||'')?k:'');
@@ -530,7 +542,7 @@ function sheetInfo(){
      <div class="legend"><span><i style="background:var(--input)"></i>입력 칸</span><span><i style="background:var(--surface-2)"></i>자동 계산</span>
        <span><i style="background:var(--accent);border-color:var(--accent)"></i>최종 확정 · 직접 선택(수기)</span><span><i style="background:var(--accent-soft);border:2px solid var(--accent)"></i>최종 확정 · 자동 채우기</span><span><i style="border:2px dashed var(--line-2)"></i>미확정 → 1차 자동 분류 적용</span>
        <span><i style="background:var(--crit-soft);border:2px solid var(--crit)"></i>분류 후보 밖 직급(확인 필요)</span></div>
-     <p class="note">※ 분류는 「분류 직급(1차 자동)」으로 먼저 정하고, 「최종 분류 직급(수기 확정)」을 고르면 그 값이 우선 적용됩니다(분류 시트 · 집계 ③-2 · 생애연봉 검색 · ② 임금분석). 현 연봉은 원 단위로 입력합니다.</p></div>
+     <p class="note">※ 분류는 「분류 직급(1차 자동)」으로 먼저 정하고, 「최종 분류 직급(수기 확정)」을 고르면 그 값이 우선 적용됩니다(분류 시트 · 집계 ③-2 · 생애연봉 검색 · ② 임금분석). 현 연봉은 원 단위로 입력합니다. 생년월일을 넣으면 나이 = ${ageRefYear(c)} − 출생연도(연 나이, 생일 지남과 무관)로 자동 계산됩니다.</p></div>
    <div class="grid2eq" style="margin-top:16px">
      <div class="panel"><h2>■ 분류 기준 <span class="sub">(노란색 수정 가능, 단위: 만원)</span></h2>
        <div class="bar" style="align-items:flex-start;gap:16px">
@@ -584,7 +596,7 @@ function sheetInfo(){
     return`<td class="in"><input type="${t}" data-f="${k}" value="${esc(val??'')}" ${k==='period'?`placeholder="${esc(periodText(p))}"`:''}></td>`;}).join('')}</tr>`).join('');
   tb.addEventListener('change',e=>{const el=e.target,tr=el.closest('tr');if(!tr||!el.dataset.f)return;const p=S.people[+tr.dataset.i];const k=el.dataset.f;
     if(el.dataset.won!==undefined){const n=num(el.value);p[k]=n==null?'':n;el.value=n==null?'':fW(n);}
-    else p[k]=(el.type==='number')?(el.value===''?'':+el.value):el.value;if(k==='final')p.finalAuto=false;save();refreshInfo();});
+    else p[k]=(el.type==='number')?(el.value===''?'':+el.value):el.value;if(k==='final')p.finalAuto=false;if(k==='birth')applyBirthAges();save();refreshInfo();});
   tb.addEventListener('click',e=>{const go=e.target.closest('[data-go]');if(go){jumpToLife(S.people[+go.dataset.go]);return;}const d=e.target.closest('[data-del]');if(!d)return;S.people.splice(+d.dataset.del,1);save();sheetInfo();});
   body.querySelector('#fill-single').onclick=()=>{let n=0;S.people.forEach(p=>{if(p.final)return;const k=classify(num(p.salary),S.crit);
       const g=singleGrade(k);if(g){p.final=g;p.finalAuto=true;n++;}});save();sheetInfo();toast(n?`${n}명의 최종 직급을 자동으로 채웠습니다. 중첩 인원은 직접 고르세요.`:'새로 채울 단일 직급 인원이 없습니다.');};
@@ -611,6 +623,7 @@ function setCrit(path,val){const c=S.crit;
 function refreshInfo(){
   const {c,tab}=computeAll();
   document.querySelectorAll('#info-tbl tbody tr').forEach(tr=>{const p=S.people[+tr.dataset.i];if(!p)return;
+    const ai=tr.querySelector('[data-f="age"]');if(ai){const hb=!!normBirth(p.birth);ai.readOnly=hb;ai.title=hb?`생년월일 기준 자동 (${ageRefYear(c)} − 출생연도)`:'';if(hb)ai.value=p.age;ai.closest('td').classList.toggle('auto',hb);}
     const r=tr.querySelector('[data-auto="_rem"]'),k=tr.querySelector('[data-auto="_cls"]');const rem=remYears(p,c);const cl=classify(num(p.salary),c);
     r.textContent=rem??'';k.textContent=cl;k.className='auto '+classCss(cl);k.dataset.v=cl in CLS_RANK?CLS_RANK[cl]:'';
     const pi=tr.querySelector('[data-f="period"]');if(pi)pi.placeholder=periodText(p);
@@ -642,8 +655,8 @@ function stdTableHTML(c,tab,n){
 }
 function copyText(title,txt,ok){navigator.clipboard?.writeText(txt).then(()=>toast(ok),()=>showText(title,txt)) ?? showText(title,txt);}
 function copyTSV(){
-  const head=['사번','이름','나이','부서','직군','직책','현직급','입사년도','남은 정년 년수','현직급발령일','현직급 기간','조정','현 연봉','분류 직급','인사평가','최종 분류 직급'];
-  const c=S.crit;const lines=[head.join('\t')].concat(S.people.map(p=>[p.id,p.name,p.age,p.dept,p.job,p.title,p.grade,dotDate(p.hire),remYears(p,c)??'',dotDate(p.gdate),periodText(p),p.adj,p.salary,classify(num(p.salary),c),p.eval||'',p.final||''].join('\t')));
+  const head=['사번','이름','나이','부서','직군','직책','현직급','입사년도','남은 정년 년수','현직급발령일','현직급 기간','조정','현 연봉','분류 직급','인사평가','최종 분류 직급','생년월일'];
+  const c=S.crit;const lines=[head.join('\t')].concat(S.people.map(p=>[p.id,p.name,p.age,p.dept,p.job,p.title,p.grade,dotDate(p.hire),remYears(p,c)??'',dotDate(p.gdate),periodText(p),p.adj,p.salary,classify(num(p.salary),c),p.eval||'',p.final||'',dotDate(p.birth)].join('\t')));
   copyText('표 복사',lines.join('\n'),'표를 복사했습니다. 엑셀에 붙여넣으세요.');
 }
 
@@ -1093,11 +1106,13 @@ function importWorkbook(wb,fname){
   const cell=a=>{const c=ws[a];return c?c.v:undefined;};
   const people=[];const rng=XLSX.utils.decode_range(ws['!ref']||'A1:N301');
   // 「최종 분류 직급」 열이 있으면 함께 읽는다 (1행 머리글에 '최종'이 들어간 O열 이후 칸)
+  let birthCol=null;for(let ci=0;ci<=Math.min(rng.e.c,60);ci++){const h=String(cell(XLSX.utils.encode_col(ci)+'1')??'');if(/생년월일|생일|출생/.test(h)){birthCol=XLSX.utils.encode_col(ci);break;}}
   let finCol=null;for(let ci=14;ci<=Math.min(rng.e.c,60);ci++){const h=cell(XLSX.utils.encode_col(ci)+'1');if(h&&String(h).includes('최종')){finCol=XLSX.utils.encode_col(ci);break;}}
   const evOfCell=v=>{const s=String(v??'').trim().toUpperCase();return EVALS.includes(s)?s:'';};
   const finOf=v=>{const s=String(v??'').trim().toUpperCase();return /^G[1-4]$/.test(s)?s:'';};
   for(let r=2;r<=Math.min(rng.e.r+1,1000);r++){const g=col=>cell(col+r);if(g('B')==null||String(g('B')).trim()==='')continue;
-    people.push({id:String(g('A')??''),name:String(g('B')).trim(),age:num(g('C'))??'',dept:g('D')??'',job:g('E')??'',title:g('F')??'',grade:String(g('G')??'').trim(),
+    const bRaw=birthCol?g(birthCol):(isBirthLike(g('C'))?g('C'):null);
+    people.push({id:String(g('A')??''),name:String(g('B')).trim(),birth:normBirth(bRaw),age:normBirth(bRaw)?'':(num(g('C'))??''),dept:g('D')??'',job:g('E')??'',title:g('F')??'',grade:String(g('G')??'').trim(),
       hire:g('H') instanceof Date?dateStr(g('H')):(g('H')??''),gdate:g('J') instanceof Date?dateStr(g('J')):(g('J')??''),period:g('K')??'',adj:g('L')??'',salary:num(g('M'))??'',final:finCol?finOf(g(finCol)):'',finalAuto:false,eval:evOfCell(g('O'))});}
   if(!people.length)throw new Error('기본정보 시트 B열(이름)에 인원이 없습니다.');
   const c=defaultCrit();const n=a=>num(cell(a));
@@ -1123,7 +1138,7 @@ document.getElementById('file-xlsx').addEventListener('change',e=>{const f=e.tar
   const rd=new FileReader();rd.onload=()=>{try{importWorkbook(XLSX.read(rd.result,{type:'array',cellDates:true}),f.name);}catch(err){toast(err.message);}e.target.value='';};rd.readAsArrayBuffer(f);});
 document.getElementById('btn-paste').onclick=()=>{const box=document.getElementById('dlg-box');
   box.innerHTML=`<div class="hd"><h2 style="margin:0">엑셀에서 붙여넣기</h2><button type="button" id="dlg-close">닫기</button></div>
-  <p class="sub">기본정보 시트의 A~M열(사번 · 이름 · 나이 · 부서 · 직군 · 직책 · 현직급 · 입사년도 · 남은정년 · 발령일 · 기간 · 조정 · 현 연봉)을 머리글 없이 복사해 붙여넣으세요. N열(분류 직급) 다음 O열 인사평가(S·A+·A·B·C), P열 최종 분류 직급(G1~G4)이 있으면 함께 읽습니다. 분류 기준은 지금 값을 유지합니다.</p>
+  <p class="sub">기본정보 시트의 A~M열(사번 · 이름 · 나이 · 부서 · 직군 · 직책 · 현직급 · 입사년도 · 남은정년 · 발령일 · 기간 · 조정 · 현 연봉)을 머리글 없이 복사해 붙여넣으세요. C열에 나이 대신 생년월일(1990-03-15, 19900315, 900315)을 넣어도 됩니다. N열(분류 직급) 다음 O열 인사평가(S·A+·A·B·C), P열 최종 분류 직급(G1~G4)이 있으면 함께 읽습니다. 분류 기준은 지금 값을 유지합니다.</p>
   <textarea id="paste-ta" placeholder="218012	홍길동	34	작물보호팀	일반직	담당	G2	2018-05-02		2022-10-01	4년3월		52171690"></textarea>
   <div class="bar" style="margin-top:8px"><span class="grow"></span><button type="button" id="paste-cancel">취소</button><button type="button" class="primary" id="paste-ok">인원 교체</button></div>`;
   const d=document.getElementById('dlg');d.hidden=false;const close=()=>d.hidden=true;box.querySelector('#dlg-close').onclick=close;box.querySelector('#paste-cancel').onclick=close;
@@ -1131,7 +1146,7 @@ document.getElementById('btn-paste').onclick=()=>{const box=document.getElementB
   box.querySelector('#paste-ok').onclick=()=>{const txt=box.querySelector('#paste-ta').value;const rows=txt.split(/\r?\n/).map(l=>l.split('\t')).filter(c=>c.length>=2&&c[1].trim()!==''&&c[1].trim()!=='이름');
     if(!rows.length){toast('붙여넣은 행이 없습니다. 탭으로 구분된 엑셀 행을 넣으세요.');return;}
     const dt=v=>String(v||'').trim().replace(/\./g,'-').replace(/-$/,'');
-    S.people=rows.map(c=>({id:c[0]?.trim()||'',name:c[1].trim(),age:num(c[2])??'',dept:c[3]?.trim()||'',job:c[4]?.trim()||'',title:c[5]?.trim()||'',grade:c[6]?.trim()||'',hire:dt(c[7]),gdate:dt(c[9]),period:c[10]?.trim()||'',adj:c[11]?.trim()||'',salary:num(c[12])??'',finalAuto:false,...pasteTail(c)}));
+    S.people=rows.map(c=>({id:c[0]?.trim()||'',name:c[1].trim(),birth:normBirth(isBirthLike(c[2])?c[2]:c[16]),age:isBirthLike(c[2])?'':(num(c[2])??''),dept:c[3]?.trim()||'',job:c[4]?.trim()||'',title:c[5]?.trim()||'',grade:c[6]?.trim()||'',hire:dt(c[7]),gdate:dt(c[9]),period:c[10]?.trim()||'',adj:c[11]?.trim()||'',salary:num(c[12])??'',finalAuto:false,...pasteTail(c)}));
     S.source='file';S.sourceName='붙여넣기';S.sel='';save();close();route();toast(`${S.people.length}명을 불러왔습니다.`);};};
 // 붙여넣기 O열 이후: 인사평가(O) · 최종 분류 직급(P). 예전 형식(O열 = 최종 직급)도 받는다.
 function pasteTail(c){const u=i=>String(c[i]||'').trim().toUpperCase();
