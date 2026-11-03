@@ -31,7 +31,7 @@
 [hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5;font-variant-numeric:tabular-nums}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
-.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:1480px;margin:0 auto}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:1760px;margin:0 auto}
 header.top{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
 header.top .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding-block:10px}
 .brand{display:flex;align-items:center;gap:10px;min-width:0}
@@ -62,6 +62,7 @@ h2{font-size:15px;margin:0 0 8px;letter-spacing:-.01em}
 @media (max-width:1100px){.grid2{grid-template-columns:minmax(0,1fr)}}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px;min-width:0}
 .panel + .panel{margin-top:14px}
+.grid2>.panel,.grid2eq>.panel,.critgrid>.panel,.grid2>.stack,.grid2eq>.stack{margin-top:0}
 .stack{display:flex;flex-direction:column;gap:14px;min-width:0}
 .scroll{overflow-x:auto;max-width:100%}
 .scroll.tall{max-height:640px;overflow:auto}
@@ -135,6 +136,16 @@ details.fold[open]>summary::before{transform:rotate(90deg)}
 .ctip{position:absolute;z-index:50;pointer-events:none;background:var(--ink);color:var(--bg);border-radius:6px;padding:5px 9px;font-size:12px;line-height:1.35;box-shadow:0 4px 12px rgba(0,0,0,.2);text-align:center;white-space:nowrap}
 .ctip b{display:block;font-size:15px} .ctip span{opacity:.85}
 svg .hit{cursor:pointer} svg .pt{pointer-events:none}
+.critgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:stretch}
+@media (max-width:1000px){.critgrid{grid-template-columns:minmax(0,1fr)}}
+.critgrid>.panel>h2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:22px}
+.note.cap{margin:0 0 4px;height:18px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.critgrid .bar{margin-bottom:6px}
+table.info{font-size:12.5px} table.info th{font-size:11.5px;padding:3px 2px;padding-right:18px} table.info td{padding:2px 3px}
+table.info td.in input,table.info td.in select{padding:3px 3px}
+table.info input[type=date]{font-size:12px;min-width:0;width:100%}
+table.info input[type=date]::-webkit-calendar-picker-indicator{margin:0;padding:0;width:12px}
+table.info .finbox select{padding:2px 1px} table.info .go-sim{padding:2px 4px}
 .c-miss{background:var(--surface-2);color:var(--muted);font-style:italic}
 tr.ev-cur td{background-image:linear-gradient(var(--hl),var(--hl))}
 tr.man-row td{border-top:2px solid var(--line-2)}
@@ -529,9 +540,9 @@ function renderPayband(){
 }
 
 /* ---- 기본정보 ---- */
-const INFO_COLS=[['id','사번','text',72],['name','이름','text',66],['birth','생년월일','date',124],['age','나이','number',46],['dept','부서','text',96],['job','직군','text',62],['title','직책','text',52],
-  ['grade','현직급<br>(6단계)','grade',60],['hire','입사년도','date',124],['_rem','남은<br>정년','auto',46],['gdate','현직급<br>발령일','date',124],['period','현직급<br>기간','text',64],
-  ['adj','조정<br>(±년)','number',46],['salary','현 연봉(원)','won',112],['_cls','분류 직급<br>(1차 자동)','auto',78],['eval','인사평가','eval',70],['final','최종 분류 직급<br>(수기 확정)','final',150]];
+const INFO_COLS=[['id','사번','text',58],['name','이름','text',52],['birth','생년월일','date',104],['age','나이','number',36],['dept','부서','text',78],['job','직군','text',48],['title','직책','text',40],
+  ['grade','현직급','grade',50],['hire','입사년도','date',104],['_rem','남은<br>정년','auto',36],['gdate','현직급<br>발령일','date',104],['period','현직급<br>기간','text',50],
+  ['adj','조정<br>(±년)','number',36],['salary','현 연봉(원)','won',90],['_cls','분류 직급<br>(1차 자동)','auto',60],['eval','인사<br>평가','eval',50],['final','최종 분류 직급<br>(수기 확정)','final',132]];
 const singleGrade=k=>k==='밴드 미달'?'G1':k==='밴드 초과'?'G4':(/^G\d$/.test(k||'')?k:'');
 const isCand=(k,f)=>!f||!k||k.includes(f)||(k==='밴드 미달'&&f==='G1')||(k==='밴드 초과'&&f==='G4');
 function sheetInfo(){
@@ -546,18 +557,19 @@ function sheetInfo(){
        <span><i style="background:var(--accent);border-color:var(--accent)"></i>최종 확정 · 직접 선택(수기)</span><span><i style="background:var(--accent-soft);border:2px solid var(--accent)"></i>최종 확정 · 자동 채우기</span><span><i style="border:2px dashed var(--line-2)"></i>미확정 → 1차 자동 분류 적용</span>
        <span><i style="background:var(--crit-soft);border:2px solid var(--crit)"></i>분류 후보 밖 직급(확인 필요)</span></div>
      <p class="note">※ 분류는 「분류 직급(1차 자동)」으로 먼저 정하고, 「최종 분류 직급(수기 확정)」을 고르면 그 값이 우선 적용됩니다(분류 시트 · 집계 ③-2 · 생애연봉 검색 · ② 임금분석). 현 연봉은 원 단위로 입력합니다. 생년월일을 넣으면 나이 = ${ageYear(c)} − 출생연도(기본정보 ④ 나이 기준연도, 생일 지남과 무관)로 자동 계산됩니다.</p></div>
-   <div class="grid2eq" style="margin-top:16px">
+   <div class="critgrid" style="margin-top:16px">
      <div class="panel"><h2>■ 분류 기준 <span class="sub">(노란색 수정 가능, 단위: 만원)</span></h2>
        <div class="bar" style="align-items:flex-start;gap:16px">
-        <div><div class="note" style="margin:0 0 4px">① 직급별 Pay-band</div><table class="crit-tbl"><thead><tr><th>분류 직급</th><th>하한</th><th>상한</th></tr></thead><tbody>
+        <div><div class="note cap">① 직급별 Pay-band</div><table class="crit-tbl"><thead><tr><th>분류 직급</th><th>하한</th><th>상한</th></tr></thead><tbody>
           ${c.bands.map((b,i)=>`<tr><td>G${i+1}</td><td class="in"><input type="number" data-crit="bands.${i}.0" value="${b[0]}"></td><td class="in"><input type="number" data-crit="bands.${i}.1" value="${b[1]}"></td></tr>`).join('')}</tbody></table></div>
-        <div><div class="note" style="margin:0 0 4px">② 중첩 구간 (2개 직급 이동 가능)</div><table class="crit-tbl"><thead><tr><th>중첩 구간</th><th>하한</th><th>상한</th><th>분류 표시</th></tr></thead><tbody>
+        <div><div class="note cap">② 중첩 구간 (2개 직급 이동 가능)</div><table class="crit-tbl"><thead><tr><th>중첩 구간</th><th>하한</th><th>상한</th><th>분류 표시</th></tr></thead><tbody>
           ${c.overlaps.map((o,i)=>`<tr><td>${OV_LABEL[i]}</td><td class="in"><input type="number" data-crit="overlaps.${i}.0" value="${o[0]}"></td><td class="in"><input type="number" data-crit="overlaps.${i}.1" value="${o[1]}"></td><td class="${['c-ov12','c-ov23','c-ov34'][i]}">G${i+1}, G${i+2}</td></tr>`).join('')}</tbody></table></div>
-        <div><div class="note" style="margin:0 0 4px">정년 기준 (만 나이)</div><table class="crit-tbl"><tbody><tr><td class="in" style="width:70px"><input type="number" data-crit="retAge" value="${c.retAge}"></td></tr></tbody></table></div>
+        <div><div class="note cap">정년 기준 (만 나이)</div><table class="crit-tbl"><tbody><tr><td class="in" style="width:70px"><input type="number" data-crit="retAge" value="${c.retAge}"></td></tr></tbody></table></div>
        </div>
        <p class="note">※ 경계값(예: 6,700)이 두 중첩구간에 걸리면 상위 구간 우선 / 중첩구간 밖 금액은 단일 직급, 밴드 밖은 '밴드 미달/초과' / 이 기준이 ② 임금분석의 신규 Pay-band로 그대로 연동됩니다.</p></div>
-     <div class="panel"><h2>④ 생애연봉 시뮬레이션 기준</h2>
-       <div class="scroll"><table class="crit-tbl"><thead><tr><th>구분</th><th>기준 연수</th><th>누락(지연) 연수</th><th>적용 연수</th><th>승진 정액<br>인상(만원)</th></tr></thead><tbody>
+     <div class="panel"><h2>④ 생애연봉 시뮬레이션 기준 <span class="sub">(노란색 수정 가능)</span></h2>
+       <div class="note cap">승진 기준 연수 · 승진 정액 · 상승률</div>
+       <div class="scroll"><table class="crit-tbl"><thead><tr><th>구분</th><th>기준 연수</th><th>누락(지연) 연수</th><th>적용 연수</th><th>승진 정액(만원)</th></tr></thead><tbody>
        ${['G1 체류 → G2 승진','G2 체류 → G3 승진','G3 체류 → G4 승진'].map((l,i)=>`<tr><td class="l">${l}</td><td class="in"><input type="number" data-crit="stay.${i}.0" value="${c.stay[i][0]}"></td><td class="in"><input type="number" data-crit="stay.${i}.1" value="${c.stay[i][1]}"></td><td class="auto" id="stay-app-${i}">${stayYears(c,i+1)}</td><td class="in"><input type="number" data-crit="promo.${i}" value="${c.promo[i]}"></td></tr>`).join('')}
        <tr><td class="l">연 상승률</td><td class="in"><input type="number" step="0.1" data-crit="ratePct" value="${+(c.rate*100).toFixed(3)}"></td><td colspan="2" class="l note" style="margin:0">% (예: 2.5)</td></tr>
        <tr><td class="l">첫 승진 시점 산정</td><td class="in" colspan="3"><select data-crit="mode"><option ${c.mode==='배치 연차 기준'?'selected':''}>배치 연차 기준</option><option ${c.mode==='현 시점부터 기준연수'?'selected':''}>현 시점부터 기준연수</option></select></td><td></td></tr>
@@ -567,18 +579,20 @@ function sheetInfo(){
        <p class="note">※ 매년 연봉 = 전년 × (1+상승률) / 승진 연도 = 전년 × (1+상승률) + 승진 정액 / 직급초임 없음 / 직급 상한(${c.bands.map(b=>b[1].toLocaleString('ko-KR')).join('·')}만원)까지만 인상, 이미 상한 이상이면 동결(삭감 없음, 전 직원 동일) / 누락 연수 +1 → 1년 늦게 승진</p>
        <p class="note">※ ${String(c.baseYear).slice(2)}년 연봉 = 현 연봉 × (1+상승률) (나이−1세) / ${String(+c.baseYear+1).slice(2)}년은 상승률만 / ${String(c.firstYear).slice(2)}년부터 승진 / 나이는 ${String(+c.baseYear+1).slice(2)}년 기준</p></div>
      <div class="panel"><h2>⑦ 현직급별 시뮬레이션 대상 직급 <span class="sub">(노란색 수정 가능)</span></h2>
+       <div class="note cap">현직급 × 시나리오 ①~③ 시작 직급</div>
        <table class="crit-tbl"><thead><tr><th>현직급</th><th>시나리오①</th><th>시나리오②</th><th>시나리오③</th></tr></thead><tbody>
        ${GRADE6.map(g=>`<tr><td><b>${g}</b></td>${[0,1,2].map(j=>`<td class="in"><select data-crit="target.${g}.${j}"><option value="">(비움)</option>${['G1','G2','G3','G4'].map(x=>`<option ${(c.target[g]||[])[j]===x?'selected':''}>${x}</option>`).join('')}</select></td>`).join('')}</tr>`).join('')}
        </tbody></table>
        <p class="note">※ 비워 두면 현 연봉 기준 분류(중첩 구간 2개 직급)로 시뮬레이션 / 입력 시 해당 직급들로 시뮬레이션 (시나리오①이 비면 ②·③도 무시)</p></div>
      <div class="panel"><h2>⑧ 인사평가별 진급 누락 기준 <span class="sub">(노란색 수정 가능)</span></h2>
+       <div class="note cap">평가등급별 누락 횟수 · 최고 도달 직급</div>
        <table class="crit-tbl"><thead><tr><th>평가등급</th><th>직급별 진급누락(회)</th><th>최고 도달 직급</th><th>승진마다 지연</th></tr></thead><tbody>
        ${EVALS.map(e=>`<tr><td><b>${e}</b></td><td class="in"><input type="number" min="0" data-crit="evalTbl.${e}.0" value="${c.evalTbl[e][0]}"></td><td class="in"><select data-crit="evalTbl.${e}.1">${['G1','G2','G3','G4'].map(x=>`<option ${c.evalTbl[e][1]===x?'selected':''}>${x}</option>`).join('')}</select></td><td class="auto" data-evd="${e}">${(+c.evalTbl[e][0]||0)*(+c.delayPer||0)}년</td></tr>`).join('')}
        <tr><td class="l">누락 1회당 지연</td><td class="in"><input type="number" min="0" data-crit="delayPer" value="${c.delayPer}"></td><td colspan="2" class="l note" style="margin:0">년</td></tr>
        </tbody></table>
        <p class="note">※ 기본정보 「인사평가」 열 기준 / 미입력 시 S 적용 / 모든 승진 단계마다 누락 횟수 × 지연 연수만큼 늦어짐 (예: A = 매 승진 2년 지연) / 최고 도달 직급 이상 승진 불가</p></div>
    </div>
-   <div class="grid2eq" style="margin-top:16px">
+   <div class="critgrid" style="margin-top:16px">
      <div class="panel"><h2>③ 분류 결과 집계 <span class="sub">(현직급 × 분류 직급(1차 자동), 단위: 명)</span></h2><div class="scroll" id="matrix"></div></div>
      <div class="panel"><h2>③-2 최종 분류 집계 <span class="sub">(현직급 × 최종 분류 직급(수기), 단위: 명)</span></h2><div class="scroll" id="matrix2"></div></div>
    </div>
