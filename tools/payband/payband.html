@@ -89,7 +89,26 @@ tr.confirmed>td:first-child{box-shadow:inset 4px 0 0 var(--accent)}
 .p-fin{background:var(--accent);color:var(--accent-ink)} .p-auto{background:var(--surface-2);color:var(--muted);border:1px dashed var(--line-2)} .p-ret{background:var(--surface-2);color:var(--muted)}
 .grid2eq{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:16px;align-items:start}
 table.info{width:100%} table.info th{font-size:12px;line-height:1.3}
-th.sortable{cursor:pointer;user-select:none} th.sortable:hover{text-decoration:underline} th .arr{margin-left:3px;font-size:10px}
+th.fth{cursor:pointer;user-select:none;padding-right:20px}
+th .arr{margin-left:3px;font-size:10px}
+th .fbtn{position:absolute;right:2px;bottom:3px;width:16px;height:16px;padding:0;border:1px solid rgba(255,255,255,.55);border-radius:3px;background:rgba(255,255,255,.92);color:#1b2b3d;font-size:10px;line-height:14px;text-align:center;cursor:pointer}
+th.filtered .fbtn{background:#ffe066;border-color:#ffe066}
+th.filtered .fbtn::before{content:"⏷";font-size:9px}
+th.filtered .fbtn{font-size:0}
+th.fth:hover .fbtn{outline:2px solid var(--accent)}
+.fcount{font-size:12px;color:var(--warn);background:var(--warn-soft);padding:4px 8px;border-radius:6px;margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.fcount button{font-size:12px;padding:2px 8px}
+.fmenu{position:absolute;z-index:40;width:270px;background:var(--surface);color:var(--ink);border:1px solid var(--line-2);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:6px;font-size:13px}
+.fmenu hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+.fmenu .fi{display:flex;gap:8px;align-items:center;width:100%;border:0;background:transparent;text-align:left;padding:6px 8px;border-radius:4px}
+.fmenu .fi:hover:not(:disabled){background:var(--surface-2)} .fmenu .fi:disabled{color:var(--muted);opacity:.6;cursor:default}
+.fmenu .ic{width:16px;text-align:center;color:var(--accent);font-weight:700}
+.fmenu .fsearch{width:100%;font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--line-2);border-radius:4px;background:var(--surface);color:var(--ink);margin:4px 0}
+.fmenu .flist{max-height:230px;overflow:auto;border:1px solid var(--line);border-radius:4px;padding:4px 6px}
+.fmenu .flist label{display:flex;gap:6px;align-items:center;padding:2px 0;cursor:pointer}
+.fmenu .flist label span{flex:1;min-width:0;overflow-wrap:anywhere} .fmenu .flist small{color:var(--muted)}
+.fmenu .flist .fall{border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:2px}
+.fmenu .fbtns{display:flex;justify-content:flex-end;gap:6px;margin-top:6px}
 .finder{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
 .finder select{background:var(--input);color:var(--cell-ink)}
 .nav2{display:inline-flex;gap:4px}
@@ -326,19 +345,74 @@ function sortVal(td){if(!td)return null;
   if(td.dataset.v!==undefined){const v=td.dataset.v;if(v==='')return null;const n=Number(v);return isNaN(n)?v:n;}
   const el=td.querySelector('input,select');const s=(el?el.value:td.textContent).trim();if(s===''||s==='-')return null;
   if(/^[-+]?[\d,]+(\.\d+)?%?$/.test(s))return parseFloat(s.replace(/[,%]/g,''));return s;}
+// 엑셀 자동필터처럼: 머리글 ▾ → 오름/내림차순 정렬 · 필터 해제 · 검색 · 값 체크 목록 · 확인/취소
+const FILTST={};const EMPTY_LBL='(필드 값 없음)';
+function cellText(td){if(!td)return'';if(td.dataset.ft!==undefined)return td.dataset.ft;
+  const sel=td.querySelector('select');if(sel)return(sel.selectedOptions[0]?.text||'').trim();
+  const inp=td.querySelector('input');if(inp)return inp.value.trim();return td.textContent.replace(/\s+/g,' ').trim();}
+function thLabel(th){return th.dataset.label||(th.dataset.label=th.textContent.replace(/[▾▲▼]/g,'').replace(/\s+/g,' ').trim());}
 function sortable(tbl,id){if(!tbl||!tbl.tHead)return;const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];
-  [...hr.cells].forEach((th,i)=>{if(th.hasAttribute('data-nosort'))return;th.classList.add('sortable');th.tabIndex=0;th.title='눌러서 정렬 (한 번 더 누르면 반대로)';
-    const go=()=>{const st=SORTST[id];SORTST[id]=st&&st.i===i?{i,d:-st.d}:{i,d:1};applySort(tbl,id);};
-    th.onclick=go;th.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}};});
+  [...hr.cells].forEach((th,i)=>{if(th.hasAttribute('data-nosort'))return;thLabel(th);th.classList.add('fth');
+    if(!th.querySelector('.fbtn'))th.insertAdjacentHTML('beforeend','<button type="button" class="fbtn" tabindex="-1" aria-hidden="true">▾</button>');
+    th.tabIndex=0;th.title='눌러서 정렬·필터';
+    const go=e=>{e.stopPropagation();openFilter(tbl,id,i,th);};
+    th.onclick=go;th.onkeydown=e=>{if(e.key==='Enter'||e.key===' '||(e.altKey&&e.key==='ArrowDown')){e.preventDefault();go(e);}};});
   applySort(tbl,id);}
-function applySort(tbl,id){const st=SORTST[id];const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];
+function rowPass(r,id,skip){const f=FILTST[id];if(!f)return true;for(const ci in f){if(+ci===skip)continue;if(f[ci].has(cellText(r.cells[ci])))return false;}return true;}
+function applySort(tbl,id){const st=SORTST[id];const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];const f=FILTST[id]||{};
   [...hr.cells].forEach((th,i)=>{th.querySelector('.arr')?.remove();if(th.hasAttribute('data-nosort'))return;
-    if(st&&st.i===i)th.insertAdjacentHTML('beforeend',`<span class="arr">${st.d>0?'▲':'▼'}</span>`);
-    th.setAttribute('aria-sort',st&&st.i===i?(st.d>0?'ascending':'descending'):'none');});
-  if(!st)return;const tb=tbl.tBodies[0];const all=[...tb.rows];const rows=all.filter(r=>!r.hasAttribute('data-fixed')),fixed=all.filter(r=>r.hasAttribute('data-fixed'));
-  rows.sort((a,b)=>{const va=sortVal(a.cells[st.i]),vb=sortVal(b.cells[st.i]);if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return -1;
+    if(st&&st.i===i)th.querySelector('.fbtn').insertAdjacentHTML('beforebegin',`<span class="arr">${st.d>0?'▲':'▼'}</span>`);
+    th.classList.toggle('filtered',!!f[i]);th.setAttribute('aria-sort',st&&st.i===i?(st.d>0?'ascending':'descending'):'none');});
+  const tb=tbl.tBodies[0];const all=[...tb.rows];const rows=all.filter(r=>!r.hasAttribute('data-fixed')),fixed=all.filter(r=>r.hasAttribute('data-fixed'));
+  if(st){rows.sort((a,b)=>{const va=sortVal(a.cells[st.i]),vb=sortVal(b.cells[st.i]);if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return -1;
     const d=(typeof va==='number'&&typeof vb==='number')?va-vb:String(va).localeCompare(String(vb),'ko',{numeric:true});return d*st.d;});
-  rows.forEach(r=>tb.appendChild(r));fixed.forEach(r=>tb.appendChild(r));}
+    rows.forEach(r=>tb.appendChild(r));fixed.forEach(r=>tb.appendChild(r));}
+  let shown=0;rows.forEach(r=>{if(r.cells.length<2){return;}const ok=rowPass(r,id,-1);r.hidden=!ok;if(ok)shown++;});
+  let cap=tbl.parentElement.querySelector(':scope > .fcount');const nf=Object.keys(f).length;
+  if(nf){if(!cap){cap=document.createElement('div');cap.className='fcount';tbl.parentElement.insertBefore(cap,tbl);}
+    cap.innerHTML=`필터 적용 중: <b>${shown}</b> / ${rows.length}행 표시 <button type="button">모든 필터 해제</button>`;cap.querySelector('button').onclick=()=>{delete FILTST[id];applySort(tbl,id);};}
+  else cap?.remove();}
+function closeFilter(){document.querySelector('.fmenu')?.remove();document.removeEventListener('mousedown',outsideFilter,true);}
+function outsideFilter(e){if(!e.target.closest('.fmenu'))closeFilter();}
+function openFilter(tbl,id,ci,th){
+  closeFilter();const f=FILTST[id]=FILTST[id]||{};const ex=f[ci]||new Set();
+  const rows=[...tbl.tBodies[0].rows].filter(r=>!r.hasAttribute('data-fixed')&&r.cells.length>1&&rowPass(r,id,ci));
+  const cnt=new Map();rows.forEach(r=>{const t=cellText(r.cells[ci]);cnt.set(t,(cnt.get(t)||0)+1);});
+  const sample=rows.map(r=>sortVal(r.cells[ci])).filter(v=>v!=null);const isNum=sample.length&&sample.every(v=>typeof v==='number');
+  const vals=[...cnt.keys()].sort((a,b)=>{if(a==='')return 1;if(b==='')return -1;
+    if(isNum){const na=parseFloat(a.replace(/[,%원]/g,'')),nb=parseFloat(b.replace(/[,%원]/g,''));if(!isNaN(na)&&!isNaN(nb))return na-nb;}
+    return a.localeCompare(b,'ko',{numeric:true});});
+  const lbl=thLabel(th);const kind=isNum?'숫자':'텍스트';
+  const m=document.createElement('div');m.className='fmenu';m.setAttribute('role','dialog');m.setAttribute('aria-label',lbl+' 정렬·필터');
+  m.innerHTML=`<button type="button" class="fi" data-a="asc"><span class="ic">↑</span>${kind} 오름차순 정렬</button>
+   <button type="button" class="fi" data-a="desc"><span class="ic">↓</span>${kind} 내림차순 정렬</button><hr>
+   <button type="button" class="fi" data-a="clear" ${f[ci]?'':'disabled'}><span class="ic">⨯</span>"${esc(lbl)}"에서 필터 해제</button><hr>
+   <input type="search" class="fsearch" placeholder="검색" aria-label="값 검색">
+   <div class="flist"><label class="fall"><input type="checkbox" data-all> (모두 선택)</label>
+   ${vals.map((v,k)=>`<label data-t="${esc(v.toLowerCase())}"><input type="checkbox" data-k="${k}" ${ex.has(v)?'':'checked'}> <span>${esc(v===''?EMPTY_LBL:v)}</span><small>${cnt.get(v)}</small></label>`).join('')}</div>
+   <div class="fbtns"><button type="button" class="primary" data-a="ok">확인</button><button type="button" data-a="cancel">취소</button></div>`;
+  document.body.appendChild(m);
+  const R=th.getBoundingClientRect();const W=m.offsetWidth;m.style.top=(R.bottom+window.scrollY+2)+'px';
+  m.style.left=Math.max(8,Math.min(R.left+window.scrollX,window.scrollX+document.documentElement.clientWidth-W-8))+'px';
+  const boxes=[...m.querySelectorAll('[data-k]')],all=m.querySelector('[data-all]'),q=m.querySelector('.fsearch');
+  const vis=()=>boxes.filter(b=>!b.closest('label').hidden);
+  const sync=()=>{const v=vis(),on=v.filter(b=>b.checked).length;all.checked=v.length>0&&on===v.length;all.indeterminate=on>0&&on<v.length;m.querySelector('[data-a="ok"]').disabled=on===0;};
+  all.onchange=()=>{vis().forEach(b=>b.checked=all.checked);sync();};boxes.forEach(b=>b.onchange=sync);
+  q.oninput=()=>{const s=q.value.trim().toLowerCase();boxes.forEach(b=>{const l=b.closest('label');l.hidden=!!s&&!l.dataset.t.includes(s)&&!(s&&EMPTY_LBL.includes(s)&&l.dataset.t==='');if(s)b.checked=!l.hidden;});sync();};
+  sync();
+  const done=()=>{closeFilter();applySort(tbl,id);th.focus();};
+  m.querySelector('[data-a="asc"]').onclick=()=>{SORTST[id]={i:ci,d:1};done();};
+  m.querySelector('[data-a="desc"]').onclick=()=>{SORTST[id]={i:ci,d:-1};done();};
+  m.querySelector('[data-a="clear"]').onclick=()=>{delete f[ci];done();};
+  m.querySelector('[data-a="cancel"]').onclick=()=>{closeFilter();th.focus();};
+  m.querySelector('[data-a="ok"]').onclick=()=>{const s=q.value.trim();const exc=new Set();boxes.forEach(b=>{if(!b.checked||(s&&b.closest('label').hidden))exc.add(vals[+b.dataset.k]);});
+    // 다른 열 필터로 이미 가려진 값은 목록에 없으므로 기존 제외값을 유지한다
+    ex.forEach(v=>{if(!cnt.has(v))exc.add(v);});
+    if(exc.size)f[ci]=exc;else delete f[ci];done();};
+  m.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();closeFilter();th.focus();}if(e.key==='Enter'&&e.target===q){e.preventDefault();m.querySelector('[data-a="ok"]').click();}});
+  setTimeout(()=>document.addEventListener('mousedown',outsideFilter,true),0);q.focus();
+}
+window.addEventListener('resize',closeFilter);
 const CLS_RANK={'밴드 미달':0,'G1':1,'G1, G2':1.5,'G2':2,'G2, G3':2.5,'G3':3,'G3, G4':3.5,'G4':4,'밴드 초과':5};
 const pkey=p=>`${p.id}|${p.name}`;
 const finRank=f=>/^G[1-4]$/.test(f||'')?+f[1]:9;
@@ -350,7 +424,7 @@ const SHEETS=[['info','기본정보'],['class','분류'],['life','생애연봉 �
 function renderPayband(){
   const v=document.getElementById('view-payband');
   v.innerHTML=`<h1>직급 Pay-band 분류</h1>
-  <p class="sub">엑셀 「직급_PayBand_분류_업로드용」과 같은 산식입니다. 노란 칸을 고치면 분류·기준연봉표·생애연봉 시뮬레이션이 즉시 다시 계산됩니다. 표 머리글을 누르면 정렬됩니다. 연봉 단위: 원 / 기준 단위: 만원.</p>
+  <p class="sub">엑셀 「직급_PayBand_분류_업로드용」과 같은 산식입니다. 노란 칸을 고치면 분류·기준연봉표·생애연봉 시뮬레이션이 즉시 다시 계산됩니다. 표 머리글 ▾를 누르면 엑셀처럼 정렬·필터할 수 있습니다. 연봉 단위: 원 / 기준 단위: 만원.</p>
   <div class="sheettabs" role="tablist">${SHEETS.map(([k,l])=>`<button role="tab" data-sheet="${k}" aria-selected="${S.sheet===k}">${l}</button>`).join('')}</div>
   <div id="sheet-body"></div>`;
   v.querySelectorAll('[data-sheet]').forEach(b=>b.onclick=()=>{S.sheet=b.dataset.sheet;save();renderPayband();});
@@ -478,7 +552,7 @@ function sheetClass(){
     <label class="field">기준<select id="nb"><option value="app" ${basis==='app'?'selected':''}>적용 직급 (최종 확정 우선)</option><option value="auto" ${basis==='auto'?'selected':''}>분류 직급 (1차 자동, 중첩 포함)</option></select></label></div>
     <div class="ncards">${keys.filter(k=>basis==='app'||grp[k].length).map(k=>`<div class="ncard ${basis==='auto'?classCss(k):''}"><div class="nh"><b>${k}</b><span>${grp[k].length}명</span></div>
       <ol>${grp[k].sort((a,b)=>b.sal-a.sal).map(r=>`<li><span>${esc(r.p.name)}${r.fin?'<span class="fintag on">확정</span>':''}</span><small>${esc(r.p.grade)} · ${fW(r.sal)}</small></li>`).join('')||'<li class="note">해당 없음</li>'}</ol></div>`).join('')}</div></div>
-  <div class="panel" style="margin-top:16px"><div class="bar"><h2 class="grow" style="margin:0">개인별 분류 결과 <span class="sub">${rows.length}명 · 머리글을 눌러 정렬</span></h2>
+  <div class="panel" style="margin-top:16px"><div class="bar"><h2 class="grow" style="margin:0">개인별 분류 결과 <span class="sub">${rows.length}명 · 머리글 ▾로 정렬·필터</span></h2>
     <label class="field">적용 직급<select id="cf"><option value="all">전체</option>${['G1','G2','G3','G4'].map(g=>`<option ${cf===g?'selected':''}>${g}</option>`).join('')}<option value="none" ${cf==='none'?'selected':''}>미확정만</option></select></label></div>
   <div class="scroll"><table id="class-tbl"><thead><tr><th>사번</th><th>이름</th><th>나이</th><th>부서</th><th>직책</th><th>현직급</th><th>남은 정년 년수</th><th>현 연봉(원)</th><th>분류 직급<br>(1차 자동)</th><th>이동가능<br>직급 수</th><th>최종 분류 직급<br>(수기)</th><th>적용 직급</th><th>구분</th></tr></thead><tbody>
   ${rows.filter(r=>cf==='all'||(cf==='none'?!r.fin:'G'+r.app===cf)).map(r=>`<tr class="${r.fin?'confirmed':''}"><td>${esc(r.p.id)}</td><td>${esc(r.p.name)}</td><td>${esc(r.p.age)}</td><td class="l">${esc(r.p.dept)}</td><td>${esc(r.p.title)}</td><td>${esc(r.p.grade)}</td><td>${r.rem??''}</td>
@@ -548,7 +622,7 @@ function lifeChart(r,c){
 /* ---- 시뮬레이션 상세 ---- */
 function sheetDetail(){
   const {c,rows}=computeAll();const body=document.getElementById('sheet-body');const r=selRow(rows);
-  const allPanel=`<div class="panel" style="margin-top:16px"><div class="bar"><h2 class="grow" style="margin:0">■ 전체 인원 생애연봉 시뮬레이션 <span class="sub">머리글을 눌러 정렬 · 행을 누르면 위에서 상세 보기</span></h2>
+  const allPanel=`<div class="panel" style="margin-top:16px"><div class="bar"><h2 class="grow" style="margin:0">■ 전체 인원 생애연봉 시뮬레이션 <span class="sub">머리글 ▾로 정렬·필터 · 행을 누르면 위에서 상세 보기</span></h2>
    <label class="field">적용 직급<select id="det-f"><option value="">전체</option>${['G1','G2','G3','G4'].map(g=>`<option ${S.detF===g?'selected':''}>${g}</option>`).join('')}</select></label></div>
    <div class="scroll" id="det-all"></div></div>`;
   if(!r){body.innerHTML=`<div class="panel">${finderHTML(rows)}<p class="sub">해당 직급에 인원이 없습니다.</p></div>`+allPanel;bindFinder(rows,sheetDetail);drawDetAll(rows,c);return;}
@@ -668,21 +742,21 @@ function drawCur(){
     <div class="kpi warn"><div class="k">상단 (75% 이상)</div><div class="v">${withB.filter(x=>x.st==='q4').length}<small>명</small></div><div class="d">상한 근접</div></div>
     <div class="kpi under"><div class="k">하한 미달</div><div class="v">${withB.filter(x=>x.st==='under').length}<small>명</small></div><div class="d">보정 소요 ${fEok(withB.filter(x=>x.st==='under').reduce((a,x)=>a+x.b.mn-x.r.sal,0))}억원</div></div>
     <div class="kpi"><div class="k">평균 Compa-ratio</div><div class="v">${n?(withB.reduce((a,x)=>a+x.compa,0)/n*100).toFixed(1):'-'}<small>%</small></div><div class="d">연봉 ÷ 현행 Mid</div></div></div>
-  <div class="panel"><div class="bar"><h2 class="grow" style="margin:0">현재 연봉 분석 <span class="sub">${list.length}명 · 머리글을 눌러 정렬</span></h2>
+  <div class="panel"><div class="bar"><h2 class="grow" style="margin:0">현재 연봉 분석 <span class="sub">${list.length}명 · 머리글 ▾로 정렬·필터</span></h2>
     <label class="field">현직급<select id="cf-g"><option value="all">전체</option>${GRADE6.map(g=>`<option ${cf.grade===g?'selected':''}>${g}</option>`).join('')}</select></label>
     <label class="field">판정<select id="cf-s"><option value="all">전체</option>${Object.keys(CST).map(k=>`<option value="${k}" ${cf.status===k?'selected':''}>${CST[k].l}</option>`).join('')}</select></label>
     <label class="field">검색<input id="cf-q" type="search" placeholder="이름·사번·부서" value="${esc(cf.q)}" style="width:130px"></label>
     <button id="copy-cur" type="button">표 복사</button></div>
    <div class="scroll"><table class="an-table" id="cur-tbl"><thead><tr><th>사원</th><th>직무</th><th>구간 · Lv</th><th class="num">연봉<br><span style="font-weight:400">${BASE_YEAR} 현재</span></th><th data-nosort>Pay-band 위치<br><span style="font-weight:400">현재 기준</span></th><th class="num">위치</th><th class="num">Compa</th><th class="num">상한까지<br>여유(원)</th><th>신규 적용 직급</th><th>판정</th></tr></thead><tbody>
    ${list.map(x=>{const p=x.r.p;const col={over:'var(--crit)',under:'var(--under)',q4:'var(--warn)'}[x.st]||'var(--ok)';return`<tr class="rk-${CST[x.st].c}">
-     <td class="l who" data-v="${esc(p.name)}"><b>${esc(p.name)}</b><span>${esc(p.id)} · ${esc(p.dept)} · ${esc(p.title)}</span></td>
-     <td class="l" data-v="${esc(p.job)}">${esc(p.job)}<br><span class="note" style="margin:0">${esc(p.dept)}</span></td>
-     <td class="band-cell" data-v="${GRADE6.indexOf(p.grade)}"><b>${esc(p.grade)}</b> · ${esc(periodText(p))}<br>${x.b?`Mid ${fW(x.b.md)}<br><span class="note" style="margin:0">${fM(x.b.mn)} ~ ${fM(x.b.mx)}만원</span>`:'<span class="note" style="margin:0">구간 미입력</span>'}</td>
+     <td class="l who" data-v="${esc(p.name)}" data-ft="${esc(p.name)}"><b>${esc(p.name)}</b><span>${esc(p.id)} · ${esc(p.dept)} · ${esc(p.title)}</span></td>
+     <td class="l" data-v="${esc(p.job)}" data-ft="${esc(p.job)}">${esc(p.job)}<br><span class="note" style="margin:0">${esc(p.dept)}</span></td>
+     <td class="band-cell" data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}"><b>${esc(p.grade)}</b> · ${esc(periodText(p))}<br>${x.b?`Mid ${fW(x.b.md)}<br><span class="note" style="margin:0">${fM(x.b.mn)} ~ ${fM(x.b.mx)}만원</span>`:'<span class="note" style="margin:0">구간 미입력</span>'}</td>
      <td class="num" data-v="${x.r.sal}"><b>${fW(x.r.sal)}</b></td>
      <td class="pos">${x.b?posBar(x.pr,null,x.midPr,col,`현재 위치 ${fP(x.pr)}`):''}</td>
      <td class="num" data-v="${x.b?x.pr:''}">${x.b?fP(x.pr):'-'}</td><td class="num" data-v="${x.b?x.compa:''}">${x.b?fP(x.compa):'-'}</td>
      <td class="num ${x.b&&x.b.mx<x.r.sal?'c-over':''}" data-v="${x.b?x.b.mx-x.r.sal:''}">${x.b?fW(x.b.mx-x.r.sal):'-'}</td>
-     <td data-v="${x.r.app??''}">${appTxt(x.r)} ${srcPill(x.r)}</td>
+     <td data-v="${x.r.app??''}" data-ft="${appTxt(x.r)} · ${x.r.fin?'수기 확정':'1차 자동'}">${appTxt(x.r)} ${srcPill(x.r)}</td>
      <td data-v="${CST[x.st].o}"><span class="pill p-${CST[x.st].c}">${CST[x.st].l}</span></td></tr>`;}).join('')||'<tr><td colspan="10">조건에 맞는 인원이 없습니다.</td></tr>'}
    </tbody></table></div>
    <p class="note">※ 위치 = (연봉 − Min) ÷ (Max − Min) / Compa = 연봉 ÷ Mid / 판정: 하단·중하·중상·상단은 현행 구간 안의 사분위, 상한 초과·하한 미달은 구간 밖</p></div>`;
@@ -740,8 +814,8 @@ function drawSim(){
   const better=(a,b,low)=>a===b?['','']:((a<b)===low?['best','']:['','best']);
   const rowsCmp=[['1년차 인상 소요액(억원)',sA.pay1-sA.pay0,sB.pay1-sB.pay0,fEok,true],[`${H}년 누적 연봉 증가(억원)`,sA.payH-sA.pay0,sB.payH-sB.pay0,fEok,true],
     [`${BASE_YEAR+H}년 밴드 내 비율`,sA.n?sA.inBandH/sA.n:0,sB.n?sB.inBandH/sB.n:0,v=>fP(v),false],[`${H}년 내 이탈 인원(명)`,sA.exit,sB.exit,v=>v,true],[`정년 시점 상한 초과(명)`,sA.retExit,sB.retExit,v=>v,true]];
-  const yc=(x,t)=>{const p=x.pts[t];if(!p)return'<td></td>';if(p.st==='ret')return`<td class="yr ret" data-v="">정년 이후</td>`;
-    return`<td class="yr" data-v="${p.pr.toFixed(4)}"><div class="ys">${fW(p.s)}</div><div class="yp">${fP(p.pr,0)} ${chip(p.st)}</div></td>`;};
+  const yc=(x,t)=>{const p=x.pts[t];if(!p)return'<td></td>';if(p.st==='ret')return`<td class="yr ret" data-v="" data-ft="정년 이후">정년 이후</td>`;
+    return`<td class="yr" data-v="${p.pr.toFixed(4)}" data-ft="${YS[p.st].l}"><div class="ys">${fW(p.s)}</div><div class="yp">${fP(p.pr,0)} ${chip(p.st)}</div></td>`;};
   const out=document.getElementById('an-out');
   out.innerHTML=`<div class="kpis">
     <div class="kpi"><div class="k">분석 인원</div><div class="v">${sm.n}<small>명</small></div><div class="d">최종 확정 ${cur.list.filter(x=>x.r.fin).length}명 · 자동 ${cur.list.filter(x=>!x.r.fin).length}명</div></div>
@@ -759,7 +833,7 @@ function drawSim(){
       ${rowsCmp.map(([l,a,b,fm,low])=>{const [ca,cb]=better(+(+a).toFixed(6),+(+b).toFixed(6),low);return`<tr><td>${l}</td><td class="${ca}">${fm(a)}</td><td class="${cb}">${fm(b)}</td></tr>`;}).join('')}
       </tbody></table></div><p class="note">※ 초록 굵은 글씨 = 유리한 안. B안 = 기본 인상률 ± 사분위별 차등폭(매년 그해 위치로 재산정).</p></div></div>
   <div class="panel" style="margin-top:16px">
-    <div class="bar"><h2 class="grow" style="margin:0">연도별 Pay-band 위치 시뮬레이션 <span class="sub">${list.length}명 · 머리글 정렬 · 행을 누르면 상세</span></h2>
+    <div class="bar"><h2 class="grow" style="margin:0">연도별 Pay-band 위치 시뮬레이션 <span class="sub">${list.length}명 · 머리글 ▾로 정렬·필터 · 행을 누르면 상세</span></h2>
       <label class="field">종합 판정<select id="f-st"><option value="all">전체</option>${['exit','soon','high','under','ok'].map(k=>`<option value="${k}" ${f.status===k?'selected':''}>${YS[k].l}</option>`).join('')}</select></label>
       <label class="field">적용 밴드<select id="f-g"><option value="all">전체</option>${['G1','G2','G3','G4'].map(g=>`<option ${f.grade===g?'selected':''}>${g}</option>`).join('')}</select></label>
       <label class="field">부서<select id="f-d"><option value="all">전체</option>${depts.map(d=>`<option ${f.dept===d?'selected':''}>${esc(d)}</option>`).join('')}</select></label>
@@ -767,14 +841,14 @@ function drawSim(){
       <button id="copy-an" type="button">표 복사</button></div>
     <div class="scroll"><table class="an-table yrs" id="sim-tbl"><thead><tr>
       <th>사원</th><th>적용 밴드</th><th class="banner now">${BASE_YEAR}<br><span>현재 연봉</span></th>${years.map(t=>`<th class="banner">${BASE_YEAR+t}<br><span>시뮬레이션</span></th>`).join('')}
-      <th class="banner ret">정년<br><span>개인별 (만 ${c.retAge}세)</span></th><th>Pay-band 위치<br><span style="font-weight:400">● 현재 ○ ${BASE_YEAR+H}</span></th><th>최초 이탈</th><th>종합 판정</th></tr></thead><tbody>
+      <th class="banner ret">정년<br><span>개인별 (만 ${c.retAge}세)</span></th><th data-nosort>Pay-band 위치<br><span style="font-weight:400">● 현재 ○ ${BASE_YEAR+H}</span></th><th>최초 이탈</th><th>종합 판정</th></tr></thead><tbody>
       ${list.map(x=>{const p=x.r.p;return`<tr class="rk-${YS[x.st].c}" data-pid="${esc(pkey(p))}">
-        <td class="l who" data-v="${esc(p.name)}"><b>${esc(p.name)}</b><span>${esc(p.id)} · ${esc(p.dept)} · ${esc(p.title)}</span></td>
-        <td class="band-cell" data-v="${x.g}"><b>G${x.g}</b> ${srcPill(x.r)}<br><span class="note" style="margin:0">${fM(x.mn0)}~${fM(x.mx0)}만원</span></td>
+        <td class="l who" data-v="${esc(p.name)}" data-ft="${esc(p.name)}"><b>${esc(p.name)}</b><span>${esc(p.id)} · ${esc(p.dept)} · ${esc(p.title)}</span></td>
+        <td class="band-cell" data-v="${x.g}" data-ft="G${x.g} · ${x.r.fin?'수기 확정':'1차 자동'}"><b>G${x.g}</b> ${srcPill(x.r)}<br><span class="note" style="margin:0">${fM(x.mn0)}~${fM(x.mx0)}만원</span></td>
         ${yc(x,0)}${years.map(t=>yc(x,t)).join('')}
-        ${x.ret?`<td class="yr" data-v="${x.ret.pr.toFixed(4)}"><div class="note" style="margin:0">${BASE_YEAR+x.rt}년 · ${x.rt}년 후</div><div class="ys">${fW(x.ret.s)}</div><div class="yp">${fP(x.ret.pr,0)} ${chip(x.ret.st==='ret'?'ok':x.ret.st)}</div></td>`:'<td data-v="">-</td>'}
+        ${x.ret?`<td class="yr" data-v="${x.ret.pr.toFixed(4)}" data-ft="${YS[x.ret.st==='ret'?'ok':x.ret.st].l}"><div class="note" style="margin:0">${BASE_YEAR+x.rt}년 · ${x.rt}년 후</div><div class="ys">${fW(x.ret.s)}</div><div class="yp">${fP(x.ret.pr,0)} ${chip(x.ret.st==='ret'?'ok':x.ret.st)}</div></td>`:'<td data-v="">-</td>'}
         <td class="pos">${posBar(x.pr0,x.prH,0.5,YCOL[x.st],`현재 ${fP(x.pr0)} → ${BASE_YEAR+H} ${fP(x.prH)}`)}</td>
-        <td data-v="${x.pr0>1?-1:(x.exitT??999)}">${x.pr0>1?'<b class="c-over">이미 초과</b>':x.exitT!=null?`<b>${BASE_YEAR+x.exitT}년</b><br><span class="note" style="margin:0">${x.exitT}년 후</span>`:'<span class="note" style="margin:0">정년 전 없음</span>'}</td>
+        <td data-v="${x.pr0>1?-1:(x.exitT??999)}" data-ft="${x.pr0>1?'이미 초과':x.exitT!=null?(BASE_YEAR+x.exitT)+'년':'정년 전 없음'}">${x.pr0>1?'<b class="c-over">이미 초과</b>':x.exitT!=null?`<b>${BASE_YEAR+x.exitT}년</b><br><span class="note" style="margin:0">${x.exitT}년 후</span>`:'<span class="note" style="margin:0">정년 전 없음</span>'}</td>
         <td data-v="${YS[x.st].o}">${chip(x.st)}</td></tr>`;}).join('')||'<tr><td colspan="99">조건에 맞는 인원이 없습니다.</td></tr>'}
     </tbody></table></div>
     <p class="note">※ 각 칸 = 예상 연봉(원) · 그해 밴드 안 위치 · 판정 / 정년 칸 = 만 ${c.retAge}세 도달 연도의 값(개인별 상이) / 승진 없이 적용 밴드에 머문다고 가정, 상한 도달 후에도 동결하지 않고 인상률을 그대로 적용 / 종합 판정 = ${BASE_YEAR}~${BASE_YEAR+H}년 중 가장 나쁜 판정</p></div>`;
