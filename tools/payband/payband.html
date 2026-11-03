@@ -313,13 +313,13 @@ const EVALS=['S','A+','A','B','C'];
 function evalInfo(c,ev){const k=EVALS.includes(ev)?ev:'S';const e=(c.evalTbl||{})[k]||[0,'G4'];
   const kx=(+e[0]||0)*(+c.delayPer||0);const ky=/^G[1-4]$/.test(e[1]||'')?+e[1][1]:4;return{k,kx,ky,miss:+e[0]||0,label:EVALS.includes(ev)?ev:'S(미입력)'};}
 // 계산 시트 J~DD(①) / DF~GZ(②) / HB~KV(③) / 303행(수기) — 인사평가 누락·최고직급·승진 정액 반영
-function scenario(p,g,c,tab,ev){
+function scenario(p,g,c,tab,ev,cap){ // cap=true: 승진 없이 g 직급 상한(CAP)에서 동결
   const sal=num(p.salary);const F=remYears(p,c)??0;const E=evalInfo(c,ev===undefined?p.eval:ev);const kx=E.kx;
   const row=tab.T[g];let n0=0;for(let y=1;y<=30;y++)if(row[y]<=sal)n0++;n0=Math.max(1,n0);
   const first=(+c.firstYear||0)-(+c.baseYear||0);
-  const d1=g>=4?999:Math.max(first,(c.mode==='현 시점부터 기준연수'?stayYears(c,g):Math.max(stayYears(c,g)-n0,0)+1))+kx;
-  const d2=g>=3?999:d1+stayYears(c,g+1)+kx;
-  const d3=g>=2?999:d2+stayYears(c,g+2)+kx;
+  const d1=(g>=4||cap)?999:Math.max(first,(c.mode==='현 시점부터 기준연수'?stayYears(c,g):Math.max(stayYears(c,g)-n0,0)+1))+kx;
+  const d2=(g>=3||cap)?999:d1+stayYears(c,g+1)+kx;
+  const d3=(g>=2||cap)?999:d2+stayYears(c,g+2)+kx;
   const top=Math.max(g,E.ky);const gr=t=>Math.min(top,g+(t>=d1)+(t>=d2)+(t>=d3));
   const end=F+1;const MX=gg=>c.bands[gg-1][1]*10000;
   const G=[],W=[];
@@ -329,12 +329,13 @@ function scenario(p,g,c,tab,ev){
     W[t]=Math.min(MX(G[t]),prev*(1+c.rate)+(G[t]>G[t-1]?(+c.promo[G[t]-2]||0)*10000:0));}
   const fi=Math.min(end,45);const age=num(p.age)||0;const D=[d1,d2,d3];
   let path;
-  if(g>=4)path='최고 직급';
+  if(cap)path=`G${g} 상한 ${c.bands[g-1][1].toLocaleString('ko-KR')}만원 동결 (승진 없음)`;
+  else if(g>=4)path='최고 직급';
   else{const parts=[];D.forEach((d,k)=>{if(d<=end&&g+k+1<=top)parts.push(`${age-1+d}세 G${g+k+1}${kx>0?`(누락 ${kx}년)`:''}`);});path=parts.length?parts.join(' → '):'승진 없음(정년 도달)';}
-  const missAt=t=>kx>0&&D.some((d,k)=>t>=d-kx&&t<d&&g+k+1<=top);
+  const missAt=t=>!cap&&kx>0&&D.some((d,k)=>t>=d-kx&&t<d&&g+k+1<=top);
   const final=Math.min(W[fi],MX(G[fi]));
   const cagr=sal>0?Math.pow(final/sal,1/(F+1))-1:null;
-  return{g,n0,d:D,G,W,final,finalG:G[fi],path,F,end,cagr,kx,ky:E.ky,ev:E.label,missAt};
+  return{g,n0,d:D,G,W,final,finalG:G[fi],path,F,end,cagr,kx,ky:E.ky,ev:E.label,missAt,cap:!!cap};
 }
 function simTargets(p,k,c){const t=(c.target||{})[p.grade]||[];const gv=v=>/^G[1-4]$/.test(v||'')?+v[1]:null;
   const q=gv(t[0]);if(q)return[q,gv(t[1]),gv(t[2])];
@@ -692,30 +693,30 @@ function sheetDetail(){
    <label class="field">적용 직급<select id="det-f"><option value="">전체</option>${['G1','G2','G3','G4'].map(g=>`<option ${S.detF===g?'selected':''}>${g}</option>`).join('')}</select></label></div>
    <div class="scroll" id="det-all"></div></div>`;
   if(!r){body.innerHTML=`<div class="panel">${finderHTML(rows)}<p class="sub">해당 직급에 인원이 없습니다.</p></div>`+allPanel;bindFinder(rows,sheetDetail);drawDetAll(rows,c);return;}
-  const mg=/^G[1-4]$/.test(S.manualG||'')?+S.manualG[1]:null;
-  const man=mg&&r.sal?scenario(r.p,mg,c,tab):null;
-  const list=[[SC_LBL[0],r.sc1],[SC_LBL[1],r.sc2],[SC_LBL[2],r.sc3],['수기 시나리오',man]];
+  const mm=/^G([1-4])(-CAP)?$/.exec(S.manualG||'');const mg=mm?+mm[1]:null,mcap=!!(mm&&mm[2]);
+  const man=mg&&r.sal?scenario(r.p,mg,c,tab,undefined,mcap):null;
+  const list=[[SC_LBL[0],r.sc1],[SC_LBL[1],r.sc2],[SC_LBL[2],r.sc3],[mcap?`수기 시나리오 (G${mg}-CAP)`:'수기 시나리오',man]];
   const fins=list.map(x=>x[1]&&x[1].final).filter(v=>v!=null);
   const E=r.rem!=null?r.rem+1:1;const age0=(num(r.p.age)||0)-1;const by=+c.baseYear||BASE_YEAR;
   const scRow=([lbl,sc],i)=>sc?`<tr class="${i===3?'man-row':''}"><td class="l">${lbl}${r.fin===sc.g?'<span class="fintag on">최종 확정</span>':''}</td><td>G${sc.g}</td><td>${sc.n0}년차</td><td class="l">${sc.path}</td><td>G${sc.finalG}</td><td class="num">${fW(sc.final)}</td><td class="num">${fW(sc.final-r.sal)}</td><td class="num">${fP(sc.cagr,2)}</td></tr>`
     :`<tr class="${i===3?'man-row':''}"><td class="l">${lbl}</td>${'<td>-</td>'.repeat(7)}</tr>`;
   // 인사평가별 진급누락 시나리오
-  const evRows=EVALS.map(ev=>{const ei=evalInfo(c,ev);const s=list.map(([,sc])=>sc?scenario(r.p,sc.g,c,tab,ev):null);return{ev,ei,s};});
+  const evRows=EVALS.map(ev=>{const ei=evalInfo(c,ev);const s=list.map(([,sc])=>sc?scenario(r.p,sc.g,c,tab,ev,sc.cap):null);return{ev,ei,s};});
   const base=evRows[0];
   const yrs=Array.from({length:E+1},(_,t)=>t);
   const trow=(lbl,sc,kind)=>`<tr><td class="l"><b>${lbl}</b></td>${yrs.map(t=>{if(!sc)return'<td></td>';const promo=t>0&&sc.G[t]>sc.G[t-1];const miss=sc.missAt(t);
-    return kind==='g'?`<td class="${promo?'c-promo':miss?'c-miss':''}">G${sc.G[t]}${miss?' 누락':''}</td>`:`<td class="num ${promo?'c-promo':''}">${fW(sc.W[t])}</td>`;}).join('')}</tr>`;
+    const atCap=t>0&&Math.round(sc.W[t])>=c.bands[sc.G[t]-1][1]*10000;return kind==='g'?`<td class="${promo?'c-promo':miss?'c-miss':''}">G${sc.G[t]}${miss?' 누락':''}</td>`:`<td class="num ${promo?'c-promo':atCap?'c-cap':''}">${fW(sc.W[t])}</td>`;}).join('')}</tr>`;
   body.innerHTML=`<div class="panel">${finderHTML(rows)}</div>
    <div class="panel" style="margin-top:16px"><div class="bar"><h2 class="grow" style="margin:0">생애연봉 시뮬레이션 상세</h2>
      <label class="field">인사평가 (이 인원)<select id="det-ev" class="mini-sel"><option value="">미입력 (S 적용)</option>${EVALS.map(e=>`<option ${r.p.eval===e?'selected':''}>${e}</option>`).join('')}</select></label>
-     <label class="field">수기 시나리오 ▶ 시작 직급<select id="det-man" class="mini-sel"><option value="">선택 안 함</option>${[1,2,3,4].map(g=>`<option ${mg===g?'selected':''}>G${g}</option>`).join('')}</select></label></div>
+     <label class="field">수기 시나리오 ▶ 시작 직급<select id="det-man" class="mini-sel"><option value="">선택 안 함</option><optgroup label="승진 반영">${[1,2,3,4].map(g=>`<option value="G${g}" ${S.manualG==='G'+g?'selected':''}>G${g}</option>`).join('')}</optgroup><optgroup label="승진 없이 상한(CAP)에서 동결">${[1,2,3,4].map(g=>`<option value="G${g}-CAP" ${S.manualG==='G'+g+'-CAP'?'selected':''}>G${g}-CAP (${c.bands[g-1][1].toLocaleString('ko-KR')}만원)</option>`).join('')}</optgroup></select></label></div>
    <div class="scroll"><table><thead><tr><th>사번</th><th>이름</th><th>나이</th><th>현직급</th><th>현 연봉(원)</th><th>분류 직급(1차 자동)</th><th>최종 분류 직급(수기)</th><th>남은 정년 년수(${String(by+1).slice(2)}년~)</th><th>인사평가</th></tr></thead><tbody>
    <tr><td>${esc(r.p.id)}</td><td><b>${esc(r.p.name)}</b></td><td>${esc(r.p.age)}</td><td>${esc(r.p.grade)}</td><td class="num">${fW(r.sal)}</td><td class="${classCss(r.k)}">${r.k}</td><td class="${r.fin?'c-fin':'note'}">${r.fin?'G'+r.fin:'미확정'}</td><td>${r.rem??''}</td><td><b>${esc(r.ev)}</b></td></tr></tbody></table></div>
    <h2 style="margin-top:16px">■ 만 ${c.retAge}세 기점 최종연봉 시뮬레이션</h2>
    <div class="scroll"><table><thead><tr><th>시나리오</th><th>시작 직급</th><th>배치 연차</th><th>승진 경로(나이)</th><th>${c.retAge}세 직급</th><th>${c.retAge}세 최종연봉(원)</th><th>현 연봉 대비 증가(원)</th><th>연평균 증가율</th></tr></thead><tbody>
    ${list.map(scRow).join('')}
    <tr><td class="l">최고 − 최저 차이</td><td></td><td></td><td></td><td></td><td class="num"><b>${fins.length>=2?fW(Math.max(...fins)-Math.min(...fins)):'-'}</b></td><td></td><td></td></tr></tbody></table></div>
-   <p class="note">※ 수기 시나리오: 위 「수기 시나리오 ▶ 시작 직급」을 고르면 이 인원을 그 직급에서 시작시킨 결과가 표시됩니다 / 시나리오 ①~③ = 기본정보 ⑦ 현직급별 대상 직급(미입력 시 연봉 기준 중첩 분류) / 인사평가 ${esc(r.ev)} = 승진마다 ${r.sc1?r.sc1.kx:0}년 지연, 최고 도달 G${r.sc1?r.sc1.ky:4}</p>
+   <p class="note">※ 수기 시나리오: 위 「수기 시나리오 ▶ 시작 직급」을 고르면 이 인원을 그 직급에서 시작시킨 결과가 표시됩니다 / G1~G4-CAP = 승진 없이 매년 상승률만 적용하고 그 직급 상한에서 멈춤(현 연봉이 상한보다 높으면 다음 해 상한으로 맞춤, 인사평가 무관) / 시나리오 ①~③ = 기본정보 ⑦ 현직급별 대상 직급(미입력 시 연봉 기준 중첩 분류) / 인사평가 ${esc(r.ev)} = 승진마다 ${r.sc1?r.sc1.kx:0}년 지연, 최고 도달 G${r.sc1?r.sc1.ky:4}</p>
    <h2 style="margin-top:16px">■ 인사평가별 진급누락 시나리오 <span class="sub">(같은 인원에게 평가등급만 바꿔 적용, ${c.retAge}세 최종연봉 · 단위: 원)</span></h2>
    <div class="scroll"><table><thead><tr><th>인사평가</th><th>직급별 진급누락</th><th>승진마다 지연</th><th>최고 도달 직급</th>${list.map(([l,sc])=>sc?`<th>${l}<br><span style="font-weight:400">G${sc.g} 시작</span></th>`:'').join('')}</tr></thead><tbody>
    ${evRows.map(x=>`<tr class="${x.ev===evalInfo(c,r.p.eval).k?'ev-cur':''}"><td><b>${x.ev}</b>${x.ev===evalInfo(c,r.p.eval).k?'<span class="fintag on">현재</span>':''}</td><td>${x.ei.miss}회</td><td>${x.ei.kx}년</td><td>G${x.ei.ky}</td>
@@ -726,7 +727,7 @@ function sheetDetail(){
    <div class="scroll"><table><thead><tr><th>연도</th>${yrs.map(t=>`<th>${String(by+t).slice(2)}년</th>`).join('')}</tr></thead><tbody>
    <tr><td class="l"><b>나이</b></td>${yrs.map(t=>`<td>${age0+t}</td>`).join('')}</tr>
    ${list.map(([l,sc],i)=>sc?trow(l.replace('시나리오 ','')+' 직급',sc,'g')+trow(l.replace('시나리오 ','')+' 연봉',sc,'w'):'').join('')}</tbody></table></div>
-   <p class="note">※ 연노랑 = 승진 시점 / 회색 '누락' = 인사평가에 따른 진급누락 연도 / 연봉 = 전년×(1+상승률), 승진 연도는 + 승진 정액 / 직급 상한 초과 불가 / ${String(by).slice(2)}년 = 현 연봉</p></div>`+allPanel;
+   <p class="note">※ 연노랑 = 승진 시점 / 주황 = 직급 상한(CAP) 도달 / 회색 '누락' = 인사평가에 따른 진급누락 연도 / 연봉 = 전년×(1+상승률), 승진 연도는 + 승진 정액 / 직급 상한 초과 불가 / ${String(by).slice(2)}년 = 현 연봉</p></div>`+allPanel;
   body.querySelector('#det-ev').onchange=e=>{r.p.eval=e.target.value;save();sheetDetail();toast(`${r.p.name}의 인사평가를 ${e.target.value||'미입력'}(으)로 바꿨습니다. 기본정보에도 반영됩니다.`);};
   body.querySelector('#det-man').onchange=e=>{S.manualG=e.target.value;save();sheetDetail();};
   bindFinder(rows,sheetDetail);drawDetAll(rows,c);
