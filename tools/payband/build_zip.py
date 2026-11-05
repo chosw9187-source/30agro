@@ -43,6 +43,9 @@ def main(lib_path: str) -> None:
         # 0x800 플래그(UTF-8 파일명)는 zipfile이 자동으로 켠다 → Windows 탐색기에서 한글 이름이 깨지지 않는다
         z.writestr(f"{NAME}/{NAME}.html", html.encode("utf-8"))
         z.writestr(f"{NAME}/{NAME}_실행.bat", bat)
+        tpl = HERE / "인건비분석_업로드양식_2025.xlsx"
+        if tpl.exists():
+            z.write(tpl, f"{NAME}/인건비분석_업로드양식_2025.xlsx")
     print(zpath, zpath.stat().st_size)
 
 
