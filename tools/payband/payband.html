@@ -197,6 +197,7 @@ span.ok{color:var(--accent);font-size:14px} span.no{color:var(--line-2);font-siz
 .to-strip span{display:block;font-size:11px;color:var(--muted)} .to-strip b{font-size:18px} .to-strip .neg b{color:var(--crit)}
 .lb-empty{background:var(--surface);border:2px dashed var(--line-2);border-radius:10px;padding:20px} .lb-empty h2{margin:0 0 4px}
 .lb-ol{margin:0;padding-left:20px;line-height:1.9}
+.lb-groups{margin:4px 0 12px} .lb-groups button b{color:inherit;opacity:.7;margin-right:2px} .lb-groups button small{font-weight:400;opacity:.7;margin-left:2px}
 .lb-up{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 0}
 .score-wrap{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,9fr);gap:20px;align-items:start}
 @media (max-width:1100px){.score-wrap{grid-template-columns:minmax(0,1fr)}}
@@ -1327,6 +1328,7 @@ function renderLabor(){
   const rs=v.querySelector('#lb-reset');if(rs)rs.onclick=()=>{delete S.laborData[yr];save();renderLabor();toast(yr==='2025'?'기본 데이터로 되돌렸습니다.':'업로드 데이터를 지웠습니다.');};
   document.getElementById('lb-body').innerHTML=cur?laborReport(cur.D):laborEmpty(yr);
   v.querySelectorAll('[data-ls]').forEach(a=>a.onclick=e=>{e.preventDefault();document.getElementById('ls-'+a.dataset.ls)?.scrollIntoView({behavior:'smooth',block:'start'});});
+  v.querySelectorAll('[data-lg]').forEach(b=>b.onclick=()=>{S.lbGroup=b.dataset.lg;save();renderLabor();});
 }
 function laborEmpty(yr){
   return`<div class="lb-empty"><h2>${yr}년 보고서 — 데이터 업로드 대기</h2>
@@ -1471,20 +1473,27 @@ function laborReport(D){
     ${(D.actions||[]).map((a,i)=>`<tr><td><b>${'①②③④⑤⑥⑦⑧'[i]||''} ${esc(a.task)}</b></td><td class="l">${esc(a.goal||'')}<br><small>${esc(a.basis||'')}</small></td><td class="l">${esc(a.how||'')}</td><td>${esc(a.owner||'')}</td><td>${esc(a.when||'')}</td></tr>`).join('')}</tbody></table></div>`;
   const s10=`${act}<h3 style="margin-top:12px">의사결정 참고치 (데이터로 자동 계산)</h3>${ref}
     <div class="lb-insight"><b>의사결정 포인트</b> 임금 인상은 인건비율을 높이므로 매출 생산성 목표와 묶어서 결정해야 합니다.${up&&m.netTarget?` Net매출 ${f0(m.netTarget)}억 달성 시 임금 +${up}%를 적용해도 인건비율은 ${f1(lrAtTarget)}%입니다.`:''}</div>`;
-  const toc=[['1','핵심 결론'],['2','업계 벤치마크'],['3','인건비·인건비율'],['4','사업장별 인건비'],['5','생산성·수익성'],['6','조직·영업 집중도'],['7','영업·지점 생산성'],['8','임금 수준'],['9','내부 인력'],['10','진단·개선']];
+  // 섹션 목록 — 묶음(g)만 바꾸면 탭 위치가 바뀌고, 줄을 빼거나 더하면 화면에서도 빠지거나 더해진다
+  const SECS=[
+    {g:'sum',t:'핵심 결론',h:`인건비율 ${f1(u.lr)}% — 업계보다 ${f1(Math.abs(lrD))}%p ${hiLo(lrD)}, ${cause}`,b:s1,src:`${esc(m.finBasis||'')} (각 사)`},
+    {g:'sum',t:'업계 벤치마크',h:h2,b:SC.html,src:`${esc(m.finBasis||'')} · 업계 평균은 비교 제외 회사를 뺀 합계 기준(인건비 지표)`},
+    {g:'cost',t:'인건비·인건비율',h:h3,b:s3,src:`${esc(m.finBasis||'')} (재무제표 기준)`},
+    {g:'cost',t:'사업장별 인건비',h:h4,b:s4,src:'사내 자료(재경팀·인사팀)'},
+    {g:'prod',t:'생산성·수익성',h:h5,b:s5,src:esc(m.finBasis||'')},
+    {g:'prod',t:'조직·영업 집중도',h:h6,b:s6,src:'각 사 조직 공개자료 · 사내 조사'},
+    {g:'prod',t:'영업·지점 생산성',h:h7,b:s7,src:`${esc(m.salesBasis||'')} 영업 실적 · 각 사 공개자료`},
+    {g:'hr',t:'임금 수준',h:h8,b:s8,src:'업계 임금 조사'},
+    {g:'hr',t:'내부 인력',h:h9,b:s9,src:`인사팀 (${esc(m.hcDate||'')} 기준)`},
+    {g:'act',t:'진단·개선',h:'매출 생산성을 먼저 올리고, 임금 경쟁력 개선은 매출 목표와 연동해 결정',b:s10,src:'각 묶음 분석 종합'}];
+  const GROUPS=[['sum','종합 (결론·업계 벤치마크)'],['cost','인건비 (회사·사업장)'],['prod','생산성·조직 (영업·지점)'],['hr','임금·인력'],['act','진단·개선']].filter(([k])=>SECS.some(s=>s.g===k));
+  const g=GROUPS.some(([k])=>k===S.lbGroup)?S.lbGroup:GROUPS[0][0];
+  const list=SECS.filter(s=>s.g===g);
   return`<div class="lb-meta"><span><b>기준</b> 재무: ${esc(m.finBasis||'-')} · 영업 실적: ${esc(m.salesBasis||'-')} · 내부 인력: ${esc(m.hcDate||'-')}</span><span><b>비교 대상</b> ${esc(m.peers||C.F.map(r=>r.n).join(', '))}</span></div>
-   <nav class="lb-toc">${toc.map(([n,t])=>`<a href="#ls-${n}" data-ls="${n}"><b>${n}</b>${t}</a>`).join('')}</nav>
-   ${lbSec('1',`인건비율 ${f1(u.lr)}% — 업계보다 ${f1(Math.abs(lrD))}%p ${hiLo(lrD)}, ${cause}`,s1,`${esc(m.finBasis||'')} (각 사)`)}
-   ${lbSec('2',h2,SC.html,`${esc(m.finBasis||'')} · 업계 평균은 비교 제외 회사를 뺀 합계 기준(인건비 지표)`)}
-   ${lbSec('3',h3,s3,`${esc(m.finBasis||'')} (재무제표 기준)`)}
-   ${lbSec('4',h4,s4,'사내 자료(재경팀·인사팀)')}
-   ${lbSec('5',h5,s5,esc(m.finBasis||''))}
-   ${lbSec('6',h6,s6,'각 사 조직 공개자료 · 사내 조사')}
-   ${lbSec('7',h7,s7,`${esc(m.salesBasis||'')} 영업 실적 · 각 사 공개자료`)}
-   ${lbSec('8',h8,s8,'업계 임금 조사')}
-   ${lbSec('9',h9,s9,`인사팀 (${esc(m.hcDate||'')} 기준)`)}
-   ${lbSec('10','매출 생산성을 먼저 올리고, 임금 경쟁력 개선은 매출 목표와 연동해 결정',s10,'1~9 분석 종합')}`;
+   <div class="sheettabs lb-groups" role="tablist">${GROUPS.map(([k,l],i)=>`<button role="tab" data-lg="${k}" aria-selected="${k===g}"><b>${i+1}</b> ${l} <small>${SECS.filter(s=>s.g===k).length}</small></button>`).join('')}</div>
+   ${list.length>1?`<nav class="lb-toc">${list.map((s,i)=>`<a href="#ls-${i+1}" data-ls="${i+1}"><b>${i+1}</b>${s.t}</a>`).join('')}</nav>`:''}
+   ${list.map((s,i)=>lbSec(String(i+1),s.h,s.b,s.src)).join('')}`;
 }
+
 /* ---- 엑셀 양식 내려받기 / 업로드 ---- */
 function lbToBook(D,yr){
   const wb=XLSX.utils.book_new();const add=(name,aoa,w)=>{const ws=XLSX.utils.aoa_to_sheet(aoa);if(w)ws['!cols']=w.map(x=>({wch:x}));XLSX.utils.book_append_sheet(wb,ws,name);};
