@@ -496,7 +496,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'
 const dateStr=v=>{if(!v)return'';if(v instanceof Date&&!isNaN(v))return`${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;return String(v).slice(0,10).replace(/\./g,'-');};
 const dotDate=v=>dateStr(v).replace(/-/g,'.');
 function periodText(p){if(p.period)return p.period;const d=new Date(dateStr(p.gdate));if(isNaN(d))return'';let m=(TODAY.getFullYear()-d.getFullYear())*12+(TODAY.getMonth()-d.getMonth());if(TODAY.getDate()<d.getDate())m--;if(m<0)return'';return`${Math.floor(m/12)}년${m%12}월`;}
-function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2200);}
+function toast(msg){document.querySelectorAll('.toast').forEach(x=>x.remove());const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),Math.min(7000,2200+msg.length*40));}
 
 /* =========================================================
    3. 공통 — 표 정렬
@@ -1535,17 +1535,25 @@ function lbParse(wb,yr){
    6-1. 엑셀 저장 (웹: downloads 기능 → 확인 후 저장 / 로컬 파일: 바로 다운로드)
    ========================================================= */
 const stamp=()=>{const d=new Date();return`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;};
+// 웹(claude.ai)용 저장 기능은 미리 받아 둔다 → 클릭하자마자 저장 확인 창을 띄워 시간 초과·사용자 동작 만료를 막는다
+let DL_NS=null,DL_READY=null;
+function dlInit(){if(DL_READY)return DL_READY;DL_READY=(async()=>{try{if(window.claude&&window.claude.use)DL_NS=await window.claude.use('downloads');}catch(e){DL_NS=null;}return DL_NS;})();return DL_READY;}
+dlInit();
+const DL_MSG={declined:'저장 확인 창에서 「저장」을 누르지 않았거나 시간이 지났습니다. 버튼을 다시 누른 뒤 확인 창에서 저장을 눌러 주세요.',rate_limited:'저장 확인 창이 이미 열려 있습니다. 그 창에서 저장을 누르거나 잠시 후 다시 눌러 주세요.',
+  rejected_extension:'이 파일 형식은 저장할 수 없습니다.',too_large:'파일이 너무 큽니다.',bad_request:'파일을 만들지 못했습니다.',unavailable:'이 화면에서는 저장 기능을 쓸 수 없습니다.',not_granted:'이 화면에서 저장 권한이 없습니다.'};
+function anchorDownload(data,filename){const url=URL.createObjectURL(new Blob([data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  const a=document.createElement('a');a.href=url;a.download=filename;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
 async function saveBook(wb,filename){
   if(typeof XLSX==='undefined'){toast('엑셀 모듈을 불러오지 못했습니다.');return;}
-  const data=XLSX.write(wb,{type:'array',bookType:'xlsx'});
-  let dl=null;try{dl=window.claude&&window.claude.use?await window.claude.use('downloads'):null;}catch(e){dl=null;}
-  if(dl){try{await dl.save({filename,data:new Blob([data])});toast(`${filename} 저장을 요청했습니다.`);}
-    catch(e){if(e&&e.code==='declined')toast('저장을 취소했습니다.');else if(e&&e.code==='rate_limited')toast('잠시 후 다시 눌러 주세요.');else toast('이 화면에서는 저장할 수 없습니다. ZIP의 로컬 버전을 쓰세요.');}
+  let data;try{data=XLSX.write(wb,{type:'array',bookType:'xlsx'});}catch(e){toast('엑셀 파일을 만들지 못했습니다: '+e.message);return;}
+  let dl=DL_NS;if(!dl&&window.claude&&window.claude.use){try{dl=DL_NS=await window.claude.use('downloads');}catch(e){dl=null;}}
+  if(dl){
+    toast('저장 확인 창이 뜨면 「저장」을 눌러 주세요.');
+    try{const r=await dl.save({filename,data:new Uint8Array(data)});toast(r&&r.status==='delivered'?`${filename}을(를) 보냈습니다.`:`${filename}을(를) 저장했습니다.`);}
+    catch(e){const code=(e&&e.code)||'unknown';toast(`${DL_MSG[code]||'저장하지 못했습니다.'} (코드: ${code})`);console.warn('downloads.save',e);}
     return;}
-  // 로컬(파일로 연 화면)·데스크톱 Chrome/Edge: '다른 이름으로 저장' 창으로 파일 이름을 확실히 지정
-  if(location.protocol==='file:'&&window.showSaveFilePicker){try{const h=await window.showSaveFilePicker({suggestedName:filename,types:[{description:'Excel 통합 문서',accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx']}}]});
-      const w=await h.createWritable();await w.write(new Blob([data]));await w.close();toast(`${filename}을(를) 저장했습니다.`);return;}catch(e){if(e&&e.name==='AbortError'){toast('저장을 취소했습니다.');return;}}}
-  try{const url=URL.createObjectURL(new Blob([data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));const a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);toast(`${filename}을(를) 내려받았습니다.`);}catch(e){toast('이 화면에서는 다운로드가 막혀 있습니다.');}
+  // 웹 저장 기능이 없는 화면(ZIP 로컬 버전·일반 웹 서버): 브라우저 기본 다운로드
+  try{anchorDownload(data,filename);toast(`${filename}을(를) 내려받았습니다. 브라우저 다운로드 폴더를 확인하세요.`);}catch(e){toast('이 화면에서는 다운로드가 막혀 있습니다: '+e.message);}
 }
 function sheetFromAoa(aoa,widths,numFmtCols){const ws=XLSX.utils.aoa_to_sheet(aoa);if(widths)ws['!cols']=widths.map(w=>({wch:w}));
   if(numFmtCols){const R=XLSX.utils.decode_range(ws['!ref']);for(let r=1;r<=R.e.r;r++)numFmtCols.forEach(ci=>{const c=ws[XLSX.utils.encode_cell({r,c:ci})];if(c&&c.t==='n')c.z='#,##0';});}
