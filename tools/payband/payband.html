@@ -495,6 +495,7 @@ const fP=(v,d=1)=>v==null||!isFinite(v)?'-':(v*100).toFixed(d)+'%';
 const esc=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const dateStr=v=>{if(!v)return'';if(v instanceof Date&&!isNaN(v))return`${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;return String(v).slice(0,10).replace(/\./g,'-');};
 const dotDate=v=>dateStr(v).replace(/-/g,'.');
+function periodMonths(p){const s=periodText(p);const m=/(\d+)\s*년\s*(\d+)?\s*(개?월)?/.exec(s||'');return m?(+m[1])*12+(+(m[2]||0)):null;}
 function periodText(p){if(p.period)return p.period;const d=new Date(dateStr(p.gdate));if(isNaN(d))return'';let m=(TODAY.getFullYear()-d.getFullYear())*12+(TODAY.getMonth()-d.getMonth());if(TODAY.getDate()<d.getDate())m--;if(m<0)return'';return`${Math.floor(m/12)}년${m%12}월`;}
 function toast(msg){document.querySelectorAll('.toast').forEach(x=>x.remove());const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),Math.min(7000,2200+msg.length*40));}
 
@@ -770,8 +771,8 @@ function sheetClass(){
     <button id="dl-class" type="button" class="primary">엑셀 다운로드</button>
     ${searchBoxHTML('class')}
     <label class="field">적용 직급<select id="cf"><option value="all">전체</option>${['G1','G2','G3','G4'].map(g=>`<option ${cf===g?'selected':''}>${g}</option>`).join('')}<option value="none" ${cf==='none'?'selected':''}>미확정만</option></select></label></div>
-  <div class="scroll"><table id="class-tbl"><thead><tr><th>사번</th><th>이름</th><th>나이</th><th>부서</th><th>직책</th><th>현직급</th><th>남은 정년 년수</th><th>현 연봉(원)</th><th>분류 직급<br>(1차 자동)</th><th>이동가능<br>직급 수</th><th>최종 분류 직급<br>(수기)</th><th>적용 직급</th><th>구분</th></tr></thead><tbody>
-  ${rows.filter(r=>cf==='all'||(cf==='none'?!r.fin:'G'+r.app===cf)).map(r=>`<tr class="${r.fin?'confirmed':''}"><td>${esc(r.p.id)}</td><td>${esc(r.p.name)}</td><td>${esc(r.p.age)}</td><td class="l">${esc(r.p.dept)}</td><td>${esc(r.p.title)}</td><td>${esc(r.p.grade)}</td><td>${r.rem??''}</td>
+  <div class="scroll"><table id="class-tbl"><thead><tr><th>사번</th><th>이름</th><th>나이</th><th>부서</th><th>직책</th><th>현직급</th><th>입사년도</th><th>현직급 기간</th><th>남은 정년 년수</th><th>현 연봉(원)</th><th>분류 직급<br>(1차 자동)</th><th>이동가능<br>직급 수</th><th>최종 분류 직급<br>(수기)</th><th>적용 직급</th><th>구분</th></tr></thead><tbody>
+  ${rows.filter(r=>cf==='all'||(cf==='none'?!r.fin:'G'+r.app===cf)).map(r=>`<tr class="${r.fin?'confirmed':''}"><td>${esc(r.p.id)}</td><td>${esc(r.p.name)}</td><td>${esc(r.p.age)}</td><td class="l">${esc(r.p.dept)}</td><td>${esc(r.p.title)}</td><td>${esc(r.p.grade)}</td><td data-v="${esc(dateStr(r.p.hire))}">${esc(dotDate(r.p.hire))}</td><td data-v="${periodMonths(r.p)??''}">${esc(periodText(r.p))}</td><td>${r.rem??''}</td>
     <td class="num">${fW(r.sal)}</td><td class="${classCss(r.k)}" data-v="${r.k in CLS_RANK?CLS_RANK[r.k]:''}">${r.k}</td><td>${r.k===''?'':r.k.includes(',')?2:r.k.startsWith('G')?1:0}</td>
     <td data-v="${finRank(r.p.final)}" class="${r.p.final?(isCand(r.k,r.p.final)?'c-fin':'c-bad'):'note'}">${r.p.final?esc(r.p.final):'미확정'}</td>
     <td data-v="${r.app??''}"><b>${appTxt(r)}</b></td><td data-v="${r.fin?0:1}">${srcPill(r)}</td></tr>`).join('')}
@@ -1586,8 +1587,8 @@ function infoBook(){
 function classBook(){
   const wb=XLSX.utils.book_new();const tbl=document.getElementById('class-tbl');
   const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];const head=[...hr.cells].map(th=>th.innerHTML.replace(/<br\s*\/?>/g,' ').replace(/<[^>]+>/g,'').replace(/[▾▲▼]/g,'').replace(/\s+/g,' ').trim());
-  const rows=[...tbl.tBodies[0].rows].filter(r=>!r.hidden&&r.cells.length>1).map(r=>[...r.cells].map((td,i)=>{const s=cellText(td);const v=sortVal(td);return typeof v==='number'&&/^[-\d,.%]+$/.test(s)?(s.endsWith('%')?v/100:v):s;}));
-  XLSX.utils.book_append_sheet(wb,sheetFromAoa([head,...rows],head.map((h,i)=>i===3?14:i===7?14:11),[7]),'분류 결과');
+  const rows=[...tbl.tBodies[0].rows].filter(r=>!r.hidden&&r.cells.length>1).map(r=>[...r.cells].map((td,i)=>{const s=cellText(td);const v=sortVal(td);if(/사번/.test(head[i]))return s;return typeof v==='number'&&/^[-\d,.%]+$/.test(s)?(s.endsWith('%')?v/100:v):s;}));
+  const salCol=head.findIndex(h=>/현 연봉/.test(h));XLSX.utils.book_append_sheet(wb,sheetFromAoa([head,...rows],head.map((h,i)=>/부서|현 연봉|입사/.test(h)?13:11),salCol>=0?[salCol]:[]),'분류 결과');
   const {rows:R}=computeAll();const keys=['G1','G2','G3','G4','미분류'];
   const aoa=[['적용 직급','인원','최종 확정','1차 자동','평균 연봉(원)','명단(연봉 높은 순)']];
   keys.forEach(k=>{const L=R.filter(r=>(r.app?'G'+r.app:'미분류')===k).sort((a,b)=>b.sal-a.sal);aoa.push([k,L.length,L.filter(r=>r.fin).length,L.filter(r=>!r.fin).length,L.length?Math.round(L.reduce((a,r)=>a+(r.sal||0),0)/L.length):'',L.map(r=>r.p.name).join(', ')]);});
