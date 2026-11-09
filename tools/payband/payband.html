@@ -1141,9 +1141,9 @@ function posBar(p0,pH,midPr,col,label){ // Min-Mid-Max 막대, ● 현재 / ○ 
    <text x="${X(0)}" y="32" text-anchor="middle">Min</text><text x="${X(midPr)}" y="32" text-anchor="middle">Mid</text><text x="${X(1)}" y="32" text-anchor="middle">Max</text></svg>`;
 }
 function renderAnalysis(){
-  const v=document.getElementById('view-analysis');const tabs=[['cur','현재 연봉 분석 (현행 연봉구간)'],['sim','연도별 시뮬레이션 (신규 Pay-band)']];
+  const v=document.getElementById('view-analysis');const tabs=[['cur','현재 연봉 분석 (신규 Pay-band)'],['sim','연도별 시뮬레이션 (신규 Pay-band)']];
   v.innerHTML=`<h1>임금분석</h1>${stageBar(S.anStage,'data-anstage')}
-  <p class="sub">「현재 연봉 분석」은 현행 연봉구간 기준으로 지금 위치를 보고, 「연도별 시뮬레이션」은 ① 기본정보의 분류 기준(신규 Pay-band)에 인상률을 적용해 ${BASE_YEAR+1}년 이후와 정년 시점의 위치를 판정합니다.</p>
+  <p class="sub">두 탭 모두 ① 분류 기준(신규 Pay-band, G1 ${S.crit.bands[0][0].toLocaleString("ko-KR")}~G4 ${S.crit.bands[3][1].toLocaleString("ko-KR")}만원)으로 봅니다. 「현재 연봉 분석」은 지금 위치를, 「연도별 시뮬레이션」은 인상률(2차는 기준연봉표)을 적용해 ${BASE_YEAR+1}년 이후와 정년 시점의 위치를 판정합니다.</p>
   <div class="sheettabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" data-antab="${k}" aria-selected="${S.anTab===k}">${l}</button>`).join('')}</div>
   <div id="an-body"></div>`;
   v.querySelectorAll('[data-antab]').forEach(b=>b.onclick=()=>{S.anTab=b.dataset.antab;save();renderAnalysis();});
@@ -1155,55 +1155,65 @@ function renderAnalysis(){
 function curBand(p){const i=GRADE6.indexOf(p.grade);if(i<0)return null;const b=S.curBands[i]||[];const mn=num(b[0]),mx=num(b[2]);if(mn==null||mx==null||mx<=mn)return null;
   const md=num(b[1])??(mn+mx)/2;return{mn:mn*1e4,md:md*1e4,mx:mx*1e4};}
 const CST={over:{l:'상한 초과',c:'over',o:0},under:{l:'하한 미달',c:'under',o:1},q4:{l:'상단 (75~100%)',c:'watch',o:2},q3:{l:'중상 (50~75%)',c:'ok',o:3},q2:{l:'중하 (25~50%)',c:'ok',o:4},q1:{l:'하단 (0~25%)',c:'ok',o:5},none:{l:'구간 미입력',c:'ret',o:9}};
+// 현재 연봉 분석 = 신규 Pay-band(① 분류 기준) 기준. 적용 직급: 1차는 최종 확정(미확정 중첩 인원은 설정 기준), 2차는 1차 최종 직급
+function curGrade(r){return S.anStage==='2'?r.app:anBandGrade(r,S.an.basis);}
 function anCur(){
-  const body=document.getElementById('an-body');
-  body.innerHTML=`<div class="panel"><div class="bar"><h2 class="grow" style="margin:0">현행 연봉구간 입력 <span class="sub">(현직급 6단계 기준, 단위: 만원)</span></h2>
-     ${S.curDemo?'<span class="pill p-watch">예시값 — 실제 현행 구간으로 바꿔 주세요</span>':'<span class="pill p-ok">입력값 적용 중</span>'}</div>
-    <div class="scroll"><table class="crit-tbl" style="width:auto"><thead><tr><th>현직급</th><th>Min (하한)</th><th>Mid (중간값)</th><th>Max (상한)</th><th>구간 폭</th></tr></thead><tbody>
-    ${GRADE6.map((g,i)=>{const b=S.curBands[i]||['','',''];return`<tr><td><b>${g}</b></td>${[0,1,2].map(j=>`<td class="in" style="min-width:110px"><input type="number" data-cb="${i}.${j}" value="${esc(b[j])}" ${j===1?'placeholder="비우면 (Min+Max)÷2"':''}></td>`).join('')}<td class="auto" id="cbw-${i}"></td></tr>`;}).join('')}
-    </tbody></table></div>
-    <p class="note">※ 사람마다 현직급(기본정보 G열)에 맞는 구간이 적용됩니다. Mid를 비우면 (Min+Max)÷2로 계산합니다. 신규 Pay-band(G1~G4)는 「연도별 시뮬레이션」 탭에서 봅니다.</p></div>
+  const body=document.getElementById('an-body');const c=S.crit,an=S.an;const {rows}=computeAll();
+  body.innerHTML=`<div class="grid2eq"><div class="panel"><div class="bar"><h2 class="grow" style="margin:0">신규 Pay-band <span class="sub">(① 분류 기준 연동, 단위: 만원)</span></h2><button type="button" id="cur-go-crit">①에서 수정</button></div>
+    <div class="scroll"><table><thead><tr><th>직급</th><th>Min (하한)</th><th>Mid</th><th>Max (상한)</th><th>적용 인원</th></tr></thead><tbody>
+    ${c.bands.map((b,i)=>`<tr><td><b>G${i+1}</b></td><td class="num">${b[0].toLocaleString('ko-KR')}</td><td class="num">${((b[0]+b[1])/2).toLocaleString('ko-KR')}</td><td class="num">${b[1].toLocaleString('ko-KR')}</td><td>${rows.filter(r=>r.sal&&curGrade(r)===i+1).length}명</td></tr>`).join('')}</tbody></table></div>
+    <p class="note">※ 사람마다 ${S.anStage==='2'?'1차 최종 직급(2차 분류 기준)':'적용 직급(최종 분류 직급 우선, 미확정 중첩 인원은 오른쪽 설정)'}의 밴드로 위치를 봅니다.</p></div>
+   <div class="panel"><h2>판정 기준</h2><div class="bar" style="align-items:flex-end;gap:10px">
+     ${S.anStage==='2'?'':`<label class="field">미확정 중첩 인원<select id="cur-basis"><option value="lower" ${an.basis==='lower'?'selected':''}>하위 직급 기준</option><option value="upper" ${an.basis==='upper'?'selected':''}>상위 직급 기준</option></select></label>`}
+     <label class="field">안정적 (≥ %)<input id="cur-th0" type="number" step="1" value="${an.th0}" style="width:70px"></label>
+     <label class="field">이탈 다소 높음 (≥ %)<input id="cur-th1" type="number" step="1" value="${an.th1}" style="width:70px"></label>
+     <label class="field">이탈 임박 (≥ %)<input id="cur-th2" type="number" step="1" value="${an.th2}" style="width:70px"></label></div>
+     <div class="scale">${[['vsafe',0,an.th0],['ok',an.th0,an.th1],['high',an.th1,an.th2],['soon',an.th2,100]].map(([k,x,y])=>`<span style="flex:${Math.max(y-x,1)};background:${YCOL[k]}"><b>${YS[k].l}</b>${x}~${y}%</span>`).join('')}<span style="flex:12;background:${YCOL.exit}"><b>이탈</b>100%↑</span></div>
+     <p class="note">※ 위치 = (연봉 − Min) ÷ (Max − Min) / 0% 미만 = 하한 미달 / 연도별 시뮬레이션과 같은 기준을 씁니다(한쪽에서 바꾸면 함께 바뀜)</p></div></div>
   <div id="cur-out"></div>`;
-  body.querySelectorAll('[data-cb]').forEach(el=>el.onchange=()=>{const [i,j]=el.dataset.cb.split('.').map(Number);S.curBands[i][j]=el.value===''?'':+el.value;S.curDemo=false;save();anCur();});
-  GRADE6.forEach((g,i)=>{const b=S.curBands[i]||[];const mn=num(b[0]),mx=num(b[2]);document.getElementById('cbw-'+i).textContent=mn!=null&&mx!=null?`${fP((mx-mn)/mn)} (${(mx-mn).toLocaleString('ko-KR')})`:'-';});
+  body.querySelector('#cur-go-crit').onclick=()=>{S.sheet='info';S.stage='1';save();location.hash='#payband';};
+  const bs=body.querySelector('#cur-basis');if(bs)bs.onchange=e=>{an.basis=e.target.value;save();anCur();};
+  ['th0','th1','th2'].forEach(k=>body.querySelector('#cur-'+k).onchange=e=>{an[k]=+e.target.value||0;save();anCur();});
   drawCur();
 }
 function drawCur(){
-  const {rows}=computeAll();const cf=S.an.cf;
-  const L=rows.filter(r=>r.sal).map(r=>{const b=curBand(r.p);if(!b)return{r,b:null,st:'none'};const pr=(r.sal-b.mn)/(b.mx-b.mn);
-    const st=r.sal>b.mx?'over':r.sal<b.mn?'under':pr>=0.75?'q4':pr>=0.5?'q3':pr>=0.25?'q2':'q1';return{r,b,pr,midPr:(b.md-b.mn)/(b.mx-b.mn),compa:r.sal/b.md,st};});
-  const withB=L.filter(x=>x.b);const n=withB.length;
-  const list=L.filter(x=>(cf.grade==='all'||x.r.p.grade===cf.grade)&&(cf.status==='all'||x.st===cf.status)&&(!cf.q||String(x.r.p.name).includes(cf.q)||String(x.r.p.id).includes(cf.q)||String(x.r.p.dept).includes(cf.q)));
+  const {c,rows}=computeAll();const an=S.an;const cf=an.cf;if(!/^G[1-4]$/.test(cf.grade||''))cf.grade='all';if(cf.status!=='all'&&!YS[cf.status])cf.status='all';
+  const L=rows.filter(r=>r.sal&&curGrade(r)).map(r=>{const g=curGrade(r);const mn=c.bands[g-1][0]*1e4,mx=c.bands[g-1][1]*1e4,md=(mn+mx)/2;const pr=(r.sal-mn)/(mx-mn);
+    return{r,g,b:{mn,md,mx},pr,midPr:0.5,compa:r.sal/md,st:yStatus(pr,an)};});
+  const n=L.length;const cnt=k=>L.filter(x=>x.st===k).length;
+  const list=L.filter(x=>(cf.grade==='all'||'G'+x.g===cf.grade)&&(cf.status==='all'||x.st===cf.status)&&(!cf.q||String(x.r.p.name).includes(cf.q)||String(x.r.p.id).includes(cf.q)||String(x.r.p.dept).includes(cf.q)));
+  const ORD=['exit','soon','high','under','ok','vsafe'];
   const out=document.getElementById('cur-out');
   out.innerHTML=`<div class="kpis">
-    <div class="kpi"><div class="k">분석 인원 (${BASE_YEAR} 현재)</div><div class="v">${n}<small>명</small></div><div class="d">구간 미입력 ${L.length-n}명</div></div>
-    <div class="kpi ok"><div class="k">현행 구간 내 비율</div><div class="v">${fP(n?withB.filter(x=>x.st!=='over'&&x.st!=='under').length/n:null)}</div><div class="d">Min ≤ 연봉 ≤ Max</div></div>
-    <div class="kpi crit"><div class="k">상한 초과</div><div class="v">${withB.filter(x=>x.st==='over').length}<small>명</small></div><div class="d">초과액 합계 ${fEok(withB.filter(x=>x.st==='over').reduce((a,x)=>a+x.r.sal-x.b.mx,0))}억원</div></div>
-    <div class="kpi warn"><div class="k">상단 (75% 이상)</div><div class="v">${withB.filter(x=>x.st==='q4').length}<small>명</small></div><div class="d">상한 근접</div></div>
-    <div class="kpi under"><div class="k">하한 미달</div><div class="v">${withB.filter(x=>x.st==='under').length}<small>명</small></div><div class="d">보정 소요 ${fEok(withB.filter(x=>x.st==='under').reduce((a,x)=>a+x.b.mn-x.r.sal,0))}억원</div></div>
-    <div class="kpi"><div class="k">평균 Compa-ratio</div><div class="v">${n?(withB.reduce((a,x)=>a+x.compa,0)/n*100).toFixed(1):'-'}<small>%</small></div><div class="d">연봉 ÷ 현행 Mid</div></div></div>
-  <div class="panel"><div class="bar"><h2 class="grow" style="margin:0">현재 연봉 분석 <span class="sub">${list.length}명 · 머리글 ▾로 정렬·필터</span></h2>
-    <label class="field">현직급<select id="cf-g"><option value="all">전체</option>${GRADE6.map(g=>`<option ${cf.grade===g?'selected':''}>${g}</option>`).join('')}</select></label>
-    <label class="field">판정<select id="cf-s"><option value="all">전체</option>${Object.keys(CST).map(k=>`<option value="${k}" ${cf.status===k?'selected':''}>${CST[k].l}</option>`).join('')}</select></label>
+    <div class="kpi"><div class="k">분석 인원 (${BASE_YEAR} 현재)</div><div class="v">${n}<small>명</small></div><div class="d">${S.anStage==='2'?'2차 분류 기준':`최종 확정 ${L.filter(x=>x.r.fin).length}명 · 자동 ${L.filter(x=>!x.r.fin).length}명`}</div></div>
+    <div class="kpi ok"><div class="k">밴드 내 비율</div><div class="v">${fP(n?L.filter(x=>x.pr>=0&&x.pr<=1).length/n:null)}</div><div class="d">Min ≤ 연봉 ≤ Max</div></div>
+    <div class="kpi crit"><div class="k">이탈 (상한 초과)</div><div class="v">${cnt('exit')}<small>명</small></div><div class="d">초과액 합계 ${fEok(L.filter(x=>x.st==='exit').reduce((a,x)=>a+x.r.sal-x.b.mx,0))}억원</div></div>
+    <div class="kpi warn"><div class="k">이탈 임박 / 다소 높음</div><div class="v">${cnt('soon')}<small>명</small> / ${cnt('high')}<small>명</small></div><div class="d">위치 ${an.th2}%↑ / ${an.th1}%↑</div></div>
+    <div class="kpi under"><div class="k">하한 미달</div><div class="v">${cnt('under')}<small>명</small></div><div class="d">보정 소요 ${fEok(L.filter(x=>x.st==='under').reduce((a,x)=>a+x.b.mn-x.r.sal,0))}억원</div></div>
+    <div class="kpi"><div class="k">평균 Compa-ratio</div><div class="v">${n?(L.reduce((a,x)=>a+x.compa,0)/n*100).toFixed(1):'-'}<small>%</small></div><div class="d">연봉 ÷ 밴드 Mid</div></div></div>
+  <div class="panel"><div class="bar"><h2 class="grow" style="margin:0">현재 연봉 분석 <span class="sub">${list.length}명 · 신규 Pay-band 기준</span></h2>
+    <label class="field">적용 직급<select id="cf-g"><option value="all">전체</option>${['G1','G2','G3','G4'].map(g=>`<option ${cf.grade===g?'selected':''}>${g}</option>`).join('')}</select></label>
+    <label class="field">판정<select id="cf-s"><option value="all">전체</option>${ORD.map(k=>`<option value="${k}" ${cf.status===k?'selected':''}>${YS[k].l}</option>`).join('')}</select></label>
     <label class="field">검색<input id="cf-q" type="search" placeholder="이름·사번·부서" value="${esc(cf.q)}" style="width:130px"></label>
     <button id="copy-cur" type="button">표 복사</button></div>
-   <div class="scroll"><table class="an-table" id="cur-tbl"><thead><tr><th>사원</th><th>직무</th><th>구간 · Lv</th><th class="num">연봉<br><span style="font-weight:400">${BASE_YEAR} 현재</span></th><th data-nosort>Pay-band 위치<br><span style="font-weight:400">현재 기준</span></th><th class="num">위치</th><th class="num">Compa</th><th class="num">상한까지<br>여유(원)</th><th>신규 적용 직급</th>${S.anStage==='2'?'<th>2차 분류</th><th class="num">2차 기준연봉</th><th class="num">기준 대비</th>':''}<th>판정</th></tr></thead><tbody>
-   ${list.map(x=>{const p=x.r.p;const col={over:'var(--crit)',under:'var(--under)',q4:'var(--warn)'}[x.st]||'var(--ok)';return`<tr class="rk-${CST[x.st].c}">
+   <div class="scroll"><table class="an-table" id="cur-tbl"><thead><tr><th>사원</th><th>직무</th><th>적용 밴드</th><th class="num">연봉<br><span style="font-weight:400">${BASE_YEAR} 현재</span></th><th data-nosort>Pay-band 위치<br><span style="font-weight:400">현재 기준</span></th><th class="num">위치</th><th class="num">Compa</th><th class="num">상한까지<br>여유(원)</th><th>현직급 · 기간</th>${S.anStage==='2'?'<th>2차 분류</th><th class="num">2차 기준연봉</th><th class="num">기준 대비</th>':''}<th>판정</th></tr></thead><tbody>
+   ${list.map(x=>{const p=x.r.p;const b2=S.anStage==='2'&&x.r.app&&x.r.step?T2(c,x.r.app,x.r.step):null;return`<tr class="rk-${YS[x.st].c}">
      <td class="l who" data-v="${esc(p.name)}" data-ft="${esc(p.name)}"><b>${esc(p.name)}</b><span>${esc(p.id)} · ${esc(p.dept)} · ${esc(p.title)}</span></td>
      <td class="l" data-v="${esc(p.job)}" data-ft="${esc(p.job)}">${esc(p.job)}<br><span class="note" style="margin:0">${esc(p.dept)}</span></td>
-     <td class="band-cell" data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}"><b>${esc(p.grade)}</b> · ${esc(periodText(p))}<br>${x.b?`Mid ${fW(x.b.md)}<br><span class="note" style="margin:0">${fM(x.b.mn)} ~ ${fM(x.b.mx)}만원</span>`:'<span class="note" style="margin:0">구간 미입력</span>'}</td>
+     <td class="band-cell" data-v="${x.g}" data-ft="G${x.g}"><b>G${x.g}</b>${S.anStage==='2'||x.r.fin?'':' <small class="note">자동</small>'}<br>Mid ${fW(x.b.md)}<br><span class="note" style="margin:0">${fM(x.b.mn)} ~ ${fM(x.b.mx)}만원</span></td>
      <td class="num" data-v="${x.r.sal}"><b>${fW(x.r.sal)}</b></td>
-     <td class="pos">${x.b?posBar(x.pr,null,x.midPr,col,`현재 위치 ${fP(x.pr)}`):''}</td>
-     <td class="num" data-v="${x.b?x.pr:''}">${x.b?fP(x.pr):'-'}</td><td class="num" data-v="${x.b?x.compa:''}">${x.b?fP(x.compa):'-'}</td>
-     <td class="num ${x.b&&x.b.mx<x.r.sal?'c-over':''}" data-v="${x.b?x.b.mx-x.r.sal:''}">${x.b?fW(x.b.mx-x.r.sal):'-'}</td>
-     <td data-v="${x.r.app??''}" data-ft="${appTxt(x.r)}"><b>${appTxt(x.r)}</b></td>${S.anStage==='2'?(()=>{const b=x.r.app&&x.r.step?T2(S.crit,x.r.app,x.r.step):null;return`<td data-v="${(x.r.app||0)*100+(x.r.step||0)}"><b>${s2Label(x.r)}</b>${x.r.stepManual?'':' <small class="note">자동</small>'}</td><td class="num">${fW(b)}</td><td class="num ${b!=null&&x.r.sal<b?'c-over':''}">${b!=null?fW(x.r.sal-b):'-'}</td>`;})():''}
-     <td data-v="${CST[x.st].o}"><span class="pill p-${CST[x.st].c}">${CST[x.st].l}</span></td></tr>`;}).join('')||'<tr><td colspan="10">조건에 맞는 인원이 없습니다.</td></tr>'}
+     <td class="pos">${posBar(x.pr,null,0.5,YCOL[x.st],`현재 위치 ${fP(x.pr)}`)}</td>
+     <td class="num" data-v="${x.pr}">${fP(x.pr)}</td><td class="num" data-v="${x.compa}">${fP(x.compa)}</td>
+     <td class="num ${x.b.mx<x.r.sal?'c-over':''}" data-v="${x.b.mx-x.r.sal}">${fW(x.b.mx-x.r.sal)}</td>
+     <td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}">${esc(p.grade)} · ${esc(periodText(p))}</td>
+     ${S.anStage==='2'?`<td data-v="${(x.r.app||0)*100+(x.r.step||0)}" data-ft="${s2Label(x.r)}"><b>${s2Label(x.r)}</b>${x.r.stepManual?'':' <small class="note">자동</small>'}</td><td class="num">${fW(b2)}</td><td class="num ${b2!=null&&x.r.sal<b2?'c-over':''}">${b2!=null?fW(x.r.sal-b2):'-'}</td>`:''}
+     <td data-v="${YS[x.st].o}" data-ft="${YS[x.st].l}">${chip(x.st)}</td></tr>`;}).join('')||'<tr><td colspan="13">조건에 맞는 인원이 없습니다.</td></tr>'}
    </tbody></table></div>
-   <p class="note">※ 위치 = (연봉 − Min) ÷ (Max − Min) / Compa = 연봉 ÷ Mid / 판정: 하단·중하·중상·상단은 현행 구간 안의 사분위, 상한 초과·하한 미달은 구간 밖</p></div>`;
+   <p class="note">※ 위치 = (연봉 − Min) ÷ (Max − Min), Mid = 50% / Compa = 연봉 ÷ Mid / 판정: 매우 안정적 &lt; ${an.th0}% ≤ 안정적 &lt; ${an.th1}% ≤ 이탈 다소 높음 &lt; ${an.th2}% ≤ 이탈 임박 ≤ 100% &lt; 이탈, 0% 미만 = 하한 미달</p></div>`;
   out.querySelector('#cf-g').onchange=e=>{cf.grade=e.target.value;save();drawCur();};
   out.querySelector('#cf-s').onchange=e=>{cf.status=e.target.value;save();drawCur();};
   out.querySelector('#cf-q').onchange=e=>{cf.q=e.target.value.trim();save();drawCur();};
-  out.querySelector('#copy-cur').onclick=()=>copyText('현재 연봉 분석',['사번\t이름\t부서\t직책\t현직급\t연봉\tMin\tMid\tMax\t위치\tCompa\t판정'].concat(list.map(x=>[x.r.p.id,x.r.p.name,x.r.p.dept,x.r.p.title,x.r.p.grade,Math.round(x.r.sal),x.b?x.b.mn:'',x.b?x.b.md:'',x.b?x.b.mx:'',x.b?fP(x.pr):'',x.b?fP(x.compa):'',CST[x.st].l].join('\t'))).join('\n'),'분석표를 복사했습니다.');
+  out.querySelector('#copy-cur').onclick=()=>copyText('현재 연봉 분석',['사번\t이름\t부서\t직책\t현직급\t적용 밴드\t연봉\tMin\tMid\tMax\t위치\tCompa\t판정'].concat(list.map(x=>[x.r.p.id,x.r.p.name,x.r.p.dept,x.r.p.title,x.r.p.grade,'G'+x.g,Math.round(x.r.sal),x.b.mn,x.b.md,x.b.mx,fP(x.pr),fP(x.compa),YS[x.st].l].join('\t'))).join('\n'),'분석표를 복사했습니다.');
   sortable(out.querySelector('#cur-tbl'),'cur');
 }
 
