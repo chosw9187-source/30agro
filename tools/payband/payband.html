@@ -488,7 +488,9 @@ function scenario(p,g,c,tab,ev,cap){ // cap=true: 승진 없이 g 직급 상한(
   const G=[],W=[];
   for(let t=0;t<=45;t++){G[t]=gr(t);
     // 상한(CAP) 규칙(전 직원 동일): 이미 상한 이상이면 그 금액에서 동결(삭감 없음), 아니면 상한까지만 인상
-    const prev=t===0?sal:W[t-1];if(t>end){W[t]=prev;continue;}
+    // 26년(t=0) = 현재 연봉 그대로, 인상은 27년(t=1)부터
+    if(t===0){W[0]=sal;continue;}
+    const prev=W[t-1];if(t>end){W[t]=prev;continue;}
     const up=prev*(1+c.rate)+(t>0&&G[t]>G[t-1]?(+c.promo[G[t]-2]||0)*10000:0);
     W[t]=prev>=MX(G[t])?prev:Math.min(MX(G[t]),up);}
   const fi=Math.min(end,45);const age=num(p.age)||0;const D=[d1,d2,d3];
@@ -501,7 +503,7 @@ function scenario(p,g,c,tab,ev,cap){ // cap=true: 승진 없이 g 직급 상한(
   else{const parts=[];D.forEach((d,k)=>{if(d<=end&&g+k+1<=top)parts.push(`${age-1+d}세 G${g+k+1}${kx>0?`(누락 ${kx}년)`:''}`);});path=parts.length?parts.join(' → '):'승진 없음(정년 도달)';}
   const missAt=t=>!cap&&kx>0&&D.some((d,k)=>t>=d-kx&&t<d&&g+k+1<=top);
   const final=W[fi];
-  const cagr=sal>0?Math.pow(final/sal,1/(end+1))-1:null;
+  const cagr=sal>0?Math.pow(final/sal,1/Math.max(1,end))-1:null;
   return{g,n0,d:D,G,W,final,finalG:G[fi],path,F,end,cagr,kx,ky:E.ky,ev:E.label,missAt,cap:!!cap};
 }
 function simTargets(p,k,c){const t=(c.target||{})[p.grade]||[];const gv=v=>/^G[1-4]$/.test(v||'')?+v[1]:null;
@@ -1110,15 +1112,15 @@ function scenario2(p,g,n,c,ev,noPromo){
     if(t>end){G[t]=G[t-1];Y[t]=Y[t-1];W[t]=W[t-1];continue;}
     G[t]=gr(t);const prev=t===0?sal:W[t-1];
     if(t>0&&G[t]>G[t-1]){y=1;let guard=0;while(T2(c,G[t],y)<prev*(1+r)&&guard++<200)y++;}
-    else y=t===0?n+1:y+1;
-    Y[t]=y;W[t]=T2(c,G[t],y);}
+    else y=t===0?n:y+1;
+    Y[t]=y;W[t]=t===0?sal:T2(c,G[t],y);} // 26년 = 현재 연봉·현재 년차, 27년부터 년차 +1
   const fi=Math.min(end,45);const age=num(p.age)||0;
   let path;
   if(noPromo)path=`승진 없음 · G${g} 년차만 상승 (${n}년차 → ${Y[fi]}년차)`;
   else if(g>=4)path=`최고 직급 · 년차만 상승 (${Y[fi]}년차)`;
   else{const parts=[];D.forEach((d,k)=>{if(d<=end&&g+k+1<=top)parts.push(`${age-1+d}세 G${g+k+1}·${Y[d]}년차${kx>0?`(누락 ${kx}년)`:''}`);});path=parts.length?parts.join(' → '):'승진 없음(정년 도달)';}
   const missAt=t=>!noPromo&&kx>0&&D.some((d,k)=>t>=d-kx&&t<d&&g+k+1<=top);
-  const final=W[fi];const cagr=sal>0?Math.pow(final/sal,1/(end+1))-1:null;
+  const final=W[fi];const cagr=sal>0?Math.pow(final/sal,1/Math.max(1,end))-1:null;
   return{g,n,d:D,G,Y,W,final,finalG:G[fi],finalY:Y[fi],path,F,end,cagr,kx,ky:E.ky,ev:E.label,missAt,cap:false,noPromo:!!noPromo};
 }
 const s2Label=r=>r&&r.app&&r.step?`G${r.app}·${r.step}년차`:'-';
