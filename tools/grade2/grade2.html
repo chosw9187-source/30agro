@@ -381,8 +381,12 @@ textarea{width:100%;min-height:110px;font:12px/1.4 ui-monospace,Menlo,Consolas,m
 /* ---- 직급 분류(신규 기준) ---- */
 .band-out{outline:2.5px solid var(--crit)!important;outline-offset:-3px;background:var(--crit-soft)!important;color:var(--crit)!important;font-weight:700}
 .c-warn{background:var(--warn-soft)!important;color:var(--warn);font-weight:700;outline:2px solid var(--warn);outline-offset:-2px}
-.g2-cls th.g-ref{background:#6b7280;color:#fff} .g2-cls td.ref{background:var(--surface-2);color:var(--muted)}
+.g2-cls td.adjc,td.auto.adj{color:var(--accent);font-weight:700} .g2-cls th.g-ref{background:#6b7280;color:#fff} .g2-cls td.ref{background:var(--surface-2);color:var(--muted)}
 .g2-crit .pair-r{grid-template-columns:.8fr 1.6fr}
+.g2-crit.r3>.panel,.g2-crit.r2>.panel{display:flex;flex-direction:column}
+.g2-crit .tw{flex:1;min-height:0} .g2-crit .pair.tw{align-items:stretch} .g2-crit .tw>table{height:100%;margin:0}
+.g2-crit.r3 thead th{height:50px} .g2-crit.r2 thead th{height:36px}
+.g2-crit.r3 .panel>.note{min-height:58px} .g2-crit.r2 .panel>.note{min-height:40px}
 
 .crit-zone{margin-top:12px;border:2px solid var(--accent);border-radius:10px;padding:12px;background:var(--surface)}
 .ref-zone{margin-top:26px;border:2px dashed var(--line-2);border-radius:10px;padding:12px;background:var(--surface-2)}
@@ -1138,29 +1142,29 @@ function newCritHTML(c,ro){ // ro=true: 보고용 읽기 전용
   const td=x=>`<td class="${ro?'':'in'}">${x}</td>`;
   return`<div class="crit-zone"><div class="zone-h"><b>1차 분류 기준</b><span>(1)~(4) 기준별 분류직급 → (5) 종합 등급</span></div>
   <div class="g2-crit r3">
-  <div class="panel"><h2>(1) 현직급 → 변경 직급</h2><table class="crit-tbl"><thead><tr><th>현직급</th><th>변경 직급</th></tr></thead><tbody>
-    ${GRADE6_DESC.map(g=>`<tr><td><b>${g}</b></td>${td(gsel('gmap.'+g,c.gmap[g]))}</tr>`).join('')}</tbody></table>
+  <div class="panel"><h2>(1) 현직급 → 변경 직급</h2><div class="tw"><table class="crit-tbl"><thead><tr><th>현직급</th><th>변경 직급</th></tr></thead><tbody>
+    ${GRADE6_DESC.map(g=>`<tr><td><b>${g}</b></td>${td(gsel('gmap.'+g,c.gmap[g]))}</tr>`).join('')}</tbody></table></div>
     <p class="note">※ 현직급별 고정 변환</p></div>
-  <div class="panel"><h2>(2) 연차 기준</h2><div class="pair">
+  <div class="panel"><h2>(2) 연차 기준</h2><div class="pair tw">
     <table class="crit-tbl"><thead><tr><th>직급</th><th>시작 연차</th><th>구간</th></tr></thead><tbody>
     ${[3,2,1,0].map(i=>`<tr><td><b>G${i+1}</b></td>${i===0?'<td>1</td>':td(inp('yStart.'+i,c.yStart[i],2))}<td>${yearRange(i,c)}</td></tr>`).join('')}</tbody></table>
     <table class="crit-tbl"><thead><tr><th>현직급</th><th>기본연차<br><span class="sub" style="color:inherit">확인 필요</span></th></tr></thead><tbody>
     ${GRADE6_DESC.map(g=>`<tr><td><b>${g}</b></td>${td(inp('baseYr.'+g,c.baseYr[g],1))}</tr>`).join('')}</tbody></table></div>
     <p class="note">※ 연차 = 현직급 기본연차 + 현직급 기간(년, 내림) + 조정(±년)</p></div>
-  <div class="panel"><h2>(3) 직무 역할</h2><div class="pair pair-r">
+  <div class="panel"><h2>(3) 직무 역할</h2><div class="pair pair-r tw">
     <table class="crit-tbl"><thead><tr><th>현직급</th><th>직무 역할<br>직급</th></tr></thead><tbody>
     ${GRADE6_DESC.map(g=>`<tr><td><b>${g}</b></td>${td(gsel('roleMap.'+g,(c.roleMap||c.gmap)[g]))}</tr>`).join('')}</tbody></table>
     <table class="crit-tbl"><thead><tr><th>직급</th><th>직무 역할</th><th>정의</th></tr></thead><tbody>
     ${[...c.roles].sort((a,b)=>gN(b[1])-gN(a[1])).map(r=>`<tr><td><b>${esc(r[1])}</b></td><td><b>${esc(r[0])}</b></td><td class="l">${esc(ROLE_DEF[r[0]]||'')}</td></tr>`).join('')}</tbody></table></div>
     <p class="note">※ 현직급별 직무 역할 직급을 전체 인원에 일괄 적용 / 기본정보에서 개인 직무 역할을 고르면 그 값 우선${ro?'':` <button type="button" id="clear-roles" style="margin-left:6px;font-size:12px;padding:2px 8px">개인 선택 해제 → 전원 일괄 (${S.people.filter(p=>p.role).length}명)</button>`}</p></div></div>
   <div class="g2-crit r2">
-  <div class="panel"><h2>(4) 연봉 · 신규 Pay-band <span class="sub">(만원)</span></h2><table class="crit-tbl"><thead><tr><th>직급</th><th>하한</th><th>상한</th></tr></thead><tbody>
+  <div class="panel"><h2>(4) 연봉 · 신규 Pay-band <span class="sub">(만원)</span></h2><div class="tw"><table class="crit-tbl"><thead><tr><th>직급</th><th>하한</th><th>상한</th></tr></thead><tbody>
     ${[3,2,1,0].map(i=>`<tr><td><b>G${i+1}</b></td>${td(inp(`bands.${i}.0`,c.bands[i][0]))}${td(inp(`bands.${i}.1`,c.bands[i][1]))}</tr>`).join('')}
-    <tr><td class="l">밴드가 겹치는 금액</td><td colspan="2" class="l">(1) 변경 직급의 밴드 우선</td></tr></tbody></table>
+    <tr><td class="l">밴드가 겹치는 금액</td><td colspan="2" class="l">(1) 변경 직급의 밴드 우선</td></tr></tbody></table></div>
     <p class="note">※ 현 연봉이 들어가는 Pay-band 직급 / 하한 미만 = G1 · 상한 초과 = G4<br>※ <b style="color:var(--crit)">빨간 테두리</b> = 현 연봉이 (1) 변경 직급 밴드 밖 · 최종 확정(수기) 직급 밴드 밖</p></div>
-  <div class="panel g2-w"><h2>(5) 종합 등급 산출</h2><table class="crit-tbl"><thead><tr><th>기준</th><th>가중치(%)</th></tr></thead><tbody>
+  <div class="panel g2-w"><h2>(5) 종합 등급 산출</h2><div class="tw"><table class="crit-tbl"><thead><tr><th>기준</th><th>가중치(%)</th></tr></thead><tbody>
     ${CRIT_N.map((l,i)=>`<tr><td class="l">${l}</td>${td(inp('w.'+i,c.w[i],0))}</tr>`).join('')}
-    <tr class="tot"><td><b>합계</b></td><td><b>${c.w.reduce((a,b)=>a+(+b||0),0)}%</b></td></tr></tbody></table>
+    <tr class="tot"><td><b>합계</b></td><td><b>${c.w.reduce((a,b)=>a+(+b||0),0)}%</b></td></tr></tbody></table></div>
     <p class="note">※ 종합 점수 = Σ(가중치 × 직급값) ÷ Σ가중치 → 반올림(.5 이상 올림) = 종합 등급 / 값이 없는 기준은 빼고 재계산</p></div></div></div>`;}
 function sheetCrit1(){
   const c=S.crit;const tab=stdTable(c);const body=document.getElementById('sheet-body');
@@ -1228,7 +1232,7 @@ function sheetCrit2(){
 
 /* ---- 1차 분류 › 기본정보 ---- */
 const INFO_COLS2=[['id','사번','text',58],['name','이름','text',56],['birth','생년월일','date',104],['age','나이','number',40],['dept','부서','text',80],['job','직군','text',52],['title','직책','text',44],
-  ['grade','현직급','grade',52],['hire','입사일','date',104],['_rem','남은<br>정년','auto',36],['gdate','현직급<br>발령일','date',104],['_per','현직급<br>기간','auto',62],['adj','조정<br>(±년, 수기)','number',48],
+  ['grade','현직급','grade',52],['hire','입사일','date',104],['_rem','남은<br>정년','auto',36],['gdate','현직급<br>발령일','date',104],['_per','현직급 기간<br>(조정 포함)','auto',70],['adj','조정<br>(±년, 수기)','number',48],
   ['_yrs','연차<br>(자동)','auto',44],['salary','현 연봉(원)','won',96],['eval','인사<br>평가','eval',56],['role','직무 역할','role',118]];
 function sheetInfoN(){
   const body=document.getElementById('sheet-body');const c=S.crit;
@@ -1257,7 +1261,7 @@ function refreshInfoN(){const c=S.crit;applyBirthAges();
   document.querySelectorAll('#info-tbl tbody tr').forEach(tr=>{const p=S.people[+tr.dataset.i];if(!p)return;
     const ai=tr.querySelector('[data-f="age"]');if(ai){const hb=!!normBirth(p.birth);ai.readOnly=hb;if(hb)ai.value=p.age;ai.closest('td').classList.toggle('auto',hb);}
     const rm=tr.querySelector('[data-auto="_rem"]');const rem=remYears(p,c);rm.textContent=rem??'';rm.dataset.v=rem??'';
-    const pc=tr.querySelector('[data-auto="_per"]');pc.textContent=periodBaseText(p);pc.dataset.v=periodBaseMonths(p)??'';
+    const pc=tr.querySelector('[data-auto="_per"]');pc.textContent=periodText(p);pc.dataset.v=periodMonths(p)??'';{const a=num(p.adj);pc.title=a?`발령일 기준 ${periodBaseText(p)||'-'} ${a>0?'+':'−'} 조정 ${Math.abs(a)}년`:'발령일 기준 자동';pc.classList.toggle('adj',!!a);}
     const yc=tr.querySelector('[data-auto="_yrs"]');const y=careerYears(p,c);yc.textContent=y==null?'':y+'년차';yc.dataset.v=y??'';
     yc.title=y==null?'현직급 기본연차가 없어 계산 불가':`기본연차 ${c.baseYr[p.grade]} + 기간 ${Math.floor((periodBaseMonths(p)||0)/12)}년 + 조정 ${num(p.adj)||0}년`;});}
 
@@ -1289,11 +1293,11 @@ function sheetClassN(){
     ${searchBoxHTML('class')}<button id="fill4" type="button">4개 일치 인원 자동 확정</button><button id="clear4" type="button">자동 확정 해제</button><button id="dl-class" type="button" class="primary">엑셀 다운로드</button></div>
     <div class="scroll"><table id="class-tbl" class="rno-t g2-cls"><thead>
      <tr><th colspan="11" class="g-base">기본정보</th><th colspan="4" class="g-ev">기준별 분류직급</th><th colspan="2" class="g-ref">참고사항</th><th colspan="3" class="g-sum">(5) 종합</th><th colspan="4" class="g-base">최종</th></tr>
-     <tr><th data-nosort class="rno-h">No</th><th>사번</th><th>이름</th><th>나이</th><th>부서</th><th>직책</th><th>현직급</th><th>현직급 기간</th><th>조정<br>(±년)</th><th>연차</th><th>현 연봉(원)</th>
+     <tr><th data-nosort class="rno-h">No</th><th>사번</th><th>이름</th><th>나이</th><th>부서</th><th>직책</th><th>현직급</th><th>현직급 기간<br>(조정 포함)</th><th>조정<br>(±년)</th><th>연차</th><th>현 연봉(원)</th>
       <th class="ev1">(1) 현직급<br>변환</th><th>(2) 연차</th><th>(3) 직무<br>역할</th><th>(4) 연봉<br>Pay-band</th><th class="ev1">남은<br>정년</th><th>정년 최종연봉<br>(${c.retAge}세, 원)</th><th class="ev1">종합<br>점수</th><th>종합<br>등급</th><th>일치</th><th class="ev1">최종 확정<br>(수기)</th><th>적용<br>직급</th><th data-nosort>생애연봉</th><th>특이사항<br>(보고용)</th></tr></thead><tbody>
     ${rows.map(r=>{const p=r.p,G=r.G2;const cell=(i,txt,v)=>`<td class="gv ${G.v[i]==null?'na':G.hit(i)?'same':'diff'} ${i===0?'ev1':''}" data-v="${v??''}" data-ft="${esc(txt)}">${txt}</td>`;
       return`<tr class="${r.fin?'confirmed':''}"><td class="rno"></td><td>${esc(p.id)}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.age)}</td><td class="l">${esc(p.dept)}</td><td>${esc(p.title)}</td>
-       <td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}">${esc(p.grade)}</td><td data-v="${periodBaseMonths(p)??''}">${esc(periodBaseText(p))}</td><td data-v="${num(p.adj)??''}">${num(p.adj)?(num(p.adj)>0?'+':'')+num(p.adj):''}</td>
+       <td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}">${esc(p.grade)}</td><td data-v="${periodMonths(p)??''}" class="${num(p.adj)?'adjc':''}">${esc(periodText(p))}</td><td data-v="${num(p.adj)??''}">${num(p.adj)?(num(p.adj)>0?'+':'')+num(p.adj):''}</td>
        <td data-v="${G.yrs??''}">${G.yrs==null?'-':G.yrs+'년차'}</td><td class="num" data-v="${r.sal??''}">${fW(r.sal)}</td>
        ${cell(0,gTxt(G.v[0]),G.v[0])}${cell(1,G.v[1]==null?'-':`G${G.v[1]}`,G.v[1])}${cell(2,G.v[2]==null?'미입력':`G${G.v[2]}${G.roleAuto?' <small>(자동)</small>':''}`,G.v[2])}${cell(3,G.salT,G.v[3]).replace('<td class="gv','<td title="'+(G.salOutT?'현 연봉이 (1) 변경 직급 '+gTxt(G.v[0])+' 밴드 밖':'')+'" class="'+(G.salOutT?'band-out ':'')+'gv')}
        <td class="ev1 ref" data-v="${r.rem??''}">${r.rem==null?'-':r.rem+'년'}</td><td class="num ref" data-v="${refFinal(r,c,tab)??''}">${fW(refFinal(r,c,tab))}</td>
