@@ -326,6 +326,7 @@ tr.rk-ok td:first-child{box-shadow:inset 4px 0 0 var(--ok)}
 .kpi .v{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-top:2px}
 .kpi .v small{font-size:13px;font-weight:500;color:var(--muted);margin-left:2px}
 .kpi .d{font-size:12px;color:var(--muted)}
+.kpis-cur{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))} .kpi .pc{font-size:12px;color:var(--muted);font-weight:600}
 .kpi.crit .v{color:var(--crit)} .kpi.warn .v{color:var(--warn)} .kpi.under .v{color:var(--under)} .kpi.ok .v{color:var(--ok)}
 .pill{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
 .p-over{background:var(--crit-soft);color:var(--crit)} .p-soon{background:var(--warn-soft);color:var(--warn)} .p-watch{background:var(--care-soft);color:var(--care)}
@@ -1412,13 +1413,11 @@ function drawCur(){
   const list=L.filter(x=>(cf.grade==='all'||'G'+x.g===cf.grade)&&(cf.status==='all'||x.st===cf.status)&&(!cf.q||String(x.r.p.name).includes(cf.q)||String(x.r.p.id).includes(cf.q)||String(x.r.p.dept).includes(cf.q)));
   const ORD=['exit','soon','high','under','ok','vsafe'];
   const out=document.getElementById('cur-out');
-  out.innerHTML=`<div class="kpis">
+  const thTxt={vsafe:`위치 0~${an.th0}%`,ok:`${an.th0}~${an.th1}%`,high:`${an.th1}~${an.th2}%`,soon:`${an.th2}~100%`,exit:'상한(Max) 초과',under:'하한(Min) 미만'};
+  out.innerHTML=`<div class="kpis kpis-cur">
     <div class="kpi"><div class="k">분석 인원 (${BASE_YEAR} 현재)</div><div class="v">${n}<small>명</small></div><div class="d">${S.anStage==='2'?'2차 분류 기준':`최종 확정 ${L.filter(x=>x.r.fin).length}명 · 자동 ${L.filter(x=>!x.r.fin).length}명`}</div></div>
-    <div class="kpi ok"><div class="k">밴드 내 비율</div><div class="v">${fP(n?L.filter(x=>x.pr>=0&&x.pr<=1).length/n:null)}</div><div class="d">Min ≤ 연봉 ≤ Max</div></div>
-    <div class="kpi crit"><div class="k">이탈 (상한 초과)</div><div class="v">${cnt('exit')}<small>명</small></div><div class="d">초과액 합계 ${fEok(L.filter(x=>x.st==='exit').reduce((a,x)=>a+x.r.sal-x.b.mx,0))}억원</div></div>
-    <div class="kpi warn"><div class="k">이탈 임박 / 다소 높음</div><div class="v">${cnt('soon')}<small>명</small> / ${cnt('high')}<small>명</small></div><div class="d">위치 ${an.th2}%↑ / ${an.th1}%↑</div></div>
-    <div class="kpi under"><div class="k">하한 미달</div><div class="v">${cnt('under')}<small>명</small></div><div class="d">보정 소요 ${fEok(L.filter(x=>x.st==='under').reduce((a,x)=>a+x.b.mn-x.r.sal,0))}억원</div></div>
-    <div class="kpi"><div class="k">평균 Compa-ratio</div><div class="v">${n?(L.reduce((a,x)=>a+x.compa,0)/n*100).toFixed(1):'-'}<small>%</small></div><div class="d">연봉 ÷ 밴드 Mid</div></div></div>
+    <div class="kpi"><div class="k">평균 Compa-ratio</div><div class="v">${n?(L.reduce((a,x)=>a+x.compa,0)/n*100).toFixed(1):'-'}<small>%</small></div><div class="d">연봉 ÷ 밴드 Mid (100% = Mid)</div></div>
+    ${['vsafe','ok','high','soon','exit','under'].filter(k=>k!=='under'||cnt(k)).map(k=>`<div class="kpi st" style="border-top:4px solid ${YCOL[k]}"><div class="k">${YS[k].l}</div><div class="v" style="color:${YCOL[k]}">${cnt(k)}<small>명</small> <small class="pc">${fP(n?cnt(k)/n:null)}</small></div><div class="d">${thTxt[k]}</div></div>`).join('')}</div>
   <div class="panel"><div class="bar"><h2 class="grow" style="margin:0">현재 연봉 분석 <span class="sub">${list.length}명 · 신규 Pay-band 기준</span></h2>
     <label class="field">적용 직급<select id="cf-g"><option value="all">전체</option>${['G1','G2','G3','G4'].map(g=>`<option ${cf.grade===g?'selected':''}>${g}</option>`).join('')}</select></label>
     <label class="field">판정<select id="cf-s"><option value="all">전체</option>${ORD.map(k=>`<option value="${k}" ${cf.status===k?'selected':''}>${YS[k].l}</option>`).join('')}</select></label>
