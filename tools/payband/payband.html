@@ -327,6 +327,11 @@ tr.rk-ok td:first-child{box-shadow:inset 4px 0 0 var(--ok)}
 .kpi .v small{font-size:13px;font-weight:500;color:var(--muted);margin-left:2px}
 .kpi .d{font-size:12px;color:var(--muted)}
 .kpis-cur{grid-template-columns:170px 170px minmax(0,1fr)} @media (max-width:800px){.kpis-cur{grid-template-columns:1fr 1fr}.kpis-cur .dist{grid-column:1/-1}}
+.kpi.dist .dcells{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:8px}
+.kpi.dist .dc{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:7px 10px;background:var(--surface);border:1px solid var(--line);border-top:4px solid;border-radius:6px;cursor:pointer;color:var(--ink)}
+.kpi.dist .dc:hover{border-color:var(--line-2)} .kpi.dist .dc.on{outline:2.5px solid var(--ink);outline-offset:-1px}
+.kpi.dist .dk{font-size:12px;color:var(--muted)} .kpi.dist .dv{font-size:20px;font-weight:700;line-height:1.2} .kpi.dist .dv small{font-size:12px} .kpi.dist .dd{font-size:11px;color:var(--muted)}
+.kpi.dist .dclr{margin-top:6px;border:0;background:none;color:var(--accent);font-size:12px;cursor:pointer;padding:0}
 .kpi.dist .dbar{display:flex;height:26px;border-radius:6px;overflow:hidden;margin:8px 0 6px;background:var(--surface-2)}
 .kpi.dist .dseg{border:0;border-radius:0;padding:0;min-width:3px;color:#fff;font-size:12px;font-weight:700;cursor:pointer} .kpi.dist .dseg+.dseg{border-left:2px solid var(--surface)}
 .kpi.dist .dseg.on{outline:3px solid var(--ink);outline-offset:-3px}
@@ -1423,9 +1428,9 @@ function drawCur(){
     <div class="kpi"><div class="k">분석 인원 (${BASE_YEAR} 현재)</div><div class="v">${n}<small>명</small></div><div class="d">${S.anStage==='2'?'2차 분류 기준':`최종 확정 ${L.filter(x=>x.r.fin).length}명 · 자동 ${L.filter(x=>!x.r.fin).length}명`}</div></div>
     <div class="kpi"><div class="k">평균 Compa-ratio</div><div class="v">${n?(L.reduce((a,x)=>a+x.compa,0)/n*100).toFixed(1):'-'}<small>%</small></div><div class="d">연봉 ÷ 밴드 Mid (100% = Mid)</div></div>
     ${(()=>{const KS=['under','vsafe','ok','high','soon','exit'].filter(k=>k!=='under'||cnt(k)); // 밴드 위치 낮은 → 높은 순
-      return`<div class="kpi dist"><div class="k">판정 분포 <span class="note" style="margin:0">(Pay-band 위치 낮음 → 높음 · 막대를 누르면 해당 인원만 보기)</span></div>
-      <div class="dbar" role="img" aria-label="판정 분포">${KS.filter(k=>cnt(k)).map(k=>{const w=n?cnt(k)/n*100:0;return`<button type="button" class="dseg ${cf.status===k?'on':''}" data-st="${k}" style="width:${w}%;background:${YCOL[k]}" title="${YS[k].l} ${cnt(k)}명 (${w.toFixed(1)}%) · ${thTxt[k]}">${w>=7?cnt(k):''}</button>`;}).join('')}</div>
-      <div class="dleg">${KS.map(k=>`<button type="button" class="dl ${cf.status===k?'on':''}" data-st="${k}"><i style="background:${YCOL[k]}"></i>${YS[k].l} <b>${cnt(k)}</b>명 <span>${fP(n?cnt(k)/n:null)}</span></button>`).join('')}${cf.status!=='all'?'<button type="button" class="dl clr" data-st="all">전체 보기 ✕</button>':''}</div></div>`;})()}</div>
+      return`<div class="kpi dist"><div class="k">판정 분포 <span class="note" style="margin:0">(Pay-band 위치 낮음 → 높음 · 칸을 누르면 해당 인원만 보기)</span></div>
+      <div class="dcells">${KS.map(k=>`<button type="button" class="dc ${cf.status===k?'on':''}" data-st="${k}" style="border-top-color:${YCOL[k]}"><span class="dk">${YS[k].l}</span><span class="dv" style="color:${YCOL[k]}">${cnt(k)}<small>명</small> <small class="pc">${fP(n?cnt(k)/n:null)}</small></span><span class="dd">${thTxt[k]}</span></button>`).join('')}</div>
+      ${cf.status!=='all'?'<button type="button" class="dclr" data-st="all">전체 보기 ✕</button>':''}</div>`;})()}</div>
   <div class="panel"><div class="bar"><h2 class="grow" style="margin:0">현재 연봉 분석 <span class="sub">${list.length}명 · 신규 Pay-band 기준</span></h2>
     <label class="field">적용 직급<select id="cf-g"><option value="all">전체</option>${['G1','G2','G3','G4'].map(g=>`<option ${cf.grade===g?'selected':''}>${g}</option>`).join('')}</select></label>
     <label class="field">판정<select id="cf-s"><option value="all">전체</option>${ORD.map(k=>`<option value="${k}" ${cf.status===k?'selected':''}>${YS[k].l}</option>`).join('')}</select></label>
