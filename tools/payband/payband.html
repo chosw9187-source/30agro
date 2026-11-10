@@ -862,7 +862,7 @@ function rangeTxt(r){const [l,h,t]=r;if(l==null)return`${nf(h)} 미만`;if(h==nu
   const a=t.startsWith('초과')?'초과':'이상',z=t.endsWith('미만')?'미만':'이하';return`${nf(l)} ${a} ~ ${nf(h)} ${z}`;}
 const candTxt=k=>k==='밴드 미달'?'G1':k==='밴드 초과'?'G4':k.replace(', ',' 또는 ');
 function bandSvg(c,rows){
-  const b=c.bands;const W=640,H=330,L=40,R=16,T=30,B=48;const ymin=Math.floor((b[0][0]-600)/1000)*1000,ymax=Math.ceil((b[3][1]+400)/1000)*1000;
+  const b=c.bands;const W=640,H=400,L=40,R=16,T=30,B=48;const ymin=Math.floor((b[0][0]-600)/1000)*1000,ymax=Math.ceil((b[3][1]+400)/1000)*1000;
   const y=v=>T+(H-T-B)*(1-(v-ymin)/(ymax-ymin));const cw=(W-L-R)/4,bw=cw*0.56;const cx=i=>L+cw*i+cw/2;
   const cnt=g=>rows.filter(r=>r.fin===g).length;
   let s=`<svg viewBox="0 0 ${W} ${H}" class="bandsvg" role="img" aria-label="직급별 연봉 구간 차트">`;
@@ -871,7 +871,7 @@ function bandSvg(c,rows){
   b.forEach((x,i)=>{s+=`<rect x="${cx(i)-bw/2}" y="${y(x[1])}" width="${bw}" height="${y(x[0])-y(x[1])}" class="bx"/>`;});
   let ovl='';c.overlaps.forEach((o,k)=>{const key=`G${k+1}, G${k+2}`;const n=rows.filter(r=>r.k===key).length;const x0=cx(k)-bw/2,x1=cx(k+1)+bw/2,ya=y(o[1]),yb=y(o[0]);const gm=(cx(k)+cx(k+1))/2,ym=(ya+yb)/2;
     s+=`<rect x="${x0}" y="${ya}" width="${x1-x0}" height="${yb-ya}" class="ovr" style="fill:var(--ov${k+1}${k+2})"/><rect x="${x0}" y="${ya}" width="${x1-x0}" height="${yb-ya}" class="ovl" style="stroke:${['#2e7d4f','#2f6fa8','#c0602a'][k]}"/>`;ovl+=`
-    <text x="${gm}" y="${ym-2}" class="ovt" text-anchor="middle">G${k+1}, G${k+2}</text><text x="${gm}" y="${ym+13}" class="ovn" text-anchor="middle">${n}명</text>`;});
+    <text x="${gm}" y="${ym-3}" class="ovt" text-anchor="middle">G${k+1}, G${k+2} · ${n}명</text><text x="${gm}" y="${ym+12}" class="ovn" text-anchor="middle">${nf(o[0])}~${nf(o[1])}</text>`;});
   b.forEach((x,i)=>{s+=`
     <text x="${cx(i)}" y="${y(x[1])-7}" class="lb" text-anchor="middle">${nf(x[1])}</text><text x="${cx(i)}" y="${y(x[0])+17}" class="lb" text-anchor="middle">${nf(x[0])}</text>
     <line x1="${cx(i)-bw*0.37}" x2="${cx(i)+bw*0.37}" y1="${y(mids[i])}" y2="${y(mids[i])}" class="md"/><text x="${cx(i)}" y="${y(mids[i])-8}" class="mv" text-anchor="middle">${nf(mids[i])}</text>
