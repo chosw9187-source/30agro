@@ -232,7 +232,7 @@ td.spc{background:var(--surface)} td.spc.on{background:var(--warn-soft)!importan
 .rpt-2col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
 @media (max-width:1000px){.rpt-2col{grid-template-columns:1fr}}
 .rpt-h3{font-size:14px;margin:0 0 8px;color:var(--navy)}
-.rtbl{width:100%;border-collapse:collapse} .rtbl thead th{position:static} .rtbl th{background:var(--navy);color:#fff;font-weight:700} .rtbl td,.rtbl th{text-align:center;padding:6px 8px;border:1px solid var(--line)}
+.rtbl{width:100%;border-collapse:collapse} .rtbl thead th{position:relative} .rtbl th{background:var(--navy);color:#fff;font-weight:700} .rtbl td,.rtbl th{text-align:center;padding:6px 8px;border:1px solid var(--line)}
 .rtbl td.l{text-align:left} .rtbl tr.tot td{background:var(--surface-2)} .rtbl .acc{color:var(--navy)} .rtbl .crit{color:var(--crit)}
 .rtbl td.in select,.rtbl td.in input{width:100%} #sp-tbl select{min-width:96px}
 .rpt-25{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}
@@ -940,6 +940,7 @@ function sheetReport(){
   if(t){t.addEventListener('change',e=>{const el=e.target;const tr=el.closest('tr');const p=S.people.find(x=>pkey(x)===tr.dataset.k);if(!p||!el.dataset.sp)return;const f=el.dataset.sp;
       if(f==='final'){p.final=el.value;p.finalAuto=false;}else if(f==='rptCls'){p.rptCls=el.value===classify(num(p.salary),S.crit)?'':el.value;}else p.role=el.value;
       save();if(f!=='role')sheetReport();});
+    if(!SORTST.sp)SORTST.sp={i:3,d:-1}; // 기본: 현직급 높은 순
     sortable(t,'sp');
     t.addEventListener('click',e=>{const b=e.target.closest('[data-unsp]');if(!b)return;const p=S.people.find(x=>pkey(x)===b.closest('tr').dataset.k);if(p){p.special=false;save();sheetReport();}});}
 }
