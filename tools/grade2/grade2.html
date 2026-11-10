@@ -1,0 +1,862 @@
+<title>SG한국삼공 직급 분류</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* Layout: 상단 앱 전환(Pay-band 분류 ↔ 임금분석) → 엑셀 시트 탭 → 표 중심 본문. 엑셀의 색 규칙(노랑=입력, 연노랑=체류, 주황=상한, 하늘=수기)을 그대로 쓴다. */
+:root{
+  --bg:#f2f5f3; --surface:#ffffff; --surface-2:#e9efeb; --ink:#14201a; --muted:#5a6961; --line:#d5dfd9; --line-2:#b9c7bf;
+  --accent:#0c6a3d; --accent-ink:#ffffff; --accent-soft:#dcefe3; --navy:#173a5e;
+  --input:#fff6bd; --stay:#fff4cc; --cap:#f9d3b4; --ovr:#d3e8f8; --ov12:#c6efce; --ov23:#bdd7ee; --ov34:#f8cbad; --cell-ink:#14201a;
+  --crit:#b9372b; --crit-soft:#fae2de; --warn:#b85f0c; --warn-soft:#fce9d3; --care:#8a6d00; --care-soft:#f8f0c8;
+  --ok:#21784a; --ok-soft:#dcf0e3; --under:#2a5ea3; --under-soft:#dde8f8;
+  --font:"IBM Plex Sans KR","Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",system-ui,sans-serif;
+  --r:6px; --hl:rgba(240,150,20,.13); --vsafe:#1f6f8b; --vsafe-soft:#dcedf3;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1512; --surface:#161e1a; --surface-2:#1d2722; --ink:#e4ece7; --muted:#97a69e; --line:#2a3630; --line-2:#3a4942;
+  --accent:#3fb877; --accent-ink:#06130c; --accent-soft:#183326; --navy:#9cc2ea;
+  --input:#4a4318; --stay:#3a3519; --cap:#5a3a22; --ovr:#1d3a52; --ov12:#1f4a2c; --ov23:#1f3a55; --ov34:#5a3624; --cell-ink:#e4ece7;
+  --crit:#ff7b6b; --crit-soft:#46201b; --warn:#f2a256; --warn-soft:#432d16; --care:#e3c75a; --care-soft:#3a3315;
+  --ok:#5fcf8f; --ok-soft:#173826; --under:#7fb1f0; --under-soft:#1a2c46; --hl:rgba(242,162,86,.16); --vsafe:#6cc3e0; --vsafe-soft:#14313b; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0f1512; --surface:#161e1a; --surface-2:#1d2722; --ink:#e4ece7; --muted:#97a69e; --line:#2a3630; --line-2:#3a4942;
+  --accent:#3fb877; --accent-ink:#06130c; --accent-soft:#183326; --navy:#9cc2ea;
+  --input:#4a4318; --stay:#3a3519; --cap:#5a3a22; --ovr:#1d3a52; --ov12:#1f4a2c; --ov23:#1f3a55; --ov34:#5a3624; --cell-ink:#e4ece7;
+  --crit:#ff7b6b; --crit-soft:#46201b; --warn:#f2a256; --warn-soft:#432d16; --care:#e3c75a; --care-soft:#3a3315;
+  --ok:#5fcf8f; --ok-soft:#173826; --under:#7fb1f0; --under-soft:#1a2c46; --hl:rgba(242,162,86,.16); --vsafe:#6cc3e0; --vsafe-soft:#14313b; color-scheme:dark;}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5;font-variant-numeric:tabular-nums}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));max-width:1760px;margin:0 auto}
+header.top{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+header.top .wrap{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding-block:10px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand .logo{display:inline-flex;background:#fff;border-radius:6px;padding:3px 6px;flex:none}
+.brand .logo img{display:block;height:30px;width:auto}
+.brand b{font-size:16px}
+.brand .mark{width:28px;height:28px;border-radius:6px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:700;font-size:13px;flex:none}
+.brand b{font-size:15px;letter-spacing:-.01em}
+.brand span{color:var(--muted);font-size:12px}
+.apps{display:flex;gap:4px;background:var(--surface-2);padding:3px;border-radius:8px;max-width:100%;overflow-x:auto}
+.apps a{padding:6px 12px;border-radius:6px;color:var(--muted);text-decoration:none;font-weight:600;font-size:13px;white-space:nowrap}
+.apps a[aria-current="page"]{background:var(--surface);color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.tools{margin-left:auto;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+button,.btn{font:inherit;font-size:13px;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);border-radius:var(--r);padding:6px 10px;cursor:pointer;white-space:nowrap}
+button:hover,.btn:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.srcbadge{font-size:12px;padding:3px 8px;border-radius:999px;background:var(--care-soft);color:var(--care);font-weight:600}
+.srcbadge.real{background:var(--ok-soft);color:var(--ok)}
+main{padding-block:18px 48px}
+h1{font-size:20px;margin:0 0 4px;letter-spacing:-.02em;text-wrap:balance}
+h2{font-size:15px;margin:0 0 8px;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:13px;margin:0}
+.sheettabs{display:flex;gap:2px;border-bottom:2px solid var(--accent);margin:14px 0 16px;overflow-x:auto}
+.sheettabs button{border:1px solid var(--line);border-bottom:none;border-radius:6px 6px 0 0;background:var(--surface-2);color:var(--muted);font-weight:600;padding:7px 14px}
+.sheettabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.grid2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:1100px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px;min-width:0}
+.panel + .panel{margin-top:14px}
+.grid2>.panel,.grid2eq>.panel,.critgrid>.panel,.grid2>.stack,.grid2eq>.stack{margin-top:0}
+.stack{display:flex;flex-direction:column;gap:14px;min-width:0}
+.scroll{overflow-x:auto;max-width:100%}
+.scroll.tall{max-height:640px;overflow:auto}
+table{border-collapse:collapse;font-size:13px;width:100%}
+th,td{border:1px solid var(--line);padding:4px 6px;text-align:center;white-space:nowrap}
+thead th{background:var(--navy);color:#fff;font-weight:600;position:sticky;top:0;z-index:1}
+:root[data-theme="dark"] thead th{color:#0b1521}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) thead th{color:#0b1521}}
+td.num,th.num{text-align:right}
+td.l{text-align:left}
+td.in{background:var(--input);padding:0}
+td.in input,td.in select{width:100%;border:0;background:transparent;color:var(--cell-ink);font:inherit;padding:4px 6px;text-align:inherit;min-width:0}
+td.in input[type=number]{text-align:right}
+td.auto{background:var(--surface-2);color:var(--muted)}
+td.auto.adj{color:var(--accent);font-weight:600}
+td.fin{padding:3px;background:var(--surface)}
+.finbox{display:flex;align-items:center;gap:4px;border:2px dashed var(--line-2);border-radius:5px;padding:0 4px;background:var(--surface)}
+.finbox select{border:0;background:transparent;font:inherit;font-weight:600;color:var(--muted);padding:3px 2px;flex:1;min-width:0}
+.fintag{display:none;font-size:11px;font-weight:700;padding:0 5px;border-radius:4px;background:var(--accent-ink);color:var(--accent);white-space:nowrap}
+td.fin.on .finbox{border:2px solid var(--accent);background:var(--accent)}
+td.fin.on select{color:var(--accent-ink);font-weight:700}
+td.fin.on .fintag{display:inline-block}
+td.fin.on.auto .finbox{border-style:solid;background:var(--accent-soft)} td.fin.on.auto select{color:var(--accent)} td.fin.on.auto .fintag{background:var(--accent);color:var(--accent-ink)}
+td.fin.bad .finbox{border-color:var(--crit);background:var(--crit-soft)}
+td.fin.bad select{color:var(--crit)} td.fin.bad .fintag{background:var(--crit);color:#fff}
+.fintag.on{display:inline-block;background:var(--accent);color:var(--accent-ink);margin-left:5px}
+tr.confirmed>td:first-child{box-shadow:inset 4px 0 0 var(--accent)}
+.c-fin{background:var(--accent-soft)!important;color:var(--accent);font-weight:700;outline:2px solid var(--accent);outline-offset:-2px}
+.c-bad{background:var(--crit-soft)!important;color:var(--crit);font-weight:700;outline:2px solid var(--crit);outline-offset:-2px}
+.p-fin{background:var(--accent);color:var(--accent-ink)} .p-auto{background:var(--surface-2);color:var(--muted);border:1px dashed var(--line-2)} .p-ret{background:var(--surface-2);color:var(--muted)}
+.grid2eq{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:16px;align-items:start}
+table.info{width:100%} table.info th{font-size:12px;line-height:1.3}
+th.fth{cursor:pointer;user-select:none;padding-right:20px}
+th .arr{margin-left:3px;font-size:10px}
+th .fbtn{position:absolute;right:2px;bottom:3px;width:16px;height:16px;padding:0;border:1px solid rgba(255,255,255,.55);border-radius:3px;background:rgba(255,255,255,.92);color:#1b2b3d;font-size:10px;line-height:14px;text-align:center;cursor:pointer}
+th.filtered .fbtn{background:#ffe066;border-color:#ffe066}
+th.filtered .fbtn::before{content:"⏷";font-size:9px}
+th.filtered .fbtn{font-size:0}
+th.fth:hover .fbtn{outline:2px solid var(--accent)}
+.fcount{font-size:12px;color:var(--ink);background:var(--warn-soft);border:1px solid var(--warn);padding:4px 8px;border-radius:6px;margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.fcount button{font-size:12px;padding:2px 8px}
+.col-hid{display:none!important}
+.colbar{position:sticky;left:0;display:flex;justify-content:flex-end;margin:0 0 6px}
+.colbtn{white-space:nowrap} .colbtn:hover{border-color:var(--accent);color:var(--accent)}
+.has-colbtn{display:flex;align-items:center;gap:8px} .has-colbtn .colbtn{margin-left:auto;font-size:12px;padding:3px 10px;font-weight:500}
+.colbtn .cb-on{margin-left:4px;font-size:11px;font-weight:700;padding:1px 6px;border-radius:4px;background:var(--accent);color:var(--accent-ink)}
+.colpop{position:absolute;z-index:60;width:290px;max-height:70vh;overflow:auto;background:var(--surface);border:1.5px solid var(--line-2);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:10px 12px}
+.colpop .cp-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px} .colpop .cp-h span{font-size:11px;color:var(--muted)}
+.colpop .cp-list{list-style:none;margin:0;padding:0} .colpop .cp-list li{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:3px 4px;border-bottom:1px solid var(--line);font-size:13px}
+.colpop .cp-list li.off label{color:var(--muted);text-decoration:line-through} .colpop label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.colpop .cp-mv button{font-size:10px;padding:1px 6px;margin-left:2px} .colpop .cp-f{display:flex;gap:6px;margin-top:8px;align-items:center} .colpop .cp-f button{font-size:12px;padding:3px 8px}
+.fcount .tagS,.fcount .tagF{font-size:11px;font-weight:700;padding:1px 6px;border-radius:4px;background:var(--warn);color:#fff}
+.fcount .tagF{margin-left:6px}
+thead th.sorted,thead th.filtered{background:var(--warn)!important;color:#fff!important}
+td.colhl{background-image:linear-gradient(var(--hl),var(--hl));box-shadow:inset 2px 0 0 var(--warn),inset -2px 0 0 var(--warn)}
+tr:last-child td.colhl{box-shadow:inset 2px 0 0 var(--warn),inset -2px 0 0 var(--warn),inset 0 -2px 0 var(--warn)}
+.curcol{background:var(--surface-2)!important;color:var(--muted)}
+.p-vsafe{background:var(--vsafe-soft);color:var(--vsafe)}
+tr.rk-vsafe td:first-child{box-shadow:inset 4px 0 0 var(--vsafe)}
+.scale{display:flex;border-radius:6px;overflow:hidden;margin-top:8px;font-size:11px;color:#fff;text-align:center}
+.scale span{padding:4px 2px;min-width:0;line-height:1.25} .scale b{display:block;font-size:11px}
+.gtag{font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line-2);border-radius:4px;padding:0 4px}
+.gtag.up{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}
+.yearsel{display:inline-flex;gap:4px;align-items:center} .yearsel select{font-weight:700;background:var(--input);color:var(--cell-ink)} .yearsel button{padding:4px 8px}
+.p-frz{background:var(--cap);color:var(--cell-ink)} td.yr.frz{background:var(--stay)}
+#life-sc{scroll-margin-top:84px}
+.finwrap{display:flex;gap:4px;align-items:center} .finwrap .finbox{flex:1;min-width:0}
+.go-sim{font-size:11px;font-weight:700;padding:3px 6px;border:1px solid var(--accent);color:var(--accent);background:var(--surface);border-radius:5px;white-space:nowrap}
+.go-sim:hover{background:var(--accent);color:var(--accent-ink)}
+tr.fin-hl>td{background-image:linear-gradient(var(--accent-soft),var(--accent-soft));border-top:3px solid var(--accent);border-bottom:3px solid var(--accent);font-weight:600}
+tr.fin-hl>td:first-child{border-left:3px solid var(--accent)} tr.fin-hl>td:last-child{border-right:3px solid var(--accent)}
+tr.fin-row>td:first-child{color:var(--accent)} th.th-fin{background:var(--accent)!important;color:var(--accent-ink)!important;outline:3px solid var(--accent)}
+.fin-note{color:var(--accent);font-weight:600}
+details.fold>summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:6px}
+details.fold>summary::before{content:"▸";color:var(--accent);font-weight:700;transition:transform .15s}
+details.fold[open]>summary::before{transform:rotate(90deg)}
+.salbar{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin:4px 0 8px}
+.salbar>div{background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:6px 10px;display:flex;flex-direction:column;min-width:0}
+.salbar span{font-size:11px;color:var(--muted)} .salbar b{font-size:15px} .salbar small{font-size:11px;color:var(--muted)}
+.salbar .hl{background:var(--accent-soft);border-color:var(--accent)} .salbar .hl b{color:var(--accent);font-size:17px}
+.salbar .arrow{background:transparent;border:0;justify-content:center;color:var(--accent);font-weight:700;padding:0 2px}
+.ctip{position:absolute;z-index:50;pointer-events:none;background:var(--ink);color:var(--bg);border-radius:6px;padding:5px 9px;font-size:12px;line-height:1.35;box-shadow:0 4px 12px rgba(0,0,0,.2);text-align:center;white-space:nowrap}
+.ctip b{display:block;font-size:15px} .ctip span{opacity:.85}
+.itip{position:absolute;z-index:70;max-width:440px;background:var(--surface);color:var(--ink);border:1.5px solid var(--navy);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.itip h4{margin:0 0 6px;font-size:13px;color:var(--navy)} .itip table{width:100%;border-collapse:collapse;margin:4px 0} .itip td,.itip th{border:1px solid var(--line);padding:3px 6px;text-align:left;font-size:11.5px;white-space:normal;word-break:keep-all} .itip th{background:var(--surface-2);font-weight:700}
+.itip .now{background:var(--accent-soft);border-radius:6px;padding:5px 8px;margin:6px 0;font-weight:600} .itip .src{color:var(--muted);font-size:11px;margin-top:6px} .itip ul{margin:2px 0;padding-left:16px}
+.info-i{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--navy);color:#fff;font-size:10px;font-weight:700;margin-left:4px;cursor:help;vertical-align:1px}
+svg .hit{cursor:pointer} svg .pt{pointer-events:none}
+.critgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:stretch}
+@media (max-width:1000px){.critgrid{grid-template-columns:minmax(0,1fr)}}
+.critgrid>.panel>h2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:22px}
+.note.cap{margin:0 0 4px;height:18px;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.critgrid .bar{margin-bottom:6px}
+table.info{font-size:12.5px} table.info th{font-size:11.5px;padding:3px 2px;padding-right:18px} table.info td{padding:2px 3px}
+table.info td.in input,table.info td.in select{padding:3px 3px}
+table.info input[type=date]{font-size:12px;min-width:0;width:100%}
+table.info input[type=date]::-webkit-calendar-picker-indicator{margin:0;padding:0;width:12px}
+table.info .finbox select{padding:2px 1px} table.info .go-sim{padding:2px 4px}
+.lb-top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:10px}
+.lb-yrs{margin:0;border-bottom:none}
+.lb-meta{display:flex;flex-wrap:wrap;gap:6px 20px;font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:12px 0}
+.lb-toc{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 62px);z-index:3;background:var(--bg);padding:6px 0}
+.lb-toc a{font-size:12px;text-decoration:none;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:4px 10px;display:inline-flex;gap:6px;align-items:center}
+.lb-toc a b{color:var(--accent)} .lb-toc a:hover{border-color:var(--accent)}
+.lsec{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;scroll-margin-top:120px}
+.lsec-h{display:flex;gap:10px;align-items:flex-start;border-bottom:2px solid var(--accent);padding-bottom:8px;margin-bottom:12px}
+.lsec-h h2{margin:0;font-size:17px;line-height:1.4;text-wrap:balance}
+.lno{flex:none;width:28px;height:28px;border-radius:6px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:700}
+.lsec h3{font-size:13px;margin:4px 0 6px;color:var(--navy)}
+.src{font-size:11px;color:var(--muted);margin:10px 0 0;text-align:right}
+.lb-concl .cbox{border-left:4px solid var(--accent);background:var(--accent-soft);padding:10px 14px;border-radius:0 8px 8px 0}
+.lb-concl .cbox b{color:var(--accent)} .lb-concl p{margin:4px 0 0;font-size:14.5px;line-height:1.65} .lb-concl em{font-style:normal;font-weight:700;color:var(--crit)}
+.lb-2col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
+.lb-3col{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:stretch}
+.lb-3col>.panel{margin:0}
+@media (max-width:1000px){.lb-2col,.lb-3col{grid-template-columns:minmax(0,1fr)}}
+.lb-insight{margin-top:12px;background:var(--surface-2);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.6}
+.lb-insight b{color:var(--accent);margin-right:6px}
+table.lbt{font-size:12.5px;margin-top:6px} table.lbt th{font-size:12px}
+table.lbt tr.sgrow td{background:var(--input);font-weight:700;color:var(--cell-ink)} table.lbt tr.sgrow td:first-child{box-shadow:inset 4px 0 0 var(--accent)}
+table.lbt tr.totrow td{background:var(--surface-2);font-weight:700} table.lbt tr.exrow td{color:var(--muted);font-style:italic}
+table.lbt tr.lowrow td{background:var(--crit-soft)} table.lbt td.sgcol,table.lbt th.sgcol{background:var(--input)!important;color:var(--cell-ink)!important;font-weight:700}
+table.lbt.act td{vertical-align:top;white-space:normal;line-height:1.5} table.lbt.act small{color:var(--muted)}
+.c-ok{color:var(--under)}
+.lbars{display:flex;flex-direction:column;gap:4px;margin:4px 0 6px}
+.lb-row{display:grid;grid-template-columns:72px minmax(0,1fr) 64px;gap:8px;align-items:center;font-size:12px}
+.lb-row .lb-n{text-align:right;color:var(--muted)} .lb-row .lb-v{font-variant-numeric:tabular-nums}
+.lb-track{position:relative;height:14px;background:var(--surface-2);border-radius:3px}
+.lb-fill{display:block;height:100%;background:var(--line-2);border-radius:3px} .lb-fill.neg{background:var(--crit)}
+.lb-row.sg .lb-fill{background:var(--accent)} .lb-row.sg .lb-n,.lb-row.sg .lb-v{color:var(--accent);font-weight:700}
+.lb-avg{position:absolute;top:-3px;bottom:-3px;width:0;border-left:2px dashed var(--crit)}
+.lb-legend{font-size:11px;color:var(--muted);padding-left:80px} .lb-legend i{display:inline-block;width:12px;border-top:2px dashed var(--crit);vertical-align:middle;margin-right:4px}
+.venn-wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:center}
+@media (max-width:1000px){.venn-wrap{grid-template-columns:minmax(0,1fr)}}
+.venn{text-align:center}
+.vc{stroke-width:2;fill-opacity:.16} .vc.a{fill:var(--navy);stroke:var(--navy)} .vc.b{fill:var(--accent);stroke:var(--accent)} .vc.c{fill:var(--warn);stroke:var(--warn)}
+.venn .vl{font-size:14px;font-weight:700;fill:var(--ink)} .venn .vs{font-size:11px;fill:var(--muted)}
+.vchip{fill:var(--surface);stroke:var(--line-2)} .vchip.sg{fill:var(--accent);stroke:var(--accent)}
+.vct{font-size:12px;font-weight:700;fill:var(--ink)} .vct.sg{fill:var(--accent-ink)}
+span.ok{color:var(--accent);font-size:14px} span.no{color:var(--line-2);font-size:14px}
+.donut{display:flex;gap:10px;align-items:center;margin-top:6px} .donut svg{flex:none}
+.donut .dn-v{font-size:20px;font-weight:700;fill:var(--ink)} .donut .dn-l{font-size:11px;fill:var(--muted)}
+.dn-leg{font-size:12px;display:flex;flex-direction:column;gap:3px} .dn-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px} .dn-leg small{color:var(--muted)}
+.bignum{font-size:34px;font-weight:700;color:var(--accent);line-height:1.1} .bignum small{font-size:15px;margin-left:2px}
+.panel .d{font-size:12px;color:var(--muted);line-height:1.6}
+.to-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:6px} .to-strip>div{background:var(--surface-2);border-radius:6px;padding:6px 8px;text-align:center}
+.to-strip span{display:block;font-size:11px;color:var(--muted)} .to-strip b{font-size:18px} .to-strip .neg b{color:var(--crit)}
+.lb-empty{background:var(--surface);border:2px dashed var(--line-2);border-radius:10px;padding:20px} .lb-empty h2{margin:0 0 4px}
+.lb-ol{margin:0;padding-left:20px;line-height:1.9}
+.lb-groups{margin:4px 0 12px} .lb-groups button b{color:inherit;opacity:.7;margin-right:2px} .lb-groups button small{font-weight:400;opacity:.7;margin-left:2px}
+.lb-up{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 0}
+.score-wrap{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,9fr);gap:20px;align-items:start}
+@media (max-width:1100px){.score-wrap{grid-template-columns:minmax(0,1fr)}}
+.gapbars{display:flex;flex-direction:column;gap:6px}
+.gb-head{display:grid;grid-template-columns:110px minmax(0,1fr) 64px;gap:6px;font-size:11px;color:var(--muted)} .gb-hd{display:flex;justify-content:space-between}
+.gb-row{display:grid;grid-template-columns:110px minmax(0,1fr) 64px;gap:6px;align-items:center;font-size:12px}
+.gb-row .gb-raw{grid-column:2/4;font-size:11px;color:var(--muted);margin-top:-4px}
+.gb-l{text-align:right;color:var(--ink)} .gb-track{position:relative;height:16px;background:var(--surface-2);border-radius:3px}
+.gb-mid{position:absolute;left:50%;top:-3px;bottom:-3px;border-left:2px solid var(--ink)}
+.gb-fill{position:absolute;top:2px;bottom:2px;border-radius:2px} .gb-fill.pos{background:var(--ok)} .gb-fill.neg{background:var(--crit)}
+.gb-v{font-weight:700;font-variant-numeric:tabular-nums} .gb-v.pos{color:var(--ok)} .gb-v.neg{color:var(--crit)}
+table.hmap th{font-size:11px;line-height:1.3;white-space:normal;min-width:62px} table.hmap th .hint{font-weight:400;opacity:.85;font-size:10px} table.hmap th.grp{background:var(--accent)!important;color:var(--accent-ink)!important}
+table.hmap td.hm{text-align:center;line-height:1.2} table.hmap td.hm b{display:block;font-size:12.5px} table.hmap td.hm small{font-size:10px;opacity:.8}
+td.hm.good{background:var(--ok-soft)!important;color:var(--ok)} td.hm.bad{background:var(--crit-soft)!important;color:var(--crit)} td.hm.mid{background:var(--surface)} td.hm.neu{background:var(--surface-2)!important;color:var(--ink)} td.hm.na{color:var(--muted)}
+table.hmap tr.sgrow td{outline:none} table.hmap tr.sgrow td:first-child{background:var(--input)!important}
+table.hmap tr.sgrow td.hm{box-shadow:inset 0 2px 0 var(--accent),inset 0 -2px 0 var(--accent)} table.hmap tr.sgrow td:first-child{box-shadow:inset 4px 0 0 var(--accent),inset 0 2px 0 var(--accent),inset 0 -2px 0 var(--accent)}
+.hmk{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-2px;margin-right:4px;border:1px solid var(--line-2)} .hmk.good{background:var(--ok-soft)} .hmk.bad{background:var(--crit-soft)} .hmk.mid{background:var(--surface)} .hmk.neu{background:var(--surface-2)}
+.exmark{display:block;font-size:10px;color:var(--muted);font-weight:400}
+.stk{display:flex;flex-direction:column;gap:6px} .stk-row{display:grid;grid-template-columns:72px minmax(0,1fr) 64px;gap:8px;align-items:center;font-size:12px}
+.stk-track{display:flex;height:18px;background:var(--surface-2);border-radius:3px;overflow:hidden} .stk-track span{display:block;height:100%}
+.lb-empty.sm{padding:14px;border-width:1px}
+.stagebar{display:flex;align-items:stretch;gap:8px;margin:10px 0 2px;flex-wrap:wrap}
+.stagebar button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:9px 16px;border-radius:10px;border:2px solid var(--line-2);background:var(--surface);min-width:220px;text-align:left}
+.stagebar button .stn{font-size:15px;font-weight:700} .stagebar button .std{font-size:12px;color:var(--muted)}
+.stagebar button[aria-selected="true"]{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)} .stagebar button[aria-selected="true"] .std{color:var(--accent-ink);opacity:.9}
+.stagebar .starr{align-self:center;color:var(--muted);font-weight:700}
+td.spc{background:var(--surface)} td.spc.on{background:var(--warn-soft)!important} td.spc input{width:16px;height:16px;accent-color:var(--warn);cursor:pointer}
+.rpt .rpt-top{margin:12px 0 10px;align-items:flex-end}
+.rpt-kick{font-size:12px;color:var(--muted);font-weight:600}
+.rpt-head{margin:4px 0 0;font-size:18px;color:var(--navy);border-left:4px solid var(--accent);padding-left:10px}
+.rpt-2col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:1000px){.rpt-2col{grid-template-columns:1fr}}
+.rpt-h3{font-size:14px;margin:0 0 8px;color:var(--navy)}
+.rtbl{width:100%;border-collapse:collapse} .rtbl thead th{position:relative} .rtbl th{background:var(--navy);color:#fff;font-weight:700} .rtbl td,.rtbl th{text-align:center;padding:6px 8px;border:1px solid var(--line)}
+.rtbl td.l{text-align:left} .rtbl tr.tot td{background:var(--surface-2)} .rtbl .acc{color:var(--navy)} .rtbl .crit{color:var(--crit)}
+.rtbl td.in select,.rtbl td.in input{width:100%} #sp-tbl select{min-width:96px}
+.rpt-25{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}
+.rpt-arrow{display:flex;align-items:center;justify-content:center;gap:8px;margin:10px 0;font-size:12px;font-weight:700;color:var(--accent)}
+.rpt-arrow span{display:inline-flex;align-items:center;justify-content:center;width:34px;height:26px;background:var(--accent);color:var(--accent-ink);border-radius:6px;font-size:14px}
+.cls-mx th,.cls-mx td{padding:5px 4px;font-size:12px}
+.rpt-ref{grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:18px}
+.rpt-eq{align-items:stretch} .rpt-eq>div{display:flex;flex-direction:column;min-width:0} .rpt-eq>div>.scroll:last-of-type{flex:1;display:flex} .rpt-eq>div>.scroll:last-of-type>table{height:100%}
+.rpt-eq>div>.note{margin-top:6px}
+.rpt .panel{border:1.5px solid var(--line-2);box-shadow:0 2px 6px rgba(20,40,30,.06)}
+.rpt .panel>h2{border-left:5px solid var(--accent);padding-left:9px;font-size:16px}
+.rpt-h3{border-bottom:2px solid var(--navy);padding-bottom:4px}
+.rtbl tr.tot td{font-weight:700}
+.rpt .kpi{border:1.5px solid var(--line-2);border-top:4px solid var(--accent)} .rpt .kpi.warn{border-top-color:var(--warn)} .rpt .kpi.hl{border-top-color:var(--navy)}
+.rtbl td.mid{background:var(--accent-soft);color:var(--accent)} .pb-std .sub{font-size:11px;color:var(--muted);font-weight:400}
+.rtbl td.c-fin,.rtbl td.c-bad{outline-width:2.5px}
+.role-std td:first-child{background:var(--surface-2)}
+@media (max-width:1100px){.rpt-25{grid-template-columns:1fr}}
+.rtbl th.g-base{background:var(--navy)} .rtbl th.g-ev{background:var(--accent);color:var(--accent-ink)} .rtbl th.g-ev2{background:var(--accent-soft);color:var(--accent);font-weight:800}
+.rtbl th.g-base2{background:var(--surface-2);color:var(--ink)}
+.rtbl td.ev{background:var(--accent-soft)!important;font-weight:700} .rtbl td.ev select,.rtbl td.ev input{font-weight:700;border:1.5px solid var(--accent)}
+.rtbl .ev1{border-left:3px solid var(--accent)!important}
+td.rno,th.rno-h{width:34px;min-width:34px;text-align:center;font-variant-numeric:tabular-nums}
+td.rno{color:var(--muted)} table.rno-t tbody{counter-reset:rno} table.rno-t tbody tr:not([hidden]) td.rno::before{counter-increment:rno;content:counter(rno)}
+.role-foot{background:var(--care-soft)} .rpt .kpis{margin:12px 0 0}
+.bandsvg{width:100%;height:auto;display:block;margin-bottom:8px}
+.bandsvg .gl{stroke:var(--line);stroke-width:1} .bandsvg .base{stroke:var(--line-2);stroke-width:1.5}
+.bandsvg .ax{font-size:11px;fill:var(--muted)} .bandsvg .lb{font-size:13px;fill:var(--muted)} .bandsvg .gx{font-size:14px;font-weight:700;fill:var(--ink)}
+.bandsvg .bx{fill:#9aaec6;stroke:var(--navy);stroke-width:1.5} .bandsvg .ovr{fill-opacity:.72} .bandsvg .ovl{fill:none;stroke-width:2.5} .bandsvg .ovt{font-size:13px;font-weight:800;fill:#14201a} .bandsvg .ovn{font-size:12px;font-weight:800;fill:#14201a} .bandsvg .ovt,.bandsvg .ovn{paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round} .bandsvg .md{stroke:#fff;stroke-width:3}
+.bandsvg .mv{font-size:14px;font-weight:700;fill:#1d3557;paint-order:stroke;stroke:rgba(255,255,255,.75);stroke-width:3px} .bandsvg .mline{fill:none;stroke:#c0151b;stroke-width:3;stroke-dasharray:9 6}
+@media print{header,nav,.stagebar,.sheettabs,#rpt-print,.toast,.row-del{display:none!important} .rpt .panel{break-inside:avoid;border-color:#bbb} body{background:#fff}}
+tr.muted1>td{color:var(--muted)}
+.c-miss{background:var(--surface-2);color:var(--muted);font-style:italic}
+tr.ev-cur td{background-image:linear-gradient(var(--hl),var(--hl))}
+tr.man-row td{border-top:2px solid var(--line-2)}
+.fmenu{position:absolute;z-index:40;width:270px;background:var(--surface);color:var(--ink);border:1px solid var(--line-2);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:6px;font-size:13px}
+.fmenu hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+.fmenu .fi{display:flex;gap:8px;align-items:center;width:100%;border:0;background:transparent;text-align:left;padding:6px 8px;border-radius:4px}
+.fmenu .fi:hover:not(:disabled){background:var(--surface-2)} .fmenu .fi:disabled{color:var(--muted);opacity:.6;cursor:default}
+.fmenu .ic{width:16px;text-align:center;color:var(--accent);font-weight:700}
+.fmenu .fsearch{width:100%;font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--line-2);border-radius:4px;background:var(--surface);color:var(--ink);margin:4px 0}
+.fmenu .flist{max-height:230px;overflow:auto;border:1px solid var(--line);border-radius:4px;padding:4px 6px}
+.fmenu .flist label{display:flex;gap:6px;align-items:center;padding:2px 0;cursor:pointer}
+.fmenu .flist label span{flex:1;min-width:0;overflow-wrap:anywhere} .fmenu .flist small{color:var(--muted)}
+.fmenu .flist .fall{border-bottom:1px solid var(--line);padding-bottom:4px;margin-bottom:2px}
+.fmenu .fbtns{display:flex;justify-content:flex-end;gap:6px;margin-top:6px}
+.finder{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.finder select{background:var(--input);color:var(--cell-ink)}
+.nav2{display:inline-flex;gap:4px}
+.ncards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:10px}
+.ncard{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--surface);min-width:0}
+.ncard .nh{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid var(--accent);padding-bottom:4px;margin-bottom:4px}
+.ncard .nh b{font-size:15px} .ncard .nh span{font-size:12px;color:var(--muted)}
+.ncard ol{margin:0;padding-left:20px;font-size:13px;max-height:320px;overflow:auto}
+.ncard li{padding:2px 0} .ncard li small{display:block;color:var(--muted);font-size:11px}
+.ncard.c-ov12,.ncard.c-ov23,.ncard.c-ov34{background:var(--surface)!important} .ncard.c-ov12 .nh{border-color:var(--ov12)} .ncard.c-ov23 .nh{border-color:var(--ov23)} .ncard.c-ov34 .nh{border-color:var(--ov34)}
+.yrs th.banner{background:var(--accent);color:var(--accent-ink);min-width:118px} .yrs th.banner span{font-weight:400;font-size:11px;opacity:.9}
+.yrs th.banner.now{background:var(--navy)} .yrs th.banner.ret{background:var(--warn);color:#fff}
+.yrs td.yr{text-align:right;font-size:12px;line-height:1.35} .yrs td.yr .ys{font-weight:600;font-size:13px}
+.yrs td.yr .yp{display:flex;gap:4px;justify-content:flex-end;align-items:center;color:var(--muted);margin-top:2px}
+.yrs td.yr .pill{font-size:11px;padding:1px 6px} .yrs td.ret{color:var(--muted);text-align:center;font-size:12px}
+tr.rk-ok td:first-child{box-shadow:inset 4px 0 0 var(--ok)}
+.fixtag{display:inline-block;font-size:11px;font-weight:700;padding:0 6px;border-radius:4px;background:var(--accent);color:var(--accent-ink);margin-left:4px}
+.c-ov12{background:var(--ov12)!important;color:var(--cell-ink)} .c-ov23{background:var(--ov23)!important;color:var(--cell-ink)} .c-ov34{background:var(--ov34)!important;color:var(--cell-ink)}
+.c-under{color:var(--under);font-weight:700} .c-over{color:var(--crit);font-weight:700}
+.c-stay{background:var(--stay)} .c-cap{background:var(--cap)} .c-ovr{background:var(--ovr)} .c-promo{background:var(--stay);font-weight:700}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted);margin-top:8px}
+.legend i{display:inline-block;width:12px;height:12px;border:1px solid var(--line-2);vertical-align:-2px;margin-right:4px;border-radius:2px}
+.note{font-size:12px;color:var(--muted);margin:6px 0 0}
+.crit-tbl td.in input{text-align:right}
+.row-del{border:0;background:transparent;color:var(--muted);padding:2px 6px}
+.row-del:hover{color:var(--crit)}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.bar .grow{flex:1}
+.field{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}
+.field input,.field select{font:inherit;font-size:13px;color:var(--ink);background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r);padding:5px 8px;min-width:0}
+.field input[type=number]{width:90px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin:14px 0}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.kpi .k{font-size:12px;color:var(--muted)}
+.kpi .v{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-top:2px}
+.kpi .v small{font-size:13px;font-weight:500;color:var(--muted);margin-left:2px}
+.kpi .d{font-size:12px;color:var(--muted)}
+.kpis-cur{grid-template-columns:170px minmax(0,1fr)} @media (max-width:800px){.kpis-cur{grid-template-columns:1fr 1fr}.kpis-cur .dist{grid-column:1/-1}}
+.kpi.dist .dcells{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:8px}
+.kpi.dist .dc{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:7px 10px;background:var(--surface);border:1px solid var(--line);border-top:4px solid;border-radius:6px;cursor:pointer;color:var(--ink)}
+.kpi.dist .dc:hover{border-color:var(--line-2)} .kpi.dist .dc.on{outline:2.5px solid var(--ink);outline-offset:-1px}
+.kpi.dist .dk{font-size:12px;color:var(--muted)} .kpi.dist .dv{font-size:20px;font-weight:700;line-height:1.2} .kpi.dist .dv small{font-size:12px} .kpi.dist .dd{font-size:11px;color:var(--muted)}
+.kpi.dist .dclr{margin-top:6px;border:0;background:none;color:var(--accent);font-size:12px;cursor:pointer;padding:0}
+.kpi.dist .dbar{display:flex;height:26px;border-radius:6px;overflow:hidden;margin:8px 0 6px;background:var(--surface-2)}
+.kpi.dist .dseg{border:0;border-radius:0;padding:0;min-width:3px;color:#fff;font-size:12px;font-weight:700;cursor:pointer} .kpi.dist .dseg+.dseg{border-left:2px solid var(--surface)}
+.kpi.dist .dseg.on{outline:3px solid var(--ink);outline-offset:-3px}
+.kpi.dist .dleg{display:flex;flex-wrap:wrap;gap:4px 14px} .kpi.dist .dl{border:0;background:none;padding:1px 2px;font-size:12px;color:var(--ink);display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+.kpi.dist .dl i{width:10px;height:10px;border-radius:2px;display:inline-block} .kpi.dist .dl span{color:var(--muted)} .kpi.dist .dl.on{font-weight:700;text-decoration:underline} .kpi.dist .dl.clr{color:var(--accent)} .kpi .pc{font-size:12px;color:var(--muted);font-weight:600}
+.kpi.crit .v{color:var(--crit)} .kpi.warn .v{color:var(--warn)} .kpi.under .v{color:var(--under)} .kpi.ok .v{color:var(--ok)}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.p-over{background:var(--crit-soft);color:var(--crit)} .p-soon{background:var(--warn-soft);color:var(--warn)} .p-watch{background:var(--care-soft);color:var(--care)}
+.p-under{background:var(--under-soft);color:var(--under)} .p-ok{background:var(--ok-soft);color:var(--ok)}
+tr.rk-over td:first-child{box-shadow:inset 4px 0 0 var(--crit)} tr.rk-soon td:first-child{box-shadow:inset 4px 0 0 var(--warn)}
+tr.rk-watch td:first-child{box-shadow:inset 4px 0 0 var(--care)} tr.rk-under td:first-child{box-shadow:inset 4px 0 0 var(--under)}
+.an-table td{vertical-align:middle}
+.an-table th.sortable{cursor:pointer;user-select:none}
+.an-table th.sortable:hover{text-decoration:underline}
+.an-table th .arr{opacity:.8;margin-left:3px}
+.who b{display:block;font-size:14px}
+.who span{font-size:12px;color:var(--muted)}
+.band-cell{font-size:12px;line-height:1.35;text-align:left}
+.band-cell b{font-size:13px}
+.pos svg{display:block;margin:0 auto} td.pos{text-align:center}
+.an-table tbody tr{cursor:pointer}
+.an-table tbody tr:hover td{background:var(--surface-2)}
+.cmp td,.cmp th{text-align:right} .cmp td:first-child,.cmp th:first-child{text-align:left}
+.best{font-weight:700;color:var(--ok)}
+.dlg{position:fixed;inset:0;background:rgba(10,20,15,.45);display:grid;place-items:center;z-index:20;padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.dlg .box{background:var(--surface);border-radius:10px;max-width:820px;width:100%;max-height:100%;overflow:auto;padding:18px;border:1px solid var(--line)}
+.dlg .hd{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:10px}
+textarea{width:100%;min-height:110px;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;border:1px solid var(--line-2);border-radius:var(--r);padding:8px;background:var(--surface);color:var(--ink)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;z-index:30}
+.chart text{fill:var(--muted);font-size:11px;font-family:var(--font)}
+.mini-sel{font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--input);color:var(--cell-ink)}
+.statbar{display:flex;flex-direction:column;gap:6px}
+.statbar .row{display:grid;grid-template-columns:44px minmax(0,1fr) 40px;gap:8px;align-items:center;font-size:12px}
+.statbar .track{display:flex;height:16px;border-radius:3px;overflow:hidden;background:var(--surface-2)}
+.statbar .track span{display:block;height:100%}
+#cur-tbl th.pos-new{border-left:3px solid var(--accent)!important;border-right:3px solid var(--accent)!important;border-top:3px solid var(--accent)!important;background:var(--accent);color:var(--accent-ink)}
+#cur-tbl td.pos-new{border-left:3px solid var(--accent)!important;border-right:3px solid var(--accent)!important}
+#cur-tbl tbody tr:last-child td.pos-new{border-bottom:3px solid var(--accent)!important}
+#cur-tbl th.pos-old{background:var(--surface-2);color:var(--muted)} #cur-tbl td.pos-old{background:var(--surface);opacity:.92}
+#cur-tbl .oldtxt{font-size:11px;color:var(--muted);text-align:center;margin-top:-2px} #cur-tbl .oldtxt .up{color:var(--warn)} #cur-tbl .oldtxt .dn{color:var(--under)} #cur-tbl .oldtxt .asm{color:var(--crit)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+/* ---- 직급 분류(신규 기준) 전용 ---- */
+.g2-crit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr) minmax(0,1.45fr) minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:12px;align-items:start}
+.g2-crit td.l{white-space:normal;word-break:keep-all;font-size:11.5px;line-height:1.35;text-align:left} .g2-crit td.in select{min-width:62px}
+@media (max-width:1300px){.g2-crit{grid-template-columns:repeat(3,minmax(0,1fr))}} @media (max-width:800px){.g2-crit{grid-template-columns:1fr}}
+.g2-crit .panel,.g2-sum .panel{margin:0} .g2-crit .crit-tbl{width:100%} .g2-crit select{width:100%}
+.g2-sum{display:grid;grid-template-columns:1.2fr 1fr 1.3fr;gap:12px;margin-top:12px;align-items:start} @media (max-width:1100px){.g2-sum{grid-template-columns:1fr}}
+.rtbl{width:100%;border-collapse:collapse} .rtbl th{background:var(--navy);color:#fff;font-weight:700} .rtbl td,.rtbl th{text-align:center;padding:6px 8px;border:1px solid var(--line)} .rtbl tr.tot td{background:var(--surface-2)}
+.gc1{background:var(--surface-2)!important} .gc2{background:var(--ov12)!important;color:var(--cell-ink)} .gc3{background:var(--ov23)!important;color:var(--cell-ink)} .gc4{background:var(--ov34)!important;color:var(--cell-ink)}
+.g2-cls td.gv.same{color:var(--accent);font-weight:800} .g2-cls td.gv.diff{color:var(--muted)} .g2-cls td.gv.na{color:var(--muted);font-style:italic}
+.g2-cls thead tr:first-child th{font-size:12px;letter-spacing:.02em} .g2-cls th.g-base{background:var(--navy)} .g2-cls th.g-ev{background:var(--accent);color:var(--accent-ink)} .g2-cls th.g-sum{background:#5b3f8c;color:#fff}
+.g2-cls .ev1{border-left:3px solid var(--line-2)!important} .g2-cls td.fin select{min-width:84px} .g2-w input{width:100%}
+</style>
+
+<header class="top"><div class="wrap">
+  <div class="brand"><span class="logo"><img src="data:image/jpeg;base64,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" alt="SG 한국삼공" width="120" height="40"></span><b>SG한국삼공 직급 분류</b></div>
+  <nav class="apps" aria-label="사이트"><a href="#" aria-current="page">직급 분류 (신규 기준)</a></nav>
+  <div class="tools">
+    <span id="srcbadge" class="srcbadge">예시 데이터</span>
+    <label class="btn" for="file-xlsx" style="font-weight:600">엑셀 불러오기</label>
+    <input id="file-xlsx" type="file" accept=".xlsx,.xlsm,.xls" hidden>
+        <button id="btn-reset" type="button">예시로 초기화</button>
+  </div>
+</div></header>
+
+<main class="wrap">
+  <section id="view-main"></section>
+</main>
+
+<div id="dlg" class="dlg" hidden><div class="box" role="dialog" aria-modal="true" id="dlg-box"></div></div>
+
+<script>
+const LS_KEY='sg30-grade2-v1';
+const BASE_YEAR=2026, TODAY=new Date(2026,10,3);
+const GRADE6=['G1','G2','G3','G4','G5','G6'];
+const GRADE6_DESC=[...GRADE6].reverse();
+const num=v=>{if(v===''||v==null)return null;const n=typeof v==='number'?v:+String(v).replace(/[,\s원]/g,'');return isFinite(n)?n:null;};
+function classify(salWon,c){ // 기본정보 N열
+  if(salWon==null)return '';
+  const m=salWon/10000, o=c.overlaps, b=c.bands;
+  if(m>=o[2][0]&&m<=o[2][1])return 'G3, G4';
+  if(m>=o[1][0]&&m<=o[1][1])return 'G2, G3';
+  if(m>=o[0][0]&&m<=o[0][1])return 'G1, G2';
+  for(let i=0;i<4;i++)if(m>=b[i][0]&&m<=b[i][1])return 'G'+(i+1);
+  return m<b[0][0]?'밴드 미달':'밴드 초과';
+}
+function classCss(k){return k==='G1, G2'?'c-ov12':k==='G2, G3'?'c-ov23':k==='G3, G4'?'c-ov34':k==='밴드 미달'?'c-under':k==='밴드 초과'?'c-over':'';}
+// 생년월일 정규화: Date / 19900315 / 900315 / 1990-03-15 / 1990.03.15 / 엑셀 일련번호 → 'YYYY-MM-DD'
+function normBirth(v){if(v==null||v==='')return'';
+  if(v instanceof Date&&!isNaN(v))return dateStr(v);
+  let s=String(v).trim();
+  if(typeof v==='number'&&v>10000&&v<80000){const d=new Date(Math.round((v-25569)*864e5));return isNaN(d)?'':`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;}
+  let m=s.match(/^(\d{4})[-./ ](\d{1,2})[-./ ](\d{1,2})/)||s.match(/^(\d{4})(\d{2})(\d{2})$/);if(m)return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  m=s.match(/^(\d{2})(\d{2})(\d{2})$/);if(m){const yy=+m[1];const ref=ageRefYear(S.crit)%100;return`${yy>ref?1900+yy:2000+yy}-${m[2]}-${m[3]}`;}
+  return'';}
+const ageRefYear=c=>(+c.baseYear||BASE_YEAR)+1;   // 나이 기준연도(엑셀: 나이는 27년 기준)
+const isBirthLike=v=>v instanceof Date||(typeof v==='number'&&v>10000)||/^\d{6}$|^\d{8}$|^\d{4}[-./]\d{1,2}[-./]\d{1,2}/.test(String(v??'').trim());
+// 나이 = 나이 기준연도(기본정보 ④, 기본 2026) − 출생연도. 생일 지남과 무관 (예: 1986-12-31생 40세, 1987-09-22생 39세)
+const ageYear=c=>+c.ageYear||TODAY.getFullYear();
+function applyBirthAges(){const ry=ageYear(S.crit);S.people.forEach(p=>{const b=normBirth(p.birth);if(b){p.birth=b;p.age=ry-(+b.slice(0,4));}});}
+/* =========================================================
+   2. 포맷
+   ========================================================= */
+const fW=v=>v==null||!isFinite(v)?'-':Math.round(v).toLocaleString('ko-KR');
+const fM=v=>v==null||!isFinite(v)?'-':Math.round(v/10000).toLocaleString('ko-KR');
+const fEok=v=>v==null||!isFinite(v)?'-':(v/1e8).toFixed(1);
+const fP=(v,d=1)=>v==null||!isFinite(v)?'-':(v*100).toFixed(d)+'%';
+const esc=s=>String(s??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const dateStr=v=>{if(!v)return'';if(v instanceof Date&&!isNaN(v))return`${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;return String(v).slice(0,10).replace(/\./g,'-');};
+const dotDate=v=>dateStr(v).replace(/-/g,'.');
+// 현직급 기간: 발령일(또는 업로드된 기간 값) 기준 개월수 + 조정(±년)×12
+const ymText=m=>m==null?'':`${Math.floor(m/12)}년${m%12}개월`;
+function periodBaseMonths(p){if(p.period){const m=/(\d+)\s*년\s*(\d+)?\s*(개?월)?/.exec(String(p.period));return m?(+m[1])*12+(+(m[2]||0)):null;}
+  const d=new Date(dateStr(p.gdate));if(isNaN(d))return null;let m=(TODAY.getFullYear()-d.getFullYear())*12+(TODAY.getMonth()-d.getMonth());if(TODAY.getDate()<d.getDate())m--;return m<0?null:m;}
+function periodBaseText(p){if(p.period&&periodBaseMonths(p)==null)return String(p.period);return ymText(periodBaseMonths(p));}
+function periodMonths(p){const b=periodBaseMonths(p);const a=num(p.adj);if(b==null)return a?Math.max(0,Math.round(a*12)):null;return Math.max(0,b+Math.round((a||0)*12));}
+function periodText(p){const b=periodBaseMonths(p);if(b==null&&!num(p.adj))return p.period?String(p.period):'';return ymText(periodMonths(p));}
+function toast(msg){document.querySelectorAll('.toast').forEach(x=>x.remove());const t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),Math.min(7000,2200+msg.length*40));}
+/* =========================================================
+   3. 공통 — 표 정렬
+   ========================================================= */
+const SORTST={};
+function sortVal(td){if(!td)return null;
+  if(td.dataset.v!==undefined){const v=td.dataset.v;if(v==='')return null;const n=Number(v);return isNaN(n)?v:n;}
+  const el=td.querySelector('input,select');const s=(el?el.value:td.textContent).trim();if(s===''||s==='-')return null;
+  if(/^[-+]?[\d,]+(\.\d+)?%?$/.test(s))return parseFloat(s.replace(/[,%]/g,''));return s;}
+// 엑셀 자동필터처럼: 머리글 ▾ → 오름/내림차순 정렬 · 필터 해제 · 검색 · 값 체크 목록 · 확인/취소
+const FILTST={};const EMPTY_LBL='(필드 값 없음)';
+function cellText(td){if(!td)return'';if(td.dataset.ft!==undefined)return td.dataset.ft;
+  const sel=td.querySelector('select');if(sel)return(sel.selectedOptions[0]?.text||'').trim();
+  const inp=td.querySelector('input');if(inp)return inp.value.trim();return td.textContent.replace(/\s+/g,' ').trim();}
+function thLabel(th){return th.dataset.label||(th.dataset.label=th.textContent.replace(/[▾▲▼]/g,'').replace(/\s+/g,' ').trim());}
+/* ---- 열 설정 (모든 정렬 표 공통): 열 숨기기 · 순서 변경, 브라우저에 저장 ---- */
+function colCfg(id){S.colCfg=S.colCfg||{};return S.colCfg[id]||{order:[],hidden:[]};}
+function colsInit(tbl){if(tbl._ck)return;const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];const n=hr.cells.length;const seen={};
+  tbl._ck=[...hr.cells].map(th=>{const l=thLabel(th);if(!l)return null;seen[l]=(seen[l]||0)+1;return seen[l]>1?`${l}#${seen[l]}`:l;});
+  [hr,...tbl.tBodies[0].rows].forEach(r=>{if(r.cells.length===n)[...r.cells].forEach((c,i)=>c.dataset.ci=i);});}
+function colsApply(tbl,id){colsInit(tbl);const K=tbl._ck,n=K.length,cfg=colCfg(id);const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];
+  const lab=K.map((k,i)=>k?i:-1).filter(i=>i>=0);
+  const ord=(cfg.order||[]).map(k=>K.indexOf(k)).filter((i,j,a)=>i>=0&&a.indexOf(i)===j);
+  lab.forEach((i,j)=>{if(!ord.includes(i))ord.splice(Math.min(ord.length,j),0,i);});
+  const seq=[];let j=0;for(let i=0;i<n;i++)seq.push(K[i]?ord[j++]:i);
+  const hid=new Set((cfg.hidden||[]).map(k=>K.indexOf(k)).filter(i=>i>=0));
+  [hr,...tbl.tBodies[0].rows].forEach(r=>{if(r.cells.length!==n)return;const m={};[...r.cells].forEach(c=>{if(c.dataset.ci!=null)m[c.dataset.ci]=c;});
+    if(Object.keys(m).length!==n)return;seq.forEach(ci=>r.appendChild(m[ci]));Object.values(m).forEach(c=>c.classList.toggle('col-hid',hid.has(+c.dataset.ci)));});
+  const custom=hid.size>0||seq.some((v,i)=>v!==i);
+  [...tbl.tHead.rows].slice(0,-1).forEach(r=>r.classList.toggle('col-hid',custom)); // 묶음 머리글은 변경 시 숨김
+  // 버튼 위치: 표 위 도구 줄(.bar)의 맨 끝 → 없으면 소제목(h3) 오른쪽 → 없으면 표 바로 위
+  let b=tbl._colbtn;if(!b||!b.isConnected){b=document.createElement('button');b.type='button';b.className='colbtn';tbl._colbtn=b;
+    const w=tbl.closest('.scroll')||tbl;let e=w.previousElementSibling,host=null;
+    while(e){if(e.classList.contains('bar')||e.matches('h2,h3')){host=e;break;}if(e.classList.contains('panel'))break;e=e.previousElementSibling;}
+    if(!host){const pb=tbl.closest('.panel')?.querySelector(':scope > .bar');if(pb)host=pb;}
+    if(host){if(host.matches('h2,h3'))host.classList.add('has-colbtn');host.appendChild(b);}
+    else{const bar=document.createElement('div');bar.className='colbar';bar.appendChild(b);w.parentElement.insertBefore(bar,w);}}b.innerHTML=`⚙ 열 설정${custom?` <span class="cb-on">변경됨 · 숨김 ${hid.size}</span>`:''}`;b.onclick=e=>{e.stopPropagation();openCols(tbl,id,b);};
+  if(!SORTST[id]&&tbl.dataset.defsort){const [l,d]=tbl.dataset.defsort.split(':');const i=[...hr.cells].findIndex(th=>thLabel(th)===l);if(i>=0)SORTST[id]={i,d:+d};}}
+function openCols(tbl,id,btn){document.querySelectorAll('.colpop').forEach(x=>x.remove());
+  const pop=document.createElement('div');pop.className='colpop';pop.setAttribute('role','dialog');pop.setAttribute('aria-label','열 설정');document.body.appendChild(pop);
+  const place=()=>{const r=btn.getBoundingClientRect();pop.style.top=(r.bottom+window.scrollY+4)+'px';pop.style.left=Math.max(8,Math.min(r.left+window.scrollX,window.scrollX+document.documentElement.clientWidth-pop.offsetWidth-8))+'px';};
+  const hr=()=>tbl.tHead.rows[tbl.tHead.rows.length-1];
+  const commit=cfg=>{S.colCfg=S.colCfg||{};S.colCfg[id]=cfg;save();delete FILTST[id];delete SORTST[id];sortable(tbl,id);draw();};
+  const draw=()=>{const K=tbl._ck;const cfg=colCfg(id);const hid=new Set(cfg.hidden||[]);
+    const cur=[...hr().cells].map(c=>K[+c.dataset.ci]).filter(Boolean);
+    pop.innerHTML=`<div class="cp-h"><b>열 설정</b><span>체크 = 보이기 · ▲▼ = 순서 이동</span></div>
+      <ol class="cp-list">${cur.map((k,i)=>`<li class="${hid.has(k)?'off':''}"><label><input type="checkbox" data-k="${esc(k)}" ${hid.has(k)?'':'checked'}> ${esc(k.replace(/#\d+$/,''))}</label><span class="cp-mv"><button type="button" data-mv="${i}" data-d="-1" ${i?'':'disabled'} aria-label="위로">▲</button><button type="button" data-mv="${i}" data-d="1" ${i<cur.length-1?'':'disabled'} aria-label="아래로">▼</button></span></li>`).join('')}</ol>
+      <div class="cp-f"><button type="button" data-all>모두 보기</button><button type="button" data-reset>기본값 복원</button><span class="grow"></span><button type="button" class="primary" data-close>닫기</button></div>
+      <p class="note" style="margin:6px 0 0">※ 이 브라우저에 저장 · 엑셀 다운로드는 보이는 열만 (기본정보 엑셀은 업로드 양식 유지)</p>`;
+    pop.querySelectorAll('[data-k]').forEach(c=>c.onchange=()=>{const h=new Set(cfg.hidden||[]);if(c.checked)h.delete(c.dataset.k);else{if(cur.length-h.size<=1){c.checked=true;toast('최소 1개 열은 보여야 합니다.');return;}h.add(c.dataset.k);}commit({order:cur,hidden:[...h]});});
+    pop.querySelectorAll('[data-mv]').forEach(bt=>bt.onclick=()=>{const i=+bt.dataset.mv,d=+bt.dataset.d;const o=[...cur];[o[i],o[i+d]]=[o[i+d],o[i]];commit({order:o,hidden:cfg.hidden||[]});});
+    pop.querySelector('[data-all]').onclick=()=>commit({order:cur,hidden:[]});
+    pop.querySelector('[data-reset]').onclick=()=>commit({order:[],hidden:[]});
+    pop.querySelector('[data-close]').onclick=()=>close();place();};
+  const close=()=>{pop.remove();document.removeEventListener('mousedown',out,true);document.removeEventListener('keydown',esc_);};
+  const out=e=>{if(!pop.contains(e.target)&&e.target!==btn)close();};const esc_=e=>{if(e.key==='Escape')close();};
+  document.addEventListener('mousedown',out,true);document.addEventListener('keydown',esc_);draw();}
+function sortable(tbl,id){if(!tbl||!tbl.tHead)return;if(tbl.tBodies[0])colsApply(tbl,id);const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];
+  [...hr.cells].forEach((th,i)=>{if(th.hasAttribute('data-nosort'))return;thLabel(th);th.classList.add('fth');
+    if(!th.querySelector('.fbtn'))th.insertAdjacentHTML('beforeend','<button type="button" class="fbtn" tabindex="-1" aria-hidden="true">▾</button>');
+    th.tabIndex=0;th.title='눌러서 정렬·필터';
+    const go=e=>{e.stopPropagation();openFilter(tbl,id,i,th);};
+    th.onclick=go;th.onkeydown=e=>{if(e.key==='Enter'||e.key===' '||(e.altKey&&e.key==='ArrowDown')){e.preventDefault();go(e);}};});
+  applySort(tbl,id);}
+function rowPass(r,id,skip){const f=FILTST[id];if(!f)return true;for(const ci in f){if(+ci===skip)continue;if(f[ci].has(cellText(r.cells[ci])))return false;}return true;}
+function applySort(tbl,id){const st=SORTST[id];const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];const f=FILTST[id]||{};
+  [...hr.cells].forEach((th,i)=>{th.querySelector('.arr')?.remove();if(th.hasAttribute('data-nosort'))return;
+    if(st&&st.i===i)th.querySelector('.fbtn').insertAdjacentHTML('beforebegin',`<span class="arr">${st.d>0?'▲':'▼'}</span>`);
+    th.classList.toggle('filtered',!!f[i]);th.setAttribute('aria-sort',st&&st.i===i?(st.d>0?'ascending':'descending'):'none');});
+  const tb=tbl.tBodies[0];const all=[...tb.rows];const rows=all.filter(r=>!r.hasAttribute('data-fixed')),fixed=all.filter(r=>r.hasAttribute('data-fixed'));
+  if(st){rows.sort((a,b)=>{const va=sortVal(a.cells[st.i]),vb=sortVal(b.cells[st.i]);if(va==null&&vb==null)return 0;if(va==null)return 1;if(vb==null)return -1;
+    const d=(typeof va==='number'&&typeof vb==='number')?va-vb:String(va).localeCompare(String(vb),'ko',{numeric:true});return d*st.d;});
+    rows.forEach(r=>tb.appendChild(r));fixed.forEach(r=>tb.appendChild(r));}
+  const q=(SEARCHQ[id]||'').trim();
+  let shown=0;rows.forEach(r=>{if(r.cells.length<2){return;}const ok=rowPass(r,id,-1)&&searchPass(r,q);r.hidden=!ok;if(ok)shown++;});
+  // 정렬·필터 중인 열 강조
+  const act=new Set(Object.keys(f).map(Number));if(st)act.add(st.i);
+  [...hr.cells].forEach((th,i)=>th.classList.toggle('sorted',!!st&&st.i===i));
+  rows.forEach(r=>[...r.cells].forEach((td,i)=>td.classList.toggle('colhl',act.has(i))));
+  let cap=tbl.parentElement.querySelector(':scope > .fcount');const nf=Object.keys(f).length;
+  if(nf||st||q){if(!cap){cap=document.createElement('div');cap.className='fcount';tbl.parentElement.insertBefore(cap,tbl);}
+    const lb=i=>esc(thLabel(hr.cells[i]));
+    cap.innerHTML=(st?`<span class="tagS">정렬</span> <b>${lb(st.i)}</b> ${st.d>0?'오름차순 ▲':'내림차순 ▼'}`:'')+
+      (nf?`<span class="tagF">필터</span> <b>${Object.keys(f).map(i=>lb(+i)).join(', ')}</b>`:'')+(q?`<span class="tagF">검색</span> <b>'${esc(q)}'</b>`:'')+((nf||q)?` · ${shown} / ${rows.length}행 표시`:'')+
+      (st?'<button type="button" data-x="s">정렬 해제</button>':'')+(nf?'<button type="button" data-x="f">모든 필터 해제</button>':'')+(q?'<button type="button" data-x="q">검색 지우기</button>':'');
+    cap.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(b.dataset.x==='s')delete SORTST[id];else if(b.dataset.x==='q'){delete SEARCHQ[id];const qi=document.querySelector(`[data-search="${id}"]`);if(qi)qi.value='';}else delete FILTST[id];applySort(tbl,id);});}
+  else cap?.remove();}
+// 표 검색: 이름·사번·직급 등 행 안의 글자에 포함되면 표시 (띄어쓰기로 여러 단어 = 모두 포함)
+const SEARCHQ={};
+function searchPass(r,q){if(!q)return true;const txt=[...r.cells].map(cellText).join(' ').toLowerCase();return q.toLowerCase().split(/\s+/).every(w=>txt.includes(w));}
+function searchBoxHTML(id){return`<label class="field">이름 · 사번 · 직급 검색<input type="search" data-search="${id}" placeholder="예: 오동훈, 218012, G2" value="${esc(SEARCHQ[id]||'')}" autocomplete="off" style="width:200px"></label>`;}
+function bindSearch(root,id,tbl){const el=root.querySelector(`[data-search="${id}"]`);if(!el||!tbl)return;el.addEventListener('input',()=>{SEARCHQ[id]=el.value;applySort(tbl,id);});}
+function closeFilter(){document.querySelector('.fmenu')?.remove();document.removeEventListener('mousedown',outsideFilter,true);}
+function outsideFilter(e){if(!e.target.closest('.fmenu'))closeFilter();}
+function openFilter(tbl,id,ci,th){
+  closeFilter();const f=FILTST[id]=FILTST[id]||{};const ex=f[ci]||new Set();
+  const rows=[...tbl.tBodies[0].rows].filter(r=>!r.hasAttribute('data-fixed')&&r.cells.length>1&&rowPass(r,id,ci));
+  const cnt=new Map();rows.forEach(r=>{const t=cellText(r.cells[ci]);cnt.set(t,(cnt.get(t)||0)+1);});
+  const sample=rows.map(r=>sortVal(r.cells[ci])).filter(v=>v!=null);const isNum=sample.length&&sample.every(v=>typeof v==='number');
+  const vals=[...cnt.keys()].sort((a,b)=>{if(a==='')return 1;if(b==='')return -1;
+    if(isNum){const na=parseFloat(a.replace(/[,%원]/g,'')),nb=parseFloat(b.replace(/[,%원]/g,''));if(!isNaN(na)&&!isNaN(nb))return na-nb;}
+    return a.localeCompare(b,'ko',{numeric:true});});
+  const lbl=thLabel(th);const kind=isNum?'숫자':'텍스트';
+  const m=document.createElement('div');m.className='fmenu';m.setAttribute('role','dialog');m.setAttribute('aria-label',lbl+' 정렬·필터');
+  m.innerHTML=`<button type="button" class="fi" data-a="asc"><span class="ic">↑</span>${kind} 오름차순 정렬</button>
+   <button type="button" class="fi" data-a="desc"><span class="ic">↓</span>${kind} 내림차순 정렬</button><hr>
+   <button type="button" class="fi" data-a="clear" ${f[ci]?'':'disabled'}><span class="ic">⨯</span>"${esc(lbl)}"에서 필터 해제</button><hr>
+   <input type="search" class="fsearch" placeholder="검색" aria-label="값 검색">
+   <div class="flist"><label class="fall"><input type="checkbox" data-all> (모두 선택)</label>
+   ${vals.map((v,k)=>`<label data-t="${esc(v.toLowerCase())}"><input type="checkbox" data-k="${k}" ${ex.has(v)?'':'checked'}> <span>${esc(v===''?EMPTY_LBL:v)}</span><small>${cnt.get(v)}</small></label>`).join('')}</div>
+   <div class="fbtns"><button type="button" class="primary" data-a="ok">확인</button><button type="button" data-a="cancel">취소</button></div>`;
+  document.body.appendChild(m);
+  const R=th.getBoundingClientRect();const W=m.offsetWidth;m.style.top=(R.bottom+window.scrollY+2)+'px';
+  m.style.left=Math.max(8,Math.min(R.left+window.scrollX,window.scrollX+document.documentElement.clientWidth-W-8))+'px';
+  const boxes=[...m.querySelectorAll('[data-k]')],all=m.querySelector('[data-all]'),q=m.querySelector('.fsearch');
+  const vis=()=>boxes.filter(b=>!b.closest('label').hidden);
+  const sync=()=>{const v=vis(),on=v.filter(b=>b.checked).length;all.checked=v.length>0&&on===v.length;all.indeterminate=on>0&&on<v.length;m.querySelector('[data-a="ok"]').disabled=on===0;};
+  all.onchange=()=>{vis().forEach(b=>b.checked=all.checked);sync();};boxes.forEach(b=>b.onchange=sync);
+  q.oninput=()=>{const s=q.value.trim().toLowerCase();boxes.forEach(b=>{const l=b.closest('label');l.hidden=!!s&&!l.dataset.t.includes(s)&&!(s&&EMPTY_LBL.includes(s)&&l.dataset.t==='');if(s)b.checked=!l.hidden;});sync();};
+  sync();
+  const done=()=>{closeFilter();applySort(tbl,id);th.focus();};
+  m.querySelector('[data-a="asc"]').onclick=()=>{SORTST[id]={i:ci,d:1};done();};
+  m.querySelector('[data-a="desc"]').onclick=()=>{SORTST[id]={i:ci,d:-1};done();};
+  m.querySelector('[data-a="clear"]').onclick=()=>{delete f[ci];done();};
+  m.querySelector('[data-a="cancel"]').onclick=()=>{closeFilter();th.focus();};
+  m.querySelector('[data-a="ok"]').onclick=()=>{const s=q.value.trim();const exc=new Set();boxes.forEach(b=>{if(!b.checked||(s&&b.closest('label').hidden))exc.add(vals[+b.dataset.k]);});
+    // 다른 열 필터로 이미 가려진 값은 목록에 없으므로 기존 제외값을 유지한다
+    ex.forEach(v=>{if(!cnt.has(v))exc.add(v);});
+    if(exc.size)f[ci]=exc;else delete f[ci];done();};
+  m.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();closeFilter();th.focus();}if(e.key==='Enter'&&e.target===q){e.preventDefault();m.querySelector('[data-a="ok"]').click();}});
+  setTimeout(()=>document.addEventListener('mousedown',outsideFilter,true),0);q.focus();
+}
+window.addEventListener('resize',closeFilter);
+// 차트 점 툴팁: data-tip="설명|금액"
+const TIP=document.createElement('div');TIP.className='ctip';TIP.hidden=true;document.body.appendChild(TIP);
+// 설명 말풍선: [data-info] 에 마우스를 올리거나 포커스/탭하면 INFO_HTML[키] 표시
+const INFO_HTML={};const ITIP=document.createElement('div');ITIP.className='itip';ITIP.hidden=true;ITIP.setAttribute('role','tooltip');document.body.appendChild(ITIP);
+function showInfo(el){const h=INFO_HTML[el.dataset.info];if(!h)return;ITIP.innerHTML=h;ITIP.hidden=false;const R=el.getBoundingClientRect();const w=ITIP.offsetWidth;
+  ITIP.style.left=Math.max(8,Math.min(R.left+window.scrollX,window.scrollX+document.documentElement.clientWidth-w-8))+'px';ITIP.style.top=(R.bottom+window.scrollY+6)+'px';}
+document.addEventListener('mouseover',e=>{const el=e.target.closest&&e.target.closest('[data-info]');if(el)showInfo(el);});
+document.addEventListener('mouseout',e=>{const el=e.target.closest&&e.target.closest('[data-info]');if(el&&!el.contains(e.relatedTarget))ITIP.hidden=true;});
+document.addEventListener('focusin',e=>{const el=e.target.closest&&e.target.closest('[data-info]');if(el)showInfo(el);});
+document.addEventListener('focusout',e=>{if(e.target.closest&&e.target.closest('[data-info]'))ITIP.hidden=true;});
+document.addEventListener('mouseover',e=>{const el=e.target.closest&&e.target.closest('[data-tip]');if(!el||!el.closest('svg'))return;
+  const [a,b]=el.dataset.tip.split('|');TIP.innerHTML=`<b>${b||''}</b><span>${a||''}</span>`;TIP.hidden=false;
+  const R=el.getBoundingClientRect();const w=TIP.offsetWidth;TIP.style.left=Math.max(8,Math.min(R.left+R.width/2+window.scrollX-w/2,window.scrollX+document.documentElement.clientWidth-w-8))+'px';TIP.style.top=(R.top+window.scrollY-TIP.offsetHeight-8)+'px';
+  document.querySelectorAll('svg .pt.on').forEach(x=>x.classList.remove('on'));});
+document.addEventListener('mouseout',e=>{if(e.target.closest&&e.target.closest('[data-tip]'))TIP.hidden=true;});
+const CLS_RANK={'밴드 미달':0,'G1':1,'G1, G2':1.5,'G2':2,'G2, G3':2.5,'G3':3,'G3, G4':3.5,'G4':4,'밴드 초과':5};
+const pkey=p=>`${p.id}|${p.name}`;
+const finRank=f=>/^G[1-4]$/.test(f||'')?+f[1]:9;
+document.getElementById('dlg').addEventListener('click',e=>{if(e.target.id==='dlg')e.currentTarget.hidden=true;});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.getElementById('dlg').hidden=true;});
+function showText(title,txt){const box=document.getElementById('dlg-box');box.innerHTML=`<div class="hd"><h2 style="margin:0">${esc(title)}</h2><button type="button" id="dlg-close">닫기</button></div><p class="sub">아래 내용을 전체 선택(Ctrl+A) 후 복사하세요.</p><textarea id="dlg-ta" readonly></textarea>`;
+  box.querySelector('#dlg-ta').value=txt;const d=document.getElementById('dlg');d.hidden=false;box.querySelector('#dlg-close').onclick=()=>d.hidden=true;box.querySelector('#dlg-ta').select();}
+function copyText(title,txt,ok){navigator.clipboard?.writeText(txt).then(()=>toast(ok),()=>showText(title,txt)) ?? showText(title,txt);}
+/* =========================================================
+   6-1. 엑셀 저장 (웹: downloads 기능 → 확인 후 저장 / 로컬 파일: 바로 다운로드)
+   ========================================================= */
+const stamp=()=>{const d=new Date();return`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;};
+// 웹(claude.ai)용 저장 기능은 미리 받아 둔다 → 클릭하자마자 저장 확인 창을 띄워 시간 초과·사용자 동작 만료를 막는다
+let DL_NS=null,DL_READY=null;
+function dlInit(){if(DL_READY)return DL_READY;DL_READY=(async()=>{try{if(window.claude&&window.claude.use)DL_NS=await window.claude.use('downloads');}catch(e){DL_NS=null;}return DL_NS;})();return DL_READY;}
+dlInit();
+const DL_MSG={declined:'저장 확인 창에서 「저장」을 누르지 않았거나 시간이 지났습니다. 버튼을 다시 누른 뒤 확인 창에서 저장을 눌러 주세요.',rate_limited:'저장 확인 창이 이미 열려 있습니다. 그 창에서 저장을 누르거나 잠시 후 다시 눌러 주세요.',
+  rejected_extension:'이 파일 형식은 저장할 수 없습니다.',too_large:'파일이 너무 큽니다.',bad_request:'파일을 만들지 못했습니다.',unavailable:'이 화면에서는 저장 기능을 쓸 수 없습니다.',not_granted:'이 화면에서 저장 권한이 없습니다.'};
+function anchorDownload(data,filename){const url=URL.createObjectURL(new Blob([data],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  const a=document.createElement('a');a.href=url;a.download=filename;a.rel='noopener';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);}
+async function saveBook(wb,filename){
+  if(typeof XLSX==='undefined'){toast('엑셀 모듈을 불러오지 못했습니다.');return;}
+  let data;try{data=XLSX.write(wb,{type:'array',bookType:'xlsx'});}catch(e){toast('엑셀 파일을 만들지 못했습니다: '+e.message);return;}
+  let dl=DL_NS;if(!dl&&window.claude&&window.claude.use){try{dl=DL_NS=await window.claude.use('downloads');}catch(e){dl=null;}}
+  if(dl){
+    toast('저장 확인 창이 뜨면 「저장」을 눌러 주세요.');
+    try{const r=await dl.save({filename,data:new Uint8Array(data)});toast(r&&r.status==='delivered'?`${filename}을(를) 보냈습니다.`:`${filename}을(를) 저장했습니다.`);}
+    catch(e){const code=(e&&e.code)||'unknown';toast(`${DL_MSG[code]||'저장하지 못했습니다.'} (코드: ${code})`);console.warn('downloads.save',e);}
+    return;}
+  // 웹 저장 기능이 없는 화면(ZIP 로컬 버전·일반 웹 서버): 브라우저 기본 다운로드
+  try{anchorDownload(data,filename);toast(`${filename}을(를) 내려받았습니다. 브라우저 다운로드 폴더를 확인하세요.`);}catch(e){toast('이 화면에서는 다운로드가 막혀 있습니다: '+e.message);}
+}
+function sheetFromAoa(aoa,widths,numFmtCols){const ws=XLSX.utils.aoa_to_sheet(aoa);if(widths)ws['!cols']=widths.map(w=>({wch:w}));
+  if(numFmtCols){const R=XLSX.utils.decode_range(ws['!ref']);for(let r=1;r<=R.e.r;r++)numFmtCols.forEach(ci=>{const c=ws[XLSX.utils.encode_cell({r,c:ci})];if(c&&c.t==='n')c.z='#,##0';});}
+  ws['!autofilter']={ref:ws['!ref']};return ws;}
+// 기본정보: 인원(A~Q) + 분류기준 시트(원본 엑셀과 같은 칸) → 그대로 다시 업로드 가능
+
+/* =========================================================
+   직급 분류 (신규 기준) — 4개 기준 + (5) 종합 등급
+   ① 현직급 변환 ② 연차 ③ 직무 역할 ④ 연봉(신규 Pay-band) → ⑤ 가중 평균 → 종합 등급
+   ========================================================= */
+function defaultCrit(){return{
+  gmap:{G1:'G1',G2:'G2',G3:'G2',G4:'G3',G5:'G3',G6:'G4'},          // (1) 현직급 → 변경 직급
+  baseYr:{G1:1,G2:7,G3:7,G4:13,G5:13,G6:20},                         // 현직급 기본연차 (확인 필요: 변경 직급 시작 연차로 초기 설정)
+  yStart:[1,7,13,20],                                                 // (2) G1~G4 시작 연차 → 1~6 / 7~12 / 13~19 / 20+
+  roles:[['정형 업무','G1'],['자율 · 기획 업무','G2'],['과제 리딩','G3'],['전략적 판단','G4']], // (3)
+  bands:[[4000,5500],[4700,6700],[5600,8100],[6700,9900]],            // (4) 신규 Pay-band (만원)
+  overlaps:[[4700,5500],[5600,6700],[6700,8100]],
+  w:[25,25,25,25],                                                    // (5) 가중치(%)
+  baseYear:BASE_YEAR,ageYear:BASE_YEAR};}
+const ROLE_DEF={'전략적 판단':'전사 방향 제시 · 담당 분야 최종 판단','과제 리딩':'다수 인원 과제 운영 · 성과 창출','자율 · 기획 업무':'업무 자체 계획 · 완결 · 기획','정형 업무':'절차 · 매뉴얼에 따른 정확한 처리'};
+function demoPeople(){
+  // 가상의 예시 인원 — 실제 직원 아님
+  const R=[
+   [260101,'김하늘',27,'작물보호팀','일반직','담당','G1','2024-01-02','2024-01-02',41200000,'정형 업무'],
+   [250314,'이준서',29,'생산팀','기술직','담당','G1','2022-03-02','2022-03-02',46800000,'정형 업무'],
+   [240207,'박서연',31,'연구소','연구직','담당','G2','2019-07-01','2023-04-01',52500000,'자율 · 기획 업무'],
+   [230118,'최민재',33,'영업1팀','영업직','담당','G2','2018-01-02','2022-04-01',58900000,'자율 · 기획 업무'],
+   [220405,'정유진',35,'품질보증팀','일반직','선임','G3','2016-03-02','2021-04-01',63400000,'자율 · 기획 업무'],
+   [210822,'강도윤',37,'해외영업팀','영업직','선임','G3','2014-09-01','2020-04-01',69800000,'과제 리딩'],
+   [200310,'윤지호',39,'생산팀','기술직','선임','G3','2012-01-02','2019-04-01',57200000,'정형 업무'],
+   [190527,'장수아',41,'연구소','연구직','책임','G4','2011-03-02','2018-04-01',78500000,'과제 리딩'],
+   [180601,'임태현',44,'경영지원팀','일반직','팀장','G5','2008-01-02','2017-04-01',92300000,'과제 리딩'],
+   [170211,'한예린',30,'인사팀','일반직','담당','G2','2020-07-01','2024-04-01',49900000,'정형 업무'],
+   [160909,'오세훈',46,'작물보호팀','일반직','팀장','G5','2006-01-02','2016-04-01',97800000,'전략적 판단'],
+   [150415,'서지민',50,'생산팀','기술직','책임','G4','2002-03-02','2015-04-01',101500000,'과제 리딩'],
+   [140120,'신동현',28,'영업1팀','영업직','담당','G1','2023-07-03','2023-07-03',38500000,'정형 업무'],
+   [130708,'권나연',34,'재무팀','일반직','담당','G2','2017-01-02','2022-04-01',61700000,'자율 · 기획 업무'],
+   [120330,'황민석',42,'품질보증팀','일반직','책임','G4','2010-01-04','2019-04-01',81000000,'과제 리딩'],
+   [110902,'안소희',36,'연구소','연구직','선임','G3','2015-03-02','2021-04-01',66200000,'자율 · 기획 업무'],
+   [100614,'송재원',48,'해외영업팀','영업직','팀장','G6','2004-01-02','2014-04-01',96500000,'전략적 판단'],
+   [ 90225,'전하은',26,'생산팀','기술직','담당','G1','2025-01-02','2025-01-02',40300000,'정형 업무'],
+   [ 80117,'홍우진',38,'작물보호팀','일반직','책임','G4','2013-01-02','2020-04-01',84600000,'과제 리딩'],
+   [ 70823,'문서영',32,'인사팀','일반직','담당','G2','2019-01-02','2023-04-01',53800000,'자율 · 기획 업무'],
+   [ 60512,'배성호',52,'생산팀','기술직','팀장','G5','2000-03-02','2013-04-01',88900000,'전략적 판단'],
+   [ 50309,'조아라',40,'경영지원팀','일반직','책임','G4','2012-07-02','2019-04-01',72400000,'자율 · 기획 업무'],
+   [ 40721,'유건우',45,'연구소','연구직','수석','G6','2007-03-02','2015-04-01',99000000,'전략적 판단'],
+   [ 30130,'노지원',29,'재무팀','일반직','담당','G1','2022-07-01','2022-07-01',45600000,'정형 업무']];
+  return R.map(r=>({id:String(r[0]).padStart(6,'0'),name:r[1],birth:'',age:r[2],dept:r[3],job:r[4],title:r[5],grade:r[6],hire:r[7],gdate:r[8],period:'',adj:'',salary:r[9],role:r[10],final:''}));}
+function fresh(){return{crit:defaultCrit(),people:demoPeople(),source:'demo',sourceName:'',sheet:'info'};}
+let S=(()=>{try{const s=JSON.parse(localStorage.getItem(LS_KEY));if(s&&s.crit&&Array.isArray(s.people)){s.crit=Object.assign(defaultCrit(),s.crit);return Object.assign(fresh(),s);}}catch(e){}return fresh();})();
+function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(S))}catch(e){}}
+
+/* ---- 계산 ---- */
+const gN=g=>/^G[1-4]$/.test(g||'')?+g[1]:null;
+function careerYears(p,c){ // 연차 = 현직급 기본연차 + 현직급 기간(년, 내림) + 조정(±년)
+  const b=num((c.baseYr||{})[p.grade]);if(b==null)return null;const m=periodBaseMonths(p);const a=num(p.adj)||0;
+  return Math.max(1,b+(m==null?0:Math.floor(m/12))+Math.round(a));}
+function yearGrade(y,c){if(y==null)return null;const s=c.yStart;return y>=s[3]?4:y>=s[2]?3:y>=s[1]?2:1;}
+function yearRange(i,c){const s=c.yStart;return i<3?`${s[i]}~${s[i+1]-1}년차`:`${s[3]}년차 이상`;}
+function roleGrade(role,c){const r=(c.roles||[]).find(x=>x[0]===role);return r?gN(r[1]):null;}
+function salVal(k){if(!k)return null;if(k==='밴드 미달')return 1;if(k==='밴드 초과')return 4;return CLS_RANK[k];} // 중첩 = 중간값(예: G1·G2 = 1.5)
+const CRIT_N=['(1) 현직급 변환','(2) 연차','(3) 직무 역할','(4) 연봉 (Pay-band)'];
+function calc(p,c){
+  const sal=num(p.salary);const k=classify(sal,c);
+  const yrs=careerYears(p,c);
+  const v=[gN(c.gmap[p.grade]),yearGrade(yrs,c),roleGrade(p.role,c),salVal(k)];
+  let sw=0,ss=0;v.forEach((x,i)=>{const w=+c.w[i]||0;if(x!=null&&w>0){sw+=w;ss+=w*x;}});
+  const score=sw?ss/sw:null;const comp=score==null?null:Math.min(4,Math.max(1,Math.floor(score+0.5+1e-9)));
+  const hit=i=>{const x=v[i];if(x==null||comp==null)return false;if(i===3&&k.includes(','))return k.includes('G'+comp);return Math.round(x)===comp||(i===3&&((k==='밴드 미달'&&comp===1)||(k==='밴드 초과'&&comp===4)));};
+  const agree=v.filter(x=>x!=null).length?[0,1,2,3].filter(hit).length:0;const avail=v.filter(x=>x!=null).length;
+  const fin=gN(p.final);return{p,sal,k,yrs,v,score,comp,agree,avail,hit,fin,app:fin||comp};}
+function computeAll(){applyBirthAges();const c=S.crit;return{c,rows:S.people.filter(p=>String(p.name||'').trim()).map(p=>calc(p,c))};}
+const gTxt=x=>x==null?'-':'G'+x;
+const gCls=x=>x==null?'':'gc'+Math.round(x);
+
+/* ---- 화면 ---- */
+const SHEETS=[['info','기본정보'],['class','1차 분류 (종합 등급)']];
+function render(){const v=document.getElementById('view-main');const key=SHEETS.some(x=>x[0]===S.sheet)?S.sheet:'info';
+  v.innerHTML=`<h1>직급 분류 <span class="sub" style="font-size:14px">신규 기준 · 4개 기준 종합</span></h1>
+  <div class="stagebar"><button type="button" aria-selected="true"><span class="stn">1차 분류</span><span class="std">(1)~(4) 기준별 직급 → (5) 종합 등급 → 최종 확정</span></button></div>
+  <div class="sheettabs" role="tablist">${SHEETS.map(([k,l])=>`<button role="tab" data-sheet="${k}" aria-selected="${key===k}">${l}</button>`).join('')}</div>
+  <div id="sheet-body"></div>`;
+  v.querySelectorAll('[data-sheet]').forEach(b=>b.onclick=()=>{S.sheet=b.dataset.sheet;save();render();});
+  ({info:sheetInfo,class:sheetClass}[key])();
+  const b=document.getElementById('srcbadge');const n=S.people.filter(p=>String(p.name||'').trim()).length;
+  b.textContent=S.source==='demo'?`예시 데이터 · ${n}명 (가상 인원)`:`${S.sourceName||'불러온 데이터'} · ${n}명`;b.classList.toggle('real',S.source!=='demo');}
+
+/* 기본정보: 분류 기준 (1)~(5) + 인원 입력 */
+const INFO_COLS=[['id','사번','text',58],['name','이름','text',56],['birth','생년월일','date',104],['age','나이','number',40],['dept','부서','text',80],['job','직군','text',52],['title','직책','text',44],
+  ['grade','현직급','grade',52],['hire','입사일','date',104],['gdate','현직급<br>발령일','date',104],['_per','현직급<br>기간','auto',62],['adj','조정<br>(±년, 수기)','number',48],
+  ['_yrs','연차<br>(자동)','auto',44],['salary','현 연봉(원)','won',96],['role','직무 역할','role',118]];
+function critHTML(c){
+  const gsel=(path,val)=>`<select data-crit="${path}">${['G1','G2','G3','G4'].map(g=>`<option ${val===g?'selected':''}>${g}</option>`).join('')}</select>`;
+  return`<div class="g2-crit">
+  <div class="panel"><h2>(1) 현직급 → 변경 직급</h2><table class="crit-tbl"><thead><tr><th>현직급</th><th>변경 직급</th><th>기본연차<br><span class="sub">확인 필요</span></th></tr></thead><tbody>
+    ${GRADE6_DESC.map(g=>`<tr><td><b>${g}</b></td><td class="in">${gsel('gmap.'+g,c.gmap[g])}</td><td class="in"><input type="number" min="1" data-crit="baseYr.${g}" value="${esc(c.baseYr[g])}"></td></tr>`).join('')}</tbody></table>
+    <p class="note">※ 기본연차 = 현직급에 처음 올라섰을 때의 연차. 초기값은 변경 직급의 시작 연차로 넣어 둠 → 실제 기준 확인 필요</p></div>
+  <div class="panel"><h2>(2) 연차 기준</h2><table class="crit-tbl"><thead><tr><th>직급</th><th>시작 연차</th><th>구간</th></tr></thead><tbody>
+    ${[3,2,1,0].map(i=>`<tr><td><b>G${i+1}</b></td><td class="in">${i===0?'<span class="auto">1</span>':`<input type="number" min="2" data-crit="yStart.${i}" value="${c.yStart[i]}">`}</td><td>${yearRange(i,c)}</td></tr>`).join('')}</tbody></table>
+    <p class="note">※ 연차 = 현직급 기본연차 + 현직급 기간(년, 내림) + 조정(±년)</p></div>
+  <div class="panel"><h2>(3) 직무 역할</h2><table class="crit-tbl"><thead><tr><th>직무 역할</th><th>직급</th><th>정의</th></tr></thead><tbody>
+    ${[...c.roles].reverse().map((r)=>{const i=c.roles.indexOf(r);return`<tr><td><b>${esc(r[0])}</b></td><td class="in">${gsel('roles.'+i,r[1])}</td><td class="l note" style="margin:0">${esc(ROLE_DEF[r[0]]||'')}</td></tr>`;}).join('')}</tbody></table>
+    <p class="note">※ 인원별 직무 역할은 아래 표에서 선택</p></div>
+  <div class="panel"><h2>(4) 연봉 · 신규 Pay-band <span class="sub">(만원)</span></h2><table class="crit-tbl"><thead><tr><th>직급</th><th>하한</th><th>상한</th></tr></thead><tbody>
+    ${[3,2,1,0].map(i=>`<tr><td><b>G${i+1}</b></td><td class="in"><input type="number" data-crit="bands.${i}.0" value="${c.bands[i][0]}"></td><td class="in"><input type="number" data-crit="bands.${i}.1" value="${c.bands[i][1]}"></td></tr>`).join('')}</tbody></table>
+    <table class="crit-tbl" style="margin-top:6px"><thead><tr><th>중첩 구간</th><th>시작</th><th>끝</th></tr></thead><tbody>
+    ${[2,1,0].map(i=>`<tr><td class="${['c-ov12','c-ov23','c-ov34'][i]}"><b>G${i+1}~G${i+2}</b></td><td class="in"><input type="number" data-crit="overlaps.${i}.0" value="${c.overlaps[i][0]}"></td><td class="in"><input type="number" data-crit="overlaps.${i}.1" value="${c.overlaps[i][1]}"></td></tr>`).join('')}</tbody></table></div>
+  <div class="panel g2-w"><h2>(5) 종합 등급 산출</h2><table class="crit-tbl"><thead><tr><th>기준</th><th>가중치(%)</th></tr></thead><tbody>
+    ${CRIT_N.map((l,i)=>`<tr><td class="l">${l}</td><td class="in"><input type="number" min="0" data-crit="w.${i}" value="${c.w[i]}"></td></tr>`).join('')}
+    <tr class="tot"><td><b>합계</b></td><td><b id="w-sum">${c.w.reduce((a,b)=>a+(+b||0),0)}%</b></td></tr></tbody></table>
+    <p class="note">※ 종합 점수 = Σ(가중치 × 직급값) ÷ Σ가중치 → 반올림(.5 이상 올림) = 종합 등급<br>※ 연봉 중첩 구간은 중간값(G1·G2 = 1.5), 밴드 미달 = G1 · 초과 = G4 / 값이 없는 기준은 빼고 가중치 재계산</p></div>
+  </div>`;}
+function setCrit(path,val){const c=S.crit;const [a,i,j]=path.split('.');
+  if(a==='gmap'){c.gmap[i]=val;return;}if(a==='baseYr'){c.baseYr[i]=val===''?'':+val;return;}
+  if(a==='yStart'){c.yStart[+i]=Math.max(2,+val||2);return;}if(a==='roles'){c.roles[+i][1]=val;return;}
+  if(a==='w'){c.w[+i]=Math.max(0,+val||0);return;}c[a][+i][+j]=+val||0;}
+function sheetInfo(){
+  const body=document.getElementById('sheet-body');const c=S.crit;
+  body.innerHTML=`${critHTML(c)}
+  <div class="panel" style="margin-top:14px"><div class="bar"><h2 class="grow" style="margin:0">인원 기본정보 <span class="sub">(노란 칸 입력 · 직무 역할 선택)</span></h2>
+    ${searchBoxHTML('info')}<button id="add-row" type="button">행 추가</button><button id="dl-info" type="button" class="primary">엑셀 다운로드</button></div>
+    <div class="scroll"><table id="info-tbl" class="info rno-t"><thead><tr><th data-nosort></th><th data-nosort class="rno-h">No</th>${INFO_COLS.map(x=>`<th style="min-width:${x[3]}px">${x[1]}</th>`).join('')}</tr></thead><tbody></tbody></table></div>
+    <p class="note">※ 엑셀 불러오기: 머리글(사번 · 이름 · 생년월일/나이 · 부서 · 직군 · 직책 · 현직급 · 입사일 · 현직급 발령일 · 현직급 기간 · 조정 · 현 연봉 · 직무 역할)을 이름으로 찾아 읽음. 이 화면의 엑셀 다운로드 파일을 그대로 다시 올릴 수 있음</p></div>`;
+  const tb=body.querySelector('#info-tbl tbody');
+  tb.innerHTML=S.people.map((p,i)=>`<tr data-i="${i}"><td><button class="row-del" type="button" data-del="${i}" aria-label="${esc(p.name)} 행 삭제">×</button></td><td class="rno"></td>${INFO_COLS.map(([k,,t])=>{
+    if(t==='auto')return`<td class="auto" data-auto="${k}"></td>`;
+    if(t==='grade')return`<td class="in"><select data-f="${k}"><option value=""></option>${GRADE6.map(g=>`<option ${p[k]===g?'selected':''}>${g}</option>`).join('')}</select></td>`;
+    if(t==='role')return`<td class="in"><select data-f="role"><option value="">미입력</option>${[...c.roles].reverse().map(r=>`<option ${p.role===r[0]?'selected':''}>${esc(r[0])}</option>`).join('')}</select></td>`;
+    if(t==='date')return`<td class="in"><input type="date" data-f="${k}" value="${esc(dateStr(p[k]))}"></td>`;
+    if(t==='won')return`<td class="in"><input type="text" inputmode="numeric" data-f="${k}" data-won value="${num(p[k])==null?'':fW(num(p[k]))}" style="text-align:right"></td>`;
+    return`<td class="in"><input type="${t}" data-f="${k}" value="${esc(p[k]??'')}"></td>`;}).join('')}</tr>`).join('');
+  tb.addEventListener('change',e=>{const el=e.target,tr=el.closest('tr');if(!tr||!el.dataset.f)return;const p=S.people[+tr.dataset.i];const k=el.dataset.f;
+    if(el.dataset.won!==undefined){const n=num(el.value);p[k]=n==null?'':n;el.value=n==null?'':fW(n);}
+    else p[k]=(el.type==='number')?(el.value===''?'':+el.value):el.value;if(k==='gdate')p.period='';if(k==='birth')applyBirthAges();save();refreshInfo();});
+  tb.addEventListener('click',e=>{const d=e.target.closest('[data-del]');if(!d)return;S.people.splice(+d.dataset.del,1);save();sheetInfo();});
+  body.querySelector('#add-row').onclick=()=>{S.people.push({id:'',name:'',birth:'',age:'',dept:'',job:'',title:'',grade:'',hire:'',gdate:'',period:'',adj:'',salary:'',role:'',final:''});save();delete SORTST.info;sheetInfo();};
+  body.querySelector('#dl-info').onclick=()=>saveBook(infoBook(),`직급분류_기본정보_${stamp()}.xlsx`);
+  body.querySelectorAll('[data-crit]').forEach(el=>el.addEventListener('change',()=>{setCrit(el.dataset.crit,el.value);save();const keep=window.scrollY;sheetInfo();window.scrollTo(0,keep);}));
+  refreshInfo();sortable(body.querySelector('#info-tbl'),'info');bindSearch(body,'info',body.querySelector('#info-tbl'));}
+function refreshInfo(){const c=S.crit;applyBirthAges();
+  document.querySelectorAll('#info-tbl tbody tr').forEach(tr=>{const p=S.people[+tr.dataset.i];if(!p)return;
+    const ai=tr.querySelector('[data-f="age"]');if(ai){const hb=!!normBirth(p.birth);ai.readOnly=hb;if(hb)ai.value=p.age;ai.closest('td').classList.toggle('auto',hb);}
+    const pc=tr.querySelector('[data-auto="_per"]');pc.textContent=periodBaseText(p);pc.dataset.v=periodBaseMonths(p)??'';
+    const yc=tr.querySelector('[data-auto="_yrs"]');const y=careerYears(p,c);yc.textContent=y==null?'':y+'년차';yc.dataset.v=y??'';
+    yc.title=y==null?'현직급 기본연차가 없어 계산 불가':`기본연차 ${c.baseYr[p.grade]} + 기간 ${Math.floor((periodBaseMonths(p)||0)/12)}년 + 조정 ${num(p.adj)||0}년`;});}
+
+/* 1차 분류: (1)~(4) → (5) 종합 등급 → 최종 확정 */
+function sheetClass(){
+  const {c,rows}=computeAll();const body=document.getElementById('sheet-body');const N=rows.length;
+  const byComp=g=>rows.filter(r=>r.comp===g).length;const byApp=g=>rows.filter(r=>r.app===g).length;const ag=n=>rows.filter(r=>r.agree===n&&r.avail).length;
+  const fin=rows.filter(r=>r.fin).length;const W=c.w.reduce((a,b)=>a+(+b||0),0);
+  const mx={};GRADE6_DESC.forEach(g=>{mx[g]={};[4,3,2,1].forEach(x=>mx[g][x]=0);});rows.forEach(r=>{if(mx[r.p.grade]&&r.comp)mx[r.p.grade][r.comp]++;});
+  body.innerHTML=`<div class="g2-sum">
+   <div class="panel"><h2>종합 등급 분포 <span class="sub">(단위: 명)</span></h2>
+    <table class="rtbl"><thead><tr><th>구분</th><th>G4</th><th>G3</th><th>G2</th><th>G1</th><th>계</th></tr></thead><tbody>
+     <tr><td><b>(5) 종합 등급</b></td>${[4,3,2,1].map(g=>`<td class="gc${g}">${byComp(g)}</td>`).join('')}<td><b>${rows.filter(r=>r.comp).length}</b></td></tr>
+     <tr><td><b>적용 직급</b><div class="sub">최종 확정 우선</div></td>${[4,3,2,1].map(g=>`<td>${byApp(g)}</td>`).join('')}<td><b>${rows.filter(r=>r.app).length}</b></td></tr></tbody></table>
+    <p class="note">최종 확정 ${fin}명 / 미확정 ${N-fin}명 · 가중치 합계 ${W}%${W!==100?' <b style="color:var(--crit)">(100% 아님 · 비율로 환산 적용)</b>':''}</p></div>
+   <div class="panel"><h2>기준 일치도 <span class="sub">(종합 등급과 같은 기준 수)</span></h2>
+    <table class="rtbl"><thead><tr><th>4개 일치</th><th>3개</th><th>2개</th><th>1개 이하</th></tr></thead><tbody>
+     <tr><td class="c-fin">${ag(4)}명</td><td>${ag(3)}명</td><td>${ag(2)}명</td><td style="color:var(--crit);font-weight:700">${ag(1)+ag(0)}명</td></tr></tbody></table>
+    <p class="note">※ 일치가 낮을수록 기준 간 판단이 엇갈림 → 최종 확정 시 우선 검토</p></div>
+   <div class="panel"><h2>현직급 × 종합 등급 <span class="sub">(단위: 명)</span></h2>
+    <table class="rtbl"><thead><tr><th>현직급</th><th>G4</th><th>G3</th><th>G2</th><th>G1</th><th>계</th></tr></thead><tbody>
+     ${GRADE6_DESC.map(g=>`<tr><td><b>${g}</b> <span class="sub">→ ${esc(c.gmap[g])}</span></td>${[4,3,2,1].map(x=>`<td class="${mx[g][x]?(('G'+x)===c.gmap[g]?'c-fin':'gc'+x):''}">${mx[g][x]||''}</td>`).join('')}<td><b>${[4,3,2,1].reduce((a,x)=>a+mx[g][x],0)}</b></td></tr>`).join('')}</tbody></table>
+    <p class="note">※ 테두리 칸 = (1) 현직급 변환 결과와 같은 종합 등급</p></div></div>
+  <div class="panel" style="margin-top:14px"><div class="bar"><h2 class="grow" style="margin:0">개인별 1차 분류 (${N}명)</h2>
+    ${searchBoxHTML('class')}<button id="fill4" type="button">4개 일치 인원 자동 확정</button><button id="clear4" type="button">자동 확정 해제</button><button id="dl-class" type="button" class="primary">엑셀 다운로드</button></div>
+    <div class="scroll"><table id="class-tbl" class="rno-t g2-cls"><thead>
+     <tr><th colspan="11" class="g-base">기본정보</th><th colspan="4" class="g-ev">기준별 직급</th><th colspan="3" class="g-sum">(5) 종합</th><th colspan="2" class="g-base">최종</th></tr>
+     <tr><th data-nosort class="rno-h">No</th><th>사번</th><th>이름</th><th>나이</th><th>부서</th><th>직책</th><th>현직급</th><th>현직급 기간</th><th>조정<br>(±년)</th><th>연차</th><th>현 연봉(원)</th>
+      <th class="ev1">(1) 현직급<br>변환</th><th>(2) 연차</th><th>(3) 직무<br>역할</th><th>(4) 연봉<br>Pay-band</th><th class="ev1">종합<br>점수</th><th>종합<br>등급</th><th>일치</th><th class="ev1">최종 확정<br>(수기)</th><th>적용<br>직급</th></tr></thead><tbody>
+    ${rows.map(r=>{const p=r.p;const cell=(i,txt,v)=>`<td class="gv ${r.v[i]==null?'na':r.hit(i)?'same':'diff'} ${i===0?'ev1':''}" data-v="${v??''}" data-ft="${esc(txt)}">${txt}</td>`;
+      return`<tr class="${r.fin?'confirmed':''}"><td class="rno"></td><td>${esc(p.id)}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.age)}</td><td class="l">${esc(p.dept)}</td><td>${esc(p.title)}</td>
+       <td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}">${esc(p.grade)}</td><td data-v="${periodBaseMonths(p)??''}">${esc(periodBaseText(p))}</td><td data-v="${num(p.adj)??''}">${num(p.adj)?(num(p.adj)>0?'+':'')+num(p.adj):''}</td>
+       <td data-v="${r.yrs??''}">${r.yrs==null?'-':r.yrs+'년차'}</td><td class="num" data-v="${r.sal??''}">${fW(r.sal)}</td>
+       ${cell(0,gTxt(r.v[0]),r.v[0])}${cell(1,r.v[1]==null?'-':`G${r.v[1]}`,r.v[1])}${cell(2,r.v[2]==null?'미입력':`G${r.v[2]}`,r.v[2])}${cell(3,r.k||'-',r.v[3])}
+       <td class="num ev1" data-v="${r.score??''}">${r.score==null?'-':r.score.toFixed(2)}</td><td class="${gCls(r.comp)}" data-v="${r.comp??''}" data-ft="${gTxt(r.comp)}"><b>${gTxt(r.comp)}</b></td>
+       <td data-v="${r.agree}" data-ft="${r.agree}/${r.avail}" class="${r.avail&&r.agree===r.avail?'c-fin':r.agree<=1?'c-bad':''}">${r.agree}/${r.avail}</td>
+       <td class="fin ev1" data-v="${finRank(p.final)}" data-ft="${esc(p.final||'미확정')}"><select data-fk="${esc(pkey(p))}" class="${p.final?(r.comp&&gN(p.final)!==r.comp?'c-bad':'c-fin'):''}"><option value="">미확정</option>${['G4','G3','G2','G1'].map(g=>`<option ${p.final===g?'selected':''}>${g}</option>`).join('')}</select>${p.finalAuto?'<span class="fintag">자동</span>':''}</td>
+       <td data-v="${r.app??''}" data-ft="${gTxt(r.app)}"><b>${gTxt(r.app)}</b></td></tr>`;}).join('')}
+    </tbody></table></div>
+    <p class="note">※ 초록 굵은 글씨 = 종합 등급과 같은 기준 · 회색 = 다른 기준 / 최종 확정(수기)이 종합 등급과 다르면 빨간 칸 / 적용 직급 = 최종 확정이 있으면 그 값, 없으면 종합 등급</p></div>`;
+  const t=body.querySelector('#class-tbl');
+  t.addEventListener('change',e=>{const el=e.target;if(!el.dataset.fk)return;const p=S.people.find(x=>pkey(x)===el.dataset.fk);if(!p)return;p.final=el.value;p.finalAuto=false;save();const keep=window.scrollY;sheetClass();window.scrollTo(0,keep);});
+  body.querySelector('#fill4').onclick=()=>{let n=0;rows.forEach(r=>{if(!r.p.final&&r.comp&&r.avail===4&&r.agree===4){r.p.final='G'+r.comp;r.p.finalAuto=true;n++;}});save();sheetClass();toast(n?`4개 기준이 모두 일치한 ${n}명을 종합 등급으로 확정했습니다.`:'새로 확정할 4개 일치 인원이 없습니다.');};
+  body.querySelector('#clear4').onclick=()=>{let n=0;S.people.forEach(p=>{if(p.final&&p.finalAuto){p.final='';delete p.finalAuto;n++;}});save();sheetClass();toast(n?`자동 확정 ${n}명을 미확정으로 되돌렸습니다. 직접 고른 값은 유지됩니다.`:'해제할 자동 확정이 없습니다.');};
+  body.querySelector('#dl-class').onclick=()=>saveBook(tableBook('class-tbl','1차 분류'),`직급분류_1차분류_${stamp()}.xlsx`);
+  sortable(t,'class');bindSearch(body,'class',t);}
+
+/* ---- 엑셀 ---- */
+const IMP_HEAD=['사번','이름','생년월일','나이','부서','직군','직책','현직급','입사일','현직급 발령일','현직급 기간','조정(±년)','현 연봉','직무 역할','최종 확정'];
+function infoBook(){const wb=XLSX.utils.book_new();
+  const rows=S.people.filter(p=>String(p.name||'').trim()).map(p=>[p.id,p.name,p.birth||'',num(p.age)??'',p.dept,p.job,p.title,p.grade,dateStr(p.hire),dateStr(p.gdate),periodBaseText(p),num(p.adj)??'',num(p.salary)??'',p.role||'',p.final||'']);
+  XLSX.utils.book_append_sheet(wb,sheetFromAoa([IMP_HEAD,...rows],[9,9,12,6,12,8,8,7,12,12,11,8,13,14,9],[12]),'기본정보');
+  const c=S.crit;const aoa=[['구분','항목','값'],...GRADE6_DESC.map(g=>['(1) 현직급 변환',g,c.gmap[g]]),...GRADE6_DESC.map(g=>['현직급 기본연차',g,c.baseYr[g]]),
+    ...[3,2,1,0].map(i=>['(2) 연차 시작',`G${i+1}`,c.yStart[i]]),...c.roles.map(r=>['(3) 직무 역할',r[0],r[1]]),...[3,2,1,0].map(i=>['(4) Pay-band(만원)',`G${i+1}`,`${c.bands[i][0]}~${c.bands[i][1]}`]),
+    ...CRIT_N.map((l,i)=>['(5) 가중치(%)',l,c.w[i]])];
+  XLSX.utils.book_append_sheet(wb,sheetFromAoa(aoa,[18,22,12]),'분류기준(참고)');return wb;}
+function tableBook(id,sheet){const wb=XLSX.utils.book_new();const tbl=document.getElementById(id);const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];
+  const idx=[...hr.cells].map((th,i)=>th.hasAttribute('data-nosort')||th.classList.contains('col-hid')?-1:i).filter(i=>i>=0);
+  const head=idx.map(i=>hr.cells[i].innerHTML.replace(/<br\s*\/?>/g,' ').replace(/<[^>]+>/g,'').replace(/[▾▲▼]/g,'').replace(/\s+/g,' ').trim());
+  const rows=[...tbl.tBodies[0].rows].filter(r=>!r.hidden&&r.cells.length>1).map(r=>idx.map(i=>{const td=r.cells[i];const s=cellText(td);if(/사번/.test(head[idx.indexOf(i)]))return s;const v=sortVal(td);return typeof v==='number'&&/^[-\d,.%]+$/.test(s)?v:s;}));
+  const money=head.map((h,i)=>/연봉/.test(h)?i:-1).filter(i=>i>=0);
+  XLSX.utils.book_append_sheet(wb,sheetFromAoa([head,...rows],head.map(h=>Math.max(8,Math.min(20,h.length*1.6))),money),sheet);return wb;}
+function importWorkbook(wb,fname){
+  const ws=wb.Sheets['기본정보']||wb.Sheets[wb.SheetNames[0]];const A=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
+  const hi=A.slice(0,15).findIndex(r=>r.some(v=>String(v).replace(/\s/g,'')==='이름'));if(hi<0)throw new Error('「이름」 머리글을 찾지 못했습니다.');
+  const H=A[hi].map(v=>String(v).replace(/\s/g,''));const col=f=>H.findIndex(f);
+  const C={id:col(h=>h.includes('사번')),name:col(h=>h==='이름'),birth:col(h=>h.includes('생년')),age:col(h=>h==='나이'),dept:col(h=>h.includes('부서')),job:col(h=>h.includes('직군')),title:col(h=>h.includes('직책')),
+    grade:col(h=>h==='현직급'),hire:col(h=>h.includes('입사')),gdate:col(h=>h.includes('발령')),period:col(h=>h.includes('기간')),adj:col(h=>h.startsWith('조정')),salary:col(h=>h.includes('연봉')&&!h.includes('분류')),
+    role:col(h=>h.includes('역할')),final:col(h=>h.includes('최종'))};
+  const ds=v=>v instanceof Date?dateStr(v):String(v||'').trim().replace(/\./g,'-').replace(/-$/,'');const g=(r,k)=>C[k]>=0?r[C[k]]:'';
+  const roles=S.crit.roles.map(x=>x[0]);const roleOf=v=>{const s=String(v||'').replace(/\s/g,'');return roles.find(x=>x.replace(/\s/g,'')===s)||'';};
+  const P=A.slice(hi+1).filter(r=>String(g(r,'name')).trim()).map(r=>({id:String(g(r,'id')).trim(),name:String(g(r,'name')).trim(),birth:normBirth(g(r,'birth')),age:num(g(r,'age'))??'',dept:String(g(r,'dept')).trim(),job:String(g(r,'job')).trim(),
+    title:String(g(r,'title')).trim(),grade:String(g(r,'grade')).trim().toUpperCase(),hire:ds(g(r,'hire')),gdate:ds(g(r,'gdate')),period:g(r,'gdate')?'':String(g(r,'period')).trim(),adj:num(g(r,'adj'))??'',salary:num(g(r,'salary'))??'',
+    role:roleOf(g(r,'role')),final:/^G[1-4]$/.test(String(g(r,'final')).trim().toUpperCase())?String(g(r,'final')).trim().toUpperCase():''}));
+  if(!P.length)throw new Error('불러올 인원이 없습니다.');
+  S.people=P;S.source='file';S.sourceName=fname;save();render();toast(`${P.length}명을 불러왔습니다.${C.role<0?' (직무 역할 열 없음 → 기본정보에서 선택)':''}`);}
+document.getElementById('file-xlsx').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;
+  if(typeof XLSX==='undefined'){toast('엑셀 해석 모듈을 불러오지 못했습니다.');return;}
+  const rd=new FileReader();rd.onload=()=>{try{importWorkbook(XLSX.read(rd.result,{type:'array',cellDates:true}),f.name);}catch(err){toast(err.message);}e.target.value='';};rd.readAsArrayBuffer(f);});
+let resetArmed=false;
+document.getElementById('btn-reset').onclick=e=>{const b=e.currentTarget;if(!resetArmed){resetArmed=true;b.textContent='한 번 더 누르면 초기화';b.classList.add('primary');setTimeout(()=>{resetArmed=false;b.textContent='예시로 초기화';b.classList.remove('primary');},3000);return;}
+  resetArmed=false;b.textContent='예시로 초기화';b.classList.remove('primary');S=fresh();save();render();toast('예시 데이터로 되돌렸습니다.');};
+render();
+
+</script>
