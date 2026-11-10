@@ -104,6 +104,15 @@ th.filtered .fbtn{font-size:0}
 th.fth:hover .fbtn{outline:2px solid var(--accent)}
 .fcount{font-size:12px;color:var(--ink);background:var(--warn-soft);border:1px solid var(--warn);padding:4px 8px;border-radius:6px;margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .fcount button{font-size:12px;padding:2px 8px}
+.col-hid{display:none!important}
+.colbar{position:sticky;left:0;display:flex;justify-content:flex-end;margin:0 0 6px}
+.colbtn{font-size:12px;padding:3px 10px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface)} .colbtn:hover{border-color:var(--accent);color:var(--accent)}
+.colbtn .cb-on{margin-left:4px;font-size:11px;font-weight:700;padding:1px 6px;border-radius:4px;background:var(--accent);color:var(--accent-ink)}
+.colpop{position:absolute;z-index:60;width:290px;max-height:70vh;overflow:auto;background:var(--surface);border:1.5px solid var(--line-2);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:10px 12px}
+.colpop .cp-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px} .colpop .cp-h span{font-size:11px;color:var(--muted)}
+.colpop .cp-list{list-style:none;margin:0;padding:0} .colpop .cp-list li{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:3px 4px;border-bottom:1px solid var(--line);font-size:13px}
+.colpop .cp-list li.off label{color:var(--muted);text-decoration:line-through} .colpop label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.colpop .cp-mv button{font-size:10px;padding:1px 6px;margin-left:2px} .colpop .cp-f{display:flex;gap:6px;margin-top:8px;align-items:center} .colpop .cp-f button{font-size:12px;padding:3px 8px}
 .fcount .tagS,.fcount .tagF{font-size:11px;font-weight:700;padding:1px 6px;border-radius:4px;background:var(--warn);color:#fff}
 .fcount .tagF{margin-left:6px}
 thead th.sorted,thead th.filtered{background:var(--warn)!important;color:#fff!important}
@@ -575,7 +584,45 @@ function cellText(td){if(!td)return'';if(td.dataset.ft!==undefined)return td.dat
   const sel=td.querySelector('select');if(sel)return(sel.selectedOptions[0]?.text||'').trim();
   const inp=td.querySelector('input');if(inp)return inp.value.trim();return td.textContent.replace(/\s+/g,' ').trim();}
 function thLabel(th){return th.dataset.label||(th.dataset.label=th.textContent.replace(/[▾▲▼]/g,'').replace(/\s+/g,' ').trim());}
-function sortable(tbl,id){if(!tbl||!tbl.tHead)return;const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];
+/* ---- 열 설정 (모든 정렬 표 공통): 열 숨기기 · 순서 변경, 브라우저에 저장 ---- */
+function colCfg(id){S.colCfg=S.colCfg||{};return S.colCfg[id]||{order:[],hidden:[]};}
+function colsInit(tbl){if(tbl._ck)return;const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];const n=hr.cells.length;const seen={};
+  tbl._ck=[...hr.cells].map(th=>{const l=thLabel(th);if(!l)return null;seen[l]=(seen[l]||0)+1;return seen[l]>1?`${l}#${seen[l]}`:l;});
+  [hr,...tbl.tBodies[0].rows].forEach(r=>{if(r.cells.length===n)[...r.cells].forEach((c,i)=>c.dataset.ci=i);});}
+function colsApply(tbl,id){colsInit(tbl);const K=tbl._ck,n=K.length,cfg=colCfg(id);const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];
+  const lab=K.map((k,i)=>k?i:-1).filter(i=>i>=0);
+  const ord=(cfg.order||[]).map(k=>K.indexOf(k)).filter((i,j,a)=>i>=0&&a.indexOf(i)===j);
+  lab.forEach((i,j)=>{if(!ord.includes(i))ord.splice(Math.min(ord.length,j),0,i);});
+  const seq=[];let j=0;for(let i=0;i<n;i++)seq.push(K[i]?ord[j++]:i);
+  const hid=new Set((cfg.hidden||[]).map(k=>K.indexOf(k)).filter(i=>i>=0));
+  [hr,...tbl.tBodies[0].rows].forEach(r=>{if(r.cells.length!==n)return;const m={};[...r.cells].forEach(c=>{if(c.dataset.ci!=null)m[c.dataset.ci]=c;});
+    if(Object.keys(m).length!==n)return;seq.forEach(ci=>r.appendChild(m[ci]));Object.values(m).forEach(c=>c.classList.toggle('col-hid',hid.has(+c.dataset.ci)));});
+  const custom=hid.size>0||seq.some((v,i)=>v!==i);
+  [...tbl.tHead.rows].slice(0,-1).forEach(r=>r.classList.toggle('col-hid',custom)); // 묶음 머리글은 변경 시 숨김
+  let bar=tbl.parentElement.querySelector(':scope > .colbar');
+  if(!bar){bar=document.createElement('div');bar.className='colbar';bar.innerHTML='<button type="button" class="colbtn">⚙ 열 설정</button>';tbl.parentElement.insertBefore(bar,tbl.parentElement.querySelector(':scope > .fcount')||tbl);}
+  const b=bar.querySelector('.colbtn');b.innerHTML=`⚙ 열 설정${custom?` <span class="cb-on">변경됨 · 숨김 ${hid.size}</span>`:''}`;b.onclick=e=>{e.stopPropagation();openCols(tbl,id,b);};
+  if(!SORTST[id]&&tbl.dataset.defsort){const [l,d]=tbl.dataset.defsort.split(':');const i=[...hr.cells].findIndex(th=>thLabel(th)===l);if(i>=0)SORTST[id]={i,d:+d};}}
+function openCols(tbl,id,btn){document.querySelectorAll('.colpop').forEach(x=>x.remove());
+  const pop=document.createElement('div');pop.className='colpop';pop.setAttribute('role','dialog');pop.setAttribute('aria-label','열 설정');document.body.appendChild(pop);
+  const place=()=>{const r=btn.getBoundingClientRect();pop.style.top=(r.bottom+window.scrollY+4)+'px';pop.style.left=Math.max(8,Math.min(r.left+window.scrollX,window.scrollX+document.documentElement.clientWidth-pop.offsetWidth-8))+'px';};
+  const hr=()=>tbl.tHead.rows[tbl.tHead.rows.length-1];
+  const commit=cfg=>{S.colCfg=S.colCfg||{};S.colCfg[id]=cfg;save();delete FILTST[id];delete SORTST[id];sortable(tbl,id);draw();};
+  const draw=()=>{const K=tbl._ck;const cfg=colCfg(id);const hid=new Set(cfg.hidden||[]);
+    const cur=[...hr().cells].map(c=>K[+c.dataset.ci]).filter(Boolean);
+    pop.innerHTML=`<div class="cp-h"><b>열 설정</b><span>체크 = 보이기 · ▲▼ = 순서 이동</span></div>
+      <ol class="cp-list">${cur.map((k,i)=>`<li class="${hid.has(k)?'off':''}"><label><input type="checkbox" data-k="${esc(k)}" ${hid.has(k)?'':'checked'}> ${esc(k.replace(/#\d+$/,''))}</label><span class="cp-mv"><button type="button" data-mv="${i}" data-d="-1" ${i?'':'disabled'} aria-label="위로">▲</button><button type="button" data-mv="${i}" data-d="1" ${i<cur.length-1?'':'disabled'} aria-label="아래로">▼</button></span></li>`).join('')}</ol>
+      <div class="cp-f"><button type="button" data-all>모두 보기</button><button type="button" data-reset>기본값 복원</button><span class="grow"></span><button type="button" class="primary" data-close>닫기</button></div>
+      <p class="note" style="margin:6px 0 0">※ 이 브라우저에 저장 · 엑셀 다운로드는 보이는 열만 (기본정보 엑셀은 업로드 양식 유지)</p>`;
+    pop.querySelectorAll('[data-k]').forEach(c=>c.onchange=()=>{const h=new Set(cfg.hidden||[]);if(c.checked)h.delete(c.dataset.k);else{if(cur.length-h.size<=1){c.checked=true;toast('최소 1개 열은 보여야 합니다.');return;}h.add(c.dataset.k);}commit({order:cur,hidden:[...h]});});
+    pop.querySelectorAll('[data-mv]').forEach(bt=>bt.onclick=()=>{const i=+bt.dataset.mv,d=+bt.dataset.d;const o=[...cur];[o[i],o[i+d]]=[o[i+d],o[i]];commit({order:o,hidden:cfg.hidden||[]});});
+    pop.querySelector('[data-all]').onclick=()=>commit({order:cur,hidden:[]});
+    pop.querySelector('[data-reset]').onclick=()=>commit({order:[],hidden:[]});
+    pop.querySelector('[data-close]').onclick=()=>close();place();};
+  const close=()=>{pop.remove();document.removeEventListener('mousedown',out,true);document.removeEventListener('keydown',esc_);};
+  const out=e=>{if(!pop.contains(e.target)&&e.target!==btn)close();};const esc_=e=>{if(e.key==='Escape')close();};
+  document.addEventListener('mousedown',out,true);document.addEventListener('keydown',esc_);draw();}
+function sortable(tbl,id){if(!tbl||!tbl.tHead)return;if(tbl.tBodies[0])colsApply(tbl,id);const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];
   [...hr.cells].forEach((th,i)=>{if(th.hasAttribute('data-nosort'))return;thLabel(th);th.classList.add('fth');
     if(!th.querySelector('.fbtn'))th.insertAdjacentHTML('beforeend','<button type="button" class="fbtn" tabindex="-1" aria-hidden="true">▾</button>');
     th.tabIndex=0;th.title='눌러서 정렬·필터';
@@ -956,7 +1003,7 @@ function sheetReport(){
   if(t){t.addEventListener('change',e=>{const el=e.target;const tr=el.closest('tr');const p=S.people.find(x=>pkey(x)===tr.dataset.k);if(!p||!el.dataset.sp)return;const f=el.dataset.sp;
       if(f==='final'){p.final=el.value;p.finalAuto=false;}else if(f==='rptCls'){p.rptCls=el.value===classify(num(p.salary),S.crit)?'':el.value;}else p.role=el.value;
       save();if(f!=='role')sheetReport();});
-    if(!SORTST.sp)SORTST.sp={i:5,d:-1}; // 기본: 현직급 높은 순
+    t.dataset.defsort='현직급:-1'; // 기본: 현직급 높은 순 (열 순서가 바뀌어도 이름으로 찾음)
     sortable(t,'sp');
     t.addEventListener('click',e=>{const b=e.target.closest('[data-unsp]');if(!b)return;const p=S.people.find(x=>pkey(x)===b.closest('tr').dataset.k);if(p){p.special=false;save();sheetReport();}});}
 }
@@ -1180,7 +1227,7 @@ function sheet2Class(){
 }
 // 화면 표 → 엑셀 (정렬·필터·검색 반영)
 function tableBook(id,sheet){const wb=XLSX.utils.book_new();const tbl=document.getElementById(id);const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];
-  const idx=[...hr.cells].map((th,i)=>th.hasAttribute('data-nosort')&&!th.textContent.trim()?-1:i).filter(i=>i>=0);
+  const idx=[...hr.cells].map((th,i)=>(th.hasAttribute('data-nosort')&&!th.textContent.trim())||th.classList.contains('col-hid')?-1:i).filter(i=>i>=0);
   const head=idx.map(i=>hr.cells[i].innerHTML.replace(/<br\s*\/?>/g,' ').replace(/<[^>]+>/g,'').replace(/[▾▲▼]/g,'').replace(/\s+/g,' ').trim());
   const rows=[...tbl.tBodies[0].rows].filter(r=>!r.hidden&&r.cells.length>1).map(r=>idx.map(i=>{const td=r.cells[i];const s=cellText(td);if(/사번/.test(head[idx.indexOf(i)]))return s;const v=sortVal(td);return typeof v==='number'&&/^[-\d,.%]+$/.test(s)?(s.endsWith('%')?v/100:v):s;}));
   const money=head.map((h,i)=>/연봉|원\)|기준연봉/.test(h)?i:-1).filter(i=>i>=0);
@@ -1942,6 +1989,7 @@ function classBook(){
   const wb=XLSX.utils.book_new();const tbl=document.getElementById('class-tbl');
   const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];const head=[...hr.cells].map(th=>th.innerHTML.replace(/<br\s*\/?>/g,' ').replace(/<[^>]+>/g,'').replace(/[▾▲▼]/g,'').replace(/\s+/g,' ').trim());
   const rows=[...tbl.tBodies[0].rows].filter(r=>!r.hidden&&r.cells.length>1).map(r=>[...r.cells].map((td,i)=>{const s=cellText(td);const v=sortVal(td);if(/사번/.test(head[i]))return s;return typeof v==='number'&&/^[-\d,.%]+$/.test(s)?(s.endsWith('%')?v/100:v):s;}));
+  [...hr.cells].map((th,i)=>th.classList.contains('col-hid')?i:-1).filter(i=>i>=0).reverse().forEach(i=>{head.splice(i,1);rows.forEach(r=>r.splice(i,1));}); // 숨긴 열 제외
   const ni=head.indexOf('No');if(ni>=0){head.splice(ni,1);rows.forEach(r=>r.splice(ni,1));}
   const salCol=head.findIndex(h=>/현 연봉/.test(h));XLSX.utils.book_append_sheet(wb,sheetFromAoa([head,...rows],head.map((h,i)=>/부서|현 연봉|입사/.test(h)?13:11),salCol>=0?[salCol]:[]),'분류 결과');
   const {rows:R}=computeAll();const keys=['G4','G3','G2','G1','미분류'];
