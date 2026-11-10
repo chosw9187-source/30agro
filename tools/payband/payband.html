@@ -326,7 +326,12 @@ tr.rk-ok td:first-child{box-shadow:inset 4px 0 0 var(--ok)}
 .kpi .v{font-size:22px;font-weight:700;letter-spacing:-.02em;margin-top:2px}
 .kpi .v small{font-size:13px;font-weight:500;color:var(--muted);margin-left:2px}
 .kpi .d{font-size:12px;color:var(--muted)}
-.kpis-cur{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))} .kpi .pc{font-size:12px;color:var(--muted);font-weight:600}
+.kpis-cur{grid-template-columns:170px 170px minmax(0,1fr)} @media (max-width:800px){.kpis-cur{grid-template-columns:1fr 1fr}.kpis-cur .dist{grid-column:1/-1}}
+.kpi.dist .dbar{display:flex;height:26px;border-radius:6px;overflow:hidden;margin:8px 0 6px;background:var(--surface-2)}
+.kpi.dist .dseg{border:0;border-radius:0;padding:0;min-width:3px;color:#fff;font-size:12px;font-weight:700;cursor:pointer} .kpi.dist .dseg+.dseg{border-left:2px solid var(--surface)}
+.kpi.dist .dseg.on{outline:3px solid var(--ink);outline-offset:-3px}
+.kpi.dist .dleg{display:flex;flex-wrap:wrap;gap:4px 14px} .kpi.dist .dl{border:0;background:none;padding:1px 2px;font-size:12px;color:var(--ink);display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+.kpi.dist .dl i{width:10px;height:10px;border-radius:2px;display:inline-block} .kpi.dist .dl span{color:var(--muted)} .kpi.dist .dl.on{font-weight:700;text-decoration:underline} .kpi.dist .dl.clr{color:var(--accent)} .kpi .pc{font-size:12px;color:var(--muted);font-weight:600}
 .kpi.crit .v{color:var(--crit)} .kpi.warn .v{color:var(--warn)} .kpi.under .v{color:var(--under)} .kpi.ok .v{color:var(--ok)}
 .pill{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
 .p-over{background:var(--crit-soft);color:var(--crit)} .p-soon{background:var(--warn-soft);color:var(--warn)} .p-watch{background:var(--care-soft);color:var(--care)}
@@ -1417,7 +1422,10 @@ function drawCur(){
   out.innerHTML=`<div class="kpis kpis-cur">
     <div class="kpi"><div class="k">분석 인원 (${BASE_YEAR} 현재)</div><div class="v">${n}<small>명</small></div><div class="d">${S.anStage==='2'?'2차 분류 기준':`최종 확정 ${L.filter(x=>x.r.fin).length}명 · 자동 ${L.filter(x=>!x.r.fin).length}명`}</div></div>
     <div class="kpi"><div class="k">평균 Compa-ratio</div><div class="v">${n?(L.reduce((a,x)=>a+x.compa,0)/n*100).toFixed(1):'-'}<small>%</small></div><div class="d">연봉 ÷ 밴드 Mid (100% = Mid)</div></div>
-    ${['vsafe','ok','high','soon','exit','under'].filter(k=>k!=='under'||cnt(k)).map(k=>`<div class="kpi st" style="border-top:4px solid ${YCOL[k]}"><div class="k">${YS[k].l}</div><div class="v" style="color:${YCOL[k]}">${cnt(k)}<small>명</small> <small class="pc">${fP(n?cnt(k)/n:null)}</small></div><div class="d">${thTxt[k]}</div></div>`).join('')}</div>
+    ${(()=>{const KS=['under','vsafe','ok','high','soon','exit'].filter(k=>k!=='under'||cnt(k)); // 밴드 위치 낮은 → 높은 순
+      return`<div class="kpi dist"><div class="k">판정 분포 <span class="note" style="margin:0">(Pay-band 위치 낮음 → 높음 · 막대를 누르면 해당 인원만 보기)</span></div>
+      <div class="dbar" role="img" aria-label="판정 분포">${KS.filter(k=>cnt(k)).map(k=>{const w=n?cnt(k)/n*100:0;return`<button type="button" class="dseg ${cf.status===k?'on':''}" data-st="${k}" style="width:${w}%;background:${YCOL[k]}" title="${YS[k].l} ${cnt(k)}명 (${w.toFixed(1)}%) · ${thTxt[k]}">${w>=7?cnt(k):''}</button>`;}).join('')}</div>
+      <div class="dleg">${KS.map(k=>`<button type="button" class="dl ${cf.status===k?'on':''}" data-st="${k}"><i style="background:${YCOL[k]}"></i>${YS[k].l} <b>${cnt(k)}</b>명 <span>${fP(n?cnt(k)/n:null)}</span></button>`).join('')}${cf.status!=='all'?'<button type="button" class="dl clr" data-st="all">전체 보기 ✕</button>':''}</div></div>`;})()}</div>
   <div class="panel"><div class="bar"><h2 class="grow" style="margin:0">현재 연봉 분석 <span class="sub">${list.length}명 · 신규 Pay-band 기준</span></h2>
     <label class="field">적용 직급<select id="cf-g"><option value="all">전체</option>${['G1','G2','G3','G4'].map(g=>`<option ${cf.grade===g?'selected':''}>${g}</option>`).join('')}</select></label>
     <label class="field">판정<select id="cf-s"><option value="all">전체</option>${ORD.map(k=>`<option value="${k}" ${cf.status===k?'selected':''}>${YS[k].l}</option>`).join('')}</select></label>
@@ -1440,6 +1448,7 @@ function drawCur(){
    <p class="note">※ 위치 = (연봉 − Min) ÷ (Max − Min), Mid = 50% / Compa = 연봉 ÷ Mid / 판정: 매우 안정적 &lt; ${an.th0}% ≤ 안정적 &lt; ${an.th1}% ≤ 이탈 다소 높음 &lt; ${an.th2}% ≤ 이탈 임박 ≤ 100% &lt; 이탈, 0% 미만 = 하한 미달</p></div>`;
   out.querySelector('#cf-g').onchange=e=>{cf.grade=e.target.value;save();drawCur();};
   out.querySelector('#cf-s').onchange=e=>{cf.status=e.target.value;save();drawCur();};
+  out.querySelectorAll('.kpi.dist [data-st]').forEach(b=>b.onclick=()=>{cf.status=cf.status===b.dataset.st?'all':b.dataset.st;save();drawCur();});
   out.querySelector('#cf-q').onchange=e=>{cf.q=e.target.value.trim();save();drawCur();};
   out.querySelector('#copy-cur').onclick=()=>copyText('현재 연봉 분석',['사번\t이름\t부서\t직책\t현직급\t적용 밴드\t연봉\tMin\tMid\tMax\t위치\tCompa\t판정'].concat(list.map(x=>[x.r.p.id,x.r.p.name,x.r.p.dept,x.r.p.title,x.r.p.grade,'G'+x.g,Math.round(x.r.sal),x.b.mn,x.b.md,x.b.mx,fP(x.pr),fP(x.compa),YS[x.st].l].join('\t'))).join('\n'),'분석표를 복사했습니다.');
   sortable(out.querySelector('#cur-tbl'),'cur');
