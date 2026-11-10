@@ -146,6 +146,10 @@ details.fold[open]>summary::before{transform:rotate(90deg)}
 .salbar .arrow{background:transparent;border:0;justify-content:center;color:var(--accent);font-weight:700;padding:0 2px}
 .ctip{position:absolute;z-index:50;pointer-events:none;background:var(--ink);color:var(--bg);border-radius:6px;padding:5px 9px;font-size:12px;line-height:1.35;box-shadow:0 4px 12px rgba(0,0,0,.2);text-align:center;white-space:nowrap}
 .ctip b{display:block;font-size:15px} .ctip span{opacity:.85}
+.itip{position:absolute;z-index:70;max-width:440px;background:var(--surface);color:var(--ink);border:1.5px solid var(--navy);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.itip h4{margin:0 0 6px;font-size:13px;color:var(--navy)} .itip table{width:100%;border-collapse:collapse;margin:4px 0} .itip td,.itip th{border:1px solid var(--line);padding:3px 6px;text-align:left;font-size:11.5px;white-space:normal;word-break:keep-all} .itip th{background:var(--surface-2);font-weight:700}
+.itip .now{background:var(--accent-soft);border-radius:6px;padding:5px 8px;margin:6px 0;font-weight:600} .itip .src{color:var(--muted);font-size:11px;margin-top:6px} .itip ul{margin:2px 0;padding-left:16px}
+.info-i{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--navy);color:#fff;font-size:10px;font-weight:700;margin-left:4px;cursor:help;vertical-align:1px}
 svg .hit{cursor:pointer} svg .pt{pointer-events:none}
 .critgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:stretch}
 @media (max-width:1000px){.critgrid{grid-template-columns:minmax(0,1fr)}}
@@ -716,6 +720,14 @@ function openFilter(tbl,id,ci,th){
 window.addEventListener('resize',closeFilter);
 // 차트 점 툴팁: data-tip="설명|금액"
 const TIP=document.createElement('div');TIP.className='ctip';TIP.hidden=true;document.body.appendChild(TIP);
+// 설명 말풍선: [data-info] 에 마우스를 올리거나 포커스/탭하면 INFO_HTML[키] 표시
+const INFO_HTML={};const ITIP=document.createElement('div');ITIP.className='itip';ITIP.hidden=true;ITIP.setAttribute('role','tooltip');document.body.appendChild(ITIP);
+function showInfo(el){const h=INFO_HTML[el.dataset.info];if(!h)return;ITIP.innerHTML=h;ITIP.hidden=false;const R=el.getBoundingClientRect();const w=ITIP.offsetWidth;
+  ITIP.style.left=Math.max(8,Math.min(R.left+window.scrollX,window.scrollX+document.documentElement.clientWidth-w-8))+'px';ITIP.style.top=(R.bottom+window.scrollY+6)+'px';}
+document.addEventListener('mouseover',e=>{const el=e.target.closest&&e.target.closest('[data-info]');if(el)showInfo(el);});
+document.addEventListener('mouseout',e=>{const el=e.target.closest&&e.target.closest('[data-info]');if(el&&!el.contains(e.relatedTarget))ITIP.hidden=true;});
+document.addEventListener('focusin',e=>{const el=e.target.closest&&e.target.closest('[data-info]');if(el)showInfo(el);});
+document.addEventListener('focusout',e=>{if(e.target.closest&&e.target.closest('[data-info]'))ITIP.hidden=true;});
 document.addEventListener('mouseover',e=>{const el=e.target.closest&&e.target.closest('[data-tip]');if(!el||!el.closest('svg'))return;
   const [a,b]=el.dataset.tip.split('|');TIP.innerHTML=`<b>${b||''}</b><span>${a||''}</span>`;TIP.hidden=false;
   const R=el.getBoundingClientRect();const w=TIP.offsetWidth;TIP.style.left=Math.max(8,Math.min(R.left+R.width/2+window.scrollX-w/2,window.scrollX+document.documentElement.clientWidth-w-8))+'px';TIP.style.top=(R.top+window.scrollY-TIP.offsetHeight-8)+'px';
@@ -1423,12 +1435,29 @@ function drawCur(){
   const list=L.filter(x=>(cf.grade==='all'||'G'+x.g===cf.grade)&&(cf.status==='all'||x.st===cf.status)&&(!cf.q||String(x.r.p.name).includes(cf.q)||String(x.r.p.id).includes(cf.q)||String(x.r.p.dept).includes(cf.q)));
   const ORD=['exit','soon','high','under','ok','vsafe'];
   const out=document.getElementById('cur-out');
+  { // 말풍선 내용 (현재 값 반영)
+    const avg=n?L.reduce((a,x)=>a+x.compa,0)/n*100:null;const pct=k=>n?L.filter(x=>k.includes(x.st)).length/n*100:0;
+    const cv=avg==null?'-':avg.toFixed(1)+'%';const cj=avg==null?'':avg<95?'권장 범위(95~105%) <b>아래</b> → Mid 미만 인원 우선 인상 검토':avg>105?'권장 범위(95~105%) <b>위</b> → 상한 근접 인원 인상률 조정 · 밴드 재검토':'권장 범위(95~105%) <b>안</b> → 현 수준 유지';
+    INFO_HTML.compa=`<h4>평균 Compa-ratio란?</h4>
+      <div>개인 연봉 ÷ 소속 직급 Pay-band <b>중간값(Mid)</b> × 100의 전체 평균. 100% = Mid와 같은 수준</div>
+      <table><tr><th>구간</th><th>의미</th></tr><tr><td>100% 미만</td><td>Mid보다 낮게 지급 → 인상 여력 있음</td></tr><tr><td>100% 초과</td><td>Mid보다 높게 지급 → 상한 접근, 인상 여력 적음</td></tr></table>
+      <table><tr><th>외부 참고 기준</th><th>범위</th></tr><tr><td>조직 평균 목표</td><td><b>95 ~ 105%</b></td></tr><tr><td>개인 적정</td><td>90 ~ 110% (80% 미만 · 120% 초과는 점검 대상)</td></tr></table>
+      <div class="now">현재 ${cv} · ${cj}</div>
+      <div class="src">출처: Mercer 「The essential guide to compa-ratio」(조직 평균 0.95~1.05 목표) · HR University(SHRM 해설) 「Employee Compensation Metrics」(개인 0.90~1.10 적정, 0.80 미만·1.20 초과 점검)</div>`;
+    INFO_HTML.dist=`<h4>판정 분포 보는 법</h4>
+      <div>판정 = 밴드 내 위치(Range Penetration) = (연봉 − Min) ÷ (Max − Min). 0% = 하한, 100% = 상한</div>
+      <table><tr><th>구분</th><th>현재 비율</th><th>실무 원칙</th></tr>
+        <tr><td>안정권<br>(매우 안정적 + 안정적)</td><td><b>${pct(['vsafe','ok']).toFixed(1)}%</b></td><td>인상 여력이 있는 구간. 비중이 클수록 향후 인상 운영 여유</td></tr>
+        <tr><td>상단<br>(다소 높음 + 임박)</td><td><b>${pct(['high','soon']).toFixed(1)}%</b></td><td>몇 년 내 상한 도달 → 동결 압력. 승진 · 밴드 조정 대상 점검</td></tr>
+        <tr><td>밴드 밖<br>(이탈 + 하한 미달)</td><td><b>${pct(['exit','under']).toFixed(1)}%</b></td><td><b>최소화가 원칙</b>. 하한 미달은 보정, 상한 초과(Red-circle)는 기본급 인상 동결 · 직급 배치 재검토</td></tr></table>
+      <div class="now">판정 구간별 적정 비율(예: 안정권 ○% 이상)에 대한 공인 수치 기준은 없음 → 사내 목표 비율 설정 필요(확인 필요). 평균 Compa-ratio 95~105%와 함께 보면 Mid 주변 분포 여부 판단 가능</div>
+      <div class="src">출처: Mercer 「Managing your salary structure and pay ranges」(밴드 밖 인원 = 직급 배치 · 밴드 재검토 신호) · RewardsDNA 「Range Penetration vs. Compa-Ratio」(상한 초과 시 기본급 인상 동결)</div>`;}
   const thTxt={vsafe:`위치 0~${an.th0}%`,ok:`${an.th0}~${an.th1}%`,high:`${an.th1}~${an.th2}%`,soon:`${an.th2}~100%`,exit:'상한(Max) 초과',under:'하한(Min) 미만'};
   out.innerHTML=`<div class="kpis kpis-cur">
     <div class="kpi"><div class="k">분석 인원 (${BASE_YEAR} 현재)</div><div class="v">${n}<small>명</small></div><div class="d">${S.anStage==='2'?'2차 분류 기준':`최종 확정 ${L.filter(x=>x.r.fin).length}명 · 자동 ${L.filter(x=>!x.r.fin).length}명`}</div></div>
-    <div class="kpi"><div class="k">평균 Compa-ratio</div><div class="v">${n?(L.reduce((a,x)=>a+x.compa,0)/n*100).toFixed(1):'-'}<small>%</small></div><div class="d">연봉 ÷ 밴드 Mid (100% = Mid)</div></div>
+    <div class="kpi"><div class="k">평균 Compa-ratio<span class="info-i" tabindex="0" data-info="compa" aria-label="평균 Compa-ratio 설명">i</span></div><div class="v">${n?(L.reduce((a,x)=>a+x.compa,0)/n*100).toFixed(1):'-'}<small>%</small></div><div class="d">연봉 ÷ 밴드 Mid (100% = Mid)</div></div>
     ${(()=>{const KS=['under','vsafe','ok','high','soon','exit'].filter(k=>k!=='under'||cnt(k)); // 밴드 위치 낮은 → 높은 순
-      return`<div class="kpi dist"><div class="k">판정 분포 <span class="note" style="margin:0">(Pay-band 위치 낮음 → 높음 · 칸을 누르면 해당 인원만 보기)</span></div>
+      return`<div class="kpi dist"><div class="k">판정 분포<span class="info-i" tabindex="0" data-info="dist" aria-label="판정 분포 기준 설명">i</span> <span class="note" style="margin:0">(Pay-band 위치 낮음 → 높음 · 칸을 누르면 해당 인원만 보기)</span></div>
       <div class="dcells">${KS.map(k=>`<button type="button" class="dc ${cf.status===k?'on':''}" data-st="${k}" style="border-top-color:${YCOL[k]}"><span class="dk">${YS[k].l}</span><span class="dv" style="color:${YCOL[k]}">${cnt(k)}<small>명</small> <small class="pc">${fP(n?cnt(k)/n:null)}</small></span><span class="dd">${thTxt[k]}</span></button>`).join('')}</div>
       ${cf.status!=='all'?'<button type="button" class="dclr" data-st="all">전체 보기 ✕</button>':''}</div>`;})()}</div>
   <div class="panel"><div class="bar"><h2 class="grow" style="margin:0">현재 연봉 분석 <span class="sub">${list.length}명 · 신규 Pay-band 기준</span></h2>
