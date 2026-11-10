@@ -236,6 +236,9 @@ td.spc{background:var(--surface)} td.spc.on{background:var(--warn-soft)!importan
 .rtbl td.l{text-align:left} .rtbl tr.tot td{background:var(--surface-2)} .rtbl .acc{color:var(--navy)} .rtbl .crit{color:var(--crit)}
 .rtbl td.in select,.rtbl td.in input{width:100%} #sp-tbl select{min-width:96px}
 .rpt-25{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}
+.rpt-arrow{display:flex;align-items:center;justify-content:center;gap:8px;margin:10px 0;font-size:12px;font-weight:700;color:var(--accent)}
+.rpt-arrow span{display:inline-flex;align-items:center;justify-content:center;width:34px;height:26px;background:var(--accent);color:var(--accent-ink);border-radius:6px;font-size:14px}
+.cls-mx th,.cls-mx td{padding:5px 4px;font-size:12px}
 .rpt-ref{grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:18px}
 .rpt-eq{align-items:stretch} .rpt-eq>div{display:flex;flex-direction:column;min-width:0} .rpt-eq>div>.scroll:last-of-type{flex:1;display:flex} .rpt-eq>div>.scroll:last-of-type>table{height:100%}
 .rpt-eq>div>.note{margin-top:6px}
@@ -888,6 +891,11 @@ function finalMatrix(named,rowKeys,rowOf,label,showCand){const FK=['G4','G3','G2
   return`<table class="rtbl"><thead><tr><th>${label}</th>${FK.map(k=>`<th>${k}</th>`).join('')}<th>계</th></tr></thead><tbody>
     ${rs.map(g=>`<tr><td class="${showCand?classCss(g):''}"><b>${g}</b></td>${FK.map(k=>`<td class="${fc[g][k]?(k==='미확정'?'c-under':(showCand&&!isCand(g,k)?'c-bad':'c-fin')):''}">${fc[g][k]||''}</td>`).join('')}<td><b>${FK.reduce((a,k)=>a+fc[g][k],0)}</b></td></tr>`).join('')}
     <tr class="tot"><td><b>계</b></td>${FK.map(k=>`<td><b>${rs.reduce((a,g)=>a+fc[g][k],0)}</b></td>`).join('')}<td><b>${rs.reduce((a,g)=>a+FK.reduce((b,k)=>b+fc[g][k],0),0)}</b></td></tr></tbody></table>`;}
+function clsMatrix(rows){const cnt={};GRADE6_DESC.forEach(g=>{cnt[g]={};CLASS_KEYS.forEach(k=>cnt[g][k]=0);});rows.forEach(r=>{if(cnt[r.p.grade]&&r.k in cnt[r.p.grade])cnt[r.p.grade][r.k]++;});
+  const tot=k=>GRADE6_DESC.reduce((a,g)=>a+cnt[g][k],0);const rs=g=>CLASS_KEYS.reduce((a,k)=>a+cnt[g][k],0);
+  return`<table class="rtbl cls-mx"><thead><tr><th>현직급 \\ 분류</th>${CLASS_DESC_ALL.map(k=>`<th>${k}</th>`).join('')}<th>계</th></tr></thead><tbody>
+    ${GRADE6_DESC.map(g=>`<tr><td><b>${g}</b></td>${CLASS_DESC_ALL.map(k=>`<td class="${cnt[g][k]?classCss(k):''}">${cnt[g][k]||''}</td>`).join('')}<td><b>${rs(g)}</b></td></tr>`).join('')}
+    <tr class="tot"><td><b>계</b></td>${CLASS_DESC_ALL.map(k=>`<td><b>${tot(k)}</b></td>`).join('')}<td><b>${GRADE6_DESC.reduce((a,g)=>a+rs(g),0)}</b></td></tr></tbody></table>`;}
 function sheetReport(){
   const {c,rows}=computeAll();const body=document.getElementById('sheet-body');const N=rows.length;
   const fin=rows.filter(r=>r.fin).length;const fG=g=>rows.filter(r=>r.fin===g).length;const cur=g=>rows.filter(r=>r.p.grade===g).length;
@@ -902,12 +910,19 @@ function sheetReport(){
     <div class="scroll"><table class="rtbl"><thead><tr><th>구분</th><th>전체</th>${GRADE6_DESC.map(g=>`<th>${g}</th>`).join('')}${curEtc?'<th>기타</th>':''}</tr></thead><tbody>
     <tr><td><b>현직급 인원</b></td><td><b>${N}</b></td>${GRADE6_DESC.map(g=>`<td>${cur(g)}</td>`).join('')}${curEtc?`<td>${curEtc}</td>`:''}</tr>
     <tr><td>구성비</td><td>100.0%</td>${GRADE6_DESC.map(g=>`<td>${pct(cur(g),N)}</td>`).join('')}${curEtc?`<td>${pct(curEtc,N)}</td>`:''}</tr></tbody></table></div>
-    <div class="kpis"><div class="kpi"><div class="k">전체 대상</div><div class="v">${N}<small>명</small></div></div>
-      <div class="kpi hl"><div class="k">최종 확정 / 미확정</div><div class="v">${fin}<small>명</small> / ${N-fin}<small>명</small></div><div class="d">확정률 ${pct(fin,N)}</div></div>
-      <div class="kpi warn"><div class="k">1차 분류 중첩 인원</div><div class="v">${ov}<small>명</small></div><div class="d">G1·G2 ${kc['G1, G2']} · G2·G3 ${kc['G2, G3']} · G3·G4 ${kc['G3, G4']}</div></div>
-      <div class="kpi"><div class="k">최종 직급 (신 G4~G1)</div><div class="v" style="font-size:17px">${[4,3,2,1].map(g=>`G${g} ${fG(g)}`).join(' · ')}</div><div class="d">특이인원 ${sp.length}명</div></div></div></div>
-  <div class="panel"><h2>② 최종 분류 결과 · 특이인원 <span class="sub">(분류 시트 「최종 분류 직급(수기 확정)」·「특이사항」 자동 연동, 단위: 명)</span></h2>
-    <div class="rpt-2col rpt-25"><div><h3 class="rpt-h3">현직급 × 최종 분류 직급</h3><div class="scroll">${finalMatrix(rows,GRADE6_DESC,r=>r.p.grade,'현직급 \\ 최종',false)}</div></div>
+  </div>
+  <div class="panel"><h2>② 1차 분류 기준 · 분류체계 기준 <span class="sub">(단위: 만원 · 기본정보 ① 분류 기준 연동)</span></h2>
+    <div class="rpt-2col rpt-eq"><div><h3 class="rpt-h3">1차 분류 기준 (현 연봉 → 분류 직급)</h3>
+      <div class="scroll"><table class="rtbl"><thead><tr><th>1차 분류</th><th>연봉 구간(만원)</th><th>최종 가능 직급</th><th>인원</th><th>비율</th></tr></thead><tbody>
+      ${CLASS_DESC_ALL.filter(k=>!k.startsWith('밴드')||kc[k]).map(k=>`<tr><td class="${classCss(k)}"><b>${k}</b></td><td>${rangeTxt(RG[k])}</td><td>${k.includes(',')?`<b>${candTxt(k)}</b> (개별 판단)`:candTxt(k)}</td><td>${kc[k]}</td><td>${pct(kc[k],N)}</td></tr>`).join('')}
+      <tr class="tot"><td><b>계</b></td><td></td><td></td><td><b>${N}</b></td><td>100.0%</td></tr></tbody></table></div>
+      <p class="note">※ 색칠된 중첩 구간 인원(${ov}명)은 두 직급 모두 가능 → 「최종 분류 직급(수기 확정)」에서 1개 직급으로 확정</p></div>
+    <div><h3 class="rpt-h3">직급별 연봉 구간 (중첩 구간 표시)</h3>${bandSvg(c,rows)}<div class="scroll"><table class="rtbl"><thead><tr><th>구분</th>${RPT_LBL.map(l=>`<th>${l}</th>`).join('')}</tr></thead><tbody>
+      <tr><td><b>연봉 구간</b></td>${c.bands.map(x=>`<td>${nf(x[0])} ~ ${nf(x[1])}</td>`).join('')}</tr><tr><td>중간값</td>${c.bands.map(x=>`<td>${nf((x[0]+x[1])/2)}</td>`).join('')}</tr></tbody></table></div></div></div></div>
+  <div class="panel"><h2>③ 최종 분류 결과 · 특이인원 <span class="sub">(분류 시트 「최종 분류 직급(수기 확정)」·「특이사항」 자동 연동, 단위: 명)</span></h2>
+    <div class="rpt-2col rpt-25"><div><h3 class="rpt-h3">현직급 × 분류 직급 (1차 자동)</h3><div class="scroll">${clsMatrix(rows)}</div>
+      <div class="rpt-arrow" aria-hidden="true"><span>▼</span> 중첩 인원 개별 판단 → 최종 확정</div>
+      <h3 class="rpt-h3">현직급 × 최종 분류 직급</h3><div class="scroll">${finalMatrix(rows,GRADE6_DESC,r=>r.p.grade,'현직급 \\ 최종',false)}</div></div>
     <div><h3 class="rpt-h3">특이인원 (${sp.length}명) <span class="sub">역할 수기 입력 · 최종 직급 판단은 분류 시트와 연동</span></h3>
     ${sp.length?`<div class="scroll"><table class="rtbl rno-t" id="sp-tbl"><thead><tr><th class="g-base"></th><th colspan="5" class="g-base">기본정보</th><th colspan="4" class="g-ev">분류 평가항목</th><th class="g-base"></th></tr><tr><th data-nosort class="g-base2 rno-h">No</th><th class="g-base2">이름</th><th class="g-base2">나이</th><th class="g-base2">부서</th><th class="g-base2">직책</th><th class="g-base2">현직급</th><th class="g-ev2 ev1">연봉(현재, 원)</th><th class="g-ev2">분류 직급</th><th class="g-ev2">역할</th><th class="g-ev2">최종 직급 판단</th><th data-nosort class="g-base2"></th></tr></thead><tbody>
       ${sp.map((r,i)=>{const k=pkey(r.p);const ck=r.p.rptCls||r.k;return`<tr data-k="${esc(k)}"><td class="rno"></td><td><b>${esc(r.p.name)}</b></td><td>${esc(r.p.age)}</td><td>${esc(r.p.dept)}</td><td>${esc(r.p.title)}</td><td data-v="${GRADE6.indexOf(r.p.grade)}" data-ft="${esc(r.p.grade)}"><b>${esc(r.p.grade)}</b></td><td class="num ev ev1" data-v="${r.sal??''}"><b>${fW(r.sal)}</b></td>
@@ -918,7 +933,9 @@ function sheetReport(){
       <datalist id="role-list">${ROLE_OPTS.map(o=>`<option value="${o}">`).join('')}</datalist>`
      :'<p class="note">특이인원이 없습니다. 1차 분류 › 분류 › 개인별 분류 결과의 「특이사항」 칸을 체크하면 여기에 표시됩니다.</p>'}
 </div></div>
-    <div class="rpt-2col rpt-ref rpt-eq"><div><h3 class="rpt-h3">참고 · (신)직급별 Pay-band <span class="sub">(단위: 만원 · 기본정보 ① 연동)</span></h3>
+  </div>
+  <div class="panel"><h2>④ 참고 · (신)직급별 Pay-band · 역할 분류 기준</h2>
+    <div class="rpt-2col rpt-ref rpt-eq" style="margin-top:0"><div><h3 class="rpt-h3">참고 · (신)직급별 Pay-band <span class="sub">(단위: 만원 · 기본정보 ① 연동)</span></h3>
     <div class="scroll"><table class="rtbl pb-std"><thead><tr><th>직급</th><th>하한</th><th>중간값</th><th>상한</th><th>밴드 폭<br>(상한/하한)</th><th>중첩 구간<br>(하위 직급과)</th><th>최종 인원</th></tr></thead><tbody>
       ${[4,3,2,1].map(g=>{const x=c.bands[g-1];const o=g>1?c.overlaps[g-2]:null;const n=rows.filter(r=>r.fin===g).length;return`<tr><td><b>신 G${g}</b><div class="sub">지원직 ${g<4?'S'+(g+1):'-'}</div></td><td>${nf(x[0])}</td><td class="mid"><b>${nf((x[0]+x[1])/2)}</b></td><td>${nf(x[1])}</td><td>${(x[1]/x[0]*100-100).toFixed(1)}%</td><td class="${o?'c-ov'+(g-1)+g:''}">${o?`${nf(o[0])} ~ ${nf(o[1])}`:'-'}</td><td><b class="acc">${n}명</b></td></tr>`;}).join('')}
       <tr class="tot"><td><b>계</b></td><td colspan="5"></td><td><b>${rows.filter(r=>r.fin).length}명</b></td></tr></tbody></table></div></div>
@@ -926,14 +943,6 @@ function sheetReport(){
     <div class="scroll"><table class="rtbl role-std"><thead><tr><th>일반직</th><th>지원직</th><th>체류연수</th><th>직무 능력</th><th>정의</th></tr></thead><tbody>
       ${ROLE_STD.map(x=>`<tr><td><b>${x[0]}</b></td><td>${x[1]}</td><td>${x[2]}</td><td><b class="acc">${x[3]}</b></td><td class="l">• ${x[4]}</td></tr>`).join('')}
       <tr><td colspan="5" class="l role-foot"><b>직급 정의 : <span class="crit">연한 + 직무 능력(역할)</span></b>　연한은 자격 · 역할 수행 여부 자격 심사 후 승진</td></tr></tbody></table></div></div></div></div>
-  <div class="panel"><h2>③ 분류체계 기준 <span class="sub">(단위: 만원 · 기본정보 ① 분류 기준 연동)</span></h2>
-    <div class="rpt-2col rpt-eq"><div><h3 class="rpt-h3">직급별 연봉 구간 (중첩 구간 표시)</h3>${bandSvg(c,rows)}<div class="scroll"><table class="rtbl"><thead><tr><th>구분</th>${RPT_LBL.map(l=>`<th>${l}</th>`).join('')}</tr></thead><tbody>
-      <tr><td><b>연봉 구간</b></td>${c.bands.map(x=>`<td>${nf(x[0])} ~ ${nf(x[1])}</td>`).join('')}</tr><tr><td>중간값</td>${c.bands.map(x=>`<td>${nf((x[0]+x[1])/2)}</td>`).join('')}</tr></tbody></table></div></div>
-    <div><h3 class="rpt-h3">1차 분류 기준 (현 연봉 → 분류 직급)</h3>
-      <div class="scroll"><table class="rtbl"><thead><tr><th>1차 분류</th><th>연봉 구간(만원)</th><th>최종 가능 직급</th><th>인원</th><th>비율</th></tr></thead><tbody>
-      ${CLASS_DESC_ALL.filter(k=>!k.startsWith('밴드')||kc[k]).map(k=>`<tr><td class="${classCss(k)}"><b>${k}</b></td><td>${rangeTxt(RG[k])}</td><td>${k.includes(',')?`<b>${candTxt(k)}</b> (개별 판단)`:candTxt(k)}</td><td>${kc[k]}</td><td>${pct(kc[k],N)}</td></tr>`).join('')}
-      <tr class="tot"><td><b>계</b></td><td></td><td></td><td><b>${N}</b></td><td>100.0%</td></tr></tbody></table></div>
-      <p class="note">※ 색칠된 중첩 구간 인원(${ov}명)은 두 직급 모두 가능 → 「최종 분류 직급(수기 확정)」에서 1개 직급으로 확정</p></div></div></div>
 </div>`;
   body.querySelector('#rpt-print').onclick=()=>window.print();
   const t=body.querySelector('#sp-tbl');
