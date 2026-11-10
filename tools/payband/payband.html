@@ -350,7 +350,7 @@ textarea{width:100%;min-height:110px;font:12px/1.4 ui-monospace,Menlo,Consolas,m
 #cur-tbl td.pos-new{border-left:3px solid var(--accent)!important;border-right:3px solid var(--accent)!important}
 #cur-tbl tbody tr:last-child td.pos-new{border-bottom:3px solid var(--accent)!important}
 #cur-tbl th.pos-old{background:var(--surface-2);color:var(--muted)} #cur-tbl td.pos-old{background:var(--surface);opacity:.92}
-#cur-tbl .oldtxt{font-size:11px;color:var(--muted);text-align:center;margin-top:-2px} #cur-tbl .oldtxt .up{color:var(--warn)} #cur-tbl .oldtxt .dn{color:var(--under)}
+#cur-tbl .oldtxt{font-size:11px;color:var(--muted);text-align:center;margin-top:-2px} #cur-tbl .oldtxt .up{color:var(--warn)} #cur-tbl .oldtxt .dn{color:var(--under)} #cur-tbl .oldtxt .asm{color:var(--crit)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
 
@@ -1293,6 +1293,10 @@ function summarize(list,an){
 }
 // 참고: 기존 Pay-band 현직급별 기준 금액(원) — 다른 화면과 연동하지 않는 고정 참고값
 const OLD_PB={G1:40000000,G2:48300000,G3:54200000,G4:60000000,G5:67100000,G6:75800000};
+// 기존 밴드(참고): Min = 현직급 기준 금액, Max = 상위 직급 기준 금액, Mid = 중간값
+// G6 은 상위 직급이 없어 상한 확인 필요 → 직전 구간 폭(G6−G5)을 더한 값으로 가정 표시
+function oldBand(grade){const ks=Object.keys(OLD_PB);const i=ks.indexOf(grade);if(i<0)return null;const mn=OLD_PB[ks[i]];
+  const assumed=i===ks.length-1;const mx=assumed?mn+(mn-OLD_PB[ks[i-1]]):OLD_PB[ks[i+1]];return{mn,mx,md:(mn+mx)/2,assumed};}
 function oldBar(sal,grade){ // 기존 직급 사다리(G1~G6) 위 현재 연봉 위치
   const W=220,H=34,pad=10,lo=36000000,hi=84000000;const X=v=>pad+(Math.max(lo,Math.min(hi,v))-lo)/(hi-lo)*(W-2*pad);
   const ks=Object.keys(OLD_PB);
@@ -1368,14 +1372,14 @@ function drawCur(){
     <label class="field">판정<select id="cf-s"><option value="all">전체</option>${ORD.map(k=>`<option value="${k}" ${cf.status===k?'selected':''}>${YS[k].l}</option>`).join('')}</select></label>
     <label class="field">검색<input id="cf-q" type="search" placeholder="이름·사번·부서" value="${esc(cf.q)}" style="width:130px"></label>
     <button id="copy-cur" type="button">표 복사</button></div>
-   <div class="scroll"><table class="an-table" id="cur-tbl"><thead><tr><th>사원</th><th>직무</th><th>적용 밴드</th><th class="num">연봉<br><span style="font-weight:400">${BASE_YEAR} 현재</span></th><th data-nosort class="pos-new">Pay-band 위치<br><span style="font-weight:400">현재 기준 (신규)</span></th><th class="pos-old">기존 Pay-band 위치<br><span style="font-weight:400">참고 · 현직급 기준 대비</span></th><th class="num">위치</th><th class="num">Compa</th><th class="num">상한까지<br>여유(원)</th><th>현직급 · 기간</th>${S.anStage==='2'?'<th>2차 분류</th><th class="num">2차 기준연봉</th><th class="num">기준 대비</th>':''}<th>판정</th></tr></thead><tbody>
+   <div class="scroll"><table class="an-table" id="cur-tbl"><thead><tr><th>사원</th><th>직무</th><th>적용 밴드</th><th class="num">연봉<br><span style="font-weight:400">${BASE_YEAR} 현재</span></th><th data-nosort class="pos-new">Pay-band 위치<br><span style="font-weight:400">현재 기준 (신규)</span></th><th class="pos-old">기존 Pay-band 위치<br><span style="font-weight:400">참고 · 현직급 기준</span></th><th class="num">위치</th><th class="num">Compa</th><th class="num">상한까지<br>여유(원)</th><th>현직급 · 기간</th>${S.anStage==='2'?'<th>2차 분류</th><th class="num">2차 기준연봉</th><th class="num">기준 대비</th>':''}<th>판정</th></tr></thead><tbody>
    ${list.map(x=>{const p=x.r.p;const b2=S.anStage==='2'&&x.r.app&&x.r.step?T2(c,x.r.app,x.r.step):null;return`<tr class="rk-${YS[x.st].c}">
      <td class="l who" data-v="${esc(p.name)}" data-ft="${esc(p.name)}"><b>${esc(p.name)}</b><span>${esc(p.id)} · ${esc(p.dept)} · ${esc(p.title)}</span></td>
      <td class="l" data-v="${esc(p.job)}" data-ft="${esc(p.job)}">${esc(p.job)}<br><span class="note" style="margin:0">${esc(p.dept)}</span></td>
      <td class="band-cell" data-v="${x.g}" data-ft="G${x.g}"><b>G${x.g}</b>${S.anStage==='2'||x.r.fin?'':' <small class="note">자동</small>'}<br>Mid ${fW(x.b.md)}<br><span class="note" style="margin:0">${fM(x.b.mn)} ~ ${fM(x.b.mx)}만원</span></td>
      <td class="num" data-v="${x.r.sal}"><b>${fW(x.r.sal)}</b></td>
      <td class="pos pos-new">${posBar(x.pr,null,0.5,YCOL[x.st],`현재 위치 ${fP(x.pr)}`)}</td>
-     ${(()=>{const ob=OLD_PB[p.grade];const d=ob?x.r.sal/ob-1:null;return`<td class="pos pos-old" data-v="${d??''}" data-ft="${d==null?'-':esc(p.grade)}">${ob?oldBar(x.r.sal,p.grade):''}<div class="oldtxt">${ob?`${esc(p.grade)} 기준 ${fW(ob)} 대비 <b class="${d>=0?'up':'dn'}">${d>=0?'+':''}${(d*100).toFixed(1)}%</b>`:'<span class="note">현직급 기준값 없음</span>'}</div></td>`;})()}
+     ${(()=>{const ob=oldBand(p.grade);if(!ob)return`<td class="pos pos-old" data-v="" data-ft="-"><span class="note">현직급 기준값 없음</span></td>`;const pr=(x.r.sal-ob.mn)/(ob.mx-ob.mn);return`<td class="pos pos-old" data-v="${pr}" data-ft="${esc(p.grade)}">${posBar(pr,null,0.5,'var(--navy)',`기존 위치 ${fP(pr)}`)}<div class="oldtxt">${esc(p.grade)} ${fM(ob.mn)} ~ ${fM(ob.mx)}만원${ob.assumed?' <span class="asm">(상한 가정)</span>':''} · 위치 <b class="${pr>1?'up':pr<0?'dn':''}">${fP(pr)}</b></div></td>`;})()}
      <td class="num" data-v="${x.pr}">${fP(x.pr)}</td><td class="num" data-v="${x.compa}">${fP(x.compa)}</td>
      <td class="num ${x.b.mx<x.r.sal?'c-over':''}" data-v="${x.b.mx-x.r.sal}">${fW(x.b.mx-x.r.sal)}</td>
      <td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}">${esc(p.grade)} · ${esc(periodText(p))}</td>
