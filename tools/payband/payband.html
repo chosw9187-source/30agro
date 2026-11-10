@@ -106,7 +106,8 @@ th.fth:hover .fbtn{outline:2px solid var(--accent)}
 .fcount button{font-size:12px;padding:2px 8px}
 .col-hid{display:none!important}
 .colbar{position:sticky;left:0;display:flex;justify-content:flex-end;margin:0 0 6px}
-.colbtn{font-size:12px;padding:3px 10px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface)} .colbtn:hover{border-color:var(--accent);color:var(--accent)}
+.colbtn{white-space:nowrap} .colbtn:hover{border-color:var(--accent);color:var(--accent)}
+.has-colbtn{display:flex;align-items:center;gap:8px} .has-colbtn .colbtn{margin-left:auto;font-size:12px;padding:3px 10px;font-weight:500}
 .colbtn .cb-on{margin-left:4px;font-size:11px;font-weight:700;padding:1px 6px;border-radius:4px;background:var(--accent);color:var(--accent-ink)}
 .colpop{position:absolute;z-index:60;width:290px;max-height:70vh;overflow:auto;background:var(--surface);border:1.5px solid var(--line-2);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:10px 12px}
 .colpop .cp-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px} .colpop .cp-h span{font-size:11px;color:var(--muted)}
@@ -599,9 +600,13 @@ function colsApply(tbl,id){colsInit(tbl);const K=tbl._ck,n=K.length,cfg=colCfg(i
     if(Object.keys(m).length!==n)return;seq.forEach(ci=>r.appendChild(m[ci]));Object.values(m).forEach(c=>c.classList.toggle('col-hid',hid.has(+c.dataset.ci)));});
   const custom=hid.size>0||seq.some((v,i)=>v!==i);
   [...tbl.tHead.rows].slice(0,-1).forEach(r=>r.classList.toggle('col-hid',custom)); // 묶음 머리글은 변경 시 숨김
-  let bar=tbl.parentElement.querySelector(':scope > .colbar');
-  if(!bar){bar=document.createElement('div');bar.className='colbar';bar.innerHTML='<button type="button" class="colbtn">⚙ 열 설정</button>';tbl.parentElement.insertBefore(bar,tbl.parentElement.querySelector(':scope > .fcount')||tbl);}
-  const b=bar.querySelector('.colbtn');b.innerHTML=`⚙ 열 설정${custom?` <span class="cb-on">변경됨 · 숨김 ${hid.size}</span>`:''}`;b.onclick=e=>{e.stopPropagation();openCols(tbl,id,b);};
+  // 버튼 위치: 표 위 도구 줄(.bar)의 맨 끝 → 없으면 소제목(h3) 오른쪽 → 없으면 표 바로 위
+  let b=tbl._colbtn;if(!b||!b.isConnected){b=document.createElement('button');b.type='button';b.className='colbtn';tbl._colbtn=b;
+    const w=tbl.closest('.scroll')||tbl;let e=w.previousElementSibling,host=null;
+    while(e){if(e.classList.contains('bar')||e.matches('h2,h3')){host=e;break;}if(e.classList.contains('panel'))break;e=e.previousElementSibling;}
+    if(!host){const pb=tbl.closest('.panel')?.querySelector(':scope > .bar');if(pb)host=pb;}
+    if(host){if(host.matches('h2,h3'))host.classList.add('has-colbtn');host.appendChild(b);}
+    else{const bar=document.createElement('div');bar.className='colbar';bar.appendChild(b);w.parentElement.insertBefore(bar,w);}}b.innerHTML=`⚙ 열 설정${custom?` <span class="cb-on">변경됨 · 숨김 ${hid.size}</span>`:''}`;b.onclick=e=>{e.stopPropagation();openCols(tbl,id,b);};
   if(!SORTST[id]&&tbl.dataset.defsort){const [l,d]=tbl.dataset.defsort.split(':');const i=[...hr.cells].findIndex(th=>thLabel(th)===l);if(i>=0)SORTST[id]={i,d:+d};}}
 function openCols(tbl,id,btn){document.querySelectorAll('.colpop').forEach(x=>x.remove());
   const pop=document.createElement('div');pop.className='colpop';pop.setAttribute('role','dialog');pop.setAttribute('aria-label','열 설정');document.body.appendChild(pop);
