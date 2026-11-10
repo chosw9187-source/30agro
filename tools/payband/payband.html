@@ -236,7 +236,9 @@ td.spc{background:var(--surface)} td.spc.on{background:var(--warn-soft)!importan
 .rtbl td.l{text-align:left} .rtbl tr.tot td{background:var(--surface-2)} .rtbl .acc{color:var(--navy)} .rtbl .crit{color:var(--crit)}
 .rtbl td.in select,.rtbl td.in input{width:100%} #sp-tbl select{min-width:96px}
 .rpt-25{grid-template-columns:minmax(0,5fr) minmax(0,7fr)}
-.rpt-ref{grid-template-columns:minmax(0,5fr) minmax(0,7fr);margin-top:18px}
+.rpt-ref{grid-template-columns:minmax(0,1fr) minmax(0,1fr);margin-top:18px}
+.rpt-eq{align-items:stretch} .rpt-eq>div{display:flex;flex-direction:column;min-width:0} .rpt-eq>div>.scroll:last-of-type{flex:1;display:flex} .rpt-eq>div>.scroll:last-of-type>table{height:100%}
+.rpt-eq>div>.note{margin-top:6px}
 .rpt .panel{border:1.5px solid var(--line-2);box-shadow:0 2px 6px rgba(20,40,30,.06)}
 .rpt .panel>h2{border-left:5px solid var(--accent);padding-left:9px;font-size:16px}
 .rpt-h3{border-bottom:2px solid var(--navy);padding-bottom:4px}
@@ -871,11 +873,11 @@ function bandSvg(c,rows){
   b.forEach((x,i)=>{s+=`<rect x="${cx(i)-bw/2}" y="${y(x[1])}" width="${bw}" height="${y(x[0])-y(x[1])}" class="bx"/>`;});
   let ovl='';c.overlaps.forEach((o,k)=>{const key=`G${k+1}, G${k+2}`;const n=rows.filter(r=>r.k===key).length;const x0=cx(k)-bw/2,x1=cx(k+1)+bw/2,ya=y(o[1]),yb=y(o[0]);const gm=(cx(k)+cx(k+1))/2,ym=(ya+yb)/2;
     s+=`<rect x="${x0}" y="${ya}" width="${x1-x0}" height="${yb-ya}" class="ovr" style="fill:var(--ov${k+1}${k+2})"/><rect x="${x0}" y="${ya}" width="${x1-x0}" height="${yb-ya}" class="ovl" style="stroke:${['#2e7d4f','#2f6fa8','#c0602a'][k]}"/>`;ovl+=`
-    <text x="${gm}" y="${ym-3}" class="ovt" text-anchor="middle">G${k+1}, G${k+2} · ${n}명</text><text x="${gm}" y="${ym+12}" class="ovn" text-anchor="middle">${nf(o[0])}~${nf(o[1])}</text>`;});
+    <text x="${gm}" y="${ym-3}" class="ovt" text-anchor="middle">G${k+1}, G${k+2}</text><text x="${gm}" y="${ym+12}" class="ovn" text-anchor="middle">${nf(o[0])}~${nf(o[1])}</text>`;});
   b.forEach((x,i)=>{s+=`
     <text x="${cx(i)}" y="${y(x[1])-7}" class="lb" text-anchor="middle">${nf(x[1])}</text><text x="${cx(i)}" y="${y(x[0])+17}" class="lb" text-anchor="middle">${nf(x[0])}</text>
-    <line x1="${cx(i)-bw*0.37}" x2="${cx(i)+bw*0.37}" y1="${y(mids[i])}" y2="${y(mids[i])}" class="md"/><text x="${cx(i)}" y="${y(mids[i])-8}" class="mv" text-anchor="middle">${nf(mids[i])}</text>
-    <text x="${cx(i)}" y="${H-24}" class="gx" text-anchor="middle">${RPT_LBL[i]}</text><text x="${cx(i)}" y="${H-7}" class="ax" text-anchor="middle">최종 ${cnt(i+1)}명</text>`;});
+    <line x1="${cx(i)-bw*0.37}" x2="${cx(i)+bw*0.37}" y1="${y(mids[i])}" y2="${y(mids[i])}" class="md"/>${i===3?`<text x="${cx(i)}" y="${y(mids[i])-8}" class="mv" text-anchor="middle">${nf(mids[i])}</text>`:''}
+    <text x="${cx(i)}" y="${H-24}" class="gx" text-anchor="middle">${RPT_LBL[i]}</text>`;});
   s+=`<polyline points="${mids.map((m,i)=>`${cx(i)},${y(m)}`).join(' ')}" class="mline"/>${ovl}<line x1="${L}" x2="${W-R}" y1="${H-B+8}" y2="${H-B+8}" class="base"/></svg>`;
   return s;}
 function finalMatrix(named,rowKeys,rowOf,label,showCand){const FK=['G1','G2','G3','G4','미확정'];const fc={};rowKeys.forEach(g=>{fc[g]={};FK.forEach(k=>fc[g][k]=0);});
@@ -914,7 +916,7 @@ function sheetReport(){
       <datalist id="role-list">${ROLE_OPTS.map(o=>`<option value="${o}">`).join('')}</datalist>`
      :'<p class="note">특이인원이 없습니다. 1차 분류 › 분류 › 개인별 분류 결과의 「특이사항」 칸을 체크하면 여기에 표시됩니다.</p>'}
 </div></div>
-    <div class="rpt-2col rpt-ref"><div><h3 class="rpt-h3">참고 · (신)직급별 Pay-band <span class="sub">(단위: 만원 · 기본정보 ① 연동)</span></h3>
+    <div class="rpt-2col rpt-ref rpt-eq"><div><h3 class="rpt-h3">참고 · (신)직급별 Pay-band <span class="sub">(단위: 만원 · 기본정보 ① 연동)</span></h3>
     <div class="scroll"><table class="rtbl pb-std"><thead><tr><th>직급</th><th>하한</th><th>중간값</th><th>상한</th><th>밴드 폭<br>(상한/하한)</th><th>중첩 구간<br>(하위 직급과)</th><th>최종 인원</th></tr></thead><tbody>
       ${[4,3,2,1].map(g=>{const x=c.bands[g-1];const o=g>1?c.overlaps[g-2]:null;const n=rows.filter(r=>r.fin===g).length;return`<tr><td><b>신 G${g}</b><div class="sub">지원직 ${g<4?'S'+(g+1):'-'}</div></td><td>${nf(x[0])}</td><td class="mid"><b>${nf((x[0]+x[1])/2)}</b></td><td>${nf(x[1])}</td><td>${(x[1]/x[0]*100-100).toFixed(1)}%</td><td class="${o?'c-ov'+(g-1)+g:''}">${o?`${nf(o[0])} ~ ${nf(o[1])}`:'-'}</td><td><b class="acc">${n}명</b></td></tr>`;}).join('')}
       <tr class="tot"><td><b>계</b></td><td colspan="5"></td><td><b>${rows.filter(r=>r.fin).length}명</b></td></tr></tbody></table></div></div>
@@ -923,7 +925,7 @@ function sheetReport(){
       ${ROLE_STD.map(x=>`<tr><td><b>${x[0]}</b></td><td>${x[1]}</td><td>${x[2]}</td><td><b class="acc">${x[3]}</b></td><td class="l">• ${x[4]}</td></tr>`).join('')}
       <tr><td colspan="5" class="l role-foot"><b>직급 정의 : <span class="crit">연한 + 직무 능력(역할)</span></b>　연한은 자격 · 역할 수행 여부 자격 심사 후 승진</td></tr></tbody></table></div></div></div></div>
   <div class="panel"><h2>③ 분류체계 기준 <span class="sub">(단위: 만원 · 기본정보 ① 분류 기준 연동)</span></h2>
-    <div class="rpt-2col"><div>${bandSvg(c,rows)}<div class="scroll"><table class="rtbl"><thead><tr><th>구분</th>${RPT_LBL.map(l=>`<th>${l}</th>`).join('')}</tr></thead><tbody>
+    <div class="rpt-2col rpt-eq"><div><h3 class="rpt-h3">직급별 연봉 구간 (중첩 구간 표시)</h3>${bandSvg(c,rows)}<div class="scroll"><table class="rtbl"><thead><tr><th>구분</th>${RPT_LBL.map(l=>`<th>${l}</th>`).join('')}</tr></thead><tbody>
       <tr><td><b>연봉 구간</b></td>${c.bands.map(x=>`<td>${nf(x[0])} ~ ${nf(x[1])}</td>`).join('')}</tr><tr><td>중간값</td>${c.bands.map(x=>`<td>${nf((x[0]+x[1])/2)}</td>`).join('')}</tr></tbody></table></div></div>
     <div><h3 class="rpt-h3">1차 분류 기준 (현 연봉 → 분류 직급)</h3>
       <div class="scroll"><table class="rtbl"><thead><tr><th>1차 분류</th><th>연봉 구간(만원)</th><th>최종 가능 직급</th><th>인원</th><th>비율</th></tr></thead><tbody>
