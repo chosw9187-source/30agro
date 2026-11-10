@@ -909,8 +909,8 @@ function sheetReport(){
   <div class="panel"><h2>② 최종 분류 결과 · 특이인원 <span class="sub">(분류 시트 「최종 분류 직급(수기 확정)」·「특이사항」 자동 연동, 단위: 명)</span></h2>
     <div class="rpt-2col rpt-25"><div><h3 class="rpt-h3">현직급 × 최종 분류 직급</h3><div class="scroll">${finalMatrix(rows,GRADE6_DESC,r=>r.p.grade,'현직급 \\ 최종',false)}</div></div>
     <div><h3 class="rpt-h3">특이인원 (${sp.length}명) <span class="sub">역할 수기 입력 · 최종 직급 판단은 분류 시트와 연동</span></h3>
-    ${sp.length?`<div class="scroll"><table class="rtbl rno-t" id="sp-tbl"><thead><tr><th class="g-base"></th><th colspan="3" class="g-base">기본정보</th><th colspan="4" class="g-ev">분류 평가항목</th><th class="g-base"></th></tr><tr><th data-nosort class="g-base2 rno-h">No</th><th class="g-base2">이름</th><th class="g-base2">나이</th><th class="g-base2">현직급</th><th class="g-ev2 ev1">연봉(현재, 원)</th><th class="g-ev2">분류 직급</th><th class="g-ev2">역할</th><th class="g-ev2">최종 직급 판단</th><th data-nosort class="g-base2"></th></tr></thead><tbody>
-      ${sp.map((r,i)=>{const k=pkey(r.p);const ck=r.p.rptCls||r.k;return`<tr data-k="${esc(k)}"><td class="rno"></td><td><b>${esc(r.p.name)}</b></td><td>${esc(r.p.age)}</td><td data-v="${GRADE6.indexOf(r.p.grade)}" data-ft="${esc(r.p.grade)}"><b>${esc(r.p.grade)}</b></td><td class="num ev ev1" data-v="${r.sal??''}"><b>${fW(r.sal)}</b></td>
+    ${sp.length?`<div class="scroll"><table class="rtbl rno-t" id="sp-tbl"><thead><tr><th class="g-base"></th><th colspan="5" class="g-base">기본정보</th><th colspan="4" class="g-ev">분류 평가항목</th><th class="g-base"></th></tr><tr><th data-nosort class="g-base2 rno-h">No</th><th class="g-base2">이름</th><th class="g-base2">나이</th><th class="g-base2">부서</th><th class="g-base2">직책</th><th class="g-base2">현직급</th><th class="g-ev2 ev1">연봉(현재, 원)</th><th class="g-ev2">분류 직급</th><th class="g-ev2">역할</th><th class="g-ev2">최종 직급 판단</th><th data-nosort class="g-base2"></th></tr></thead><tbody>
+      ${sp.map((r,i)=>{const k=pkey(r.p);const ck=r.p.rptCls||r.k;return`<tr data-k="${esc(k)}"><td class="rno"></td><td><b>${esc(r.p.name)}</b></td><td>${esc(r.p.age)}</td><td>${esc(r.p.dept)}</td><td>${esc(r.p.title)}</td><td data-v="${GRADE6.indexOf(r.p.grade)}" data-ft="${esc(r.p.grade)}"><b>${esc(r.p.grade)}</b></td><td class="num ev ev1" data-v="${r.sal??''}"><b>${fW(r.sal)}</b></td>
         <td class="in ev" data-v="${ck in CLS_RANK?CLS_RANK[ck]:''}" data-ft="${esc(ck)}"><select data-sp="rptCls" class="${classCss(ck)}">${CLASS_KEYS.map(x=>`<option ${ck===x?'selected':''}>${x}</option>`).join('')}</select></td>
         <td class="in ev"><input type="text" data-sp="role" list="role-list" value="${esc(r.p.role||'')}" placeholder="예: 과제 리딩" style="min-width:110px"></td>
         <td class="in ev" data-v="${finRank(r.p.final)}" data-ft="${esc(r.p.final||'미확정')}"><select data-sp="final" class="${r.p.final?(isCand(ck,r.p.final)?'c-fin':'c-bad'):''}"><option value="">미확정</option>${['G1','G2','G3','G4'].map(g=>`<option ${r.p.final===g?'selected':''}>${g}</option>`).join('')}</select></td>
@@ -940,7 +940,7 @@ function sheetReport(){
   if(t){t.addEventListener('change',e=>{const el=e.target;const tr=el.closest('tr');const p=S.people.find(x=>pkey(x)===tr.dataset.k);if(!p||!el.dataset.sp)return;const f=el.dataset.sp;
       if(f==='final'){p.final=el.value;p.finalAuto=false;}else if(f==='rptCls'){p.rptCls=el.value===classify(num(p.salary),S.crit)?'':el.value;}else p.role=el.value;
       save();if(f!=='role')sheetReport();});
-    if(!SORTST.sp)SORTST.sp={i:3,d:-1}; // 기본: 현직급 높은 순
+    if(!SORTST.sp)SORTST.sp={i:5,d:-1}; // 기본: 현직급 높은 순
     sortable(t,'sp');
     t.addEventListener('click',e=>{const b=e.target.closest('[data-unsp]');if(!b)return;const p=S.people.find(x=>pkey(x)===b.closest('tr').dataset.k);if(p){p.special=false;save();sheetReport();}});}
 }
