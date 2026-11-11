@@ -697,7 +697,10 @@ const ROWSEL={};
 function rowKey(tr){if(tr.dataset.i!=null)return'i'+tr.dataset.i;if(tr.dataset.k)return'k'+tr.dataset.k;const el=tr.querySelector('[data-fk],[data-spk],[data-ovk],[data-gok],[data-s2],[data-go2]');
   if(el)return'e'+(el.dataset.fk||el.dataset.spk||el.dataset.ovk||el.dataset.gok||el.dataset.s2||el.dataset.go2);return't'+[...tr.cells].slice(0,3).map(c=>c.textContent.trim()).join('|');}
 function rowSelRestore(tbl,id){const k=ROWSEL[tbl.id||id];if(!k)return;const tr=[...(tbl.tBodies[0]?.rows||[])].find(r=>rowKey(r)===k);if(tr)tr.classList.add('row-sel');}
-function rowSelPick(e){const tr=e.target.closest&&e.target.closest('tbody tr');if(!tr)return;const tbl=tr.closest('table');if(!tbl||!tbl.tHead)return;
+function rowSelClear(){document.querySelectorAll('tbody tr.row-sel').forEach(x=>x.classList.remove('row-sel'));for(const k in ROWSEL)delete ROWSEL[k];}
+function rowSelPick(e){const t=e.target;const tr=t.closest&&t.closest('tbody tr');const tbl=tr&&tr.closest('table');
+  // 표 줄 밖(빈 곳 · 다른 영역)을 누르면 해제. 정렬·필터 메뉴, 열 설정 창, 안내 창 안은 유지
+  if(!tr||!tbl||!tbl.tHead){if(e.type==='mousedown'&&!(t.closest&&t.closest('thead,.fmenu,.colpop,.colbtn,.toast,.itip,.dlg')))rowSelClear();return;}
   tbl.querySelectorAll('tbody tr.row-sel').forEach(x=>{if(x!==tr)x.classList.remove('row-sel');});tr.classList.add('row-sel');if(tbl.id)ROWSEL[tbl.id]=rowKey(tr);}
 document.addEventListener('mousedown',rowSelPick,true);document.addEventListener('focusin',rowSelPick,true);
 function sortable(tbl,id){if(!tbl||!tbl.tHead)return;if(tbl.tBodies[0])colsApply(tbl,id);const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];
