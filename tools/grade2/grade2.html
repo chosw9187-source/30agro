@@ -379,6 +379,8 @@ textarea{width:100%;min-height:110px;font:12px/1.4 ui-monospace,Menlo,Consolas,m
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 
 /* ---- 직급 분류(신규 기준) ---- */
+#info-tbl td.yrs input{text-align:center} #info-tbl td.yrs input::placeholder{color:var(--muted);opacity:1} #info-tbl td.yrs-m input{color:var(--crit);font-weight:800} #info-tbl td.yrs-m{outline:2px solid var(--crit);outline-offset:-2px}
+
 /* 선택한 줄 강조 */
 tbody tr.row-sel>td{background-image:linear-gradient(rgba(23,58,94,.10),rgba(23,58,94,.10))!important;box-shadow:inset 0 2.5px 0 var(--navy),inset 0 -2.5px 0 var(--navy)}
 tbody tr.row-sel>td:first-child{box-shadow:inset 0 2.5px 0 var(--navy),inset 0 -2.5px 0 var(--navy),inset 3px 0 0 var(--navy)}
@@ -1118,7 +1120,9 @@ function tenureParts(p){const h=new Date(dateStr(p.hire)),g=new Date(dateStr(p.g
     const a=Math.round((num(p.adj)||0)*12);const per=m==null?periodMonths(p):m+a;return{newbie:true,pre:0,per,car:0,total:Math.max(0,per||0),ok:per!=null};}
   const per=periodMonths(p);const car=Math.round((num(p.career)||0)*12);
   return{pre,per,car,total:Math.max(0,(pre||0)+(per||0)+car),ok:per!=null||pre!=null||car!==0};}
-function careerYears(p,c){const t=tenureParts(p);if(!t.ok)return null;return Math.max(1,Math.ceil(t.total/12));}
+function autoYears(p){const t=tenureParts(p);if(!t.ok)return null;return Math.max(1,Math.ceil(t.total/12));}
+// 년차: 기본정보에서 수기 입력(p.yrsM)이 있으면 그 값 우선
+function careerYears(p,c){const m=num(p.yrsM);if(m!=null&&m>=1)return Math.round(m);return autoYears(p);}
 function tenureTip(p){const t=tenureParts(p);if(!t.ok)return'입사일 · 현직급 발령일 · 경력인정이 없어 계산 불가';
   if(t.newbie)return`신입: 입사일부터 ${ymText(t.total)}${num(p.adj)?` (조정 ${num(p.adj)>0?'+':''}${num(p.adj)}년 포함)`:''} → ${Math.max(1,Math.ceil(t.total/12))}년차`;
   return`입사~발령 ${ymText(t.pre??0)} + 현직급 기간 ${ymText(t.per??0)}${num(p.adj)?` (조정 ${num(p.adj)>0?'+':''}${num(p.adj)}년 포함)`:''} + 경력인정 ${num(p.career)||0}년 = ${ymText(t.total)} → ${Math.max(1,Math.ceil(t.total/12))}년차`;}
@@ -1277,7 +1281,7 @@ function sheetCrit2(){
 /* ---- 1차 분류 › 기본정보 ---- */
 const INFO_COLS2=[['id','사번','text',58],['name','이름','text',56],['birth','생년월일','date',104],['age','나이','number',40],['dept','부서','text',80],['job','직군','text',52],['title','직책','text',44],
   ['grade','현직급','grade',52],['hire','입사일','date',104],['_rem','남은<br>정년','auto',36],['gdate','현직급<br>발령일','date',104],['_per','현직급 기간<br>(조정 포함)','auto',70],['adj','조정<br>(±년, 수기)','number',48],['newbie','신입','check',40],['career','경력인정<br>(년, 수기)','number',52],
-  ['_yrs','년차<br>(자동)','auto',44],['salary','현 연봉(원)','won',96],['eval','인사<br>평가','eval',56],['role','직무 역할','role',118]];
+  ['yrsM','년차<br>(자동/수기)','yrs',62],['salary','현 연봉(원)','won',96],['eval','인사<br>평가','eval',56],['role','직무 역할','role',118]];
 function sheetInfoN(){
   const body=document.getElementById('sheet-body');const c=S.crit;
   body.innerHTML=`<div class="panel"><div class="bar"><h2 class="grow" style="margin:0">인원 기본정보 <span class="sub">(노란 칸 입력 · 직무 역할 · 인사평가 선택)</span></h2>
@@ -1287,6 +1291,7 @@ function sheetInfoN(){
   const tb=body.querySelector('#info-tbl tbody');
   tb.innerHTML=S.people.map((p,i)=>`<tr data-i="${i}"><td><button class="row-del" type="button" data-del="${i}" aria-label="${esc(p.name)} 행 삭제">×</button></td><td class="rno"></td>${INFO_COLS2.map(([k,,t])=>{
     if(t==='auto')return`<td class="auto" data-auto="${k}"></td>`;
+    if(t==='yrs')return`<td class="in yrs"><input type="number" min="1" step="1" data-f="yrsM" value="${esc(p.yrsM??'')}" aria-label="${esc(p.name)} 년차 수기"></td>`;
     if(t==='check')return`<td class="in chk" data-v="${p[k]?1:0}" data-ft="${p[k]?'신입':'경력'}"><input type="checkbox" data-f="${k}" ${p[k]?'checked':''} aria-label="${esc(p.name)} 신입 여부"></td>`;
     if(t==='grade')return`<td class="in"><select data-f="${k}"><option value=""></option>${GRADE6.map(g=>`<option ${p[k]===g?'selected':''}>${g}</option>`).join('')}</select></td>`;
     if(t==='eval')return`<td class="in"><select data-f="eval" aria-label="인사평가"><option value="">미입력</option>${EVALS.map(e=>`<option ${p.eval===e?'selected':''}>${e}</option>`).join('')}</select></td>`;
@@ -1309,8 +1314,9 @@ function refreshInfoN(){const c=S.crit;applyBirthAges();
     const rm=tr.querySelector('[data-auto="_rem"]');const rem=remYears(p,c);rm.textContent=rem??'';rm.dataset.v=rem??'';
     const pc=tr.querySelector('[data-auto="_per"]');pc.textContent=periodText(p);pc.dataset.v=periodMonths(p)??'';{const a=num(p.adj);pc.title=a?`발령일 기준 ${periodBaseText(p)||'-'} ${a>0?'+':'−'} 조정 ${Math.abs(a)}년`:'발령일 기준 자동';pc.classList.toggle('adj',!!a);}
     const ci=tr.querySelector('[data-f="career"]');if(ci){ci.disabled=!!p.newbie;ci.placeholder=p.newbie?'신입':'';if(p.newbie)ci.value='';ci.closest('td').classList.toggle('auto',!!p.newbie);}
-    const yc=tr.querySelector('[data-auto="_yrs"]');const y=careerYears(p,c);yc.textContent=y==null?'':y+'년차';yc.dataset.v=y??'';
-    yc.title=tenureTip(p);});}
+    const yi=tr.querySelector('[data-f="yrsM"]');if(yi){const a=autoYears(p),m=num(p.yrsM);const yt=yi.closest('td');yi.placeholder=a==null?'':a+'년차';
+      yt.classList.toggle('yrs-m',m!=null);yt.dataset.v=careerYears(p,c)??'';yt.dataset.ft=m!=null?m+'년차 (수기)':(a==null?'':a+'년차');
+      yt.title=m!=null?`수기 ${m}년차 (자동 계산 ${a??'-'}년차 · 비우면 자동) / ${tenureTip(p)}`:tenureTip(p)+' · 숫자를 넣으면 수기 년차';}});}
 
 /* ---- 1차 분류 › 1차 분류 (종합 등급) ---- */
 function sheetClassN(){
@@ -1345,7 +1351,7 @@ function sheetClassN(){
     ${rows.map(r=>{const p=r.p,G=r.G2;const cell=(i,txt,v)=>`<td class="gv ${G.v[i]==null?'na':G.hit(i)?'same':'diff'} ${i===0?'ev1':''}" data-v="${v??''}" data-ft="${esc(txt)}">${txt}</td>`;
       return`<tr class="${r.fin?'confirmed':''}"><td class="rno"></td><td>${esc(p.id)}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.age)}</td><td class="l">${esc(p.dept)}</td><td>${esc(p.title)}</td>
        <td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}">${esc(p.grade)}</td><td data-v="${periodMonths(p)??''}" class="${num(p.adj)?'adjc':''}">${esc(periodText(p))}</td><td data-v="${num(p.adj)??''}">${num(p.adj)?(num(p.adj)>0?'+':'')+num(p.adj):''}</td><td data-v="${p.newbie?-1:(num(p.career)??'')}" data-ft="${p.newbie?'신입':(num(p.career)?num(p.career):'경력')}">${p.newbie?'<span class="pill p-auto">신입</span>':(num(p.career)?num(p.career):'')}</td>
-       <td data-v="${G.yrs??''}" title="${esc(tenureTip(p))}">${G.yrs==null?'-':G.yrs+'년차'}</td><td class="num" data-v="${r.sal??''}">${fW(r.sal)}</td>
+       <td data-v="${G.yrs??''}" class="${num(p.yrsM)!=null?'ovr':''}" title="${esc(num(p.yrsM)!=null?`수기 ${num(p.yrsM)}년차 (자동 ${autoYears(p)??'-'}년차)`:tenureTip(p))}">${G.yrs==null?'-':G.yrs+'년차'}${num(p.yrsM)!=null?' <small>(수기)</small>':''}</td><td class="num" data-v="${r.sal??''}">${fW(r.sal)}</td>
        ${[0,1,2,3].map(i=>ocell(r,i,c)).join('')}
        <td class="ev1 ref" data-v="${r.rem??''}">${r.rem==null?'-':r.rem+'년'}</td><td class="num ref" data-v="${refFinal(r,c,tab)??''}">${fW(refFinal(r,c,tab))}</td>
        <td class="num ev1" data-v="${G.score??''}">${G.score==null?'-':G.score.toFixed(2)}</td><td class="${gCls(r.comp)}" data-v="${r.comp??''}" data-ft="${gTxt(r.comp)}"><b>${gTxt(r.comp)}</b></td>
@@ -1431,7 +1437,7 @@ function sheetReportN(){
 }
 
 /* ---- 엑셀 (기본정보) ---- */
-const IMP_HEAD=['사번','이름','생년월일','나이','부서','직군','직책','현직급','입사일','현직급 발령일','현직급 기간','조정(±년)','신입 여부','경력인정(년)','현 연봉','인사평가','직무 역할','최종 확정','2차 년차','특이사항','(1) 수기','(2) 수기','(3) 수기','(4) 수기'];
+const IMP_HEAD=['사번','이름','생년월일','나이','부서','직군','직책','현직급','입사일','현직급 발령일','현직급 기간','조정(±년)','신입 여부','경력인정(년)','현 연봉','인사평가','직무 역할','최종 확정','2차 년차','특이사항','(1) 수기','(2) 수기','(3) 수기','(4) 수기','년차(수기)'];
 function tableBook(id,sheet){const wb=XLSX.utils.book_new();const tbl=document.getElementById(id);const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];
   const idx=[...hr.cells].map((th,i)=>th.hasAttribute('data-nosort')||th.classList.contains('col-hid')?-1:i).filter(i=>i>=0);
   const head=idx.map(i=>hr.cells[i].innerHTML.replace(/<br\s*\/?>/g,' ').replace(/<[^>]+>/g,'').replace(/[▾▲▼]/g,'').replace(/\s+/g,' ').trim());
@@ -1445,13 +1451,13 @@ function tplBook(){const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,sheetFromAoa([IMP_HEAD,...ex],[9,9,12,6,12,8,8,7,12,12,11,8,8,10,13,8,14,9,8,8],[14]),'기본정보');
   const guide=[['열','필수','입력 방법'],['사번','필수','숫자·문자 (앞자리 0 유지하려면 텍스트)'],['이름','필수','이름이 비어 있는 행은 읽지 않음'],['생년월일 / 나이','필수(둘 중 하나)','생년월일(1990-03-15)을 넣으면 나이 자동 = 기준연도 − 출생연도 → 남은 정년 · 정년 최종연봉 참고'],
     ['부서 · 직군 · 직책','선택','표시 · 검색용'],['현직급','필수','G1 ~ G6 → (1) 현직급 변환'],['입사일','필수','2018-01-02 형식 → 입사일~현직급 발령일 기간 → (2) 년차'],['현직급 발령일','필수*','→ 현직급 기간 자동 · 입사일~발령일 기간과 함께 (2) 년차 (발령일이 없으면 「현직급 기간」에 0년0개월 형식 입력)'],
-    ['조정(±년)','선택','현직급 기간에 더할 연수 (예: 3, −1) → (2) 년차'],['신입 여부','필수','신입 / 경력 → 신입은 입사일부터 년차 계산 (경력인정 없음)'],['경력인정(년)','경력직','입사 전 인정 경력 연수 (예: 2, 1.5) → (2) 년차 / 신입은 비움'],['현 연봉','필수','원 단위 숫자 → (4) 연봉 Pay-band'],['인사평가','선택','S · A+ · A · B · C (정년 최종연봉 · 생애연봉 승진 누락, 비우면 S)'],
+    ['조정(±년)','선택','현직급 기간에 더할 연수 (예: 3, −1) → (2) 년차'],['신입 여부','필수','신입 / 경력 → 신입은 입사일부터 년차 계산 (경력인정 없음)'],['경력인정(년)','경력직','입사 전 인정 경력 연수 (예: 2, 1.5) → (2) 년차 / 신입은 비움'],['년차(수기)','선택','자동 계산 대신 쓸 년차 숫자 (비우면 자동)'],['현 연봉','필수','원 단위 숫자 → (4) 연봉 Pay-band'],['인사평가','선택','S · A+ · A · B · C (정년 최종연봉 · 생애연봉 승진 누락, 비우면 S)'],
     ['직무 역할','선택','정형 업무 · 자율 · 기획 업무 · 과제 리딩 · 전략적 판단 (비우면 분류 기준 (3) 현직급별 직무 역할 직급 일괄 적용)'],['최종 확정','선택','G1 ~ G4 (비우면 종합 등급 적용, 현 연봉이 해당 밴드 밖이면 빨간 표시)'],['2차 년차','선택','숫자 (비우면 자동)'],['특이사항','선택','「특이」 입력 시 보고용 특이인원'],
     ['',''],['※ 머리글 이름으로 열을 찾으므로 열 순서는 바꿔도 됨 / 예시 2행(가상 인원)은 지우고 입력','','']];
   XLSX.utils.book_append_sheet(wb,sheetFromAoa(guide,[18,10,70]),'작성 안내');return wb;}
 function infoBook(){const wb=XLSX.utils.book_new();
-  const rows=S.people.filter(p=>String(p.name||'').trim()).map(p=>[p.id,p.name,p.birth||'',num(p.age)??'',p.dept,p.job,p.title,p.grade,dateStr(p.hire),dateStr(p.gdate),periodBaseText(p),num(p.adj)??'',p.newbie?'신입':'경력',p.newbie?'':(num(p.career)??''),num(p.salary)??'',p.eval||'',p.role||'',p.final||'',p.step??'',p.special?'특이':'',...[0,1,2,3].map(i=>(p.ov||[])[i]||'')]);
-  XLSX.utils.book_append_sheet(wb,sheetFromAoa([IMP_HEAD,...rows],[9,9,12,6,12,8,8,7,12,12,11,8,8,10,13,8,14,9,8,8,8,8,8,8],[14]),'기본정보');
+  const rows=S.people.filter(p=>String(p.name||'').trim()).map(p=>[p.id,p.name,p.birth||'',num(p.age)??'',p.dept,p.job,p.title,p.grade,dateStr(p.hire),dateStr(p.gdate),periodBaseText(p),num(p.adj)??'',p.newbie?'신입':'경력',p.newbie?'':(num(p.career)??''),num(p.salary)??'',p.eval||'',p.role||'',p.final||'',p.step??'',p.special?'특이':'',...[0,1,2,3].map(i=>(p.ov||[])[i]||''),num(p.yrsM)??'']);
+  XLSX.utils.book_append_sheet(wb,sheetFromAoa([IMP_HEAD,...rows],[9,9,12,6,12,8,8,7,12,12,11,8,8,10,13,8,14,9,8,8,8,8,8,8,9],[14]),'기본정보');
   const c=S.crit;const aoa=[['구분','항목','값'],...GRADE6_DESC.map(g=>['(1) 현직급 변환',g,c.gmap[g]]),
     ...[3,2,1,0].map(i=>['(2) 년차 시작',`G${i+1}`,c.yStart[i]]),...c.roles.map(r=>['(3) 직무 역할',r[0],r[1]]),...[3,2,1,0].map(i=>['(4) Pay-band(만원)',`G${i+1}`,`${c.bands[i][0]}~${c.bands[i][1]}`]),
     ...CRIT_N.map((l,i)=>['(5) 가중치(%)',l,c.w[i]]),...[4,3,2,1].map(g=>['(5) 종합 점수 구간',`G${g}`,cutRange(c,g)])];
@@ -1462,12 +1468,12 @@ function importWorkbook(wb,fname){
   const H=A[hi].map(v=>String(v).replace(/\s/g,''));const col=f=>H.findIndex(f);
   const C={id:col(h=>h.includes('사번')),name:col(h=>h==='이름'),birth:col(h=>h.includes('생년')),age:col(h=>h==='나이'),dept:col(h=>h.includes('부서')),job:col(h=>h.includes('직군')),title:col(h=>h.includes('직책')),
     grade:col(h=>h==='현직급'),hire:col(h=>h.includes('입사')),gdate:col(h=>h.includes('발령')),period:col(h=>h.includes('기간')),adj:col(h=>h.startsWith('조정')),newbie:col(h=>h.includes('신입')),career:col(h=>h.includes('경력인정')||h==='경력'),salary:col(h=>h.includes('연봉')&&!h.includes('분류')&&!h.includes('기준')),
-    eval:col(h=>h.includes('인사평가')||h==='평가'),role:col(h=>h.includes('역할')),final:col(h=>h.includes('최종')),step:col(h=>h.includes('년차')&&!h.includes('자동')),special:col(h=>h.includes('특이')),ov:[1,2,3,4].map(n=>H.findIndex(h=>h===`(${n})수기`))};
+    eval:col(h=>h.includes('인사평가')||h==='평가'),role:col(h=>h.includes('역할')),final:col(h=>h.includes('최종')),step:col(h=>h.includes('2차')),yrsM:col(h=>h.startsWith('년차')),special:col(h=>h.includes('특이')),ov:[1,2,3,4].map(n=>H.findIndex(h=>h===`(${n})수기`))};
   const ds=v=>v instanceof Date?dateStr(v):String(v||'').trim().replace(/\./g,'-').replace(/-$/,'');const g=(r,k)=>C[k]>=0?r[C[k]]:'';
   const roles=S.crit.roles.map(x=>x[0]);const roleOf=v=>{const s=String(v||'').replace(/\s/g,'');return roles.find(x=>x.replace(/\s/g,'')===s)||'';};
   const up=v=>String(v||'').trim().toUpperCase();
   const P=A.slice(hi+1).filter(r=>String(g(r,'name')).trim()).map(r=>({id:String(g(r,'id')).trim(),name:String(g(r,'name')).trim(),birth:normBirth(g(r,'birth')),age:num(g(r,'age'))??'',dept:String(g(r,'dept')).trim(),job:String(g(r,'job')).trim(),
-    title:String(g(r,'title')).trim(),grade:up(g(r,'grade')),hire:ds(g(r,'hire')),gdate:ds(g(r,'gdate')),period:g(r,'gdate')?'':String(g(r,'period')).trim(),adj:num(g(r,'adj'))??'',newbie:/^(신입|y|yes|o|1|true)$/i.test(String(g(r,'newbie')).trim()),career:num(g(r,'career'))??'',salary:num(g(r,'salary'))??'',
+    title:String(g(r,'title')).trim(),grade:up(g(r,'grade')),hire:ds(g(r,'hire')),gdate:ds(g(r,'gdate')),period:g(r,'gdate')?'':String(g(r,'period')).trim(),adj:num(g(r,'adj'))??'',yrsM:num(g(r,'yrsM'))?Math.round(num(g(r,'yrsM'))):'',newbie:/^(신입|y|yes|o|1|true)$/i.test(String(g(r,'newbie')).trim()),career:num(g(r,'career'))??'',salary:num(g(r,'salary'))??'',
     eval:EVALS.includes(up(g(r,'eval')))?up(g(r,'eval')):'',role:roleOf(g(r,'role')),final:/^G[1-4]$/.test(up(g(r,'final')))?up(g(r,'final')):'',finalAuto:false,step:num(g(r,'step'))?Math.round(num(g(r,'step'))):'',special:/특이|^o$|^y|^1$|true/i.test(String(g(r,'special')).trim()),...(()=>{const o=C.ov.map(ci=>{const v=ci>=0?up(r[ci]):'';return /^G[1-4]$/.test(v)?v:'';});return o.some(Boolean)?{ov:o}:{};})()}));
   if(!P.length)throw new Error('불러올 인원이 없습니다.');
   S.people=P;S.source='file';S.sourceName=fname;S.sel='';save();route();toast(`${P.length}명을 불러왔습니다.${C.role<0?' (직무 역할 열 없음 → 기본정보에서 선택)':''}`);}
