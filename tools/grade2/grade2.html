@@ -379,6 +379,12 @@ textarea{width:100%;min-height:110px;font:12px/1.4 ui-monospace,Menlo,Consolas,m
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 
 /* ---- 직급 분류(신규 기준) ---- */
+/* 선택한 줄 강조 */
+tbody tr.row-sel>td{background-image:linear-gradient(rgba(23,58,94,.10),rgba(23,58,94,.10))!important;box-shadow:inset 0 2.5px 0 var(--navy),inset 0 -2.5px 0 var(--navy)}
+tbody tr.row-sel>td:first-child{box-shadow:inset 0 2.5px 0 var(--navy),inset 0 -2.5px 0 var(--navy),inset 3px 0 0 var(--navy)}
+tbody tr.row-sel>td:last-child{box-shadow:inset 0 2.5px 0 var(--navy),inset 0 -2.5px 0 var(--navy),inset -3px 0 0 var(--navy)}
+tbody tr.row-sel>td input,tbody tr.row-sel>td select{font-weight:700}
+
 .g2-cls td .pill.p-auto{font-size:11px} #info-tbl td.chk{text-align:center} #info-tbl td.chk input{width:16px;height:16px;accent-color:var(--accent)}
 
 .gsel{width:100%;min-width:84px;font-weight:700;border:1px solid transparent;background:transparent;color:inherit;text-align:center;cursor:pointer}
@@ -686,13 +692,21 @@ function openCols(tbl,id,btn){document.querySelectorAll('.colpop').forEach(x=>x.
   const close=()=>{pop.remove();document.removeEventListener('mousedown',out,true);document.removeEventListener('keydown',esc_);};
   const out=e=>{if(!pop.contains(e.target)&&e.target!==btn)close();};const esc_=e=>{if(e.key==='Escape')close();};
   document.addEventListener('mousedown',out,true);document.addEventListener('keydown',esc_);draw();}
+/* ---- 행 강조: 표의 한 칸을 누르면 그 사람의 줄 전체를 테두리로 표시 (다시 그려도 유지) ---- */
+const ROWSEL={};
+function rowKey(tr){if(tr.dataset.i!=null)return'i'+tr.dataset.i;if(tr.dataset.k)return'k'+tr.dataset.k;const el=tr.querySelector('[data-fk],[data-spk],[data-ovk],[data-gok],[data-s2],[data-go2]');
+  if(el)return'e'+(el.dataset.fk||el.dataset.spk||el.dataset.ovk||el.dataset.gok||el.dataset.s2||el.dataset.go2);return't'+[...tr.cells].slice(0,3).map(c=>c.textContent.trim()).join('|');}
+function rowSelRestore(tbl,id){const k=ROWSEL[tbl.id||id];if(!k)return;const tr=[...(tbl.tBodies[0]?.rows||[])].find(r=>rowKey(r)===k);if(tr)tr.classList.add('row-sel');}
+function rowSelPick(e){const tr=e.target.closest&&e.target.closest('tbody tr');if(!tr)return;const tbl=tr.closest('table');if(!tbl||!tbl.tHead)return;
+  tbl.querySelectorAll('tbody tr.row-sel').forEach(x=>{if(x!==tr)x.classList.remove('row-sel');});tr.classList.add('row-sel');if(tbl.id)ROWSEL[tbl.id]=rowKey(tr);}
+document.addEventListener('mousedown',rowSelPick,true);document.addEventListener('focusin',rowSelPick,true);
 function sortable(tbl,id){if(!tbl||!tbl.tHead)return;if(tbl.tBodies[0])colsApply(tbl,id);const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];
   [...hr.cells].forEach((th,i)=>{if(th.hasAttribute('data-nosort'))return;thLabel(th);th.classList.add('fth');
     if(!th.querySelector('.fbtn'))th.insertAdjacentHTML('beforeend','<button type="button" class="fbtn" tabindex="-1" aria-hidden="true">▾</button>');
     th.tabIndex=0;th.title='눌러서 정렬·필터';
     const go=e=>{e.stopPropagation();openFilter(tbl,id,i,th);};
     th.onclick=go;th.onkeydown=e=>{if(e.key==='Enter'||e.key===' '||(e.altKey&&e.key==='ArrowDown')){e.preventDefault();go(e);}};});
-  applySort(tbl,id);}
+  applySort(tbl,id);rowSelRestore(tbl,id);}
 function rowPass(r,id,skip){const f=FILTST[id];if(!f)return true;for(const ci in f){if(+ci===skip)continue;if(f[ci].has(cellText(r.cells[ci])))return false;}return true;}
 function applySort(tbl,id){const st=SORTST[id];const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];const f=FILTST[id]||{};
   [...hr.cells].forEach((th,i)=>{th.querySelector('.arr')?.remove();if(th.hasAttribute('data-nosort'))return;
