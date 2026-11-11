@@ -1128,7 +1128,7 @@ const CRIT_N=['(1) 현직급 변환','(2) 년차','(3) 직무 역할','(4) 연�
 const gN=g=>/^G[1-4]$/.test(g||'')?+g[1]:null;
 const gTxt=x=>x==null?'-':'G'+x;
 const gCls=x=>x==null?'':'gc'+Math.round(x);
-// 년차 = (입사일 ~ 현직급 발령일) + 현직급 기간(조정 포함) + 경력인정(년) → 올림 년차 (입사 첫해 1년차 · 2년차 = 1년 초과~2년 · 2년 1개월 → 3년차)
+// 년차 = (입사일 ~ 현직급 발령일) + 현직급 기간(조정 포함) + 경력인정(년) → 입사 연도 = 1년차 (예: 25년 입사 → 25년 1년차 · 26년 2년차 · 27년 3년차)
 // 신입(입사일 = 발령일)은 현직급 기간이 곧 근속
 function tenureParts(p){const h=new Date(dateStr(p.hire)),g=new Date(dateStr(p.gdate));let pre=null;
   if(!isNaN(h)&&!isNaN(g)){pre=(g.getFullYear()-h.getFullYear())*12+(g.getMonth()-h.getMonth());if(g.getDate()<h.getDate())pre--;pre=Math.max(0,pre);}
@@ -1136,12 +1136,17 @@ function tenureParts(p){const h=new Date(dateStr(p.hire)),g=new Date(dateStr(p.g
     const a=Math.round((num(p.adj)||0)*12);const per=m==null?periodMonths(p):m+a;return{newbie:true,pre:0,per,car:0,total:Math.max(0,per||0),ok:per!=null};}
   const per=periodMonths(p);const car=Math.round((num(p.career)||0)*12);
   return{pre,per,car,total:Math.max(0,(pre||0)+(per||0)+car),ok:per!=null||pre!=null||car!==0};}
-function autoYears(p){const t=tenureParts(p);if(!t.ok)return null;return Math.max(1,Math.ceil(t.total/12));}
+// 년차 = 연도 기준: 입사 연도 = 1년차 (예: 25년 입사 → 25년 1년차 · 26년 2년차 · 27년 3년차)
+//   신입: 기준일 연도 − 입사 연도 + 1 (+ 조정) / 경력직: 여기에 경력인정(년) 더함 (소수는 올림)
+function yearParts(p){const h=new Date(dateStr(p.hire));const ry=REFD().getFullYear();
+  if(isNaN(h)){const t=tenureParts(p);return t.ok?{by:null,base:Math.max(1,Math.ceil(t.total/12)),adj:0,car:0}:null;} // 입사일 없으면 기간 기준
+  const base=ry-h.getFullYear()+1;return{by:h.getFullYear(),ry,base,adj:num(p.adj)||0,car:p.newbie?0:(num(p.career)||0)};}
+function autoYears(p){const y=yearParts(p);if(!y)return null;return Math.max(1,Math.ceil(y.base+y.adj+y.car-1e-9));}
 // 년차: 기본정보에서 수기 입력(p.yrsM)이 있으면 그 값 우선
 function careerYears(p,c){const m=num(p.yrsM);if(m!=null&&m>=1)return Math.round(m);return autoYears(p);}
-function tenureTip(p){const t=tenureParts(p);if(!t.ok)return'입사일 · 현직급 발령일 · 경력인정이 없어 계산 불가';
-  if(t.newbie)return`신입: 입사일 ~ ${dotDate(dateStr(REFD()))} ${ymText(t.total)}${num(p.adj)?` (조정 ${num(p.adj)>0?'+':''}${num(p.adj)}년 포함)`:''} → ${Math.max(1,Math.ceil(t.total/12))}년차`;
-  return`[기준일 ${dotDate(dateStr(REFD()))}] 입사~발령 ${ymText(t.pre??0)} + 현직급 기간 ${ymText(t.per??0)}${num(p.adj)?` (조정 ${num(p.adj)>0?'+':''}${num(p.adj)}년 포함)`:''} + 경력인정 ${num(p.career)||0}년 = ${ymText(t.total)} → ${Math.max(1,Math.ceil(t.total/12))}년차`;}
+function tenureTip(p){const y=yearParts(p);if(!y)return'입사일이 없어 계산 불가';const a=autoYears(p);
+  if(y.by==null)return`입사일 없음 → 현직급 기간 기준 ${a}년차`;
+  return`${p.newbie?'신입':'경력직'}: ${y.ry}년 − ${y.by}년 입사 + 1 = ${y.base}년차${y.adj?` · 조정 ${y.adj>0?'+':''}${y.adj}`:''}${y.car?` · 경력인정 +${y.car}`:''} → ${a}년차 (기준 ${dotDate(dateStr(REFD()))})`;}
 function yearGrade(y,c){if(y==null)return null;const s=c.yStart;return y>=s[3]?4:y>=s[2]?3:y>=s[1]?2:1;}
 function yearRange(i,c){const s=c.yStart;return i<3?`${s[i]}~${s[i+1]-1}년차`:`${s[3]}년차 이상`;}
 function roleGrade(role,c){const r=(c.roles||[]).find(x=>x[0]===role);return r?gN(r[1]):null;}
@@ -1212,7 +1217,7 @@ function newCritHTML(c,ro){ // ro=true: 보고용 읽기 전용
     ${[3,2,1,0].map(i=>`<tr><td><b>G${i+1}</b></td>${i===0?'<td>1</td>':td(inp('yStart.'+i,c.yStart[i],2))}<td>${yearRange(i,c)}</td></tr>`).join('')}</tbody></table>
     </div>
     <table class="crit-tbl" style="margin-top:6px"><tbody><tr><td class="l"><b>년차 기준일</b></td><td class="${ro?'':'in'}">${ro?dotDate(c.refDate||REF_DEFAULT):`<input type="date" data-crit="refDate" value="${esc(c.refDate||REF_DEFAULT)}">`}</td></tr></tbody></table>
-    <p class="note">※ 기준일까지의 근속으로 계산 (오늘 날짜와 무관) / 년차 = 신입: 입사일부터 근속 / 경력직: (입사일 ~ 현직급 발령일) + 현직급 기간(조정 포함) + 경력인정 → 올림 년차 (입사 첫해 1년차 · 2년차 = 1년 초과~2년 · 2년 1개월 → 3년차) / 신입은 현직급 기간이 곧 근속</p></div>
+    <p class="note">※ 년차 = 기준일 연도 − 입사 연도 + 1 (입사 연도 = 1년차, 예: 25년 입사 → 27년 3년차) / 경력직은 + 경력인정 / 조정(±년) 반영 / 오늘 날짜와 무관</p></div>
   <div class="panel"><h2>(3) 직무 역할</h2><div class="pair pair-r tw">
     <table class="crit-tbl"><thead><tr><th>현직급</th><th>직무 역할<br>직급</th></tr></thead><tbody>
     ${GRADE6_DESC.map(g=>`<tr><td><b>${g}</b></td>${td(gsel('roleMap.'+g,(c.roleMap||c.gmap)[g]))}</tr>`).join('')}</tbody></table>
@@ -1304,7 +1309,7 @@ function sheetInfoN(){
   body.innerHTML=`<div class="panel"><div class="bar"><h2 class="grow" style="margin:0">인원 기본정보 <span class="sub">(노란 칸 입력 · 직무 역할 · 인사평가 선택)</span></h2>
     ${searchBoxHTML('info')}<button id="add-row" type="button">행 추가</button><button id="dl-tpl" type="button">업로드 양식</button><button id="dl-info" type="button" class="primary">엑셀 다운로드</button></div>
     <div class="scroll"><table id="info-tbl" class="info rno-t"><thead><tr><th data-nosort></th><th data-nosort class="rno-h">No</th>${INFO_COLS2.map(x=>`<th style="min-width:${x[3]}px">${x[1]}</th>`).join('')}</tr></thead><tbody></tbody></table></div>
-    <p class="note">※ 년차: 신입 = 입사일부터 근속 / 경력직 = (입사일 ~ 현직급 발령일) + 현직급 기간(조정 포함) + 경력인정(수기) → 올림 년차 (분류 기준 › 1차 분류 기준 (2)) / 인사평가는 생애연봉 시뮬레이션의 승진 누락에 사용 / 엑셀 불러오기는 머리글 이름으로 열을 찾음 (이 화면의 엑셀 다운로드 파일을 그대로 다시 올릴 수 있음)</p></div>`;
+    <p class="note">※ 년차 = 기준일(2027.01.01) 연도 − 입사 연도 + 1 (입사 연도 = 1년차) · 경력직은 + 경력인정 · 조정 반영 (분류 기준 › 1차 분류 기준 (2)) / 인사평가는 생애연봉 시뮬레이션의 승진 누락에 사용 / 엑셀 불러오기는 머리글 이름으로 열을 찾음 (이 화면의 엑셀 다운로드 파일을 그대로 다시 올릴 수 있음)</p></div>`;
   const tb=body.querySelector('#info-tbl tbody');
   tb.innerHTML=S.people.map((p,i)=>`<tr data-i="${i}"><td><button class="row-del" type="button" data-del="${i}" aria-label="${esc(p.name)} 행 삭제">×</button></td><td class="rno"></td>${INFO_COLS2.map(([k,,t])=>{
     if(t==='auto')return`<td class="auto" data-auto="${k}"></td>`;
