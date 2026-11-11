@@ -464,6 +464,9 @@ td.gv.same{color:var(--accent)!important;font-weight:800} td.gv.diff{color:var(-
    ========================================================= */
 const LS_KEY='sg30-grade2-v2';
 const BASE_YEAR=2026, TODAY=new Date(2026,10,3);
+// 년차 · 현직급 기간 계산 기준일 (오늘 날짜와 무관한 고정값, 분류 기준 (2)에서 변경)
+const REF_DEFAULT='2027-01-01';
+function REFD(){const v=(typeof S!=='undefined'&&S&&S.crit&&S.crit.refDate)||REF_DEFAULT;const d=new Date(v+'T00:00:00');return isNaN(d)?new Date(2027,0,1):d;}
 const GRADE6=['G1','G2','G3','G4','G5','G6'];
 const CLASS_KEYS=['G1','G1, G2','G2','G2, G3','G3','G3, G4','G4','밴드 미달','밴드 초과'];
 // 표시 순서: 높은 직급이 위(왼쪽)
@@ -476,6 +479,7 @@ function defaultCrit(){return{
   yStart:[1,7,13,20],                                                   // (2) 1~6 / 7~12 / 13~19 / 20+
   roles:[['정형 업무','G1'],['자율 · 기획 업무','G2'],['과제 리딩','G3'],['전략적 판단','G4']], // (3)
   cuts:[1.5,2.5,3.5],                                                  // (5) 종합 점수 → 등급 기준: G2·G3·G4 시작 점수
+  refDate:REF_DEFAULT,                                                  // 년차 · 현직급 기간 기준일
   w:[25,25,25,25],                                                      // (5) 가중치(%)
   roleMap:{G1:'G1',G2:'G2',G3:'G2',G4:'G3',G5:'G3',G6:'G4'},          // (3) 현직급 → 직무 역할 직급 (전체 인원 일괄, 개인 선택이 있으면 개인 값 우선)
   bands:[[4000,5500],[4700,6700],[5600,8100],[6700,9900]],           // ① 직급별 Pay-band (만원)
@@ -645,7 +649,7 @@ const dotDate=v=>dateStr(v).replace(/-/g,'.');
 // 현직급 기간: 발령일(또는 업로드된 기간 값) 기준 개월수 + 조정(±년)×12
 const ymText=m=>m==null?'':`${Math.floor(m/12)}년${m%12}개월`;
 function periodBaseMonths(p){if(p.period){const m=/(\d+)\s*년\s*(\d+)?\s*(개?월)?/.exec(String(p.period));return m?(+m[1])*12+(+(m[2]||0)):null;}
-  const d=new Date(dateStr(p.gdate));if(isNaN(d))return null;let m=(TODAY.getFullYear()-d.getFullYear())*12+(TODAY.getMonth()-d.getMonth());if(TODAY.getDate()<d.getDate())m--;return m<0?null:m;}
+  const d=new Date(dateStr(p.gdate));if(isNaN(d))return null;const R=REFD();let m=(R.getFullYear()-d.getFullYear())*12+(R.getMonth()-d.getMonth());if(R.getDate()<d.getDate())m--;return m<0?null:m;}
 function periodBaseText(p){if(p.period&&periodBaseMonths(p)==null)return String(p.period);return ymText(periodBaseMonths(p));}
 function periodMonths(p){const b=periodBaseMonths(p);const a=num(p.adj);if(b==null)return a?Math.max(0,Math.round(a*12)):null;return Math.max(0,b+Math.round((a||0)*12));}
 function periodText(p){const b=periodBaseMonths(p);if(b==null&&!num(p.adj))return p.period?String(p.period):'';return ymText(periodMonths(p));}
@@ -928,7 +932,7 @@ function sheetInfo(){
 function setCrit(path,val){const c=S.crit;
   {const [a,i]=path.split('.');
    if(a==='gmap'){c.gmap[i]=val;return;}if(a==='baseYr'){c.baseYr[i]=val===''?'':+val;return;}
-   if(a==='yStart'){c.yStart[+i]=Math.max(2,+val||2);return;}if(a==='roles'){c.roles[+i][1]=val;return;}if(a==='w'){c.w[+i]=Math.max(0,+val||0);return;}if(a==='cuts'){c.cuts=compCuts(c);c.cuts[+i]=Math.min(4,Math.max(1,+val||1));return;}if(a==='roleMap'){c.roleMap=c.roleMap||{};c.roleMap[i]=val;return;}if(a==='salPick'){c.salPick=val;return;}}
+   if(a==='yStart'){c.yStart[+i]=Math.max(2,+val||2);return;}if(a==='roles'){c.roles[+i][1]=val;return;}if(a==='w'){c.w[+i]=Math.max(0,+val||0);return;}if(a==='refDate'){c.refDate=/^\d{4}-\d{2}-\d{2}$/.test(val)?val:REF_DEFAULT;return;}if(a==='cuts'){c.cuts=compCuts(c);c.cuts[+i]=Math.min(4,Math.max(1,+val||1));return;}if(a==='roleMap'){c.roleMap=c.roleMap||{};c.roleMap[i]=val;return;}if(a==='salPick'){c.salPick=val;return;}}
   if(path==='ratePct'){c.rate=(+val||0)/100;return;}
   if(path==='mode'){c.mode=val;return;}
   if(path==='retAge'){c.retAge=+val||0;return;}
@@ -1065,7 +1069,7 @@ function sheetReport(){
   const RG=clsRanges(c);const sp=rows.filter(r=>r.p.special);
   const head=`대상 ${N}명 중 ${fin}명(${pct(fin,N)}) 최종 직급 확정 · 1차 분류 중첩 ${ov}명(${pct(ov,N)})은 개별 판단으로 확정`;
   body.innerHTML=`<div class="rpt">
-  <div class="bar rpt-top"><div class="grow"><div class="rpt-kick">1차 분류 → 2차 분류(최종) 결과 보고 · 기준일 ${dotDate(dateStr(TODAY))}</div><h2 class="rpt-head">${esc(head)}</h2></div>
+  <div class="bar rpt-top"><div class="grow"><div class="rpt-kick">1차 분류 → 2차 분류(최종) 결과 보고 · 년차 기준일 ${dotDate(dateStr(REFD()))}</div><h2 class="rpt-head">${esc(head)}</h2></div>
     <button type="button" id="rpt-print">인쇄 / PDF</button></div>
   <div class="panel"><h2>① 기본 현황 <span class="sub">(단위: 명, 현직급 기준)</span></h2>
     <div class="scroll"><table class="rtbl"><thead><tr><th>구분</th><th>전체</th>${GRADE6_DESC.map(g=>`<th>${g}</th>`).join('')}${curEtc?'<th>기타</th>':''}</tr></thead><tbody>
@@ -1128,7 +1132,7 @@ const gCls=x=>x==null?'':'gc'+Math.round(x);
 // 신입(입사일 = 발령일)은 현직급 기간이 곧 근속
 function tenureParts(p){const h=new Date(dateStr(p.hire)),g=new Date(dateStr(p.gdate));let pre=null;
   if(!isNaN(h)&&!isNaN(g)){pre=(g.getFullYear()-h.getFullYear())*12+(g.getMonth()-h.getMonth());if(g.getDate()<h.getDate())pre--;pre=Math.max(0,pre);}
-  if(p.newbie){let m=null;if(!isNaN(h)){m=(TODAY.getFullYear()-h.getFullYear())*12+(TODAY.getMonth()-h.getMonth());if(TODAY.getDate()<h.getDate())m--;m=Math.max(0,m);}
+  if(p.newbie){let m=null;const R=REFD();if(!isNaN(h)){m=(R.getFullYear()-h.getFullYear())*12+(R.getMonth()-h.getMonth());if(R.getDate()<h.getDate())m--;m=Math.max(0,m);}
     const a=Math.round((num(p.adj)||0)*12);const per=m==null?periodMonths(p):m+a;return{newbie:true,pre:0,per,car:0,total:Math.max(0,per||0),ok:per!=null};}
   const per=periodMonths(p);const car=Math.round((num(p.career)||0)*12);
   return{pre,per,car,total:Math.max(0,(pre||0)+(per||0)+car),ok:per!=null||pre!=null||car!==0};}
@@ -1136,8 +1140,8 @@ function autoYears(p){const t=tenureParts(p);if(!t.ok)return null;return Math.ma
 // 년차: 기본정보에서 수기 입력(p.yrsM)이 있으면 그 값 우선
 function careerYears(p,c){const m=num(p.yrsM);if(m!=null&&m>=1)return Math.round(m);return autoYears(p);}
 function tenureTip(p){const t=tenureParts(p);if(!t.ok)return'입사일 · 현직급 발령일 · 경력인정이 없어 계산 불가';
-  if(t.newbie)return`신입: 입사일부터 ${ymText(t.total)}${num(p.adj)?` (조정 ${num(p.adj)>0?'+':''}${num(p.adj)}년 포함)`:''} → ${Math.max(1,Math.ceil(t.total/12))}년차`;
-  return`입사~발령 ${ymText(t.pre??0)} + 현직급 기간 ${ymText(t.per??0)}${num(p.adj)?` (조정 ${num(p.adj)>0?'+':''}${num(p.adj)}년 포함)`:''} + 경력인정 ${num(p.career)||0}년 = ${ymText(t.total)} → ${Math.max(1,Math.ceil(t.total/12))}년차`;}
+  if(t.newbie)return`신입: 입사일 ~ ${dotDate(dateStr(REFD()))} ${ymText(t.total)}${num(p.adj)?` (조정 ${num(p.adj)>0?'+':''}${num(p.adj)}년 포함)`:''} → ${Math.max(1,Math.ceil(t.total/12))}년차`;
+  return`[기준일 ${dotDate(dateStr(REFD()))}] 입사~발령 ${ymText(t.pre??0)} + 현직급 기간 ${ymText(t.per??0)}${num(p.adj)?` (조정 ${num(p.adj)>0?'+':''}${num(p.adj)}년 포함)`:''} + 경력인정 ${num(p.career)||0}년 = ${ymText(t.total)} → ${Math.max(1,Math.ceil(t.total/12))}년차`;}
 function yearGrade(y,c){if(y==null)return null;const s=c.yStart;return y>=s[3]?4:y>=s[2]?3:y>=s[1]?2:1;}
 function yearRange(i,c){const s=c.yStart;return i<3?`${s[i]}~${s[i+1]-1}년차`:`${s[3]}년차 이상`;}
 function roleGrade(role,c){const r=(c.roles||[]).find(x=>x[0]===role);return r?gN(r[1]):null;}
@@ -1207,7 +1211,8 @@ function newCritHTML(c,ro){ // ro=true: 보고용 읽기 전용
     <table class="crit-tbl"><thead><tr><th>직급</th><th>시작 년차</th><th>구간</th></tr></thead><tbody>
     ${[3,2,1,0].map(i=>`<tr><td><b>G${i+1}</b></td>${i===0?'<td>1</td>':td(inp('yStart.'+i,c.yStart[i],2))}<td>${yearRange(i,c)}</td></tr>`).join('')}</tbody></table>
     </div>
-    <p class="note">※ 년차 = 신입: 입사일부터 근속 / 경력직: (입사일 ~ 현직급 발령일) + 현직급 기간(조정 포함) + 경력인정 → 올림 년차 (입사 첫해 1년차 · 2년차 = 1년 초과~2년 · 2년 1개월 → 3년차) / 신입은 현직급 기간이 곧 근속</p></div>
+    <table class="crit-tbl" style="margin-top:6px"><tbody><tr><td class="l"><b>년차 기준일</b></td><td class="${ro?'':'in'}">${ro?dotDate(c.refDate||REF_DEFAULT):`<input type="date" data-crit="refDate" value="${esc(c.refDate||REF_DEFAULT)}">`}</td></tr></tbody></table>
+    <p class="note">※ 기준일까지의 근속으로 계산 (오늘 날짜와 무관) / 년차 = 신입: 입사일부터 근속 / 경력직: (입사일 ~ 현직급 발령일) + 현직급 기간(조정 포함) + 경력인정 → 올림 년차 (입사 첫해 1년차 · 2년차 = 1년 초과~2년 · 2년 1개월 → 3년차) / 신입은 현직급 기간이 곧 근속</p></div>
   <div class="panel"><h2>(3) 직무 역할</h2><div class="pair pair-r tw">
     <table class="crit-tbl"><thead><tr><th>현직급</th><th>직무 역할<br>직급</th></tr></thead><tbody>
     ${GRADE6_DESC.map(g=>`<tr><td><b>${g}</b></td>${td(gsel('roleMap.'+g,(c.roleMap||c.gmap)[g]))}</tr>`).join('')}</tbody></table>
@@ -1401,7 +1406,7 @@ function sheetReportN(){
     ${GRADE6_DESC.map(g=>`<tr><td><b>${g}</b></td>${[4,3,2,1].map(x=>`<td class="${cmx[g][x]?'gc'+x:''}">${cmx[g][x]||''}</td>`).join('')}<td><b>${[4,3,2,1].reduce((a,x)=>a+cmx[g][x],0)}</b></td></tr>`).join('')}
     <tr class="tot"><td><b>계</b></td>${[4,3,2,1].map(x=>`<td><b>${byComp(x)}</b></td>`).join('')}<td><b>${rows.filter(r=>r.comp).length}</b></td></tr></tbody></table>`;
   body.innerHTML=`<div class="rpt">
-  <div class="bar rpt-top"><div class="grow"><div class="rpt-kick">직급 분류 (신규 기준) 결과 보고 · 기준일 ${dotDate(dateStr(TODAY))}</div><h2 class="rpt-head">${esc(head)}</h2></div>
+  <div class="bar rpt-top"><div class="grow"><div class="rpt-kick">직급 분류 (신규 기준) 결과 보고 · 년차 기준일 ${dotDate(dateStr(REFD()))}</div><h2 class="rpt-head">${esc(head)}</h2></div>
     <button type="button" id="rpt-print">인쇄 / PDF</button></div>
   <div class="panel"><h2>① 기본 현황 <span class="sub">(단위: 명, 현직급 기준)</span></h2>
     <div class="scroll"><table class="rtbl"><thead><tr><th>구분</th><th>전체</th>${GRADE6_DESC.map(g=>`<th>${g}</th>`).join('')}${curEtc?'<th>기타</th>':''}</tr></thead><tbody>
