@@ -1503,9 +1503,9 @@ function sheetCrit2(){
     <div class="panel" style="margin-top:16px"><h2>2차 기준연봉표 <span class="sub">(1년차 = 분류 기준 하한, 연 ${(stepRate(c)*100).toFixed(1)}% 상승, 단위: 원)</span></h2>
    <div class="scroll"><table><thead><tr><th>직급</th>${Array.from({length:N},(_,y)=>`<th>${y+1}년차</th>`).join('')}</tr></thead><tbody>
    ${[4,3,2,1].map(g=>`<tr><td><b>G${g}</b></td>${Array.from({length:N},(_,y)=>`<td class="num ${T2(c,g,y+1)>c.bands[g-1][1]*1e4?'c-stay':''}">${fW(T2(c,g,y+1))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
-   <div class="legend"><span><i style="background:var(--stay)"></i>1차 Pay-band 상한 초과 구간(2차는 상한 없이 계속 상승)</span></div></div>`;
+   <div class="legend"><span><i style="background:var(--stay)"></i>1차 Pay-band 상한 초과 구간(2차는 상한 없이 계속 상승)</span></div></div>${promoPanelHTML(c)}`;
   body.querySelectorAll('[data-c2]').forEach(el=>el.onchange=()=>{S.crit.step=S.crit.step||{rate:0.025,years:30};if(el.dataset.c2==='rate')S.crit.step.rate=(+el.value||0)/100;else S.crit.step.years=Math.max(1,Math.min(60,Math.round(+el.value||30)));save();sheetCrit2();});
-  bindCrit2(body,sheetCrit2);}
+  bindCrit2(body,sheetCrit2);bindPromo(body,sheetCrit2);}
 
 /* ---- 1차 분류 › 기본정보 ---- */
 const INFO_COLS2=[['id','사번','text',58],['name','이름','text',56],['birth','생년월일','date',104],['age','나이','number',40],['dept','부서','text',80],['job','직군','text',52],['title','직책','text',44],
@@ -1747,8 +1747,8 @@ function sheetLife(){
     <div class="scroll"><table style="width:auto"><thead><tr><th>구분</th><th>시나리오 ①</th><th>시나리오 ②</th><th>시나리오 ③</th><th>전체 (중복 제외)</th></tr></thead><tbody>
     <tr><td>인원</td>${[0,1,2].map(k=>`<td class="num">${capCnt(k)}</td>`).join('')}<td class="num"><b>${capCnt(null)}</b></td></tr></tbody></table></div></div>
    <div class="panel" style="margin-top:16px"><h2>연봉 기준표 <span class="sub">(직급·년차별 하한, 단위: 원)</span></h2><div class="scroll">${stdTableHTML(c,tab,30)}</div>
-    <p class="note">※ 흰색 = 원직 경로 / 연노랑 = 체류 구간 / 주황 = 상한 도달·동결 / 수정은 기본정보 ④·⑤·⑥에서</p></div>`;
-  bindFinder(rows,sheetLife);
+    <p class="note">※ 흰색 = 원직 경로 / 연노랑 = 체류 구간 / 주황 = 상한 도달·동결 / 수정은 기본정보 ④·⑤·⑥에서</p></div>${promoPanelHTML(c)}`;
+  bindFinder(rows,sheetLife);bindPromo(body,sheetLife);
   body.querySelector('#det-man').onchange=e=>{S.manualG=e.target.value;save();sheetLife();};
   if(S.jump){S.jump=false;save();const el=document.getElementById('life-sc');if(el)el.scrollIntoView({block:'start'});}
 }
@@ -1836,9 +1836,25 @@ const stepN=c=>Math.max(1,Math.round(+((c.step||{}).years)||30));
 const T2=(c,g,y)=>c.bands[g-1][0]*1e4*Math.pow(1+stepRate(c),Math.max(1,y)-1);
 function autoStep(sal,g,c){if(!sal||!g)return null;const b=c.bands[g-1][0]*1e4,r=stepRate(c),N=stepN(c);
   if(sal<b)return{y:1,under:true};let y=r>0?Math.floor(Math.log(sal/b)/Math.log(1+r)+1e-9)+1:1;return y>N?{y:N,over:true,raw:y}:{y};}
+
+// 진급 기준 (승진 시기 · 진급 시 연봉 인상) — 1차 · 2차 생애연봉 공통 수정 패널
+function promo2(c){const d=+(stepRate(c)*100).toFixed(3);const o=c.promo2||{};return{rate:[0,1,2].map(i=>o.rate&&o.rate[i]!==''&&o.rate[i]!=null?+o.rate[i]:d),amt:[0,1,2].map(i=>o.amt?+o.amt[i]||0:0)};}
+function promoPanelHTML(c,id){const P=promo2(c);const inp=(k,v,st)=>`<input type="number" ${st?`step="${st}"`:''} data-pc="${k}" value="${v}">`;
+  return`<div class="panel" style="margin-top:16px" id="${id||'promo-crit'}"><h2>진급 기준 · 진급 시 연봉 인상 <span class="sub">(노란색 수정 가능 · 수정 즉시 1차 · 2차 생애연봉에 반영)</span></h2>
+   <div class="scroll"><table class="crit-tbl"><thead><tr><th rowspan="2">구분</th><th rowspan="2">승진 기준 연수<br>(체류)</th><th>1차 생애연봉</th><th colspan="3">2차 생애연봉</th></tr>
+    <tr><th>승진 정액(만원)</th><th>진급 인상률(%)</th><th>진급 정액(만원)</th><th>진급 연봉 (예: 전년 6,000만원)</th></tr></thead><tbody>
+    ${['G1 → G2 진급','G2 → G3 진급','G3 → G4 진급'].map((l,i)=>{const tg=6000*(1+P.rate[i]/100)+P.amt[i];
+      return`<tr><td class="l"><b>${l}</b></td><td class="in">${inp(`stay.${i}.0`,c.stay[i][0])}</td><td class="in">${inp(`promo.${i}`,c.promo[i])}</td><td class="in">${inp(`p2rate.${i}`,P.rate[i],'0.1')}</td><td class="in">${inp(`p2amt.${i}`,P.amt[i])}</td>
+       <td class="l">${nf(Math.round(tg))}만원 이상 → G${i+2} 기준연봉표에서 이 금액 이상인 첫 년차로 배치</td></tr>`;}).join('')}</tbody></table></div>
+   <p class="note">※ 1차: 진급 연도 연봉 = 전년 × (1+${(c.rate*100).toFixed(1)}%) + 승진 정액 / 2차: 진급 연봉 = 전년 × (1+진급 인상률) + 진급 정액 이상인 새 직급 첫 년차 (기본 인상률 = 2차 연 상승률 ${(stepRate(c)*100).toFixed(1)}%, 정액 0)</p>
+   <p class="note">※ 승진 시기 = 승진 기준 연수 + ⑧ 인사평가별 누락 지연 · 최초 승진 가능 ${c.firstYear}년 (분류 기준 › 1차 분류 기준 ④·⑧)</p></div>`;}
+function bindPromo(body,redraw){body.querySelectorAll('[data-pc]').forEach(el=>el.onchange=()=>{const c=S.crit;const [a,i]=el.dataset.pc.split('.');
+  if(a==='p2rate'||a==='p2amt'){const P=promo2(c);c.promo2={rate:P.rate.slice(),amt:P.amt.slice()};if(a==='p2rate')c.promo2.rate[+i]=el.value===''?'':+el.value;else c.promo2.amt[+i]=Math.max(0,+el.value||0);}
+  else{setCrit(el.dataset.pc,el.value);if(a==='stay')c.stay[+i][0]=Math.max(1,+c.stay[+i][0]||1);}
+  save();const y=window.scrollY;redraw();window.scrollTo(0,y);toast('진급 기준을 바꿨습니다. 1차 · 2차 생애연봉이 다시 계산됩니다.');});}
 // 2차 생애연봉: 매년 년차 +1 (기준연봉표 값), 승진 시 새 직급에서 「전년 × (1+상승률)」 이상인 첫 년차로 배치
 function scenario2(p,g,n,c,ev,noPromo){
-  const sal=num(p.salary);const F=remYears(p,c)??0;const E=evalInfo(c,ev===undefined?p.eval:ev);const kx=E.kx;const r=stepRate(c);
+  const sal=num(p.salary);const F=remYears(p,c)??0;const E=evalInfo(c,ev===undefined?p.eval:ev);const kx=E.kx;const PR=promo2(c);
   const first=(+c.firstYear||0)-(+c.baseYear||0);
   const d1=(g>=4||noPromo)?999:Math.max(first,(c.mode==='현 시점부터 기준연수'?stayYears(c,g):Math.max(stayYears(c,g)-n,0)+1))+kx;
   const d2=(g>=3||noPromo)?999:d1+stayYears(c,g+1)+kx;
@@ -1848,7 +1864,7 @@ function scenario2(p,g,n,c,ev,noPromo){
   for(let t=0;t<=45;t++){
     if(t>end){G[t]=G[t-1];Y[t]=Y[t-1];W[t]=W[t-1];continue;}
     G[t]=gr(t);const prev=t===0?sal:W[t-1];
-    if(t>0&&G[t]>G[t-1]){y=1;let guard=0;while(T2(c,G[t],y)<prev*(1+r)&&guard++<200)y++;}
+    if(t>0&&G[t]>G[t-1]){const tg=prev*(1+PR.rate[G[t]-2]/100)+PR.amt[G[t]-2]*1e4;y=1;let guard=0;while(T2(c,G[t],y)<tg&&guard++<200)y++;}
     else y=t===0?n:y+1;
     Y[t]=y;W[t]=t===0?sal:Math.max(prev,T2(c,G[t],y));} // 26년 = 현재 연봉·현재 년차, 27년부터 년차 +1 · 기준연봉이 현 연봉보다 낮으면 삭감 없이 유지
   const fi=Math.min(end,45);const age=num(p.age)||0;
@@ -1944,7 +1960,7 @@ function sheet2Life(){
     ${r?`<div class="salbar"><div class="hl"><span>현 연봉</span><b>${fW(r.sal)}원</b></div><div><span>G${r.app} Pay-band</span><b>${nf(c.bands[r.app-1][0])} ~ ${nf(c.bands[r.app-1][1])}만원</b></div><div><span>위치</span><b>${fP(pbPr(r.sal,r.app,c))}</b></div></div>
      ${L.length?`<div class="scroll"><table><thead><tr><th>시나리오</th><th>시작</th><th>승진 경로(나이)</th><th>${c.retAge}세 직급·년차</th><th>${c.retAge}세 연봉(원)</th></tr></thead><tbody>${L.map(line).join('')}</tbody></table></div>`:'<p class="sub">연봉 또는 직급 정보가 없습니다.</p>'}
      <p class="note">※ 빨간색 = 만 ${c.retAge}세 연봉이 해당 직급 Pay-band 상한 초과 (2차 기준연봉표는 상한 없이 상승) / 수기 시나리오 「G-CAP」 = 승진 없이 해당 직급 상한에서 동결</p>
-     <p class="note">※ 승진하면 새 직급에서 「전년 × (1+${(stepRate(c)*100).toFixed(1)}%)」 이상인 첫 년차로 배치 / 승진 시기는 1차와 같은 규칙(④ 승진 연수 · ⑧ 인사평가 누락) / 승진 정액은 2차에 적용하지 않음</p>`:'<p class="sub">해당 직급에 인원이 없습니다.</p>'}</div>
+     <p class="note">※ 승진하면 새 직급에서 「전년 × (1+진급 인상률) + 진급 정액」 이상인 첫 년차로 배치 / 승진 시기는 1차와 같은 규칙(④ 승진 연수 · ⑧ 인사평가 누락) / 진급 기준은 아래 「진급 기준」 표에서 수정</p>`:'<p class="sub">해당 직급에 인원이 없습니다.</p>'}</div>
     <div class="panel">${r&&L.length?lifeChart(r,c,L.map(o=>({s:o.s,l:o.lbl,col:o.col,hl:!!o.hl}))):''}</div></div>
    <div class="panel" style="margin-top:16px"><h2>Pay-band 상한 초과 인원 <span class="sub">(만 ${c.retAge}세 기준, 2차 · 단위: 명)</span></h2>
     <div class="scroll"><table style="width:auto"><thead><tr><th>구분</th><th>① 승진 반영</th><th>② 승진 없음</th><th>전체 (중복 제외)</th><th>대상</th></tr></thead><tbody>
@@ -1952,8 +1968,8 @@ function sheet2Life(){
    <div class="panel" style="margin-top:16px"><h2>2차 기준연봉표 <span class="sub">(직급·년차별, 1년차 = 밴드 하한 · 연 ${(stepRate(c)*100).toFixed(1)}% 상승, 단위: 원)</span></h2>
     <div class="scroll"><table><thead><tr><th>직급</th><th>Pay-band 상한</th>${Array.from({length:N},(_,y)=>`<th>${y+1}년차</th>`).join('')}</tr></thead><tbody>
     ${[4,3,2,1].map(g=>`<tr><td><b>G${g}</b></td><td class="num">${fW(c.bands[g-1][1]*1e4)}</td>${Array.from({length:N},(_,y)=>`<td class="num ${T2(c,g,y+1)>c.bands[g-1][1]*1e4?'c-stay':''} ${r&&r.app===g&&r.step===y+1?'c-fin':''}">${fW(T2(c,g,y+1))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
-    <p class="note">※ 연노랑 = Pay-band 상한 초과 년차 / 테두리 = 선택 인원의 현재 직급·년차 / 수정은 분류 기준 › 2차 분류 기준</p></div>`;
-  bindFinder(rows,()=>{if(S.sel!==prevSel)S.man2='';sheet2Life();});bindMan2(body,sheet2Life);
+    <p class="note">※ 연노랑 = Pay-band 상한 초과 년차 / 테두리 = 선택 인원의 현재 직급·년차 / 수정은 분류 기준 › 2차 분류 기준</p></div>${promoPanelHTML(c)}`;
+  bindFinder(rows,()=>{if(S.sel!==prevSel)S.man2='';sheet2Life();});bindMan2(body,sheet2Life);bindPromo(body,sheet2Life);
   if(S.jump){S.jump=false;save();document.getElementById('life-sc')?.scrollIntoView({block:'start'});}
 }
 /* ---- 2차 시뮬레이션 상세 ---- */
