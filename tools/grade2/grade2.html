@@ -134,6 +134,8 @@ tr.rk-vsafe td:first-child{box-shadow:inset 4px 0 0 var(--vsafe)}
 .go-sim:hover{background:var(--accent);color:var(--accent-ink)}
 tr.fin-hl>td{background-image:linear-gradient(var(--accent-soft),var(--accent-soft));border-top:3px solid var(--accent);border-bottom:3px solid var(--accent);font-weight:600}
 tr.fin-hl>td:first-child{border-left:3px solid var(--accent)} tr.fin-hl>td:last-child{border-right:3px solid var(--accent)}
+/* 시뮬레이션 상세: 직급 + 연봉 두 줄을 한 박스로 */
+tr.fin-hl.hl-top>td{border-bottom:1px dashed var(--line-2)} tr.fin-hl.hl-bot>td{border-top:0}
 tr.fin-row>td:first-child{color:var(--accent)} th.th-fin{background:var(--accent)!important;color:var(--accent-ink)!important;outline:3px solid var(--accent)}
 .fin-note{color:var(--accent);font-weight:600}
 details.fold>summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:6px}
@@ -1786,7 +1788,7 @@ function sheetDetail(){
   const evRows=EVALS.map(ev=>{const ei=evalInfo(c,ev);const s=list.map(([,sc])=>sc?scenario(r.p,sc.g,c,tab,ev,sc.cap):null);return{ev,ei,s};});
   const base=evRows[0];
   const yrs=Array.from({length:E+1},(_,t)=>t);
-  const trow=(lbl,sc,kind)=>`<tr class="${hlCls(r,sc)}"><td class="l"><b>${lbl}</b></td><td class="curcol ${kind==='w'?'num':''}">${!sc?'':kind==='g'?'G'+sc.G[0]:fW(r.sal)}</td>${yrs.map(t=>{if(!sc)return'<td></td>';const promo=t>0&&sc.G[t]>sc.G[t-1];const miss=sc.missAt(t);
+  const trow=(lbl,sc,kind)=>`<tr class="${hlCls(r,sc)} ${kind==='g'?'hl-top':'hl-bot'}"><td class="l"><b>${lbl}</b></td><td class="curcol ${kind==='w'?'num':''}">${!sc?'':kind==='g'?'G'+sc.G[0]:fW(r.sal)}</td>${yrs.map(t=>{if(!sc)return'<td></td>';const promo=t>0&&sc.G[t]>sc.G[t-1];const miss=sc.missAt(t);
     const atCap=Math.round(sc.W[t])>=c.bands[sc.G[t]-1][1]*10000;return kind==='g'?`<td class="${promo?'c-promo':miss?'c-miss':''}">G${sc.G[t]}${miss?' 누락':''}</td>`:`<td class="num ${promo?'c-promo':atCap?'c-cap':''}">${fW(sc.W[t])}</td>`;}).join('')}</tr>`;
   body.innerHTML=`<div class="panel">${finderHTML(rows)}</div>
    <div class="panel" style="margin-top:16px"><div class="bar"><h2 class="grow" style="margin:0">생애연봉 시뮬레이션 상세</h2>
@@ -1980,7 +1982,7 @@ function sheet2Detail(){
   const L=s2Scenarios(r,c);const E=r.rem!=null?r.rem+1:1;const age0=(num(r.p.age)||0)-1;const by=+c.baseYear||BASE_YEAR;const yrs=Array.from({length:E+1},(_,t)=>t);
   const scRow=o=>{const s=o.s;return`<tr class="${o.hl?'fin-hl':''} ${o.man?'man-row':''}"><td class="l">${o.lbl}</td><td>G${s.g}·${s.n}년차</td><td class="l">${s.path}</td><td>G${s.finalG}·${s.finalY}년차</td><td class="num">${fW(s.final)}</td><td class="num">${fW(s.final-r.sal)}</td><td class="num">${fP(s.cagr,2)}</td></tr>`;};
   const evRows=EVALS.map(ev=>{const ei=evalInfo(c,ev);return{ev,ei,s:L.filter(o=>!o.s.noPromo).map(o=>scenario2(r.p,o.s.g,o.s.n,c,ev))};});const evCols=L.filter(o=>!o.s.noPromo);
-  const trow=(o,kind)=>{const s=o.s;return`<tr class="${o.hl?'fin-hl':''}"><td class="l"><b>${o.lbl.split(' ')[0]} ${kind==='g'?'직급·년차':'연봉'}</b></td><td class="curcol ${kind==='w'?'num':''}">${kind==='g'?'G'+s.g+'·'+s.n:fW(r.sal)}</td>${yrs.map(t=>{const promo=t>0&&s.G[t]>s.G[t-1];const miss=s.missAt(t);const over=s.W[t]>c.bands[s.G[t]-1][1]*1e4;
+  const trow=(o,kind)=>{const s=o.s;return`<tr class="${o.hl?'fin-hl':''} ${kind==='g'?'hl-top':'hl-bot'}"><td class="l"><b>${o.lbl.split(' ')[0]} ${kind==='g'?'직급·년차':'연봉'}</b></td><td class="curcol ${kind==='w'?'num':''}">${kind==='g'?'G'+s.g+'·'+s.n:fW(r.sal)}</td>${yrs.map(t=>{const promo=t>0&&s.G[t]>s.G[t-1];const miss=s.missAt(t);const over=s.W[t]>c.bands[s.G[t]-1][1]*1e4;
     return kind==='g'?`<td class="${promo?'c-promo':miss?'c-miss':''}">G${s.G[t]}·${s.Y[t]}${miss?' 누락':''}</td>`:`<td class="num ${promo?'c-promo':over?'c-cap':''}">${fW(s.W[t])}</td>`;}).join('')}</tr>`;};
   body.innerHTML=`<div class="panel"><div class="bar" style="align-items:flex-end;margin:0"><div class="grow">${finderHTML(rows)}</div>${man2HTML(c)}</div></div>
    <div class="panel" style="margin-top:16px"><div class="bar"><h2 class="grow" style="margin:0">2차 생애연봉 시뮬레이션 상세</h2>
