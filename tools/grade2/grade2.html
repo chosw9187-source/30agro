@@ -379,6 +379,14 @@ textarea{width:100%;min-height:110px;font:12px/1.4 ui-monospace,Menlo,Consolas,m
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 
 /* ---- 직급 분류(신규 기준) ---- */
+/* 최종 직급·년차: 이사님 확인용 열 — 빨간 전체 테두리, 특이사항은 칸 색 */
+.g2-cls thead tr th.key-col{border:3px solid var(--crit)!important;border-bottom:1px solid var(--crit)!important;background:#b9372b!important;color:#fff!important}
+.g2-cls td.key-col{border-left:3px solid var(--crit)!important;border-right:3px solid var(--crit)!important;font-size:13px}
+.g2-cls tbody tr:last-child td.key-col{border-bottom:3px solid var(--crit)!important}
+.g2-cls td.key-col.key-flag{background-color:#fde2c4!important;color:#7a3300!important}
+.g2-cls td.key-col.key-flag b::after{content:" ●";color:var(--crit);font-size:10px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .g2-cls td.key-col.key-flag{background-color:#4a2a10!important;color:#ffd2a8!important}}
+
 .g2-cls th.g-pb{border:3px solid var(--navy)!important;border-bottom:0!important}
 .g2-cls th.pb{background:#2b4c6f!important;color:#fff!important} .g2-cls td.pb{background-color:#eef3f9!important}
 .g2-cls .pb-l{border-left:3px solid var(--navy)!important} .g2-cls .pb-r{border-right:3px solid var(--navy)!important}
@@ -1265,7 +1273,7 @@ function sheet2ClassN(){
       <th class="cg">적용<br>직급</th><th class="cg">출처</th>
       <th class="cm cm-l">차감</th><th class="cm">직급 년차</th><th class="cm cm-r">체류</th>
       <th class="cg">연봉 기준</th><th class="cg">차이</th>
-      <th class="cs cs-l">최종 년차<br>(수기)</th><th class="cs cs-r">최종<br>직급·년차</th><th class="pb pb-l">최종 연봉(원)<br><span style="font-weight:400">= 현 연봉</span></th>
+      <th class="cs cs-l">최종 년차<br>(수기)</th><th class="cs key-col">최종<br>직급·년차</th><th class="pb pb-l">최종 연봉(원)<br><span style="font-weight:400">= 현 연봉</span></th>
       <th data-nosort class="pb">위치</th><th class="pb pb-r">밴드 내<br>위치(%)</th><th data-nosort class="cg">생애<br>연봉</th><th class="cg">2차<br>특이</th></tr></thead><tbody>
     ${rows.map(r=>{const p=r.p,s=r.s2,g=r.app;const fb=g&&r.step?T2(c,g,r.step):null;const k=esc(pkey(p));
       return`<tr class="${r.stepManual?'confirmed':''}"><td class="rno"></td><td>${esc(p.id)}</td><td><b>${esc(p.name)}</b></td><td class="l">${esc(p.dept)}</td><td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}">${esc(p.grade)}</td>
@@ -1274,12 +1282,12 @@ function sheet2ClassN(){
        <td class="cm cm-l" data-v="${s.off??''}">${g?(s.off?'−'+s.off:'0'):'-'}</td><td class="cm" data-v="${s.ten??''}"><b>${s.ten==null?'-':'G'+g+'·'+s.ten+'년차'}</b>${s.under?' <small>(1 미만)</small>':''}</td><td class="cm cm-r ${s.over?'c-warn':''}" data-ft="${s.over?'체류 초과':s.stay?'정상':'-'}">${s.over?`초과<br><small>(${s.stay}년)</small>`:s.stay?`~${s.stay}년`:'-'}</td>
        <td class="cg" data-v="${s.sy??''}">${s.sy==null?'-':s.sy+'년차'}${s.sa&&s.sa.under?' <small>(미달)</small>':''}</td><td class="cg gap ${s.gap>0?'up':s.gap<0?'dn':''}" data-v="${s.gap??''}">${s.gap==null?'-':s.gap===0?'0':(s.gap>0?'+':'')+s.gap+'년'}</td>
        <td class="cs cs-l in"><select data-s2k="${k}" class="${r.stepManual?'ov':''} gsel"><option value="">${s.ten??'-'}년차</option>${Array.from({length:SN},(_,i)=>`<option value="${i+1}" ${r.stepManual&&r.step===i+1?'selected':''}>${i+1}년차 수기</option>`).join('')}</select></td>
-       <td class="cs cs-r ${gCls(g)} ${g&&!inBand(r.sal,g,c)?'band-out':''}" data-v="${(g||0)*100+(r.step||0)}" data-ft="${s2Label(r)}" title="${g&&!inBand(r.sal,g,c)?`현 연봉이 G${g} 밴드(${nf(c.bands[g-1][0])}~${nf(c.bands[g-1][1])}만원) 밖`:''}"><b>${s2Label(r)}</b></td><td class="pb pb-l num" data-v="${r.sal??''}" title="직급 년차 기준연봉 ${fW(fb)}원 (참고)">${fW(r.sal)}${bandRng(g,c)}</td>
+       <td class="cs key-col ${keyFlags(r,c).length?'key-flag':''}" data-v="${(g||0)*100+(r.step||0)}" data-ft="${s2Label(r)}" title="${esc(keyFlags(r,c).join(' · '))}"><b>${s2Label(r)}</b></td><td class="pb pb-l num" data-v="${r.sal??''}" title="직급 년차 기준연봉 ${fW(fb)}원 (참고)">${fW(r.sal)}${bandRng(g,c)}</td>
        ${pbCell(r.sal,g,c).replace('<td class="pos"','<td class="pb pos"').replace('<td class="num','<td class="pb pb-r num')}
        <td class="cg"><button type="button" class="go-sim" data-s2go="${k}">▶</button></td>
        <td class="cg spc${p.special2?' on':''}" data-v="${p.special2?1:0}" data-ft="${p.special2?'특이':''}"><input type="checkbox" data-sp2k="${k}" ${p.special2?'checked':''} aria-label="${esc(p.name)} 2차 특이사항"></td></tr>`;}).join('')}
     </tbody></table></div>
-    <p class="note">※ 적용 직급 = 1차 분류 종합 등급 (최종 확정 · 보고용 특이인원 판단 우선) / 직급 년차 = 총 년차 − 하위 직급 체류연수 → 최종 년차 / 기준연봉 년차 = 현 연봉 이하 기준연봉 중 가장 높은 년차 (참고) · 차이 = 기준연봉 년차 − 직급 년차 / 최종 연봉 = 현 연봉 → Pay-band 위치도 현 연봉 기준 · 밴드 내 위치(%) = (연봉 − 하한) ÷ (상한 − 하한) / 빨간 테두리 = 현 연봉이 최종 직급 밴드 밖 · 수기 년차 / 최종 년차를 고르면 수기 값 우선</p></div>`;
+    <p class="note">※ 적용 직급 = 1차 분류 종합 등급 (최종 확정 · 보고용 특이인원 판단 우선) / 직급 년차 = 총 년차 − 하위 직급 체류연수 → 최종 년차 / 기준연봉 년차 = 현 연봉 이하 기준연봉 중 가장 높은 년차 (참고) · 차이 = 기준연봉 년차 − 직급 년차 / 최종 연봉 = 현 연봉 → Pay-band 위치도 현 연봉 기준 · 밴드 내 위치(%) = (연봉 − 하한) ÷ (상한 − 하한) / 빨간 굵은 테두리 열 = 최종 직급·년차 (최종 결과) · 주황 칸 ● = 특이사항 있음 (특이인원 · 최종 확정 · 수기 년차 · 밴드 밖, 마우스를 올리면 사유) / 최종 년차를 고르면 수기 값 우선</p></div>`;
   const t=body.querySelector('#s2-tbl');const find=k=>S.people.find(x=>pkey(x)===k);
   t.addEventListener('change',e=>{const el=e.target;
     if(el.dataset.s2k){const p=find(el.dataset.s2k);if(!p)return;p.step=el.value===''?'':+el.value;save();const y=window.scrollY;sheet2ClassN();window.scrollTo(0,y);return;}
@@ -1306,10 +1314,10 @@ function sheetFinalN(){
      <tr><td class="l">2차 년차: 자동 결정</td><td>${rows.filter(r=>!r.stepManual).length}명</td></tr>
      <tr><td class="l">2차 년차: 수기 확정</td><td>${rows.filter(r=>r.stepManual).length}명</td></tr></tbody></table></div></div>
   <div class="panel" style="margin-top:14px"><div class="bar"><h2 class="grow" style="margin:0">최종 직급 (${N}명)</h2>${searchBoxHTML('fin')}<button id="fin-dl" type="button" class="primary">엑셀 다운로드</button></div>
-    <div class="scroll"><table id="fin-tbl" class="rno-t g2-cls"><thead><tr><th data-nosort class="rno-h">No</th><th>사번</th><th>이름</th><th>부서</th><th>직책</th><th>이전 직급</th><th class="cs cs-l">최종 직급</th><th class="cs cs-r">최종 직급·년차</th><th>최종 연봉(원)<br><span style="font-weight:400">= 현 연봉 · Min ~ Max</span></th><th data-nosort>Pay-band 위치</th><th>밴드 내<br>위치(%)</th><th>판정 · 비고</th></tr></thead><tbody>
+    <div class="scroll"><table id="fin-tbl" class="rno-t g2-cls"><thead><tr><th data-nosort class="rno-h">No</th><th>사번</th><th>이름</th><th>부서</th><th>직책</th><th>이전 직급</th><th class="cs cs-l">최종 직급</th><th class="cs key-col">최종 직급·년차</th><th>최종 연봉(원)<br><span style="font-weight:400">= 현 연봉 · Min ~ Max</span></th><th data-nosort>Pay-band 위치</th><th>밴드 내<br>위치(%)</th><th>판정 · 비고</th></tr></thead><tbody>
     ${rows.map(r=>{const p=r.p,g=r.app;const fb=g&&r.step?T2(c,g,r.step):null;const note=[r.p.final?(r.p.special?'1차 특이인원 판단':'1차 최종 확정'):'',r.stepManual?'2차 수기 년차':'',r.p.special2?'2차 특이인원':''].filter(Boolean).join(' · ');
       return`<tr><td class="rno"></td><td>${esc(p.id)}</td><td><b>${esc(p.name)}</b></td><td class="l">${esc(p.dept)}</td><td>${esc(p.title)}</td><td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}"><b>${esc(p.grade)}</b></td>
-       <td class="cs cs-l ${gCls(g)}" data-v="${g??''}" data-ft="${gTxt(g)}"><b>${gTxt(g)}</b></td><td class="cs cs-r ${g&&!inBand(r.sal,g,c)?'band-out':''}" data-v="${(g||0)*100+(r.step||0)}" data-ft="${s2Label(r)}"><b>${s2Label(r)}</b></td>
+       <td class="cs cs-l ${gCls(g)}" data-v="${g??''}" data-ft="${gTxt(g)}"><b>${gTxt(g)}</b></td><td class="cs key-col ${keyFlags(r,c).length?'key-flag':''}" data-v="${(g||0)*100+(r.step||0)}" data-ft="${s2Label(r)}" title="${esc(keyFlags(r,c).join(' · '))}"><b>${s2Label(r)}</b></td>
        <td class="num" data-v="${r.sal??''}" title="직급 년차 기준연봉 ${fW(fb)}원 (참고)">${fW(r.sal)}${bandRng(g,c)}</td>${pbCell(r.sal,g,c)}${pbJudge(r.sal,g,c,note)}</tr>`;}).join('')}
     </tbody></table></div>
     <p class="note">※ 최종 직급 = 1차 분류 종합 등급 (최종 확정 · 보고용 특이인원 판단 우선) / 최종 년차 = 2차 분류 결과 (수기 우선) / 최종 연봉 = 현 연봉 (Pay-band 위치 · 판정도 현 연봉 기준) / 모든 단계와 자동 연동</p></div>`;
@@ -1338,6 +1346,9 @@ function bindSp2(body){
   t.addEventListener('click',e=>{const b=e.target.closest('[data-unsp2]');if(!b)return;const p=find(b.closest('tr'));if(p){p.special2=false;save();sheetReportN();}});
   t.dataset.defsort='현직급:-1';sortable(t,'sp2');}
 
+// 최종 직급·년차 칸의 특이사항 (칸 색 · 마우스 설명)
+function keyFlags(r,c){const p=r.p,g=r.app,f=[];if(p.special)f.push('1차 특이인원');if(p.special2)f.push('2차 특이인원');if(p.final)f.push(p.special?'최종 직급 판단':'1차 최종 확정');
+  if(r.stepManual)f.push('수기 년차');if(g&&r.sal&&!inBand(r.sal,g,c))f.push(`현 연봉이 G${g} 밴드 밖`);return f;}
 /* ---- 단계 · 시트 ---- */
 const CSHEETS=[['c1','1차 분류 기준'],['c2','2차 분류 기준']];
 const STAGES=[['c','분류 기준','1차 · 2차 분류 기준 설정'],['1','1차 분류','기본정보 → 종합 등급 → 생애연봉'],['2','2차 분류','직급 년차 확정 (년차 기준 + 연봉 보정)'],['3','보고용','기본 현황 · 분류 결과 · 특이인원 · 분류 기준'],['4','최종 직급','이전 직급 → 최종 직급 · 년차']];
