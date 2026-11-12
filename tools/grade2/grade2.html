@@ -402,9 +402,9 @@ textarea{width:100%;min-height:110px;font:12px/1.4 ui-monospace,Menlo,Consolas,m
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .g2-cls td.pb{background-color:#16222e!important}}
 
 #s2-tbl.fit th,#s2-tbl.fit td{padding:4px 5px;font-size:12px;white-space:nowrap} #s2-tbl.fit thead th{font-size:11.5px;line-height:1.25}
-#s2-tbl.fit td.pos svg{width:130px;height:auto} #s2-tbl.fit .gsel{min-width:86px;font-size:12px} #s2-tbl.fit .band-rng{font-size:10.5px}
+#s2-tbl.fit td.pos svg{width:162px;height:auto} #s2-tbl.fit .gsel{min-width:86px;font-size:12px} #s2-tbl.fit .band-rng{font-size:10.5px}
 #s2-tbl td.gap.up{color:var(--ok);font-weight:700} #s2-tbl td.gap.dn{color:var(--crit);font-weight:700}
-#fin-tbl th,#fin-tbl td{padding:5px 6px} #fin-tbl td.pos svg{width:150px;height:auto}
+#fin-tbl th,#fin-tbl td{padding:5px 6px} #fin-tbl td.pos svg{width:260px;height:auto} #sp2-tbl td.pos svg{width:220px;height:auto} svg.pbl{display:block;margin:0 auto}
 
 .sptabs{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
 #s2-tbl .gsel,#sp2-tbl .gsel{min-width:108px} .band-rng{font-size:11px;color:var(--muted);font-weight:400;margin-top:1px}
@@ -1240,9 +1240,18 @@ const bandRng=(g,c)=>g?`<div class="band-rng">${nf(c.bands[g-1][0])} ~ ${nf(c.ba
 function pbJudge(sal,g,c,note){const pr=pbPr(sal,g,c);const an=S.an||{th0:40,th1:70,th2:85};if(pr==null)return`<td class="l">${note?`<div class="note" style="margin:0">${esc(note)}</div>`:''}</td>`;
   const st=yStatus(pr,an);return`<td class="l" data-v="${YS[st].o}" data-ft="${YS[st].l}">${chip(st)}${note?`<div class="note" style="margin:2px 0 0">${esc(note)}</div>`:''}</td>`;}
 const pbPr=(sal,g,c)=>{if(!sal||!g)return null;const b=c.bands[g-1];return(sal/1e4-b[0])/(b[1]-b[0]);};
+// 표 안 Pay-band 막대 (크게): 밴드가 칸을 넓게 차지하도록 범위를 좁히고 막대·점·글자를 키움
+function pbBarL(pr,col,label){const W=220,H=46,pad=8,lo=-0.18,hi=1.18;const X=v=>pad+(Math.max(lo,Math.min(hi,v))-lo)/(hi-lo)*(W-2*pad);
+  const out=pr>hi?`<text x="${W-1}" y="21" text-anchor="end" style="fill:var(--crit);font-size:13px;font-weight:700">▶</text>`:pr<lo?`<text x="1" y="21" style="fill:var(--under);font-size:13px;font-weight:700">◀</text>`:'';
+  return`<svg class="pbl" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">
+   <line x1="${pad}" x2="${W-pad}" y1="17" y2="17" stroke="var(--line-2)" stroke-width="1.5"/>
+   <rect x="${X(0)}" y="8" width="${X(1)-X(0)}" height="18" rx="5" fill="var(--surface-2)" stroke="var(--navy)" stroke-width="1.2"/>
+   <line x1="${X(0.5)}" x2="${X(0.5)}" y1="5" y2="29" stroke="var(--muted)" stroke-width="2"/>
+   ${out}<circle cx="${X(pr)}" cy="17" r="7" fill="${col}" stroke="#fff" stroke-width="2"/>
+   <text x="${X(0)}" y="42" text-anchor="middle" style="font-size:11px;fill:var(--muted)">Min</text><text x="${X(0.5)}" y="42" text-anchor="middle" style="font-size:11px;fill:var(--muted)">Mid</text><text x="${X(1)}" y="42" text-anchor="middle" style="font-size:11px;fill:var(--muted)">Max</text></svg>`;}
 function pbCell(sal,g,c){const pr=pbPr(sal,g,c);if(pr==null)return'<td class="pos">-</td><td class="num">-</td>';
   const col=pr>1?'var(--crit)':pr<0?'var(--under)':'var(--navy)';
-  return`<td class="pos" data-v="${pr}">${posBar(pr,null,0.5,col,`G${g} Pay-band 위치 ${fP(pr)}`)}</td><td class="num ${pr>1?'c-over':pr<0?'c-under':''}" data-v="${pr}">${fP(pr)}</td>`;}
+  return`<td class="pos" data-v="${pr}">${pbBarL(pr,col,`G${g} Pay-band 위치 ${fP(pr)}`)}</td><td class="num ${pr>1?'c-over':pr<0?'c-under':''}" data-v="${pr}">${fP(pr)}</td>`;}
 const S2MODE={hybrid:'년차 기준 + 차이 큰 인원 연봉 보정',tenure:'년차 기준',salary:'연봉 기준'};
 function crit2HTML(c,ro){const s=stay2(c),off=stayOffsets(c);const td=x=>`<td class="${ro?'':'in'}">${x}</td>`;
   return`<div class="crit-zone"><div class="zone-h"><b>2차 분류 기준</b><span>직급 년차 = 총 년차 − 하위 직급 체류연수 (최종 적용) · 기준연봉 년차는 차이만 참고</span></div>
