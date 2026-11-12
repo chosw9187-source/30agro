@@ -379,6 +379,12 @@ textarea{width:100%;min-height:110px;font:12px/1.4 ui-monospace,Menlo,Consolas,m
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 
 /* ---- 직급 분류(신규 기준) ---- */
+.sptabs{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+#s2-tbl .gsel,#sp2-tbl .gsel{min-width:108px}
+.sptabs button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 16px;border-radius:10px;border:2px solid var(--line-2);background:var(--surface);min-width:200px;text-align:left}
+.sptabs button b{font-size:14px} .sptabs button span{font-size:12px;color:var(--muted)}
+.sptabs button[aria-selected="true"]{border-color:var(--navy);background:var(--navy);color:#fff} .sptabs button[aria-selected="true"] span{color:#fff;opacity:.85}
+
 /* 1차 분류 표 구역: (1)~(4) 메인 / 종합 점수·등급 / 생애연봉·특이사항 */
 .g2-cls td.cm{background-color:#e3f3e9!important} .g2-cls th.cm{background:#0c6a3d!important;color:#fff!important}
 .g2-cls .cm-l{border-left:3px solid var(--accent)!important} .g2-cls .cm-r{border-right:3px solid var(--accent)!important}
@@ -631,8 +637,8 @@ function computeAll(){
     const tg=/^G[1-4]$/.test(tq[0]||'')?simTargets(p,k,c):(()=>{const a=lead?[lead]:[];(k===''?[]:simTargets(p,k,c)).forEach(x=>{if(x&&!a.includes(x))a.push(x);});while(a.length<3)a.push(null);return a.slice(0,3);})();
     const [sc1,sc2,sc3]=tg.map(g=>g&&sal?scenario(p,g,c,tab):null);
     const fin=/^G[1-4]$/.test(p.final||'')?+p.final[1]:null;
-    const app=fin||G2.comp||g1;const stepAuto=autoStep(sal,app,c);const sm=/^\d+$/.test(String(p.step??'').trim())?Math.min(stepN(c),Math.max(1,+p.step)):null;
-    return{p,sal,k,g1,g2,G2,comp:G2.comp,tg,fin,app,rem:remYears(p,c),sc1,sc2,sc3,ev:evalInfo(c,p.eval).label,stepAuto,step:sm||(stepAuto?stepAuto.y:null),stepManual:!!sm};});
+    const app=fin||G2.comp||g1;const stepAuto=autoStep(sal,app,c);const S2=s2calc(p,app,sal,stepAuto,c);const sm=/^\d+$/.test(String(p.step??'').trim())?Math.min(stepN(c),Math.max(1,+p.step)):null;
+    return{p,sal,k,g1,g2,G2,comp:G2.comp,tg,fin,app,rem:remYears(p,c),sc1,sc2,sc3,ev:evalInfo(c,p.eval).label,stepAuto,s2:S2,step:sm||S2.auto,stepManual:!!sm};});
   return{c,tab,rows};
 }
 
@@ -821,7 +827,7 @@ const finRank=f=>/^G[1-4]$/.test(f||'')?+f[1]:9;
    4. 사이트 ① Pay-band 분류 · 시뮬레이션 (엑셀 시트 재현)
    ========================================================= */
 const SHEETS=[['info','기본정보'],['class','1차 분류 (종합 등급)'],['life','생애연봉 시뮬레이션'],['detail','시뮬레이션 상세']];
-const SHEETS2=[['s2class','2차 분류 (년차 확정)'],['s2life','생애연봉 시뮬레이션'],['s2detail','시뮬레이션 상세']];
+const SHEETS2=[['s2class','2차 분류 (직급 년차)'],['s2life','생애연봉 시뮬레이션'],['s2detail','시뮬레이션 상세']];
 function stageBar(cur,attr,rpt){return`<div class="stagebar" role="tablist">
   <button role="tab" ${attr}="1" aria-selected="${cur!=='2'&&cur!=='3'}"><span class="stn">1차 분류</span><span class="std">직급 G1~G4 확정</span></button><span class="starr">→</span>
   <button role="tab" ${attr}="2" aria-selected="${cur==='2'}"><span class="stn">2차 분류 (최종)</span><span class="std">1차 확정 직급 + 년차 확정 (G1·1년차 ~ G4·${stepN(S.crit)}년차)</span></button>${rpt?`<span class="starr">→</span>
@@ -1181,22 +1187,159 @@ function ocell(r,i,c){const p=r.p,G=r.G2;const o=G.ov[i];const out=i===3&&G.salO
 // (5) 종합 점수 → 등급 구간 (G2·G3·G4 시작 점수, 오름차순 보정)
 function compCuts(c){const d=[1.5,2.5,3.5];const x=(c.cuts||d).map((v,i)=>{const n=num(v);return n==null?d[i]:n;});return[Math.max(1,x[0]),Math.max(x[0],x[1]),Math.max(x[1],Math.min(4,x[2]))];}
 function cutRange(c,g){const u=compCuts(c);const lo=g===1?1:u[g-2],hi=g===4?4:u[g-1];return g===4?`${lo.toFixed(2)} 이상 ~ ${hi.toFixed(2)}`:`${lo.toFixed(2)} 이상 ~ ${hi.toFixed(2)} 미만`;}
+/* =========================================================
+   2차 분류 (C안): 직급 년차 = 총 년차 − 하위 직급 체류연수 합계 → 연봉(기준연봉표) 기준 년차와 비교해 보정
+   ========================================================= */
+const STAY2_DEF=[4,4,5];
+function stay2(c){const s=c.stay2||STAY2_DEF;return[0,1,2].map(i=>{const n=num(s[i]);return n==null||n<1?STAY2_DEF[i]:Math.round(n);});}
+function stayOffsets(c){const s=stay2(c);return[0,s[0],s[0]+s[1],s[0]+s[1]+s[2]];} // G1~G4 차감 연수
+function s2calc(p,g,sal,sa,c){
+  if(!g)return{auto:null};const off=stayOffsets(c)[g-1];const tot=careerYears(p,c);const tenRaw=tot==null?null:tot-off;const ten=tenRaw==null?null:Math.max(1,tenRaw);
+  const stay=g<4?stay2(c)[g-1]:null;const over=stay!=null&&ten!=null&&ten>stay;const under=tenRaw!=null&&tenRaw<1;
+  const sy=sa?sa.y:null;const gap=ten!=null&&sy!=null?sy-ten:null;const mode=c.s2mode||'hybrid';const gapN=Math.max(1,+(c.s2gap??2)||2);
+  let auto,src;
+  if(mode==='salary'){auto=sy??ten;src=sy!=null?'연봉':'년차';}
+  else if(mode==='tenure'){auto=ten??sy;src=ten!=null?'년차':'연봉';}
+  else if(gap!=null&&Math.abs(gap)>=gapN){auto=sy;src='연봉 보정';}
+  else{auto=ten??sy;src=ten!=null?'년차':'연봉';}
+  if(auto!=null)auto=Math.min(stepN(c),Math.max(1,auto));
+  return{tot,off,ten,tenRaw,stay,over,under,sy,sa,gap,auto,src,mode};}
+// Pay-band 위치 (0 = 하한, 1 = 상한)
+const pbPr=(sal,g,c)=>{if(!sal||!g)return null;const b=c.bands[g-1];return(sal/1e4-b[0])/(b[1]-b[0]);};
+function pbCell(sal,g,c){const pr=pbPr(sal,g,c);if(pr==null)return'<td class="pos">-</td><td class="num">-</td>';
+  const col=pr>1?'var(--crit)':pr<0?'var(--under)':'var(--navy)';
+  return`<td class="pos" data-v="${pr}">${posBar(pr,null,0.5,col,`G${g} Pay-band 위치 ${fP(pr)}`)}</td><td class="num ${pr>1?'c-over':pr<0?'c-under':''}" data-v="${pr}">${fP(pr)}</td>`;}
+const S2MODE={hybrid:'년차 기준 + 차이 큰 인원 연봉 보정',tenure:'년차 기준',salary:'연봉 기준'};
+function crit2HTML(c,ro){const s=stay2(c),off=stayOffsets(c);const td=x=>`<td class="${ro?'':'in'}">${x}</td>`;
+  return`<div class="crit-zone"><div class="zone-h"><b>2차 분류 기준</b><span>C안 · 직급 년차 = 총 년차 − 하위 직급 체류연수 → 연봉(직급·년차별 기준연봉표) 기준과 비교해 보정</span></div>
+  <div class="g2-crit r2">
+   <div class="panel"><h2>(1) 직급별 체류연수 · 차감 연수</h2><div class="tw"><table class="crit-tbl"><thead><tr><th>직급</th><th>체류연수</th><th>차감 연수<br>(하위 직급 합계)</th><th>직급 년차 계산</th></tr></thead><tbody>
+    ${[4,3,2,1].map(g=>`<tr><td><b>G${g}</b></td>${g===4?'<td>-</td>':td(ro?s[g-1]+'년':`<input type="number" min="1" data-s2c="stay.${g-1}" value="${s[g-1]}">`)}<td>${off[g-1]}년</td><td class="l">총 년차 − ${off[g-1]}${g<4?` (1~${s[g-1]}년차)`:' (상한 없음)'}</td></tr>`).join('')}</tbody></table></div>
+    <p class="note">※ 예: G3 배정 · 총 12년차 → 12 − ${off[2]} = G3 ${Math.max(1,12-off[2])}년차 / G2 배정 → 12 − ${off[1]} = G2 ${Math.max(1,12-off[1])}년차 · 1 미만은 1년차, 체류연수 초과는 「체류 초과」 표시</p></div>
+   <div class="panel"><h2>(2) 연봉 보정</h2><div class="tw"><table class="crit-tbl"><tbody>
+    <tr><td class="l">적용 방식</td>${td(ro?esc(S2MODE[c.s2mode||'hybrid']):`<select data-s2c="mode">${Object.entries(S2MODE).map(([k,l])=>`<option value="${k}" ${(c.s2mode||'hybrid')===k?'selected':''}>${l}</option>`).join('')}</select>`)}</tr>
+    <tr><td class="l">보정 기준 차이</td>${td(ro?(c.s2gap??2)+'년차 이상':`<input type="number" min="1" data-s2c="gap" value="${c.s2gap??2}">`)}</tr>
+    <tr><td class="l">연봉 기준 년차</td><td class="l">현 연봉 이하인 기준연봉 중 가장 높은 년차 (아래 직급·년차별 기준연봉표)</td></tr></tbody></table></div>
+    <p class="note">※ 예: G3 배정 · 현 연봉 6,200만원 → 기준연봉 G3 5년차 ${fM(T2(c,3,5))}만원 ≤ 6,200 &lt; 6년차 ${fM(T2(c,3,6))}만원 → 연봉 기준 G3 5년차<br>※ 「년차 기준 + 차이 큰 인원 연봉 보정」: 두 값 차이가 보정 기준 이상이면 연봉 기준 년차 적용 / 2차 분류 화면에서 개인별 수기 변경 가능</p></div></div></div>`;}
+function bindCrit2(body,redraw){body.querySelectorAll('[data-s2c]').forEach(el=>el.onchange=()=>{const c=S.crit;const [a,i]=el.dataset.s2c.split('.');
+  if(a==='stay'){c.stay2=stay2(c);c.stay2[+i]=Math.max(1,Math.round(+el.value||STAY2_DEF[+i]));}else if(a==='mode')c.s2mode=el.value;else if(a==='gap')c.s2gap=Math.max(1,Math.round(+el.value||2));
+  save();const y=window.scrollY;redraw();window.scrollTo(0,y);});}
+const appSrc=r=>r.p.final?(r.p.special?'특이인원 판단':'최종 확정'):'종합 등급';
+
+/* ---- 2차 분류 표 ---- */
+function sheet2ClassN(){
+  const {c,rows}=computeAll();const body=document.getElementById('sheet-body');const N=rows.length;const SN=stepN(c);
+  const cnt=f=>rows.filter(f).length;const sp2=cnt(r=>r.p.special2);
+  body.innerHTML=`<div class="g2-sum">
+   <div class="panel"><h2>2차 결정 방식 <span class="sub">(${esc(S2MODE[c.s2mode||'hybrid'])})</span></h2>
+    <table class="rtbl"><thead><tr><th>년차 기준</th><th>연봉 보정</th><th>수기 확정</th><th>계</th></tr></thead><tbody>
+     <tr><td>${cnt(r=>!r.stepManual&&r.s2.src==='년차')}명</td><td>${cnt(r=>!r.stepManual&&r.s2.src!=='년차')}명</td><td class="c-fin">${cnt(r=>r.stepManual)}명</td><td><b>${N}</b></td></tr></tbody></table>
+    <p class="note">※ 기준 변경: 분류 기준 › 2차 분류 기준</p></div>
+   <div class="panel"><h2>점검 대상 <span class="sub">(단위: 명)</span></h2>
+    <table class="rtbl"><thead><tr><th>체류 초과</th><th>년차 1 미만</th><th>밴드 하한 미만</th><th>밴드 상한 초과</th></tr></thead><tbody>
+     <tr><td class="${cnt(r=>r.s2.over)?'c-warn':''}">${cnt(r=>r.s2.over)}</td><td>${cnt(r=>r.s2.under)}</td><td class="${cnt(r=>(pbPr(r.sal,r.app,c)??0)<0)?'band-out':''}">${cnt(r=>(pbPr(r.sal,r.app,c)??0)<0)}</td><td class="${cnt(r=>(pbPr(r.sal,r.app,c)??0)>1)?'band-out':''}">${cnt(r=>(pbPr(r.sal,r.app,c)??0)>1)}</td></tr></tbody></table></div>
+   <div class="panel"><h2>최종 직급 인원 <span class="sub">(단위: 명)</span></h2>
+    <table class="rtbl"><thead><tr><th>G4</th><th>G3</th><th>G2</th><th>G1</th><th>계</th></tr></thead><tbody>
+     <tr>${[4,3,2,1].map(g=>`<td class="gc${g}">${cnt(r=>r.app===g)}</td>`).join('')}<td><b>${cnt(r=>r.app)}</b></td></tr></tbody></table></div></div>
+  <div class="panel" style="margin-top:14px"><div class="bar"><h2 class="grow" style="margin:0">개인별 2차 분류 (${N}명)</h2><span class="sub">2차 특이사항 체크 <b id="sp2-count">${sp2}</b>명 → 보고용</span>
+    ${searchBoxHTML('s2n')}<button id="s2-clear" type="button">수기 년차 전체 해제</button><button id="s2-dl" type="button" class="primary">엑셀 다운로드</button></div>
+    <div class="scroll"><table id="s2-tbl" class="rno-t g2-cls"><thead>
+     <tr><th colspan="7" class="g-base">기본정보</th><th colspan="2" class="g-ref">1차 결과</th><th colspan="3" class="g-ev g-cm">년차 기준</th><th colspan="3" class="g-sum">연봉 기준</th><th colspan="5" class="g-base">최종 (2차)</th><th colspan="2" class="g-base">Pay-band 위치 (최종 직급)</th><th colspan="2" class="g-ref">참고</th></tr>
+     <tr><th data-nosort class="rno-h">No</th><th>사번</th><th>이름</th><th>부서</th><th>현직급</th><th>총 년차</th><th>현 연봉(원)</th>
+      <th class="cg">적용 직급</th><th class="cg">출처</th>
+      <th class="cm cm-l">차감</th><th class="cm">직급 년차</th><th class="cm cm-r">체류</th>
+      <th class="cs cs-l">직급 년차</th><th class="cs">기준연봉(원)</th><th class="cs cs-r">차이</th>
+      <th>자동 결정</th><th>최종 년차<br>(수기)</th><th>최종 직급·년차</th><th>최종 기준연봉(원)</th><th>연봉 − 기준</th>
+      <th data-nosort>위치</th><th>%</th><th data-nosort class="cg">생애연봉</th><th class="cg">2차 특이사항<br>(보고용)</th></tr></thead><tbody>
+    ${rows.map(r=>{const p=r.p,s=r.s2,g=r.app;const fb=g&&r.step?T2(c,g,r.step):null;const sb=g&&s.sy?T2(c,g,s.sy):null;const k=esc(pkey(p));
+      return`<tr class="${r.stepManual?'confirmed':''}"><td class="rno"></td><td>${esc(p.id)}</td><td><b>${esc(p.name)}</b></td><td class="l">${esc(p.dept)}</td><td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}">${esc(p.grade)}</td>
+       <td data-v="${s.tot??''}">${s.tot==null?'-':s.tot+'년차'}</td><td class="num" data-v="${r.sal??''}">${fW(r.sal)}</td>
+       <td class="cg ${gCls(g)}" data-v="${g??''}" data-ft="${gTxt(g)}"><b>${gTxt(g)}</b></td><td class="cg" data-ft="${appSrc(r)}">${appSrc(r)}</td>
+       <td class="cm cm-l" data-v="${s.off??''}">${g?(s.off?'−'+s.off:'0'):'-'}</td><td class="cm" data-v="${s.ten??''}"><b>${s.ten==null?'-':'G'+g+'·'+s.ten+'년차'}</b>${s.under?' <small>(1 미만)</small>':''}</td><td class="cm cm-r ${s.over?'c-warn':''}" data-ft="${s.over?'체류 초과':s.stay?'정상':'-'}">${s.over?`초과 (${s.stay}년)`:s.stay?`~${s.stay}년`:'-'}</td>
+       <td class="cs cs-l" data-v="${s.sy??''}"><b>${s.sy==null?'-':'G'+g+'·'+s.sy+'년차'}</b>${s.sa&&s.sa.under?' <small>(하한 미만)</small>':s.sa&&s.sa.over?' <small>(최대 초과)</small>':''}</td><td class="cs num" data-v="${sb??''}">${fW(sb)}</td><td class="cs cs-r ${s.gap!=null&&Math.abs(s.gap)>=(c.s2gap??2)?'band-out':''}" data-v="${s.gap??''}">${s.gap==null?'-':(s.gap>0?'+':'')+s.gap}</td>
+       <td data-ft="${esc(s.src||'-')}"><span class="pill ${s.src==='연봉 보정'?'p-watch':'p-auto'}">${esc(s.src||'-')}</span> ${s.auto??'-'}년차</td>
+       <td class="in"><select data-s2k="${k}" class="${r.stepManual?'ov':''} gsel"><option value="">자동 (${s.auto??'-'}년차)</option>${Array.from({length:SN},(_,i)=>`<option value="${i+1}" ${r.stepManual&&r.step===i+1?'selected':''}>${i+1}년차</option>`).join('')}</select></td>
+       <td data-v="${(g||0)*100+(r.step||0)}" data-ft="${s2Label(r)}" class="${gCls(g)}"><b>${s2Label(r)}</b></td><td class="num" data-v="${fb??''}">${fW(fb)}</td><td class="num ${r.sal!=null&&fb!=null&&r.sal<fb?'c-under':''}" data-v="${r.sal!=null&&fb!=null?r.sal-fb:''}">${r.sal!=null&&fb!=null?(r.sal-fb>0?'+':'')+fW(r.sal-fb):'-'}</td>
+       ${pbCell(r.sal,g,c)}
+       <td class="cg"><button type="button" class="go-sim" data-s2go="${k}">▶ 시뮬</button></td>
+       <td class="cg spc${p.special2?' on':''}" data-v="${p.special2?1:0}" data-ft="${p.special2?'특이':''}"><input type="checkbox" data-sp2k="${k}" ${p.special2?'checked':''} aria-label="${esc(p.name)} 2차 특이사항"></td></tr>`;}).join('')}
+    </tbody></table></div>
+    <p class="note">※ 적용 직급 = 1차 분류 종합 등급 (최종 확정 · 보고용 특이인원 판단이 있으면 그 값) / 년차 기준 = 총 년차 − 하위 직급 체류연수 / 연봉 기준 = 현 연봉 이하 기준연봉 중 가장 높은 년차 / 빨간 테두리 = 두 값 차이가 보정 기준 이상 / 최종 년차를 고르면 수기 값 우선</p></div>`;
+  const t=body.querySelector('#s2-tbl');const find=k=>S.people.find(x=>pkey(x)===k);
+  t.addEventListener('change',e=>{const el=e.target;
+    if(el.dataset.s2k){const p=find(el.dataset.s2k);if(!p)return;p.step=el.value===''?'':+el.value;save();const y=window.scrollY;sheet2ClassN();window.scrollTo(0,y);return;}
+    if(el.dataset.sp2k){const p=find(el.dataset.sp2k);if(!p)return;p.special2=el.checked;save();const td=el.closest('td');td.dataset.v=el.checked?1:0;td.dataset.ft=el.checked?'특이':'';td.classList.toggle('on',el.checked);
+      const n=S.people.filter(x=>x.special2&&String(x.name||'').trim()).length;document.getElementById('sp2-count').textContent=n;toast(`${p.name} ${el.checked?'2차 특이인원 추가':'2차 특이인원 해제'} · 보고용 2차 특이인원 ${n}명`);}});
+  t.addEventListener('click',e=>{const b=e.target.closest('[data-s2go]');if(!b)return;S.sel=b.dataset.s2go;S.findG='';S.stage='2';S.sheet2='s2life';S.jump=true;save();renderPayband();});
+  body.querySelector('#s2-clear').onclick=()=>{let n=0;S.people.forEach(p=>{if(p.step!==''&&p.step!=null){p.step='';n++;}});save();sheet2ClassN();toast(n?`수기 년차 ${n}명을 해제했습니다. 자동 결정값으로 돌아갑니다.`:'해제할 수기 년차가 없습니다.');};
+  body.querySelector('#s2-dl').onclick=()=>saveBook(tableBook('s2-tbl','2차 분류'),`직급분류_2차분류_${stamp()}.xlsx`);
+  sortable(t,'s2n');bindSearch(body,'s2n',t);}
+
+/* ---- 최종 직급 ---- */
+function sheetFinalN(){
+  const {c,rows}=computeAll();const body=document.getElementById('sheet-body');const N=rows.length;
+  const mx={};GRADE6_DESC.forEach(g=>{mx[g]={};[4,3,2,1].forEach(x=>mx[g][x]=0);});rows.forEach(r=>{if(mx[r.p.grade]&&r.app)mx[r.p.grade][r.app]++;});
+  body.innerHTML=`<div class="g2-sum" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+   <div class="panel"><h2>이전 직급 → 최종 직급 <span class="sub">(단위: 명)</span></h2>
+    <table class="rtbl"><thead><tr><th>이전 직급 \\ 최종</th><th>G4</th><th>G3</th><th>G2</th><th>G1</th><th>계</th></tr></thead><tbody>
+     ${GRADE6_DESC.map(g=>`<tr><td><b>${g}</b></td>${[4,3,2,1].map(x=>`<td class="${mx[g][x]?'gc'+x:''}">${mx[g][x]||''}</td>`).join('')}<td><b>${[4,3,2,1].reduce((a,x)=>a+mx[g][x],0)}</b></td></tr>`).join('')}
+     <tr class="tot"><td><b>계</b></td>${[4,3,2,1].map(x=>`<td><b>${rows.filter(r=>r.app===x).length}</b></td>`).join('')}<td><b>${rows.filter(r=>r.app).length}</b></td></tr></tbody></table></div>
+   <div class="panel"><h2>최종 확정 현황</h2>
+    <table class="rtbl"><thead><tr><th>구분</th><th>인원</th></tr></thead><tbody>
+     <tr><td class="l">1차 직급: 종합 등급 그대로</td><td>${rows.filter(r=>!r.p.final).length}명</td></tr>
+     <tr><td class="l">1차 직급: 최종 확정 · 특이인원 판단</td><td>${rows.filter(r=>r.p.final).length}명</td></tr>
+     <tr><td class="l">2차 년차: 자동 결정</td><td>${rows.filter(r=>!r.stepManual).length}명</td></tr>
+     <tr><td class="l">2차 년차: 수기 확정</td><td>${rows.filter(r=>r.stepManual).length}명</td></tr></tbody></table></div></div>
+  <div class="panel" style="margin-top:14px"><div class="bar"><h2 class="grow" style="margin:0">최종 직급 (${N}명)</h2>${searchBoxHTML('fin')}<button id="fin-dl" type="button" class="primary">엑셀 다운로드</button></div>
+    <div class="scroll"><table id="fin-tbl" class="rno-t g2-cls"><thead><tr><th data-nosort class="rno-h">No</th><th>사번</th><th>이름</th><th>부서</th><th>직책</th><th>이전 직급</th><th class="cs cs-l">최종 직급</th><th class="cs cs-r">최종 직급·년차</th><th>현 연봉(원)</th><th>최종 기준연봉(원)</th><th data-nosort>Pay-band 위치</th><th>%</th><th>비고</th></tr></thead><tbody>
+    ${rows.map(r=>{const p=r.p,g=r.app;const fb=g&&r.step?T2(c,g,r.step):null;const note=[r.p.final?(r.p.special?'1차 특이인원 판단':'1차 최종 확정'):'',r.stepManual?'2차 수기 년차':'',r.p.special2?'2차 특이인원':''].filter(Boolean).join(' · ');
+      return`<tr><td class="rno"></td><td>${esc(p.id)}</td><td><b>${esc(p.name)}</b></td><td class="l">${esc(p.dept)}</td><td>${esc(p.title)}</td><td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}"><b>${esc(p.grade)}</b></td>
+       <td class="cs cs-l ${gCls(g)}" data-v="${g??''}" data-ft="${gTxt(g)}"><b>${gTxt(g)}</b></td><td class="cs cs-r" data-v="${(g||0)*100+(r.step||0)}" data-ft="${s2Label(r)}"><b>${s2Label(r)}</b></td>
+       <td class="num" data-v="${r.sal??''}">${fW(r.sal)}</td><td class="num" data-v="${fb??''}">${fW(fb)}</td>${pbCell(r.sal,g,c)}<td class="l note" style="margin:0">${esc(note)}</td></tr>`;}).join('')}
+    </tbody></table></div>
+    <p class="note">※ 최종 직급 = 1차 분류 종합 등급 (최종 확정 · 보고용 특이인원 판단 우선) / 최종 년차 = 2차 분류 결과 (수기 우선) / 모든 단계와 자동 연동</p></div>`;
+  body.querySelector('#fin-dl').onclick=()=>saveBook(tableBook('fin-tbl','최종 직급'),`직급분류_최종직급_${stamp()}.xlsx`);
+  const t=body.querySelector('#fin-tbl');sortable(t,'fin');bindSearch(body,'fin',t);}
+
+/* ---- 보고용: 2차 특이인원 ---- */
+function sp2Block(rows,c){const sp=rows.filter(r=>r.p.special2);const SN=stepN(c);
+  return`<div style="margin-top:16px" ${S.spTab==='2'?'':'hidden'}><h3 class="rpt-h3">2차 분류 특이인원 (${sp.length}명) <span class="sub">2차 분류 › 「2차 특이사항」 체크 인원 · 최종 년차는 2차 분류와 연동</span></h3>
+   ${sp.length?`<div class="scroll"><table class="rtbl rno-t" id="sp2-tbl"><thead><tr><th class="g-base"></th><th colspan="5" class="g-base">기본정보</th><th colspan="7" class="g-ev">2차 분류 평가항목</th><th colspan="2" class="g-base">Pay-band 위치</th><th class="g-base"></th></tr>
+    <tr><th data-nosort class="g-base2 rno-h">No</th><th class="g-base2">이름</th><th class="g-base2">부서</th><th class="g-base2">직책</th><th class="g-base2">현직급</th><th class="g-base2">총 년차</th>
+     <th class="g-ev2 ev1">현 연봉(원)</th><th class="g-ev2">적용 직급</th><th class="g-ev2">년차 기준</th><th class="g-ev2">연봉 기준</th><th class="g-ev2">차이</th><th class="g-ev2">최종 년차 판단</th><th class="g-ev2">최종 직급·년차</th><th data-nosort class="g-base2">위치</th><th class="g-base2">%</th><th data-nosort class="g-base2"></th></tr></thead><tbody>
+    ${sp.map(r=>{const p=r.p,s=r.s2,g=r.app;const k=esc(pkey(p));
+     return`<tr data-k="${k}"><td class="rno"></td><td><b>${esc(p.name)}</b></td><td>${esc(p.dept)}</td><td>${esc(p.title)}</td><td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}"><b>${esc(p.grade)}</b></td><td data-v="${s.tot??''}">${s.tot==null?'-':s.tot+'년차'}</td>
+      <td class="num ev ev1" data-v="${r.sal??''}"><b>${fW(r.sal)}</b></td><td class="ev ${gCls(g)}" data-v="${g??''}"><b>${gTxt(g)}</b></td>
+      <td class="ev" data-v="${s.ten??''}">${s.ten==null?'-':s.ten+'년차'}${s.over?' <small>(체류 초과)</small>':''}</td><td class="ev" data-v="${s.sy??''}">${s.sy==null?'-':s.sy+'년차'}</td><td class="ev ${s.gap!=null&&Math.abs(s.gap)>=(c.s2gap??2)?'band-out':''}" data-v="${s.gap??''}">${s.gap==null?'-':(s.gap>0?'+':'')+s.gap}</td>
+      <td class="in ev"><select data-sp2="step" class="gsel ${r.stepManual?'ov':''}"><option value="">자동 (${s.auto??'-'}년차)</option>${Array.from({length:SN},(_,i)=>`<option value="${i+1}" ${r.stepManual&&r.step===i+1?'selected':''}>${i+1}년차</option>`).join('')}</select></td>
+      <td class="ev" data-ft="${s2Label(r)}"><b>${s2Label(r)}</b></td>${pbCell(r.sal,g,c)}
+      <td><button type="button" class="row-del" data-unsp2 aria-label="${esc(p.name)} 2차 특이인원 해제" title="2차 특이인원 해제">×</button></td></tr>`;}).join('')}</tbody></table></div>`
+   :'<p class="note">2차 특이인원이 없습니다. 2차 분류 › 개인별 2차 분류의 「2차 특이사항」 칸을 체크하면 여기에 표시됩니다.</p>'}
+   <p class="note">※ 최종 년차 판단을 바꾸면 2차 분류 · 최종 직급에 바로 반영 / 빨간 테두리 = 년차 기준과 연봉 기준 차이가 보정 기준 이상</p></div>`;}
+function bindSp2(body){
+  body.querySelectorAll('[data-sptab]').forEach(b=>b.onclick=()=>{S.spTab=b.dataset.sptab;save();const y=window.scrollY;sheetReportN();window.scrollTo(0,y);});
+  const t=body.querySelector('#sp2-tbl');if(!t)return;const find=tr=>S.people.find(x=>pkey(x)===tr.dataset.k);
+  t.addEventListener('change',e=>{const el=e.target;if(el.dataset.sp2!=='step')return;const p=find(el.closest('tr'));if(!p)return;p.step=el.value===''?'':+el.value;save();const y=window.scrollY;sheetReportN();window.scrollTo(0,y);});
+  t.addEventListener('click',e=>{const b=e.target.closest('[data-unsp2]');if(!b)return;const p=find(b.closest('tr'));if(p){p.special2=false;save();sheetReportN();}});
+  t.dataset.defsort='현직급:-1';sortable(t,'sp2');}
+
 /* ---- 단계 · 시트 ---- */
 const CSHEETS=[['c1','1차 분류 기준'],['c2','2차 분류 기준']];
-const STAGES=[['c','분류 기준','1차 · 2차 분류 기준 설정'],['1','1차 분류','기본정보 → 종합 등급 → 생애연봉'],['2','2차 분류 (최종)','1차 확정 직급 + 년차 확정'],['3','보고용','기본 현황 · 분류 결과 · 특이인원 · 분류 기준']];
+const STAGES=[['c','분류 기준','1차 · 2차 분류 기준 설정'],['1','1차 분류','기본정보 → 종합 등급 → 생애연봉'],['2','2차 분류','직급 년차 확정 (년차 기준 + 연봉 보정)'],['3','보고용','기본 현황 · 분류 결과 · 특이인원 · 분류 기준'],['4','최종 직급','이전 직급 → 최종 직급 · 년차']];
 function stageBar4(cur){return`<div class="stagebar" role="tablist">${STAGES.map(([k,n,d],i)=>`${i?'<span class="starr">→</span>':''}<button role="tab" data-stage="${k}" aria-selected="${cur===k}"><span class="stn">${n}</span><span class="std">${d}</span></button>`).join('')}</div>`;}
 function renderPayband(){
-  const v=document.getElementById('view-payband');const st=['c','1','2','3'].includes(S.stage)?S.stage:'1';
+  const v=document.getElementById('view-payband');const st=['c','1','2','3','4'].includes(S.stage)?S.stage:'1';
   const list=st==='c'?CSHEETS:st==='2'?SHEETS2:st==='1'?SHEETS:[];
   const key=st==='c'?(CSHEETS.some(x=>x[0]===S.sheetC)?S.sheetC:'c1'):st==='2'?(SHEETS2.some(x=>x[0]===S.sheet2)?S.sheet2:'s2class'):(SHEETS.some(x=>x[0]===S.sheet)?S.sheet:'info');
   v.innerHTML=`<h1>직급 분류 <span class="sub" style="font-size:14px">신규 기준 · 4개 기준 종합</span></h1>${stageBar4(st)}
-  <div class="sheettabs" role="tablist" ${st==='3'?'hidden':''}>${list.map(([k,l])=>`<button role="tab" data-sheet="${k}" aria-selected="${key===k}">${l}</button>`).join('')}</div>
+  <div class="sheettabs" role="tablist" ${st==='3'||st==='4'?'hidden':''}>${list.map(([k,l])=>`<button role="tab" data-sheet="${k}" aria-selected="${key===k}">${l}</button>`).join('')}</div>
   <div id="sheet-body"></div>`;
   v.querySelectorAll('[data-stage]').forEach(b=>b.onclick=()=>{S.stage=b.dataset.stage;save();renderPayband();});
   v.querySelectorAll('[data-sheet]').forEach(b=>b.onclick=()=>{if(st==='c')S.sheetC=b.dataset.sheet;else if(st==='2')S.sheet2=b.dataset.sheet;else S.sheet=b.dataset.sheet;save();renderPayband();});
   if(st==='c')({c1:sheetCrit1,c2:sheetCrit2}[key])();
   else if(st==='3')sheetReportN();
-  else if(st==='2')({s2class:sheet2Class,s2life:sheet2Life,s2detail:sheet2Detail}[key]||sheet2Class)();
+  else if(st==='4')sheetFinalN();
+  else if(st==='2')({s2class:sheet2ClassN,s2life:sheet2Life,s2detail:sheet2Detail}[key]||sheet2ClassN)();
   else({info:sheetInfoN,class:sheetClassN,life:sheetLife,detail:sheetDetail}[key]||sheetInfoN)();
 }
 
@@ -1284,7 +1427,7 @@ function bindCritInputs(body,redraw){
 /* ---- 분류 기준 › 2차 분류 기준 ---- */
 function sheetCrit2(){
   const {c}=computeAll();const N=stepN(c);const body=document.getElementById('sheet-body');
-  body.innerHTML=`<div class="critgrid">   <div class="panel"><h2>2차 기준 설정 <span class="sub">(노란색 수정 가능)</span></h2>
+  body.innerHTML=`${crit2HTML(c,false)}<div class="zone-h ref" style="margin-top:20px"><b>직급 · 년차별 기준연봉표</b><span>연봉 기준 년차 · 2차 생애연봉에 사용</span></div><div class="critgrid">   <div class="panel"><h2>2차 기준 설정 <span class="sub">(노란색 수정 가능)</span></h2>
      <div class="note cap">1년차 = ① 분류 기준 하한 · 매년 같은 비율로 계속 상승(상한 없음)</div>
      <table class="crit-tbl"><tbody>
       <tr><td class="l">연 상승률(%)</td><td class="in"><input type="number" step="0.1" data-c2="rate" value="${+(stepRate(c)*100).toFixed(3)}"></td><td class="l note" style="margin:0">예: 2.5 → G1 2년차 = 4,000 × 1.025 = 4,100만원</td></tr>
@@ -1296,7 +1439,8 @@ function sheetCrit2(){
    <div class="scroll"><table><thead><tr><th>직급</th>${Array.from({length:N},(_,y)=>`<th>${y+1}년차</th>`).join('')}</tr></thead><tbody>
    ${[4,3,2,1].map(g=>`<tr><td><b>G${g}</b></td>${Array.from({length:N},(_,y)=>`<td class="num ${T2(c,g,y+1)>c.bands[g-1][1]*1e4?'c-stay':''}">${fW(T2(c,g,y+1))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
    <div class="legend"><span><i style="background:var(--stay)"></i>1차 Pay-band 상한 초과 구간(2차는 상한 없이 계속 상승)</span></div></div>`;
-  body.querySelectorAll('[data-c2]').forEach(el=>el.onchange=()=>{S.crit.step=S.crit.step||{rate:0.025,years:30};if(el.dataset.c2==='rate')S.crit.step.rate=(+el.value||0)/100;else S.crit.step.years=Math.max(1,Math.min(60,Math.round(+el.value||30)));save();sheetCrit2();});}
+  body.querySelectorAll('[data-c2]').forEach(el=>el.onchange=()=>{S.crit.step=S.crit.step||{rate:0.025,years:30};if(el.dataset.c2==='rate')S.crit.step.rate=(+el.value||0)/100;else S.crit.step.years=Math.max(1,Math.min(60,Math.round(+el.value||30)));save();sheetCrit2();});
+  bindCrit2(body,sheetCrit2);}
 
 /* ---- 1차 분류 › 기본정보 ---- */
 const INFO_COLS2=[['id','사번','text',58],['name','이름','text',56],['birth','생년월일','date',104],['age','나이','number',40],['dept','부서','text',80],['job','직군','text',52],['title','직책','text',44],
@@ -1427,7 +1571,8 @@ function sheetReportN(){
       <div><h3 class="rpt-h3">현직급 × 종합 등급</h3><div class="scroll">${compMatrix}</div></div>
       <div class="g3-arrow" aria-hidden="true"><span>▶</span><small>기준 엇갈림 ·<br>특이인원<br>개별 판단</small></div>
       <div><h3 class="rpt-h3">현직급 × 최종 분류 직급</h3><div class="scroll">${finalMatrix(rows,GRADE6_DESC,r=>r.p.grade,'현직급 \\ 최종',false)}</div></div></div>
-    <div style="margin-top:16px"><h3 class="rpt-h3">특이인원 (${sp.length}명) <span class="sub">직무 역할 · 최종 직급 판단은 1차 분류와 연동</span></h3>
+    <div class="sptabs" role="tablist"><button type="button" role="tab" data-sptab="1" aria-selected="${S.spTab!=='2'}"><b>1차 분류 특이인원</b><span>${sp.length}명 · 최종 직급 판단</span></button><button type="button" role="tab" data-sptab="2" aria-selected="${S.spTab==='2'}"><b>2차 분류 특이인원</b><span>${rows.filter(r=>r.p.special2).length}명 · 최종 년차 판단</span></button></div>
+    <div style="margin-top:16px" ${S.spTab==='2'?'hidden':''}><h3 class="rpt-h3">1차 분류 특이인원 (${sp.length}명) <span class="sub">직무 역할 · 최종 직급 판단은 1차 분류와 연동</span></h3>
     ${sp.length?`<div class="scroll"><table class="rtbl rno-t" id="sp-tbl"><thead><tr><th class="g-base"></th><th colspan="5" class="g-base">기본정보</th><th colspan="8" class="g-ev">분류 평가항목 · 기준별 분류직급</th><th class="g-base"></th></tr>
       <tr><th data-nosort class="g-base2 rno-h">No</th><th class="g-base2">이름</th><th class="g-base2">나이</th><th class="g-base2">부서</th><th class="g-base2">직책</th><th class="g-base2">현직급</th>
        <th class="g-ev2 ev1">연봉(현재, 원)</th><th class="g-ev2">(1)<br>현직급</th><th class="g-ev2">(2)<br>년차</th><th class="g-ev2">(3)<br>역할</th><th class="g-ev2">(4)<br>연봉</th><th class="g-ev2">종합<br>등급</th><th class="g-ev2">직무 역할</th><th class="g-ev2">최종 직급 판단</th><th data-nosort class="g-base2"></th></tr></thead><tbody>
@@ -1439,7 +1584,7 @@ function sheetReportN(){
          <td class="in ev" data-v="${finRank(p.final)}" data-ft="${esc(p.final||'미확정')}"><select data-sp="final" title="${finTitle(r,c)}" class="${finCls(r,c)}"><option value="">미확정</option>${['G4','G3','G2','G1'].map(g=>`<option ${p.final===g?'selected':''}>${g}</option>`).join('')}</select></td>
          <td><button type="button" class="row-del" data-unsp aria-label="${esc(p.name)} 특이인원 해제" title="특이인원 해제">×</button></td></tr>`;}).join('')}</tbody></table></div>`
      :'<p class="note">특이인원이 없습니다. 1차 분류 › 1차 분류 (종합 등급)의 「특이사항」 칸을 체크하면 여기에 표시됩니다.</p>'}
-     <p class="note">※ 초록 굵은 글씨 = 종합 등급과 같은 기준 / 최종 직급 판단이 종합 등급과 다르면 빨간 칸 / 직무 역할을 바꾸면 (3)·종합 등급이 다시 계산됨</p></div></div>
+     <p class="note">※ 초록 굵은 글씨 = 종합 등급과 같은 기준 / 최종 직급 판단이 종합 등급과 다르면 빨간 칸 / 직무 역할을 바꾸면 (3)·종합 등급이 다시 계산됨</p></div>${sp2Block(rows,c)}</div>
   <div class="panel"><h2>③ 분류 기준 <span class="sub">(분류 기준 › 1차 분류 기준과 자동 연동 · 수정은 분류 기준 단계에서)</span></h2>
     ${newCritHTML(c,true)}
     <div class="rpt-2col rpt-eq" style="margin-top:14px"><div><h3 class="rpt-h3">(4) 연봉 · 현 연봉 → Pay-band 직급</h3>
@@ -1455,10 +1600,11 @@ function sheetReportN(){
       if(el.dataset.sp==='final'){p.final=el.value;p.finalAuto=false;}else p.role=el.value;save();const y=window.scrollY;sheetReportN();window.scrollTo(0,y);});
     t.dataset.defsort='현직급:-1';sortable(t,'sp');
     t.addEventListener('click',e=>{const b=e.target.closest('[data-unsp]');if(!b)return;const p=S.people.find(x=>pkey(x)===b.closest('tr').dataset.k);if(p){p.special=false;save();sheetReportN();}});}
+  bindSp2(body);
 }
 
 /* ---- 엑셀 (기본정보) ---- */
-const IMP_HEAD=['사번','이름','생년월일','나이','부서','직군','직책','현직급','입사일','현직급 발령일','현직급 기간','조정(±년)','신입 여부','경력인정(년)','현 연봉','인사평가','직무 역할','최종 확정','2차 년차','특이사항','(1) 수기','(2) 수기','(3) 수기','(4) 수기','년차(수기)'];
+const IMP_HEAD=['사번','이름','생년월일','나이','부서','직군','직책','현직급','입사일','현직급 발령일','현직급 기간','조정(±년)','신입 여부','경력인정(년)','현 연봉','인사평가','직무 역할','최종 확정','2차 년차','특이사항','(1) 수기','(2) 수기','(3) 수기','(4) 수기','년차(수기)','2차 특이사항'];
 function tableBook(id,sheet){const wb=XLSX.utils.book_new();const tbl=document.getElementById(id);const hr=tbl.tHead.rows[tbl.tHead.rows.length-1];
   const idx=[...hr.cells].map((th,i)=>th.hasAttribute('data-nosort')||th.classList.contains('col-hid')?-1:i).filter(i=>i>=0);
   const head=idx.map(i=>hr.cells[i].innerHTML.replace(/<br\s*\/?>/g,' ').replace(/<[^>]+>/g,'').replace(/[▾▲▼]/g,'').replace(/\s+/g,' ').trim());
@@ -1477,8 +1623,8 @@ function tplBook(){const wb=XLSX.utils.book_new();
     ['',''],['※ 머리글 이름으로 열을 찾으므로 열 순서는 바꿔도 됨 / 예시 2행(가상 인원)은 지우고 입력','','']];
   XLSX.utils.book_append_sheet(wb,sheetFromAoa(guide,[18,10,70]),'작성 안내');return wb;}
 function infoBook(){const wb=XLSX.utils.book_new();
-  const rows=S.people.filter(p=>String(p.name||'').trim()).map(p=>[p.id,p.name,p.birth||'',num(p.age)??'',p.dept,p.job,p.title,p.grade,dateStr(p.hire),dateStr(p.gdate),periodBaseText(p),num(p.adj)??'',p.newbie?'신입':'경력',p.newbie?'':(num(p.career)??''),num(p.salary)??'',p.eval||'',p.role||'',p.final||'',p.step??'',p.special?'특이':'',...[0,1,2,3].map(i=>(p.ov||[])[i]||''),num(p.yrsM)??'']);
-  XLSX.utils.book_append_sheet(wb,sheetFromAoa([IMP_HEAD,...rows],[9,9,12,6,12,8,8,7,12,12,11,8,8,10,13,8,14,9,8,8,8,8,8,8,9],[14]),'기본정보');
+  const rows=S.people.filter(p=>String(p.name||'').trim()).map(p=>[p.id,p.name,p.birth||'',num(p.age)??'',p.dept,p.job,p.title,p.grade,dateStr(p.hire),dateStr(p.gdate),periodBaseText(p),num(p.adj)??'',p.newbie?'신입':'경력',p.newbie?'':(num(p.career)??''),num(p.salary)??'',p.eval||'',p.role||'',p.final||'',p.step??'',p.special?'특이':'',...[0,1,2,3].map(i=>(p.ov||[])[i]||''),num(p.yrsM)??'',p.special2?'특이':'']);
+  XLSX.utils.book_append_sheet(wb,sheetFromAoa([IMP_HEAD,...rows],[9,9,12,6,12,8,8,7,12,12,11,8,8,10,13,8,14,9,8,8,8,8,8,8,9,9],[14]),'기본정보');
   const c=S.crit;const aoa=[['구분','항목','값'],...GRADE6_DESC.map(g=>['(1) 현직급 변환',g,c.gmap[g]]),
     ...[3,2,1,0].map(i=>['(2) 년차 시작',`G${i+1}`,c.yStart[i]]),...c.roles.map(r=>['(3) 직무 역할',r[0],r[1]]),...[3,2,1,0].map(i=>['(4) Pay-band(만원)',`G${i+1}`,`${c.bands[i][0]}~${c.bands[i][1]}`]),
     ...CRIT_N.map((l,i)=>['(5) 가중치(%)',l,c.w[i]]),...[4,3,2,1].map(g=>['(5) 종합 점수 구간',`G${g}`,cutRange(c,g)])];
@@ -1489,13 +1635,13 @@ function importWorkbook(wb,fname){
   const H=A[hi].map(v=>String(v).replace(/\s/g,''));const col=f=>H.findIndex(f);
   const C={id:col(h=>h.includes('사번')),name:col(h=>h==='이름'),birth:col(h=>h.includes('생년')),age:col(h=>h==='나이'),dept:col(h=>h.includes('부서')),job:col(h=>h.includes('직군')),title:col(h=>h.includes('직책')),
     grade:col(h=>h==='현직급'),hire:col(h=>h.includes('입사')),gdate:col(h=>h.includes('발령')),period:col(h=>h.includes('기간')),adj:col(h=>h.startsWith('조정')),newbie:col(h=>h.includes('신입')),career:col(h=>h.includes('경력인정')||h==='경력'),salary:col(h=>h.includes('연봉')&&!h.includes('분류')&&!h.includes('기준')),
-    eval:col(h=>h.includes('인사평가')||h==='평가'),role:col(h=>h.includes('역할')),final:col(h=>h.includes('최종')),step:col(h=>h.includes('2차')),yrsM:col(h=>h.startsWith('년차')),special:col(h=>h.includes('특이')),ov:[1,2,3,4].map(n=>H.findIndex(h=>h===`(${n})수기`))};
+    eval:col(h=>h.includes('인사평가')||h==='평가'),role:col(h=>h.includes('역할')),final:col(h=>h.includes('최종')),step:col(h=>h.includes('2차')),yrsM:col(h=>h.startsWith('년차')),special:col(h=>h.includes('특이')&&!h.startsWith('2차')),special2:col(h=>h.startsWith('2차특이')),ov:[1,2,3,4].map(n=>H.findIndex(h=>h===`(${n})수기`))};
   const ds=v=>v instanceof Date?dateStr(v):String(v||'').trim().replace(/\./g,'-').replace(/-$/,'');const g=(r,k)=>C[k]>=0?r[C[k]]:'';
   const roles=S.crit.roles.map(x=>x[0]);const roleOf=v=>{const s=String(v||'').replace(/\s/g,'');return roles.find(x=>x.replace(/\s/g,'')===s)||'';};
   const up=v=>String(v||'').trim().toUpperCase();
   const P=A.slice(hi+1).filter(r=>String(g(r,'name')).trim()).map(r=>({id:String(g(r,'id')).trim(),name:String(g(r,'name')).trim(),birth:normBirth(g(r,'birth')),age:num(g(r,'age'))??'',dept:String(g(r,'dept')).trim(),job:String(g(r,'job')).trim(),
     title:String(g(r,'title')).trim(),grade:up(g(r,'grade')),hire:ds(g(r,'hire')),gdate:ds(g(r,'gdate')),period:g(r,'gdate')?'':String(g(r,'period')).trim(),adj:num(g(r,'adj'))??'',yrsM:num(g(r,'yrsM'))?Math.round(num(g(r,'yrsM'))):'',newbie:/^(신입|y|yes|o|1|true)$/i.test(String(g(r,'newbie')).trim()),career:num(g(r,'career'))??'',salary:num(g(r,'salary'))??'',
-    eval:EVALS.includes(up(g(r,'eval')))?up(g(r,'eval')):'',role:roleOf(g(r,'role')),final:/^G[1-4]$/.test(up(g(r,'final')))?up(g(r,'final')):'',finalAuto:false,step:num(g(r,'step'))?Math.round(num(g(r,'step'))):'',special:/특이|^o$|^y|^1$|true/i.test(String(g(r,'special')).trim()),...(()=>{const o=C.ov.map(ci=>{const v=ci>=0?up(r[ci]):'';return /^G[1-4]$/.test(v)?v:'';});return o.some(Boolean)?{ov:o}:{};})()}));
+    eval:EVALS.includes(up(g(r,'eval')))?up(g(r,'eval')):'',role:roleOf(g(r,'role')),final:/^G[1-4]$/.test(up(g(r,'final')))?up(g(r,'final')):'',finalAuto:false,step:num(g(r,'step'))?Math.round(num(g(r,'step'))):'',special:/특이|^o$|^y|^1$|true/i.test(String(g(r,'special')).trim()),special2:/특이|^o$|^y|^1$|true/i.test(String(g(r,'special2')).trim()),...(()=>{const o=C.ov.map(ci=>{const v=ci>=0?up(r[ci]):'';return /^G[1-4]$/.test(v)?v:'';});return o.some(Boolean)?{ov:o}:{};})()}));
   if(!P.length)throw new Error('불러올 인원이 없습니다.');
   S.people=P;S.source='file';S.sourceName=fname;S.sel='';save();route();toast(`${P.length}명을 불러왔습니다.${C.role<0?' (직무 역할 열 없음 → 기본정보에서 선택)':''}`);}
 
@@ -1756,7 +1902,7 @@ function sheet2Detail(){
     return kind==='g'?`<td class="${promo?'c-promo':miss?'c-miss':''}">G${s.G[t]}·${s.Y[t]}${miss?' 누락':''}</td>`:`<td class="num ${promo?'c-promo':over?'c-cap':''}">${fW(s.W[t])}</td>`;}).join('')}</tr>`;};
   body.innerHTML=`<div class="panel"><div class="bar" style="align-items:flex-end;margin:0"><div class="grow">${finderHTML(rows)}</div>${man2HTML(c)}</div></div>
    <div class="panel" style="margin-top:16px"><div class="bar"><h2 class="grow" style="margin:0">2차 생애연봉 시뮬레이션 상세</h2>
-     <label class="field">2차 년차 (이 인원)<select id="d2-step" class="mini-sel"><option value="">자동${r.stepAuto?`(${r.stepAuto.y})`:''}</option>${Array.from({length:stepN(c)},(_,k)=>`<option value="${k+1}" ${r.stepManual&&r.step===k+1?'selected':''}>${k+1}년차</option>`).join('')}</select></label></div>
+     <label class="field">2차 년차 (이 인원)<select id="d2-step" class="mini-sel"><option value="">자동${r.s2&&r.s2.auto?`(${r.s2.auto})`:''}</option>${Array.from({length:stepN(c)},(_,k)=>`<option value="${k+1}" ${r.stepManual&&r.step===k+1?'selected':''}>${k+1}년차</option>`).join('')}</select></label></div>
    <div class="scroll"><table><thead><tr><th>사번</th><th>이름</th><th>나이</th><th>현직급</th><th>현 연봉(원)</th><th>1차 최종 직급</th><th>2차 분류(최종)</th><th>2차 기준연봉(원)</th><th>남은 정년</th><th>인사평가</th></tr></thead><tbody>
    <tr><td>${esc(r.p.id)}</td><td><b>${esc(r.p.name)}</b></td><td>${esc(r.p.age)}</td><td>${esc(r.p.grade)}</td><td class="num">${fW(r.sal)}</td><td class="${r.fin?'c-fin':'note'}">G${r.app??'-'} ${r.fin?'확정':'(미확정)'}</td><td><b>${s2Label(r)}</b> ${s2Pill(r)}</td><td class="num">${fW(r.app&&r.step?T2(c,r.app,r.step):null)}</td><td>${r.rem??''}</td><td>${esc(r.ev)}</td></tr></tbody></table></div>
    <h2 style="margin-top:16px">■ 만 ${c.retAge}세 기점 최종연봉 (2차)</h2>
