@@ -1257,7 +1257,7 @@ function sheet2ClassN(){
       <th class="cg">적용<br>직급</th><th class="cg">출처</th>
       <th class="cm cm-l">차감</th><th class="cm">직급 년차</th><th class="cm cm-r">체류</th>
       <th class="cg">연봉 기준</th><th class="cg">차이</th>
-      <th class="cs cs-l">최종 년차<br>(수기)</th><th class="cs">최종<br>직급·년차</th><th class="cs cs-r">최종 기준연봉(원)<br><span style="font-weight:400">Min ~ Max</span></th>
+      <th class="cs cs-l">최종 년차<br>(수기)</th><th class="cs">최종<br>직급·년차</th><th class="cs cs-r">최종 연봉(원)<br><span style="font-weight:400">= 현 연봉 · Min ~ Max</span></th>
       <th data-nosort>위치</th><th>%</th><th data-nosort class="cg">생애<br>연봉</th><th class="cg">2차<br>특이</th></tr></thead><tbody>
     ${rows.map(r=>{const p=r.p,s=r.s2,g=r.app;const fb=g&&r.step?T2(c,g,r.step):null;const k=esc(pkey(p));
       return`<tr class="${r.stepManual?'confirmed':''}"><td class="rno"></td><td>${esc(p.id)}</td><td><b>${esc(p.name)}</b></td><td class="l">${esc(p.dept)}</td><td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}">${esc(p.grade)}</td>
@@ -1266,12 +1266,12 @@ function sheet2ClassN(){
        <td class="cm cm-l" data-v="${s.off??''}">${g?(s.off?'−'+s.off:'0'):'-'}</td><td class="cm" data-v="${s.ten??''}"><b>${s.ten==null?'-':'G'+g+'·'+s.ten+'년차'}</b>${s.under?' <small>(1 미만)</small>':''}</td><td class="cm cm-r ${s.over?'c-warn':''}" data-ft="${s.over?'체류 초과':s.stay?'정상':'-'}">${s.over?`초과<br><small>(${s.stay}년)</small>`:s.stay?`~${s.stay}년`:'-'}</td>
        <td class="cg" data-v="${s.sy??''}">${s.sy==null?'-':s.sy+'년차'}${s.sa&&s.sa.under?' <small>(미달)</small>':''}</td><td class="cg gap ${s.gap>0?'up':s.gap<0?'dn':''}" data-v="${s.gap??''}">${s.gap==null?'-':s.gap===0?'0':(s.gap>0?'+':'')+s.gap+'년'}</td>
        <td class="cs cs-l in"><select data-s2k="${k}" class="${r.stepManual?'ov':''} gsel"><option value="">${s.ten??'-'}년차</option>${Array.from({length:SN},(_,i)=>`<option value="${i+1}" ${r.stepManual&&r.step===i+1?'selected':''}>${i+1}년차 수기</option>`).join('')}</select></td>
-       <td class="cs ${gCls(g)}" data-v="${(g||0)*100+(r.step||0)}" data-ft="${s2Label(r)}"><b>${s2Label(r)}</b></td><td class="cs cs-r num" data-v="${fb??''}">${fW(fb)}${bandRng(g,c)}</td>
+       <td class="cs ${gCls(g)}" data-v="${(g||0)*100+(r.step||0)}" data-ft="${s2Label(r)}"><b>${s2Label(r)}</b></td><td class="cs cs-r num" data-v="${r.sal??''}" title="직급 년차 기준연봉 ${fW(fb)}원 (참고)">${fW(r.sal)}${bandRng(g,c)}</td>
        ${pbCell(r.sal,g,c)}
        <td class="cg"><button type="button" class="go-sim" data-s2go="${k}">▶</button></td>
        <td class="cg spc${p.special2?' on':''}" data-v="${p.special2?1:0}" data-ft="${p.special2?'특이':''}"><input type="checkbox" data-sp2k="${k}" ${p.special2?'checked':''} aria-label="${esc(p.name)} 2차 특이사항"></td></tr>`;}).join('')}
     </tbody></table></div>
-    <p class="note">※ 적용 직급 = 1차 분류 종합 등급 (최종 확정 · 보고용 특이인원 판단 우선) / 직급 년차 = 총 년차 − 하위 직급 체류연수 → 최종 년차 / 기준연봉 년차 = 현 연봉 이하 기준연봉 중 가장 높은 년차 (참고) · 차이 = 기준연봉 년차 − 직급 년차 / 최종 년차를 고르면 수기 값 우선</p></div>`;
+    <p class="note">※ 적용 직급 = 1차 분류 종합 등급 (최종 확정 · 보고용 특이인원 판단 우선) / 직급 년차 = 총 년차 − 하위 직급 체류연수 → 최종 년차 / 기준연봉 년차 = 현 연봉 이하 기준연봉 중 가장 높은 년차 (참고) · 차이 = 기준연봉 년차 − 직급 년차 / 최종 연봉 = 현 연봉 → Pay-band 위치도 현 연봉 기준 / 최종 년차를 고르면 수기 값 우선</p></div>`;
   const t=body.querySelector('#s2-tbl');const find=k=>S.people.find(x=>pkey(x)===k);
   t.addEventListener('change',e=>{const el=e.target;
     if(el.dataset.s2k){const p=find(el.dataset.s2k);if(!p)return;p.step=el.value===''?'':+el.value;save();const y=window.scrollY;sheet2ClassN();window.scrollTo(0,y);return;}
@@ -1298,13 +1298,13 @@ function sheetFinalN(){
      <tr><td class="l">2차 년차: 자동 결정</td><td>${rows.filter(r=>!r.stepManual).length}명</td></tr>
      <tr><td class="l">2차 년차: 수기 확정</td><td>${rows.filter(r=>r.stepManual).length}명</td></tr></tbody></table></div></div>
   <div class="panel" style="margin-top:14px"><div class="bar"><h2 class="grow" style="margin:0">최종 직급 (${N}명)</h2>${searchBoxHTML('fin')}<button id="fin-dl" type="button" class="primary">엑셀 다운로드</button></div>
-    <div class="scroll"><table id="fin-tbl" class="rno-t g2-cls"><thead><tr><th data-nosort class="rno-h">No</th><th>사번</th><th>이름</th><th>부서</th><th>직책</th><th>이전 직급</th><th class="cs cs-l">최종 직급</th><th class="cs cs-r">최종 직급·년차</th><th>현 연봉(원)</th><th>최종 기준연봉(원)<br><span style="font-weight:400">Pay-band Min ~ Max</span></th><th data-nosort>Pay-band 위치</th><th>%</th><th>판정 · 비고</th></tr></thead><tbody>
+    <div class="scroll"><table id="fin-tbl" class="rno-t g2-cls"><thead><tr><th data-nosort class="rno-h">No</th><th>사번</th><th>이름</th><th>부서</th><th>직책</th><th>이전 직급</th><th class="cs cs-l">최종 직급</th><th class="cs cs-r">최종 직급·년차</th><th>최종 연봉(원)<br><span style="font-weight:400">= 현 연봉 · Min ~ Max</span></th><th data-nosort>Pay-band 위치</th><th>%</th><th>판정 · 비고</th></tr></thead><tbody>
     ${rows.map(r=>{const p=r.p,g=r.app;const fb=g&&r.step?T2(c,g,r.step):null;const note=[r.p.final?(r.p.special?'1차 특이인원 판단':'1차 최종 확정'):'',r.stepManual?'2차 수기 년차':'',r.p.special2?'2차 특이인원':''].filter(Boolean).join(' · ');
       return`<tr><td class="rno"></td><td>${esc(p.id)}</td><td><b>${esc(p.name)}</b></td><td class="l">${esc(p.dept)}</td><td>${esc(p.title)}</td><td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}"><b>${esc(p.grade)}</b></td>
        <td class="cs cs-l ${gCls(g)}" data-v="${g??''}" data-ft="${gTxt(g)}"><b>${gTxt(g)}</b></td><td class="cs cs-r" data-v="${(g||0)*100+(r.step||0)}" data-ft="${s2Label(r)}"><b>${s2Label(r)}</b></td>
-       <td class="num" data-v="${r.sal??''}">${fW(r.sal)}</td><td class="num" data-v="${fb??''}">${fW(fb)}${bandRng(g,c)}</td>${pbCell(r.sal,g,c)}${pbJudge(r.sal,g,c,note)}</tr>`;}).join('')}
+       <td class="num" data-v="${r.sal??''}" title="직급 년차 기준연봉 ${fW(fb)}원 (참고)">${fW(r.sal)}${bandRng(g,c)}</td>${pbCell(r.sal,g,c)}${pbJudge(r.sal,g,c,note)}</tr>`;}).join('')}
     </tbody></table></div>
-    <p class="note">※ 최종 직급 = 1차 분류 종합 등급 (최종 확정 · 보고용 특이인원 판단 우선) / 최종 년차 = 2차 분류 결과 (수기 우선) / 모든 단계와 자동 연동</p></div>`;
+    <p class="note">※ 최종 직급 = 1차 분류 종합 등급 (최종 확정 · 보고용 특이인원 판단 우선) / 최종 년차 = 2차 분류 결과 (수기 우선) / 최종 연봉 = 현 연봉 (Pay-band 위치 · 판정도 현 연봉 기준) / 모든 단계와 자동 연동</p></div>`;
   body.querySelector('#fin-dl').onclick=()=>saveBook(tableBook('fin-tbl','최종 직급'),`직급분류_최종직급_${stamp()}.xlsx`);
   const t=body.querySelector('#fin-tbl');sortable(t,'fin');bindSearch(body,'fin',t);}
 
