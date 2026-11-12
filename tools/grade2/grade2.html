@@ -380,7 +380,7 @@ textarea{width:100%;min-height:110px;font:12px/1.4 ui-monospace,Menlo,Consolas,m
 
 /* ---- 직급 분류(신규 기준) ---- */
 .sptabs{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
-#s2-tbl .gsel,#sp2-tbl .gsel{min-width:108px}
+#s2-tbl .gsel,#sp2-tbl .gsel{min-width:108px} .band-rng{font-size:11px;color:var(--muted);font-weight:400;margin-top:1px}
 .sptabs button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 16px;border-radius:10px;border:2px solid var(--line-2);background:var(--surface);min-width:200px;text-align:left}
 .sptabs button b{font-size:14px} .sptabs button span{font-size:12px;color:var(--muted)}
 .sptabs button[aria-selected="true"]{border-color:var(--navy);background:var(--navy);color:#fff} .sptabs button[aria-selected="true"] span{color:#fff;opacity:.85}
@@ -1205,6 +1205,11 @@ function s2calc(p,g,sal,sa,c){
   if(auto!=null)auto=Math.min(stepN(c),Math.max(1,auto));
   return{tot,off,ten,tenRaw,stay,over,under,sy,sa,gap,auto,src,mode};}
 // Pay-band 위치 (0 = 하한, 1 = 상한)
+// 기준연봉 아래 Pay-band Min~Max (만원)
+const bandRng=(g,c)=>g?`<div class="band-rng">${nf(c.bands[g-1][0])} ~ ${nf(c.bands[g-1][1])}만원</div>`:'';
+// Pay-band 위치 판정 (임금분석 판정 기준과 같음: 매우 안정적 ~ 이탈)
+function pbJudge(sal,g,c,note){const pr=pbPr(sal,g,c);const an=S.an||{th0:40,th1:70,th2:85};if(pr==null)return`<td class="l">${note?`<div class="note" style="margin:0">${esc(note)}</div>`:''}</td>`;
+  const st=yStatus(pr,an);return`<td class="l" data-v="${YS[st].o}" data-ft="${YS[st].l}">${chip(st)}${note?`<div class="note" style="margin:2px 0 0">${esc(note)}</div>`:''}</td>`;}
 const pbPr=(sal,g,c)=>{if(!sal||!g)return null;const b=c.bands[g-1];return(sal/1e4-b[0])/(b[1]-b[0]);};
 function pbCell(sal,g,c){const pr=pbPr(sal,g,c);if(pr==null)return'<td class="pos">-</td><td class="num">-</td>';
   const col=pr>1?'var(--crit)':pr<0?'var(--under)':'var(--navy)';
@@ -1249,7 +1254,7 @@ function sheet2ClassN(){
       <th class="cg">적용 직급</th><th class="cg">출처</th>
       <th class="cm cm-l">차감</th><th class="cm">직급 년차</th><th class="cm cm-r">체류</th>
       <th class="cs cs-l">직급 년차</th><th class="cs">기준연봉(원)</th><th class="cs cs-r">차이</th>
-      <th>자동 결정</th><th>최종 년차<br>(수기)</th><th>최종 직급·년차</th><th>최종 기준연봉(원)</th><th>연봉 − 기준</th>
+      <th>자동 결정</th><th>최종 년차<br>(수기)</th><th>최종 직급·년차</th><th>최종 기준연봉(원)<br><span style="font-weight:400">Pay-band Min ~ Max</span></th><th>연봉 − 기준</th>
       <th data-nosort>위치</th><th>%</th><th data-nosort class="cg">생애연봉</th><th class="cg">2차 특이사항<br>(보고용)</th></tr></thead><tbody>
     ${rows.map(r=>{const p=r.p,s=r.s2,g=r.app;const fb=g&&r.step?T2(c,g,r.step):null;const sb=g&&s.sy?T2(c,g,s.sy):null;const k=esc(pkey(p));
       return`<tr class="${r.stepManual?'confirmed':''}"><td class="rno"></td><td>${esc(p.id)}</td><td><b>${esc(p.name)}</b></td><td class="l">${esc(p.dept)}</td><td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}">${esc(p.grade)}</td>
@@ -1259,7 +1264,7 @@ function sheet2ClassN(){
        <td class="cs cs-l" data-v="${s.sy??''}"><b>${s.sy==null?'-':'G'+g+'·'+s.sy+'년차'}</b>${s.sa&&s.sa.under?' <small>(하한 미만)</small>':s.sa&&s.sa.over?' <small>(최대 초과)</small>':''}</td><td class="cs num" data-v="${sb??''}">${fW(sb)}</td><td class="cs cs-r ${s.gap!=null&&Math.abs(s.gap)>=(c.s2gap??2)?'band-out':''}" data-v="${s.gap??''}">${s.gap==null?'-':(s.gap>0?'+':'')+s.gap}</td>
        <td data-ft="${esc(s.src||'-')}"><span class="pill ${s.src==='연봉 보정'?'p-watch':'p-auto'}">${esc(s.src||'-')}</span> ${s.auto??'-'}년차</td>
        <td class="in"><select data-s2k="${k}" class="${r.stepManual?'ov':''} gsel"><option value="">자동 (${s.auto??'-'}년차)</option>${Array.from({length:SN},(_,i)=>`<option value="${i+1}" ${r.stepManual&&r.step===i+1?'selected':''}>${i+1}년차</option>`).join('')}</select></td>
-       <td data-v="${(g||0)*100+(r.step||0)}" data-ft="${s2Label(r)}" class="${gCls(g)}"><b>${s2Label(r)}</b></td><td class="num" data-v="${fb??''}">${fW(fb)}</td><td class="num ${r.sal!=null&&fb!=null&&r.sal<fb?'c-under':''}" data-v="${r.sal!=null&&fb!=null?r.sal-fb:''}">${r.sal!=null&&fb!=null?(r.sal-fb>0?'+':'')+fW(r.sal-fb):'-'}</td>
+       <td data-v="${(g||0)*100+(r.step||0)}" data-ft="${s2Label(r)}" class="${gCls(g)}"><b>${s2Label(r)}</b></td><td class="num" data-v="${fb??''}">${fW(fb)}${bandRng(g,c)}</td><td class="num ${r.sal!=null&&fb!=null&&r.sal<fb?'c-under':''}" data-v="${r.sal!=null&&fb!=null?r.sal-fb:''}">${r.sal!=null&&fb!=null?(r.sal-fb>0?'+':'')+fW(r.sal-fb):'-'}</td>
        ${pbCell(r.sal,g,c)}
        <td class="cg"><button type="button" class="go-sim" data-s2go="${k}">▶ 시뮬</button></td>
        <td class="cg spc${p.special2?' on':''}" data-v="${p.special2?1:0}" data-ft="${p.special2?'특이':''}"><input type="checkbox" data-sp2k="${k}" ${p.special2?'checked':''} aria-label="${esc(p.name)} 2차 특이사항"></td></tr>`;}).join('')}
@@ -1291,11 +1296,11 @@ function sheetFinalN(){
      <tr><td class="l">2차 년차: 자동 결정</td><td>${rows.filter(r=>!r.stepManual).length}명</td></tr>
      <tr><td class="l">2차 년차: 수기 확정</td><td>${rows.filter(r=>r.stepManual).length}명</td></tr></tbody></table></div></div>
   <div class="panel" style="margin-top:14px"><div class="bar"><h2 class="grow" style="margin:0">최종 직급 (${N}명)</h2>${searchBoxHTML('fin')}<button id="fin-dl" type="button" class="primary">엑셀 다운로드</button></div>
-    <div class="scroll"><table id="fin-tbl" class="rno-t g2-cls"><thead><tr><th data-nosort class="rno-h">No</th><th>사번</th><th>이름</th><th>부서</th><th>직책</th><th>이전 직급</th><th class="cs cs-l">최종 직급</th><th class="cs cs-r">최종 직급·년차</th><th>현 연봉(원)</th><th>최종 기준연봉(원)</th><th data-nosort>Pay-band 위치</th><th>%</th><th>비고</th></tr></thead><tbody>
+    <div class="scroll"><table id="fin-tbl" class="rno-t g2-cls"><thead><tr><th data-nosort class="rno-h">No</th><th>사번</th><th>이름</th><th>부서</th><th>직책</th><th>이전 직급</th><th class="cs cs-l">최종 직급</th><th class="cs cs-r">최종 직급·년차</th><th>현 연봉(원)</th><th>최종 기준연봉(원)<br><span style="font-weight:400">Pay-band Min ~ Max</span></th><th data-nosort>Pay-band 위치</th><th>%</th><th>판정 · 비고</th></tr></thead><tbody>
     ${rows.map(r=>{const p=r.p,g=r.app;const fb=g&&r.step?T2(c,g,r.step):null;const note=[r.p.final?(r.p.special?'1차 특이인원 판단':'1차 최종 확정'):'',r.stepManual?'2차 수기 년차':'',r.p.special2?'2차 특이인원':''].filter(Boolean).join(' · ');
       return`<tr><td class="rno"></td><td>${esc(p.id)}</td><td><b>${esc(p.name)}</b></td><td class="l">${esc(p.dept)}</td><td>${esc(p.title)}</td><td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}"><b>${esc(p.grade)}</b></td>
        <td class="cs cs-l ${gCls(g)}" data-v="${g??''}" data-ft="${gTxt(g)}"><b>${gTxt(g)}</b></td><td class="cs cs-r" data-v="${(g||0)*100+(r.step||0)}" data-ft="${s2Label(r)}"><b>${s2Label(r)}</b></td>
-       <td class="num" data-v="${r.sal??''}">${fW(r.sal)}</td><td class="num" data-v="${fb??''}">${fW(fb)}</td>${pbCell(r.sal,g,c)}<td class="l note" style="margin:0">${esc(note)}</td></tr>`;}).join('')}
+       <td class="num" data-v="${r.sal??''}">${fW(r.sal)}</td><td class="num" data-v="${fb??''}">${fW(fb)}${bandRng(g,c)}</td>${pbCell(r.sal,g,c)}${pbJudge(r.sal,g,c,note)}</tr>`;}).join('')}
     </tbody></table></div>
     <p class="note">※ 최종 직급 = 1차 분류 종합 등급 (최종 확정 · 보고용 특이인원 판단 우선) / 최종 년차 = 2차 분류 결과 (수기 우선) / 모든 단계와 자동 연동</p></div>`;
   body.querySelector('#fin-dl').onclick=()=>saveBook(tableBook('fin-tbl','최종 직급'),`직급분류_최종직급_${stamp()}.xlsx`);
@@ -1491,22 +1496,7 @@ function sheetClassN(){
   const ovN=rows.filter(r=>r.G2.ov.some(x=>x!=null)).length;const outT=rows.filter(r=>r.G2.salOutT).length,outF=rows.filter(r=>r.fin&&!inBand(r.sal,r.fin,c)).length;
   const mx={};GRADE6_DESC.forEach(g=>{mx[g]={};[4,3,2,1].forEach(x=>mx[g][x]=0);});rows.forEach(r=>{if(mx[r.p.grade]&&r.comp)mx[r.p.grade][r.comp]++;});
   const spN=rows.filter(r=>r.p.special).length;
-  body.innerHTML=`<div class="g2-sum">
-   <div class="panel"><h2>종합 등급 분포 <span class="sub">(단위: 명)</span></h2>
-    <table class="rtbl"><thead><tr><th>구분</th><th>G4</th><th>G3</th><th>G2</th><th>G1</th><th>계</th></tr></thead><tbody>
-     <tr><td><b>(5) 종합 등급</b></td>${[4,3,2,1].map(g=>`<td class="gc${g}">${byComp(g)}</td>`).join('')}<td><b>${rows.filter(r=>r.comp).length}</b></td></tr>
-     <tr><td><b>적용 직급</b><div class="sub">최종 확정 우선</div></td>${[4,3,2,1].map(g=>`<td>${byApp(g)}</td>`).join('')}<td><b>${rows.filter(r=>r.app).length}</b></td></tr></tbody></table>
-    <p class="note">최종 확정 ${fin}명 / 미확정 ${N-fin}명 · 가중치 합계 ${W}%${W!==100?' <b style="color:var(--crit)">(100% 아님 · 비율로 환산 적용)</b>':''}</p></div>
-   <div class="panel"><h2>기준 일치도 <span class="sub">(종합 등급과 같은 기준 수)</span></h2>
-    <table class="rtbl"><thead><tr><th>4개 일치</th><th>3개</th><th>2개</th><th>1개 이하</th></tr></thead><tbody>
-     <tr><td class="c-fin">${ag(4)}명</td><td>${ag(3)}명</td><td>${ag(2)}명</td><td style="color:var(--crit);font-weight:700">${ag(1)+ag(0)}명</td></tr></tbody></table>
-    <p class="note">※ 일치가 낮을수록 기준 간 판단이 엇갈림 → 최종 확정 시 우선 검토</p>
-    <table class="rtbl" style="margin-top:6px"><thead><tr><th>연봉 밴드 이탈</th><th>변경 직급 기준</th><th>최종 확정 기준</th></tr></thead><tbody>
-     <tr><td><b>인원</b></td><td class="${outT?'band-out':''}">${outT}명</td><td class="${outF?'band-out':''}">${outF}명</td></tr></tbody></table></div>
-   <div class="panel"><h2>현직급 × 종합 등급 <span class="sub">(단위: 명)</span></h2>
-    <table class="rtbl"><thead><tr><th>현직급</th><th>G4</th><th>G3</th><th>G2</th><th>G1</th><th>계</th></tr></thead><tbody>
-     ${GRADE6_DESC.map(g=>`<tr><td><b>${g}</b> <span class="sub">→ ${esc(c.gmap[g])}</span></td>${[4,3,2,1].map(x=>`<td class="${mx[g][x]?(('G'+x)===c.gmap[g]?'c-fin':'gc'+x):''}">${mx[g][x]||''}</td>`).join('')}<td><b>${[4,3,2,1].reduce((a,x)=>a+mx[g][x],0)}</b></td></tr>`).join('')}</tbody></table>
-    <p class="note">※ 테두리 칸 = (1) 현직급 변환 결과와 같은 종합 등급</p></div></div>
+  body.innerHTML=`
   <div class="panel" style="margin-top:14px"><div class="bar"><h2 class="grow" style="margin:0">개인별 1차 분류 (${N}명)</h2><span class="sub">기준 수기 변경 <b style="color:var(--crit)">${ovN}</b>명 · 특이사항 체크 <b id="sp-count">${spN}</b>명 → 보고용</span><button id="clear-ov" type="button">수기 변경 전체 해제</button>
     ${searchBoxHTML('class')}<button id="fill4" type="button">4개 일치 인원 자동 확정</button><button id="clear4" type="button">자동 확정 해제</button><button id="dl-class" type="button" class="primary">엑셀 다운로드</button></div>
     <div class="scroll"><table id="class-tbl" class="rno-t g2-cls"><thead>
