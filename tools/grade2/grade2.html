@@ -379,6 +379,12 @@ textarea{width:100%;min-height:110px;font:12px/1.4 ui-monospace,Menlo,Consolas,m
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 
 /* ---- 직급 분류(신규 기준) ---- */
+.kfbar{display:inline-flex;align-items:center;gap:0;border:1.5px solid var(--line-2);border-radius:8px;overflow:hidden;align-self:flex-end}
+.kfbar .kf-l{font-size:12px;color:var(--muted);padding:0 8px}
+.kfbar button{border:0;border-left:1px solid var(--line-2);border-radius:0;padding:5px 10px;font-size:12px;background:var(--surface)}
+.kfbar button[aria-pressed="true"]{background:var(--navy);color:#fff;font-weight:700}
+.kfbar button.kf-y{color:#7a3300;background:#fde2c4} .kfbar button.kf-y[aria-pressed="true"]{background:#b9372b;color:#fff}
+
 /* 최종 직급·년차: 이사님 확인용 열 — 빨간 전체 테두리, 특이사항은 칸 색 */
 .g2-cls thead tr th.key-col{border:3px solid var(--crit)!important;border-bottom:1px solid var(--crit)!important;background:#b9372b!important;color:#fff!important}
 .g2-cls td.key-col{border-left:3px solid var(--crit)!important;border-right:3px solid var(--crit)!important;font-size:13px}
@@ -686,6 +692,11 @@ function toast(msg){document.querySelectorAll('.toast').forEach(x=>x.remove());c
    3. 공통 — 표 정렬
    ========================================================= */
 const SORTST={};
+// 특이사항(주황 칸) 구분 필터: id → 'y'(있음만) | 'n'(없음만) | 없음(전체)
+const KFILT={};
+function kfBarHTML(id,rows,c){const y=rows.filter(r=>keyFlags(r,c).length).length;const k=KFILT[id]||'';
+  return`<span class="kfbar" data-kfbar="${id}" role="group" aria-label="특이사항 구분"><span class="kf-l">특이사항</span><button type="button" data-kf="" aria-pressed="${!k}">전체 ${rows.length}</button><button type="button" data-kf="y" class="kf-y" aria-pressed="${k==='y'}">● 있음 ${y}</button><button type="button" data-kf="n" aria-pressed="${k==='n'}">없음 ${rows.length-y}</button></span>`;}
+function bindKf(body,id,tbl){const bar=body.querySelector(`[data-kfbar="${id}"]`);if(!bar)return;bar.querySelectorAll('[data-kf]').forEach(b=>b.onclick=()=>{KFILT[id]=b.dataset.kf;bar.querySelectorAll('[data-kf]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));applySort(tbl,id);});}
 function sortVal(td){if(!td)return null;
   if(td.dataset.v!==undefined){const v=td.dataset.v;if(v==='')return null;const n=Number(v);return isNaN(n)?v:n;}
   const el=td.querySelector('input,select');const s=(el?el.value:td.textContent).trim();if(s===''||s==='-')return null;
@@ -766,7 +777,7 @@ function applySort(tbl,id){const st=SORTST[id];const hr=tbl.tHead.rows[tbl.tHead
     const d=(typeof va==='number'&&typeof vb==='number')?va-vb:String(va).localeCompare(String(vb),'ko',{numeric:true});return d*st.d;});
     rows.forEach(r=>tb.appendChild(r));fixed.forEach(r=>tb.appendChild(r));}
   const q=(SEARCHQ[id]||'').trim();
-  let shown=0;rows.forEach(r=>{if(r.cells.length<2){return;}const ok=rowPass(r,id,-1)&&searchPass(r,q);r.hidden=!ok;if(ok)shown++;});
+  let shown=0;rows.forEach(r=>{if(r.cells.length<2){return;}const kf=KFILT[id];const ok=rowPass(r,id,-1)&&searchPass(r,q)&&(!kf||(kf==='y')===(r.dataset.kf==='1'));r.hidden=!ok;if(ok)shown++;});
   // 정렬·필터 중인 열 강조
   const act=new Set(Object.keys(f).map(Number));if(st)act.add(st.i);
   [...hr.cells].forEach((th,i)=>th.classList.toggle('sorted',!!st&&st.i===i));
@@ -1266,7 +1277,7 @@ function sheet2ClassN(){
     <table class="rtbl"><thead><tr><th>체류 초과</th><th>밴드 하한 미만</th><th>밴드 상한 초과</th></tr></thead><tbody>
      <tr><td class="${cnt(r=>r.s2.over)?'c-warn':''}">${cnt(r=>r.s2.over)}</td><td>${cnt(r=>(pbPr(r.sal,r.app,c)??0)<0)}</td><td>${cnt(r=>(pbPr(r.sal,r.app,c)??0)>1)}</td></tr></tbody></table></div></div>
   <div class="panel" style="margin-top:14px"><div class="bar"><h2 class="grow" style="margin:0">개인별 2차 분류 (${N}명)</h2><span class="sub">2차 특이사항 체크 <b id="sp2-count">${sp2}</b>명 → 보고용</span>
-    ${searchBoxHTML('s2n')}<button id="s2-clear" type="button">수기 년차 전체 해제</button><button id="s2-dl" type="button" class="primary">엑셀 다운로드</button></div>
+    ${kfBarHTML('s2n',rows,c)}${searchBoxHTML('s2n')}<button id="s2-clear" type="button">수기 년차 전체 해제</button><button id="s2-dl" type="button" class="primary">엑셀 다운로드</button></div>
     <div class="scroll"><table id="s2-tbl" class="rno-t g2-cls fit"><thead>
      <tr><th colspan="7" class="g-base">기본정보</th><th colspan="2" class="g-ref">1차 결과</th><th colspan="3" class="g-ev g-cm">직급 년차 (적용)</th><th colspan="2" class="g-ref">기준연봉 년차 (참고)</th><th colspan="2" class="g-sum">최종 (2차)</th><th colspan="3" class="g-base g-pb">Pay-band 위치 (최종 직급 기준)</th><th colspan="2" class="g-ref">참고</th></tr>
      <tr><th data-nosort class="rno-h">No</th><th>사번</th><th>이름</th><th>부서</th><th>현직급</th><th>총<br>년차</th><th>현 연봉(원)</th>
@@ -1276,7 +1287,7 @@ function sheet2ClassN(){
       <th class="cs cs-l">최종 년차<br>(수기)</th><th class="cs key-col">최종<br>직급·년차</th><th class="pb pb-l">최종 연봉(원)<br><span style="font-weight:400">= 현 연봉</span></th>
       <th data-nosort class="pb">위치</th><th class="pb pb-r">밴드 내<br>위치(%)</th><th data-nosort class="cg">생애<br>연봉</th><th class="cg">2차<br>특이</th></tr></thead><tbody>
     ${rows.map(r=>{const p=r.p,s=r.s2,g=r.app;const fb=g&&r.step?T2(c,g,r.step):null;const k=esc(pkey(p));
-      return`<tr class="${r.stepManual?'confirmed':''}"><td class="rno"></td><td>${esc(p.id)}</td><td><b>${esc(p.name)}</b></td><td class="l">${esc(p.dept)}</td><td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}">${esc(p.grade)}</td>
+      return`<tr class="${r.stepManual?'confirmed':''}" data-kf="${keyFlags(r,c).length?1:0}"><td class="rno"></td><td>${esc(p.id)}</td><td><b>${esc(p.name)}</b></td><td class="l">${esc(p.dept)}</td><td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}">${esc(p.grade)}</td>
        <td data-v="${s.tot??''}">${s.tot==null?'-':s.tot}</td><td class="num" data-v="${r.sal??''}">${fW(r.sal)}</td>
        <td class="cg ${gCls(g)}" data-v="${g??''}" data-ft="${gTxt(g)}"><b>${gTxt(g)}</b></td><td class="cg" data-ft="${appSrc(r)}">${appSrc(r)}</td>
        <td class="cm cm-l" data-v="${s.off??''}">${g?(s.off?'−'+s.off:'0'):'-'}</td><td class="cm" data-v="${s.ten??''}"><b>${s.ten==null?'-':'G'+g+'·'+s.ten+'년차'}</b>${s.under?' <small>(1 미만)</small>':''}</td><td class="cm cm-r ${s.over?'c-warn':''}" data-ft="${s.over?'체류 초과':s.stay?'정상':'-'}">${s.over?`초과<br><small>(${s.stay}년)</small>`:s.stay?`~${s.stay}년`:'-'}</td>
@@ -1296,7 +1307,7 @@ function sheet2ClassN(){
   t.addEventListener('click',e=>{const b=e.target.closest('[data-s2go]');if(!b)return;S.sel=b.dataset.s2go;S.findG='';S.stage='2';S.sheet2='s2life';S.jump=true;save();renderPayband();});
   body.querySelector('#s2-clear').onclick=()=>{let n=0;S.people.forEach(p=>{if(p.step!==''&&p.step!=null){p.step='';n++;}});save();sheet2ClassN();toast(n?`수기 년차 ${n}명을 해제했습니다. 직급 년차로 돌아갑니다.`:'해제할 수기 년차가 없습니다.');};
   body.querySelector('#s2-dl').onclick=()=>saveBook(tableBook('s2-tbl','2차 분류'),`직급분류_2차분류_${stamp()}.xlsx`);
-  sortable(t,'s2n');bindSearch(body,'s2n',t);}
+  sortable(t,'s2n');bindKf(body,'s2n',t);bindSearch(body,'s2n',t);}
 
 /* ---- 최종 직급 ---- */
 function sheetFinalN(){
@@ -1313,16 +1324,16 @@ function sheetFinalN(){
      <tr><td class="l">1차 직급: 최종 확정 · 특이인원 판단</td><td>${rows.filter(r=>r.p.final).length}명</td></tr>
      <tr><td class="l">2차 년차: 자동 결정</td><td>${rows.filter(r=>!r.stepManual).length}명</td></tr>
      <tr><td class="l">2차 년차: 수기 확정</td><td>${rows.filter(r=>r.stepManual).length}명</td></tr></tbody></table></div></div>
-  <div class="panel" style="margin-top:14px"><div class="bar"><h2 class="grow" style="margin:0">최종 직급 (${N}명)</h2>${searchBoxHTML('fin')}<button id="fin-dl" type="button" class="primary">엑셀 다운로드</button></div>
+  <div class="panel" style="margin-top:14px"><div class="bar"><h2 class="grow" style="margin:0">최종 직급 (${N}명)</h2>${kfBarHTML('fin',rows,c)}${searchBoxHTML('fin')}<button id="fin-dl" type="button" class="primary">엑셀 다운로드</button></div>
     <div class="scroll"><table id="fin-tbl" class="rno-t g2-cls"><thead><tr><th data-nosort class="rno-h">No</th><th>사번</th><th>이름</th><th>부서</th><th>직책</th><th>이전 직급</th><th class="cs cs-l">최종 직급</th><th class="cs key-col">최종 직급·년차</th><th>최종 연봉(원)<br><span style="font-weight:400">= 현 연봉 · Min ~ Max</span></th><th data-nosort>Pay-band 위치</th><th>밴드 내<br>위치(%)</th><th>판정 · 비고</th></tr></thead><tbody>
     ${rows.map(r=>{const p=r.p,g=r.app;const fb=g&&r.step?T2(c,g,r.step):null;const note=[r.p.final?(r.p.special?'1차 특이인원 판단':'1차 최종 확정'):'',r.stepManual?'2차 수기 년차':'',r.p.special2?'2차 특이인원':''].filter(Boolean).join(' · ');
-      return`<tr><td class="rno"></td><td>${esc(p.id)}</td><td><b>${esc(p.name)}</b></td><td class="l">${esc(p.dept)}</td><td>${esc(p.title)}</td><td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}"><b>${esc(p.grade)}</b></td>
+      return`<tr data-kf="${keyFlags(r,c).length?1:0}"><td class="rno"></td><td>${esc(p.id)}</td><td><b>${esc(p.name)}</b></td><td class="l">${esc(p.dept)}</td><td>${esc(p.title)}</td><td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}"><b>${esc(p.grade)}</b></td>
        <td class="cs cs-l ${gCls(g)}" data-v="${g??''}" data-ft="${gTxt(g)}"><b>${gTxt(g)}</b></td><td class="cs key-col ${keyFlags(r,c).length?'key-flag':''}" data-v="${(g||0)*100+(r.step||0)}" data-ft="${s2Label(r)}" title="${esc(keyFlags(r,c).join(' · '))}"><b>${s2Label(r)}</b></td>
        <td class="num" data-v="${r.sal??''}" title="직급 년차 기준연봉 ${fW(fb)}원 (참고)">${fW(r.sal)}${bandRng(g,c)}</td>${pbCell(r.sal,g,c)}${pbJudge(r.sal,g,c,note)}</tr>`;}).join('')}
     </tbody></table></div>
     <p class="note">※ 최종 직급 = 1차 분류 종합 등급 (최종 확정 · 보고용 특이인원 판단 우선) / 최종 년차 = 2차 분류 결과 (수기 우선) / 최종 연봉 = 현 연봉 (Pay-band 위치 · 판정도 현 연봉 기준) / 모든 단계와 자동 연동</p></div>`;
   body.querySelector('#fin-dl').onclick=()=>saveBook(tableBook('fin-tbl','최종 직급'),`직급분류_최종직급_${stamp()}.xlsx`);
-  const t=body.querySelector('#fin-tbl');sortable(t,'fin');bindSearch(body,'fin',t);}
+  const t=body.querySelector('#fin-tbl');sortable(t,'fin');bindKf(body,'fin',t);bindSearch(body,'fin',t);}
 
 /* ---- 보고용: 2차 특이인원 ---- */
 function sp2Block(rows,c){const sp=rows.filter(r=>r.p.special2);const SN=stepN(c);
