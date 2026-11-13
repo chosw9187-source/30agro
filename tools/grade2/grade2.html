@@ -521,7 +521,7 @@ function defaultCrit(){return{
   bands:[[4000,5500],[4700,6700],[5600,8100],[6700,9900]],           // ① 직급별 Pay-band (만원)
   overlaps:[[4700,5500],[5600,6700],[6700,8100]],                     // ② 중첩 구간 (만원)
   retAge:55,                                                          // 정년 기준(만 나이)
-  stay:[[4,0],[4,0],[4,0]],                                           // ④ 기준 연수 / 누락 연수
+  stay:[[4,0],[4,0],[5,0]],                                           // ④ 기준 연수 / 누락 연수
   rate:0.025,                                                         // ④ 연 상승률
   mode:'배치 년차 기준',                                               // ④ 첫 승진 시점 산정
   ovr:[Array(30).fill(''),Array(30).fill(''),Array(30).fill(''),Array(30).fill('')], // ⑥ 수기 조정 (G1..G4)
@@ -576,7 +576,7 @@ let S=(()=>{try{const s=JSON.parse(localStorage.getItem(LS_KEY));if(s&&s.crit&&A
   const f=Object.assign({},d.an.f,(s.an||{}).f||{}),cf=Object.assign({},d.an.cf,(s.an||{}).cf||{});m.an=Object.assign(d.an,s.an||{});m.an.f=f;m.an.cf=cf;if(m.an.thVer!==2){Object.assign(m.an,{th0:40,th1:70,th2:85,thVer:2});}return m;}}catch(e){}return fresh();})();
 S.manualG='';
 // 승진 대상 기준 변경(G3→G4 4년차) 1회 반영
-if(!S.crit.promoV2){if(S.crit.stay&&S.crit.stay[2]&&+S.crit.stay[2][0]===5)S.crit.stay[2][0]=4;S.crit.promoV2=1;}
+if(!S.crit.promoV3){if(S.crit.promoV2&&S.crit.stay&&S.crit.stay[2]&&+S.crit.stay[2][0]===4)S.crit.stay[2][0]=5;S.crit.promoV3=1;}
 function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(S))}catch(e){}}
 
 /* =========================================================
@@ -937,7 +937,7 @@ function sheetInfo(){
        ${['G1 → G2','G2 → G3','G3 → G4'].map((l,i)=>`<tr><td><b>${l}</b></td><td class="in"><input type="number" min="0" data-crit="missStep.${i}" value="${missStep(c)[i]}"></td><td class="auto" data-msd="${i}">${MSY(c,i)}년</td></tr>`).join('')}
        <tr><td class="l">누락 1회당 지연</td><td class="in"><input type="number" min="0" data-crit="delayPer" value="${c.delayPer}"></td><td class="l note" style="margin:0">년</td></tr>
        </tbody></table>
-       <p class="note">※ 인사평가와 무관하게 전 인원 동일 적용 / 직급 년차가 승진 기준 년차(④) 이상이면 27년부터 승진 대상 → 대상 연도부터 누락 횟수 × 1회당 지연만큼 탈락 후 승진 (예: G1 8년차 → 27년 대상 · 1회 탈락 → 28년 G2·5년차 → 29년 G2·6년차부터 다시 대상) / 1차 · 2차 생애연봉 · 정년 최종연봉에 반영</p></div>
+       <p class="note">※ 인사평가와 무관하게 전 인원 동일 적용 / 직급 년차가 승진 기준 년차(④) 이상이면 27년부터 승진 대상 → 대상 연도부터 누락 횟수 × 1회당 지연만큼 탈락 후 승진 (직급 근속 년차 기준, 승진한 해 = 1년차 · 예: G1 1~3년차 → 4년차 누락 → 5년차 G2 승진 → G2 4년차부터 4회 누락 → G3 승진 → G3 5년차부터 5회 누락 → G4) / 1차 · 2차 생애연봉 · 정년 최종연봉에 반영</p></div>
    </div>
    <div class="critgrid" style="margin-top:16px">
      <div class="panel"><h2>③ 분류 결과 집계 <span class="sub">(현직급 × 분류 직급(1차 자동), 단위: 명)</span></h2><div class="scroll" id="matrix"></div></div>
@@ -1490,7 +1490,7 @@ function sheetCrit1(){
        ${['G1 → G2','G2 → G3','G3 → G4'].map((l,i)=>`<tr><td><b>${l}</b></td><td class="in"><input type="number" min="0" data-crit="missStep.${i}" value="${missStep(c)[i]}"></td><td class="auto" data-msd="${i}">${MSY(c,i)}년</td></tr>`).join('')}
        <tr><td class="l">누락 1회당 지연</td><td class="in"><input type="number" min="0" data-crit="delayPer" value="${c.delayPer}"></td><td class="l note" style="margin:0">년</td></tr>
        </tbody></table>
-       <p class="note">※ 인사평가와 무관하게 전 인원 동일 적용 / 직급 년차가 승진 기준 년차(④) 이상이면 27년부터 승진 대상 → 대상 연도부터 누락 횟수 × 1회당 지연만큼 탈락 후 승진 (예: G1 8년차 → 27년 대상 · 1회 탈락 → 28년 G2·5년차 → 29년 G2·6년차부터 다시 대상) / 1차 · 2차 생애연봉 · 정년 최종연봉에 반영</p></div>
+       <p class="note">※ 인사평가와 무관하게 전 인원 동일 적용 / 직급 년차가 승진 기준 년차(④) 이상이면 27년부터 승진 대상 → 대상 연도부터 누락 횟수 × 1회당 지연만큼 탈락 후 승진 (직급 근속 년차 기준, 승진한 해 = 1년차 · 예: G1 1~3년차 → 4년차 누락 → 5년차 G2 승진 → G2 4년차부터 4회 누락 → G3 승진 → G3 5년차부터 5회 누락 → G4) / 1차 · 2차 생애연봉 · 정년 최종연봉에 반영</p></div>
    </div>
 
      <div class="panel" style="margin-top:16px"><h2>⑤ 직급·년차별 기준연봉표 <span class="sub">(하한, 자동 / 단위: 원)</span></h2><div class="scroll" id="std-tbl"></div>
@@ -1869,14 +1869,16 @@ function scenario2(p,g,n,c,ev,noPromo){
   // 승진 대상: 직급 년차 ≥ 승진 기준 년차(④, 기본 G1·G2·G3 4년차) → 27년(t=1)부터 대상, 대상 연도부터 ⑧ 누락 횟수만큼 탈락 후 승진
   // 승진 후에는 새 직급 1년차부터 다시 같은 규칙 (예: G1 8년차 → 27년 대상 · 1회 탈락 → 28년 G2)
   const SY=k=>Math.max(1,+c.stay[k-1][0]||1);
-  // 매년(27년~) 그 해 직급 년차가 승진 대상 년차 이상이면 승진 심사 → 누락 횟수(년)만큼 탈락 후 승진. 승진한 해 다음 해부터 새 직급 년차로 다시 심사
-  const top=4;const end=F;const G=[],Y=[],W=[],MISS=[];const D=[999,999,999];let y=n,cur=g,fail=0;
+  // 승진 심사(27년~): 그 직급 근속 년차(승진한 해 = 1년차)가 승진 대상 년차(④ G1 4 · G2 4 · G3 5) 이상이면 대상 → 누락 횟수만큼 탈락 후 승진
+  // 예: G1 1·2·3년차 → 4년차 누락 → 5년차 G2 승진(1) · 2 · 3 → 4년차부터 4회 누락 → G3 승진(1) · 2 · 3 · 4 → 5년차부터 5회 누락 → G4
+  // 연봉은 승진 시 기준연봉표 년차로 배치(Y)하지만, 승진 대상 판정은 직급 근속 년차(inG)로 한다
+  const top=4;const end=F;const G=[],Y=[],W=[],MISS=[];const D=[999,999,999];let y=n,cur=g,fail=0,inG=n;
   for(let t=0;t<=45;t++){
     if(t>end){G[t]=G[t-1];Y[t]=Y[t-1];W[t]=W[t-1];MISS[t]=false;continue;}
     const prev=t===0?sal:W[t-1];let up=false;MISS[t]=false;
     if(t===0)y=n;
-    else{y++;if(!noPromo&&cur<top&&y>=SY(cur)){if(fail<MSY(c,cur-1)){fail++;MISS[t]=true;}
-      else{cur++;fail=0;up=true;D[cur-g-1]=t;const tg=prev*(1+PR.rate[cur-2]/100)+PR.amt[cur-2]*1e4;y=1;let guard=0;while(T2(c,cur,y)<tg&&guard++<200)y++;}}}
+    else{y++;inG++;if(!noPromo&&cur<top&&inG>=SY(cur)){if(fail<MSY(c,cur-1)){fail++;MISS[t]=true;}
+      else{cur++;fail=0;inG=1;up=true;D[cur-g-1]=t;const tg=prev*(1+PR.rate[cur-2]/100)+PR.amt[cur-2]*1e4;y=1;let guard=0;while(T2(c,cur,y)<tg&&guard++<200)y++;}}}
     G[t]=cur;Y[t]=y;const mx=c.bands[cur-1][1]*1e4;W[t]=t===0?sal:(prev>=mx?prev:Math.min(mx,Math.max(prev,T2(c,cur,y))));} // 26년 = 현재 연봉·현재 년차 · 삭감 없음 · 그 해 직급 Pay-band 상한(CAP)에서 동결
   const fi=Math.min(end,45);const age=num(p.age)||0;
   let path;
