@@ -1856,14 +1856,15 @@ function promoPanelHTML(c,id){const P=promo2(c);const inp=(k,v,st)=>`<input type
     <tr><th>승진 정액(만원)</th><th>진급 인상률(%)</th><th>진급 정액(만원)</th><th>진급 연봉 (예: 전년 6,000만원)</th></tr></thead><tbody>
     ${['G1 → G2 진급','G2 → G3 진급','G3 → G4 진급'].map((l,i)=>{const tg=6000*(1+P.rate[i]/100)+P.amt[i];
       return`<tr><td class="l"><b>${l}</b></td><td class="in">${inp(`stay.${i}.0`,c.stay[i][0])}</td><td class="in">${inp(`promo.${i}`,c.promo[i])}</td><td class="in">${inp(`p2rate.${i}`,P.rate[i],'0.1')}</td><td class="in">${inp(`p2amt.${i}`,P.amt[i])}</td>
-       <td class="l">${nf(Math.round(tg))}만원 이상 → G${i+2} 기준연봉표에서 이 금액 이상인 첫 년차로 배치</td></tr>`;}).join('')}</tbody></table></div>
-   <p class="note">※ 1차: 진급 연도 연봉 = 전년 × (1+${(c.rate*100).toFixed(1)}%) + 승진 정액 / 2차: 진급 연봉 = 전년 × (1+진급 인상률) + 진급 정액 이상인 새 직급 첫 년차 (기본 인상률 = 2차 연 상승률 ${(stepRate(c)*100).toFixed(1)}%, 정액 0)</p>
+       <td class="l">진급 연봉 ${nf(Math.round(tg))}만원 (G${i+2} 상한 ${nf(c.bands[i+1][1])}만원 넘으면 상한에서 동결)</td></tr>`;}).join('')}</tbody></table></div>
+   <p class="note">※ 1차: 진급 연도 연봉 = 전년 × (1+${(c.rate*100).toFixed(1)}%) + 승진 정액 / 2차: 진급 연봉 = 전년 × (1+진급 인상률) + 진급 정액 (기본 인상률 = 2차 연 상승률 ${(stepRate(c)*100).toFixed(1)}%, 정액 0)</p>
    <p class="note">※ 승진 대상 = 직급 년차가 승진 기준 연수(년차) 이상 → 27년부터 대상, ⑧ 누락 횟수만큼 탈락 후 승진 (2차 생애연봉) · 최초 승진 가능 ${c.firstYear}년 (분류 기준 › 1차 분류 기준 ④·⑧)</p></div>`;}
 function bindPromo(body,redraw){body.querySelectorAll('[data-pc]').forEach(el=>el.onchange=()=>{const c=S.crit;const [a,i]=el.dataset.pc.split('.');
   if(a==='p2rate'||a==='p2amt'){const P=promo2(c);c.promo2={rate:P.rate.slice(),amt:P.amt.slice()};if(a==='p2rate')c.promo2.rate[+i]=el.value===''?'':+el.value;else c.promo2.amt[+i]=Math.max(0,+el.value||0);}
   else{setCrit(el.dataset.pc,el.value);if(a==='stay')c.stay[+i][0]=Math.max(1,+c.stay[+i][0]||1);}
   save();const y=window.scrollY;redraw();window.scrollTo(0,y);toast('진급 기준을 바꿨습니다. 1차 · 2차 생애연봉이 다시 계산됩니다.');});}
-// 2차 생애연봉: 매년 년차 +1 (기준연봉표 값), 승진 시 새 직급에서 「전년 × (1+상승률)」 이상인 첫 년차로 배치
+// 2차 생애연봉: 매년 연봉 = 전년 × (1+연 상승률) · 승진 연도 = 전년 × (1+진급 인상률) + 진급 정액 · 그 해 직급 상한(CAP)에서 동결
+// 년차는 매년 +1 (승진 시 새 연봉 이상인 기준연봉표 첫 년차로 배치 · 표시용)
 function scenario2(p,g,n,c,ev,noPromo){
   const sal=num(p.salary);const F=remYears(p,c)??0;const E=evalInfo(c,ev===undefined?p.eval:ev);const kx=E.kx;const PR=promo2(c);
   // 승진 대상: 직급 년차 ≥ 승진 기준 년차(④, 기본 G1·G2·G3 4년차) → 27년(t=1)부터 대상, 대상 연도부터 ⑧ 누락 횟수만큼 탈락 후 승진
@@ -1879,7 +1880,7 @@ function scenario2(p,g,n,c,ev,noPromo){
     if(t===0)y=n;
     else{y++;inG++;if(!noPromo&&cur<top&&inG>=SY(cur)){if(fail<MSY(c,cur-1)){fail++;MISS[t]=true;}
       else{cur++;fail=0;inG=1;up=true;D[cur-g-1]=t;const tg=prev*(1+PR.rate[cur-2]/100)+PR.amt[cur-2]*1e4;y=1;let guard=0;while(T2(c,cur,y)<tg&&guard++<200)y++;}}}
-    G[t]=cur;Y[t]=y;const mx=c.bands[cur-1][1]*1e4;W[t]=t===0?sal:(prev>=mx?prev:Math.min(mx,Math.max(prev,T2(c,cur,y))));} // 26년 = 현재 연봉·현재 년차 · 삭감 없음 · 그 해 직급 Pay-band 상한(CAP)에서 동결
+    G[t]=cur;Y[t]=y;const mx=c.bands[cur-1][1]*1e4;const nx=up?prev*(1+PR.rate[cur-2]/100)+PR.amt[cur-2]*1e4:prev*(1+stepRate(c));W[t]=t===0?sal:(prev>=mx?prev:Math.min(mx,nx));} // 26년 = 현재 연봉 · 27년부터 연 상승률(승진 연도는 진급 인상) · 삭감 없음 · 상한(CAP) 동결
   const fi=Math.min(end,45);const age=num(p.age)||0;
   let path;
   if(noPromo)path=`승진 없음 · G${g} 년차만 상승 (${n}년차 → ${Y[fi]}년차)`;
@@ -1973,7 +1974,7 @@ function sheet2Life(){
     ${r?`<div class="salbar"><div class="hl"><span>현 연봉</span><b>${fW(r.sal)}원</b></div><div><span>G${r.app} Pay-band</span><b>${nf(c.bands[r.app-1][0])} ~ ${nf(c.bands[r.app-1][1])}만원</b></div><div><span>위치</span><b>${fP(pbPr(r.sal,r.app,c))}</b></div></div>
      ${L.length?`<div class="scroll"><table><thead><tr><th>시나리오</th><th>시작</th><th>승진 경로(나이)</th><th>${c.retAge}세 직급·년차</th><th>${c.retAge}세 연봉(원)</th></tr></thead><tbody>${L.map(line).join('')}</tbody></table></div>`:'<p class="sub">연봉 또는 직급 정보가 없습니다.</p>'}
      <p class="note">※ 빨간색 = 만 ${c.retAge}세 연봉이 해당 직급 Pay-band 상한(CAP) 도달 · 동결 / 수기 시나리오 「G-CAP」 = 승진 없이 해당 직급 상한에서 동결</p>
-     <p class="note">※ 승진하면 새 직급에서 「전년 × (1+진급 인상률) + 진급 정액」 이상인 첫 년차로 배치 / 승진 시기 = 직급 년차가 승진 기준 년차 이상이면 27년부터 대상, ⑧ 누락 횟수만큼 탈락 후 승진 / 진급 기준은 아래 「진급 기준」 표에서 수정</p>`:'<p class="sub">해당 직급에 인원이 없습니다.</p>'}</div>
+     <p class="note">※ 매년 연봉 = 전년 × (1+${(stepRate(c)*100).toFixed(1)}%) / 승진 연도 = 전년 × (1+진급 인상률) + 진급 정액 / 그 해 직급 상한(CAP)에서 동결 · 이미 상한 이상이면 현 연봉 유지 / 년차는 표시용(승진 시 새 연봉 이상인 기준연봉표 첫 년차로 배치) / 승진 시기 = 직급 년차가 승진 기준 년차 이상이면 27년부터 대상, ⑧ 누락 횟수만큼 탈락 후 승진 / 진급 기준은 아래 「진급 기준」 표에서 수정</p>`:'<p class="sub">해당 직급에 인원이 없습니다.</p>'}</div>
     <div class="panel">${r&&L.length?lifeChart(r,c,L.map(o=>({s:o.s,l:o.lbl,col:o.col,hl:!!o.hl}))):''}</div></div>
    <div class="panel" style="margin-top:16px"><h2>Pay-band 상한(CAP) 도달 인원 <span class="sub">(만 ${c.retAge}세 기준, 2차 · 단위: 명)</span></h2>
     <div class="scroll"><table style="width:auto"><thead><tr><th>구분</th><th>① 승진 반영</th><th>② 승진 없음</th><th>전체 (중복 제외)</th><th>대상</th></tr></thead><tbody>
