@@ -1213,7 +1213,11 @@ function g2calc(p,c,k){
 function finCls(r,c){const p=r.p;if(!p.final)return'';const f=gN(p.final);if(!inBand(r.sal,f,c))return'c-bad';return r.comp&&f!==r.comp?'c-warn':'c-fin';}
 function finTitle(r,c){const p=r.p;if(!p.final)return'';const f=gN(p.final);const b=c.bands[f-1];return!inBand(r.sal,f,c)?`현 연봉 ${fM(r.sal)}만원이 ${p.final} 밴드(${nf(b[0])}~${nf(b[1])}만원) 밖`:'';}
 // 참고: 적용 직급 기준 정년 최종연봉 (생애연봉 시뮬레이션과 같은 엔진)
-function refFinal(r,c,tab){if(!r.app||!r.sal||num(r.p.age)==null)return null;r._rf=r._rf??scenario(r.p,r.app,c,tab).final;return r._rf;}
+function refSc(r,c,tab){if(!r.app||!r.sal||num(r.p.age)==null)return null;r._rs=r._rs||scenario(r.p,r.app,c,tab);return r._rs;}
+function refFinal(r,c,tab){const s=refSc(r,c,tab);return s?s.final:null;}
+// 정년 최종연봉 칸: ⑧ 인사평가 누락 · 최고 도달 직급 반영, 상한(Cap) 도달 표시
+function refCell(r,c,tab){const s=refSc(r,c,tab);if(!s)return'<td class="num ref">-</td>';const mx=c.bands[s.finalG-1][1]*1e4;const atCap=Math.round(s.final)>=mx;
+  return`<td class="num ref" data-v="${s.final}" title="${esc(`인사평가 ${s.ev} · ${s.path}`)}">${fW(s.final)}<small class="band-rng" style="display:block;${atCap?'color:var(--crit);font-weight:700':''}">G${s.finalG} ${atCap?'상한 Cap':'상한 미도달'} · 평가 ${esc(s.ev)}</small></td>`;}
 // 기준별 분류직급 칸: 기준값(자동) 또는 수기 G1~G4 선택, 수기 변경은 빨간색
 function autoTxt(G,i){const x=G.auto[i];if(i===3)return G.salT;if(x==null)return i===2?'미입력':'-';return'G'+x+(i===2&&G.roleAuto?' (자동)':'');}
 function ocell(r,i,c){const p=r.p,G=r.G2;const o=G.ov[i];const out=i===3&&G.salOutT;
@@ -1564,13 +1568,13 @@ function sheetClassN(){
     <div class="scroll"><table id="class-tbl" class="rno-t g2-cls"><thead>
      <tr><th colspan="12" class="g-base">기본정보</th><th colspan="4" class="g-ev g-cm">기준별 분류직급</th><th colspan="2" class="g-ref">참고사항</th><th colspan="3" class="g-sum">(5) 종합</th><th colspan="4" class="g-base">최종</th></tr>
      <tr><th data-nosort class="rno-h">No</th><th>사번</th><th>이름</th><th>나이</th><th>부서</th><th>직책</th><th>현직급</th><th>현직급 기간<br>(조정 포함)</th><th>조정<br>(±년)</th><th>신입 /<br>경력인정(년)</th><th>년차</th><th>현 연봉(원)</th>
-      <th class="cm cm-l">(1) 현직급<br>변환</th><th class="cm">(2) 년차</th><th class="cm">(3) 직무<br>역할</th><th class="cm cm-r">(4) 연봉<br>Pay-band</th><th class="ev1">남은<br>정년</th><th>정년 최종연봉<br>(${c.retAge}세, 원)</th><th class="cs cs-l">종합<br>점수</th><th class="cs cs-r key-col">산출<br>직급</th><th>일치</th><th class="ev1">최종 확정<br>(수기)</th><th>적용<br>직급</th><th data-nosort class="cg">생애연봉</th><th class="cg">특이사항<br>(보고용)</th></tr></thead><tbody>
+      <th class="cm cm-l">(1) 현직급<br>변환</th><th class="cm">(2) 년차</th><th class="cm">(3) 직무<br>역할</th><th class="cm cm-r">(4) 연봉<br>Pay-band</th><th class="ev1">남은<br>정년</th><th>정년 최종연봉<br>(${c.retAge}세 · ⑧ 누락·Cap, 원)</th><th class="cs cs-l">종합<br>점수</th><th class="cs cs-r key-col">산출<br>직급</th><th>일치</th><th class="ev1">최종 확정<br>(수기)</th><th>적용<br>직급</th><th data-nosort class="cg">생애연봉</th><th class="cg">특이사항<br>(보고용)</th></tr></thead><tbody>
     ${rows.map(r=>{const p=r.p,G=r.G2;const cell=(i,txt,v)=>`<td class="gv ${G.v[i]==null?'na':G.hit(i)?'same':'diff'} ${i===0?'ev1':''}" data-v="${v??''}" data-ft="${esc(txt)}">${txt}</td>`;
       return`<tr class="${r.fin?'confirmed':''}"><td class="rno"></td><td>${esc(p.id)}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.age)}</td><td class="l">${esc(p.dept)}</td><td>${esc(p.title)}</td>
        <td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}">${esc(p.grade)}</td><td data-v="${periodMonths(p)??''}" class="${num(p.adj)?'adjc':''}">${esc(periodText(p))}</td><td data-v="${num(p.adj)??''}">${num(p.adj)?(num(p.adj)>0?'+':'')+num(p.adj):''}</td><td data-v="${p.newbie?-1:(num(p.career)??'')}" data-ft="${p.newbie?'신입':(num(p.career)?num(p.career):'경력')}">${p.newbie?'<span class="pill p-auto">신입</span>':(num(p.career)?num(p.career):'')}</td>
        <td data-v="${G.yrs??''}" title="${esc(num(p.yrsM)!=null?`수기 ${num(p.yrsM)}년차 (자동 ${autoYears(p)??'-'}년차)`:tenureTip(p))}">${G.yrs==null?'-':G.yrs+'년차'}</td><td class="num" data-v="${r.sal??''}">${fW(r.sal)}</td>
        ${[0,1,2,3].map(i=>ocell(r,i,c)).join('')}
-       <td class="ev1 ref" data-v="${r.rem??''}">${r.rem==null?'-':r.rem+'년'}</td><td class="num ref" data-v="${refFinal(r,c,tab)??''}">${fW(refFinal(r,c,tab))}</td>
+       <td class="ev1 ref" data-v="${r.rem??''}">${r.rem==null?'-':r.rem+'년'}</td>${refCell(r,c,tab)}
        <td class="num cs cs-l" data-v="${G.score??''}"><b>${G.score==null?'-':G.score.toFixed(2)}</b></td><td class="cs cs-r key-col" data-v="${r.comp??''}" data-ft="${gTxt(r.comp)}"><b>${gTxt(r.comp)}</b></td>
        <td data-v="${G.agree}" data-ft="${G.agree}/${G.avail}" class="${G.avail&&G.agree===G.avail?'c-fin':G.agree<=1?'c-bad':''}">${G.agree}/${G.avail}</td>
        <td class="fin ev1" data-v="${finRank(p.final)}" data-ft="${esc(p.final||'미확정')}"><select data-fk="${esc(pkey(p))}" title="${finTitle(r,c)}" class="${finCls(r,c)}"><option value="">미확정</option>${['G4','G3','G2','G1'].map(g=>`<option ${p.final===g?'selected':''}>${g}</option>`).join('')}</select>${p.finalAuto?'<span class="fintag">자동</span>':''}</td>
@@ -1578,7 +1582,7 @@ function sheetClassN(){
        <td class="cg"><button type="button" class="go-sim" data-gok="${esc(pkey(p))}">▶ 시뮬</button></td>
        <td class="cg spc${p.special?' on':''}" data-v="${p.special?1:0}" data-ft="${p.special?'특이':''}"><input type="checkbox" data-spk="${esc(pkey(p))}" ${p.special?'checked':''} aria-label="${esc(p.name)} 특이사항"></td></tr>`;}).join('')}
     </tbody></table></div>
-    <p class="note">※ 초록 굵은 글씨 = 산출 직급과 같은 기준 · 회색 = 다른 기준 / <b style="color:var(--crit)">빨간 글씨 칸</b> = (1)~(4) 수기 변경 (선택칸에서 맨 위 기준값을 고르면 해제) / <b style="color:var(--crit)">빨간 테두리</b> = 현 연봉이 해당 직급 밴드 밖 ((4)열: 변경 직급 기준, 최종 확정: 수기 직급 기준) / 주황 = 최종 확정이 산출 직급과 다름 / 정년 최종연봉 = 적용 직급 기준 생애연봉 시뮬레이션 / 적용 직급 = 최종 확정이 있으면 그 값, 없으면 산출 직급 → 생애연봉 시뮬레이션 · 2차 분류 · 보고용에 그대로 연동</p></div>`;
+    <p class="note">※ 초록 굵은 글씨 = 산출 직급과 같은 기준 · 회색 = 다른 기준 / <b style="color:var(--crit)">빨간 글씨 칸</b> = (1)~(4) 수기 변경 (선택칸에서 맨 위 기준값을 고르면 해제) / <b style="color:var(--crit)">빨간 테두리</b> = 현 연봉이 해당 직급 밴드 밖 ((4)열: 변경 직급 기준, 최종 확정: 수기 직급 기준) / 주황 = 최종 확정이 산출 직급과 다름 / 정년 최종연봉 = 적용 직급 기준 생애연봉 시뮬레이션 (⑧ 인사평가별 진급누락 지연 · 최고 도달 직급 반영, 직급 상한 도달 시 Cap 동결 · 칸에 마우스를 올리면 승진 경로) / 적용 직급 = 최종 확정이 있으면 그 값, 없으면 산출 직급 → 생애연봉 시뮬레이션 · 2차 분류 · 보고용에 그대로 연동</p></div>`;
   const t=body.querySelector('#class-tbl');const find=k=>S.people.find(x=>pkey(x)===k);
   t.addEventListener('change',e=>{const el=e.target;
     if(el.dataset.fk){const p=find(el.dataset.fk);if(!p)return;p.final=el.value;p.finalAuto=false;save();const y=window.scrollY;sheetClassN();window.scrollTo(0,y);return;}
