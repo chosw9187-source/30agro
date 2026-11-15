@@ -136,6 +136,7 @@ tr.fin-hl>td{background-image:linear-gradient(var(--accent-soft),var(--accent-so
 tr.fin-hl>td:first-child{border-left:3px solid var(--accent)} tr.fin-hl>td:last-child{border-right:3px solid var(--accent)}
 /* 시뮬레이션 상세: 직급 + 연봉 두 줄을 한 박스로 */
 tr.fin-hl.hl-top>td{border-bottom:1px dashed var(--line-2)} tr.fin-hl.hl-bot>td{border-top:0}
+tr.fin-hl>td.c-promo,tr.fin-hl>td.c-cap,tr.fin-hl>td.c-miss{background-image:none}
 tr.fin-row>td:first-child{color:var(--accent)} th.th-fin{background:var(--accent)!important;color:var(--accent-ink)!important;outline:3px solid var(--accent)}
 .fin-note{color:var(--accent);font-weight:600}
 details.fold>summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:6px}
@@ -1405,8 +1406,63 @@ function sheetReport2N(){
   bindSp2(body);
 }
 
+/* ---- 분류 기준 › 샘플 (생애연봉 주기 · 분류 기준과 연동 안 함) ---- */
+function sampleFrom(c){return{sal:4000,age:27,year:(+c.baseYear||BASE_YEAR)+1,retAge:+c.retAge||55,rate:+(stepRate(c)*100).toFixed(3),cap:true,
+  stay:[0,1,2].map(i=>+c.stay[i][0]||4),miss:missStep(c).slice(),delay:+c.delayPer||1,promo:[0,1,2].map(i=>+c.promo[i]||0),mx:c.bands.map(b=>+b[1])};}
+function sampleState(){if(!S.sample)S.sample=sampleFrom(S.crit);return S.sample;}
+// 입사(1년차) = t0 · 매년 직급 근속 년차 +1 · 근속 년차 ≥ 승진 대상 년차면 심사 → 누락 횟수 × 지연(년)만큼 탈락 후 승진
+// 연봉: 매년 전년 × (1+상승률) · 승진 연도 + 승진 정액 · 상한(CAP) 적용 시 그 해 직급 상한에서 동결
+function simSample(m,miss,noPromo){const E=Math.max(0,(+m.retAge||55)-(+m.age||0));const r=(+m.rate||0)/100;
+  const G=[1],W=[(+m.sal||0)*1e4],IN=[1],MISS=[false],UP=[false],CAPD=[false];let cur=1,inG=1,fail=0;const D=[];
+  for(let t=1;t<=E;t++){const prev=W[t-1];inG++;let up=false,ms=false;
+    if(!noPromo&&cur<4&&inG>=(+m.stay[cur-1]||1)){if(fail<(+miss[cur-1]||0)*(+m.delay||0)){fail++;ms=true;}else{cur++;inG=1;fail=0;up=true;D.push(t);}}
+    let nx=prev*(1+r)+(up?(+m.promo[cur-2]||0)*1e4:0);const mx=(+m.mx[cur-1]||0)*1e4;let cp=false;
+    if(m.cap&&mx){if(prev>=mx){nx=prev;cp=true;}else if(nx>=mx){nx=mx;cp=true;}}
+    G[t]=cur;W[t]=nx;IN[t]=inG;MISS[t]=ms;UP[t]=up;CAPD[t]=cp;}
+  const sum=W.reduce((a,v)=>a+v,0);const capAt=CAPD.findIndex(Boolean);
+  const path=noPromo?'승진 없음 (G1 유지)':D.length?D.map((t,k)=>`${m.age+t}세 G${k+2}`).join(' → '):'승진 없음 (정년 도달)';
+  return{G,W,IN,MISS,UP,CAPD,D,end:E,final:W[E],finalG:G[E],sum,capAt,path,cap:false};}
+function sheetSample(){
+  const m=sampleState();const body=document.getElementById('sheet-body');
+  const A=simSample(m,m.miss),B=simSample(m,[0,0,0]),C=simSample(m,m.miss,true);
+  const L=[{l:'① 설정 누락 (수기)',s:A,col:'var(--accent)',hl:true},{l:'② 누락 없음',s:B,col:'var(--warn)'},{l:'③ 승진 없음',s:C,col:'var(--muted)'}];
+  const yrs=Array.from({length:A.end+1},(_,t)=>t);const y0=+m.year||BASE_YEAR;
+  const inp=(k,v,st,w)=>`<input type="number" ${st?`step="${st}"`:''} data-sm="${k}" value="${v}" ${w?`style="width:${w}px"`:''}>`;
+  const kpi=(l,v,sub)=>`<div><span>${l}</span><b>${v}</b>${sub?`<small style="display:block;color:var(--muted);font-size:11.5px">${sub}</small>`:''}</div>`;
+  const row=(o,kind)=>`<tr class="${o.hl?'fin-hl':''} ${kind==='g'?'hl-top':'hl-bot'}"><td class="l"><b>${o.l.split(' ')[0]} ${kind==='g'?'직급·근속':'연봉'}</b></td>${yrs.map(t=>{const s=o.s;
+    return kind==='g'?`<td class="${s.UP[t]?'c-promo':s.MISS[t]?'c-miss':''}">G${s.G[t]}·${s.IN[t]}${s.MISS[t]?' 누락':s.UP[t]?' 승진':''}</td>`:`<td class="num ${s.UP[t]?'c-promo':s.CAPD[t]?'c-cap':''}">${fW(s.W[t])}</td>`;}).join('')}</tr>`;
+  body.innerHTML=`<div class="crit-zone"><div class="zone-h"><b>샘플 · 생애연봉 주기</b><span>입사 → 정년까지 한 사람의 연봉 흐름 · 분류 기준(1차 · 2차)과 연동되지 않는 별도 값</span></div>
+  <div class="g2-crit r2">
+   <div class="panel"><h2>샘플 조건 <span class="sub">(노란색 수정 가능)</span></h2><div class="tw"><table class="crit-tbl"><tbody>
+    <tr><td class="l">입사 연봉(만원)</td><td class="in">${inp('sal',m.sal)}</td><td class="l">입사 나이(세)</td><td class="in">${inp('age',m.age)}</td></tr>
+    <tr><td class="l">입사 연도</td><td class="in">${inp('year',m.year)}</td><td class="l">정년(만 나이)</td><td class="in">${inp('retAge',m.retAge)}</td></tr>
+    <tr><td class="l">연 상승률(%)</td><td class="in">${inp('rate',m.rate,'0.1')}</td><td class="l">직급 상한(CAP)</td><td class="in"><select data-sm="cap"><option value="1" ${m.cap?'selected':''}>적용 (상한에서 동결)</option><option value="0" ${m.cap?'':'selected'}>미적용</option></select></td></tr>
+    <tr><td class="l">누락 1회당 지연(년)</td><td class="in">${inp('delay',m.delay)}</td><td class="l" colspan="2"><button type="button" id="sm-reset">분류 기준 값으로 다시 가져오기</button></td></tr></tbody></table></div>
+    <p class="note">※ 입사 연도 = 1년차 · 연봉 = 입사 연봉 / 다음 해부터 매년 전년 × (1+상승률) / 처음 값은 분류 기준(④ · ⑧ · Pay-band)에서 복사, 이후 따로 저장</p></div>
+   <div class="panel"><h2>승진 · 누락 · 승진 인상 <span class="sub">(노란색 수정 가능)</span></h2><div class="tw"><table class="crit-tbl"><thead><tr><th>승진 단계</th><th>승진 대상<br>(근속 년차 이상)</th><th>진급누락(회)</th><th>승진 정액(만원)</th><th>새 직급 상한(만원)</th></tr></thead><tbody>
+    ${['G1 → G2','G2 → G3','G3 → G4'].map((l,i)=>`<tr><td><b>${l}</b></td><td class="in">${inp('stay.'+i,m.stay[i])}</td><td class="in">${inp('miss.'+i,m.miss[i])}</td><td class="in">${inp('promo.'+i,m.promo[i])}</td><td class="in">${inp('mx.'+(i+1),m.mx[i+1])}</td></tr>`).join('')}
+    <tr><td><b>G1 상한</b></td><td colspan="3" class="l note" style="margin:0">입사 직급 G1</td><td class="in">${inp('mx.0',m.mx[0])}</td></tr></tbody></table></div>
+    <p class="note">※ 근속 년차 = 그 직급에서 근무한 년차 (승진한 해 = 1년차) / 대상 년차부터 누락 횟수 × 지연만큼 탈락 후 승진 / 승진 연도 연봉 = 전년 × (1+상승률) + 승진 정액</p></div></div>
+  <div class="grid2" style="margin-top:16px"><div class="panel"><h2>${m.retAge}세 최종연봉 <span class="sub">(${m.age}세 · ${nf(m.sal)}만원 입사, ① 설정 누락 기준)</span></h2>
+    <div class="salbar">${kpi(`${m.retAge}세 연봉`,fW(A.final)+'원',`G${A.finalG} · ${A.capAt>=0?`${m.age+A.capAt}세 상한 도달`:'상한 미도달'}`)}${kpi('입사 대비',`${(A.W[0]?A.final/A.W[0]:0).toFixed(2)}배`,`+${fW(A.final-A.W[0])}원`)}${kpi('생애 누적 연봉',fM(A.sum)+'만원',`${A.end+1}년 합계`)}</div>
+    <div class="scroll" style="margin-top:10px"><table><thead><tr><th>시나리오</th><th>승진 경로(나이)</th><th>${m.retAge}세 직급</th><th>${m.retAge}세 연봉(원)</th><th>생애 누적(만원)</th><th>① 대비</th></tr></thead><tbody>
+     ${L.map(o=>`<tr class="${o.hl?'fin-hl':''}"><td class="l">${o.l}</td><td class="l">${o.s.path}</td><td>G${o.s.finalG}</td><td class="num"><b>${fW(o.s.final)}</b></td><td class="num">${fM(o.s.sum)}</td><td class="num">${o.hl?'-':fW(o.s.final-A.final)}</td></tr>`).join('')}</tbody></table></div>
+    <p class="note">※ ① = 위 표의 진급누락 횟수 적용 / ② = 누락 0회 (대상 년차에 바로 승진) / ③ = G1에서 승진 없이 상승률만</p></div>
+   <div class="panel">${lifeChart({p:{name:'샘플',age:m.age}},{baseYear:y0},L)}</div></div>
+  <div class="panel" style="margin-top:16px"><h2>연도별 생애연봉 주기 <span class="sub">(단위: 원 · 칸 = 직급·근속 년차)</span></h2>
+   <div class="scroll"><table><thead><tr><th>연도</th>${yrs.map(t=>`<th>${String(y0+t).slice(2)}년</th>`).join('')}</tr></thead><tbody>
+    <tr><td class="l"><b>나이</b></td>${yrs.map(t=>`<td>${m.age+t}</td>`).join('')}</tr>
+    <tr><td class="l"><b>총 년차</b></td>${yrs.map(t=>`<td>${t+1}</td>`).join('')}</tr>
+    ${L.slice(0,2).map(o=>row(o,'g')+row(o,'w')).join('')}</tbody></table></div>
+   <p class="note">※ 연노랑 = 승진 연도 (전년 × (1+상승률) + 승진 정액) / 회색 '누락' = 승진 대상이지만 탈락 / 주황 = 직급 상한(CAP) 도달·동결</p></div></div>`;
+  body.querySelectorAll('[data-sm]').forEach(el=>el.onchange=()=>{const [a,i]=el.dataset.sm.split('.');const v=el.value;
+    if(a==='cap')m.cap=v==='1';else if(i!=null){m[a][+i]=Math.max(a==='stay'?1:0,+v||0);}else m[a]=a==='rate'?(+v||0):Math.max(0,+v||0);
+    save();const y=window.scrollY;sheetSample();window.scrollTo(0,y);});
+  body.querySelector('#sm-reset').onclick=()=>{S.sample=sampleFrom(S.crit);save();sheetSample();toast('분류 기준(④ · ⑧ · Pay-band) 값을 샘플로 다시 가져왔습니다. 이후 수정은 샘플에만 적용됩니다.');};
+}
+
 /* ---- 단계 · 시트 ---- */
-const CSHEETS=[['c1','1차 분류 기준'],['c2','2차 분류 기준']];
+const CSHEETS=[['c1','1차 분류 기준'],['c2','2차 분류 기준'],['c3','샘플']];
 const STAGES=[['c','분류 기준','1차 · 2차 분류 기준 설정'],['1','1차 분류','기본정보 → 산출 직급'],['r1','1차 특이사항 보고','보고용 · 분류 결과 · 1차 특이인원'],['2','2차 분류','직급 년차 확정'],['r2','2차 특이사항 보고','보고용 · 년차 결정 · 2차 특이인원'],['4','최종 직급','이전 직급 → 최종 직급 · 년차']];
 function stageBar4(cur){return`<div class="stagebar" role="tablist">${STAGES.map(([k,n,d],i)=>`${i?'<span class="starr">→</span>':''}<button role="tab" data-stage="${k}" aria-selected="${cur===k}"><span class="stn">${n}</span><span class="std">${d}</span></button>`).join('')}</div>`;}
 function renderPayband(){
@@ -1418,7 +1474,7 @@ function renderPayband(){
   <div id="sheet-body"></div>`;
   v.querySelectorAll('[data-stage]').forEach(b=>b.onclick=()=>{S.stage=b.dataset.stage;save();renderPayband();});
   v.querySelectorAll('[data-sheet]').forEach(b=>b.onclick=()=>{if(st==='c')S.sheetC=b.dataset.sheet;else if(st==='2')S.sheet2=b.dataset.sheet;else S.sheet=b.dataset.sheet;save();renderPayband();});
-  if(st==='c')({c1:sheetCrit1,c2:sheetCrit2}[key])();
+  if(st==='c')({c1:sheetCrit1,c2:sheetCrit2,c3:sheetSample}[key])();
   else if(st==='r1')sheetReportN();
   else if(st==='r2')sheetReport2N();
   else if(st==='4')sheetFinalN();
