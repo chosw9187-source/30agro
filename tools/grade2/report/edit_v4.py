@@ -22,32 +22,17 @@ def put(sh, body, size=12, color="BODY", bold=False, align="l", hl=None, inset=0
 # ---------- 1. 기준 및 결과 : 설정 근거 열 추가 ----------
 s = p.slides[1]; sh = shapes(s)
 put(sh["TextBox 1"], "1. 직급 재분류 기준 및 결과", 26, "INK", True)
-old = sh["Table 22"].table
-rows = [[old.cell(r, c).text for c in range(len(old.columns))] for r in range(len(old.rows))]
-basis = ["설정 근거", "현직급 수준 = 직무 역할", "체류연수 + 누락 2년\n(G1·G2 4+2 · G3 5+2)", "현직급과 동일 기준", "신 Pay-band 기준"]
-rows = [r + [b] for r, b in zip(rows, basis)]
-drop(s, {"Table 22"})
-st = {(0, 6): dict(fill="RED")}
-for r in (2, 3):
-    st[(r, 0)] = dict(fill="RED", color="WHITE", bold=True); st[(r, 1)] = dict(fill="RED", color="WHITE", bold=True)
-    for k in range(2, 6): st[(r, k)] = dict(fill="PRED", color="RED", bold=True)
-for r in (1, 4): st[(r, 1)] = dict(bold=True)
-for r in range(1, 5): st[(r, 6)] = dict(fill="PYEL", color="INK", bold=r in (2, 3))
-WL = 8.35
-gf = table(s, L, 1.98, WL, rows, [1.2, 0.5, 1.21, 1.21, 1.21, 1.21, 1.81], 0.66, 12,
-           aligns=["l", "c", "c", "c", "c", "c", "l"], styles=st)
-for r in range(1, 5):   # 설정 근거 2줄
-    cell = gf.table.cell(r, 6); tf = cell.text_frame
-    for par in list(tf.paragraphs)[1:]: par._p.getparent().remove(par._p)
-    for rr in list(tf.paragraphs[0].runs): rr._r.getparent().remove(rr._r)
-    _fill_tf(tf, basis[r].split("\n"), 12, C["INK"], r in (2, 3), "l", "ctr", None, 1.1, 0.05)
-# 오른쪽 분류 결과 : 폭 축소 · 이동
-X2 = L + WL + 0.2; W2 = R - X2
-for n in ("Rectangle 27", "TextBox 28"):
-    o = sh[n]; d = o.left - E(7.30); o.left = E(X2) + d
-t = sh["Table 30"]; k = W2 / (t.width / 914400)
-t.left = E(X2); t.width = E(W2)
-for col in t.table.columns: col.width = int(col.width * k)
+# 설정 근거 : 표 아래 별도 영역 (표는 원본 그대로)
+Y = 5.42
+subhead(s, L, Y, "1차 분류 기준 설정 근거", CW)
+items = [("② 년차", "체류연수 + 누락 2년  (G1 · G2 4+2 · G3 5+2)", "RED"),
+         ("① 현직급 · ③ 직무 역할", "동일 기준 적용  (현직급 수준 = 직무 역할 수준)", "RED"),
+         ("④ 연봉", "신 Pay-band 기준  (개편안 설계값)", "NAVY")]
+for i, (h, d, col) in enumerate(items):
+    y = Y + 0.38 + i * 0.32
+    box(s, L, y, 2.4, 0.30, col, body=h, size=12, color="WHITE", bold=True)
+    box(s, L + 2.4, y, CW - 2.4, 0.30, "WHITE", "LINE", 0.75, body=d, size=12, color="INK", align="l", inset=0.12)
+sh["Rectangle 31"].top = int(Inches(6.86))
 
 # ---------- 2. 1차 특이인원 : 절차 문구 삭제 ----------
 s = p.slides[2]; sh = shapes(s)
