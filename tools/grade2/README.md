@@ -75,5 +75,5 @@ claude.ai 링크(https://claude.ai/artifact/6SgaDHLyo2ZQSktKAKiNbz)에서는 공
 
 - 링크에서 「엑셀 불러오기」를 하면 바로 공유 자료로 올라감 (또는 「팀 공유 시작하기」로 지금 화면 자료를 올림). PC 의 ZIP 버전에서 불러온 자료는 공유되지 않음
 - 이후 : 누가 값을 바꾸든 0.7초 뒤 바뀐 사람(문서)만 저장 → 링크를 연 모든 화면에 바로 반영. 「엑셀 불러오기」도 공유 자료를 통째로 바꿈
-- 저장 위치 : people/<uid> (1명 = 문서 1개) · config/crit · config/sample · config/meta
+- 저장 위치 : people/<uid> (1명 = 문서 1개) · config/crit · config/sample · config/cols(열 설정) · config/meta
 - 권한 : 공유 메뉴의 Editor · Contributor = 수정, Viewer = 보기 전용(입력칸 잠김). 공개 링크로 들어온 외부 로그인 사용자도 읽을 수 있으므로 실명 자료는 「초대한 사람만」으로 공유

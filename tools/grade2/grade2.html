@@ -759,7 +759,7 @@ function openCols(tbl,id,btn){document.querySelectorAll('.colpop').forEach(x=>x.
     pop.innerHTML=`<div class="cp-h"><b>열 설정</b><span>체크 = 보이기 · ▲▼ = 순서 이동</span></div>
       <ol class="cp-list">${cur.map((k,i)=>`<li class="${hid.has(k)?'off':''}"><label><input type="checkbox" data-k="${esc(k)}" ${hid.has(k)?'':'checked'}> ${esc(k.replace(/#\d+$/,''))}</label><span class="cp-mv"><button type="button" data-mv="${i}" data-d="-1" ${i?'':'disabled'} aria-label="위로">▲</button><button type="button" data-mv="${i}" data-d="1" ${i<cur.length-1?'':'disabled'} aria-label="아래로">▼</button></span></li>`).join('')}</ol>
       <div class="cp-f"><button type="button" data-all>모두 보기</button><button type="button" data-reset>기본값 복원</button><span class="grow"></span><button type="button" class="primary" data-close>닫기</button></div>
-      <p class="note" style="margin:6px 0 0">※ 이 브라우저에 저장 · 엑셀 다운로드는 보이는 열만 (기본정보 엑셀은 업로드 양식 유지)</p>`;
+      <p class="note" style="margin:6px 0 0">※ 팀 공유 중이면 모두의 화면에 같이 적용 (아니면 이 브라우저에만 저장) · 엑셀 다운로드는 보이는 열만 (기본정보 엑셀은 업로드 양식 유지)</p>`;
     pop.querySelectorAll('[data-k]').forEach(c=>c.onchange=()=>{const h=new Set(cfg.hidden||[]);if(c.checked)h.delete(c.dataset.k);else{if(cur.length-h.size<=1){c.checked=true;toast('최소 1개 열은 보여야 합니다.');return;}h.add(c.dataset.k);}commit({order:cur,hidden:[...h]});});
     pop.querySelectorAll('[data-mv]').forEach(bt=>bt.onclick=()=>{const i=+bt.dataset.mv,d=+bt.dataset.d;const o=[...cur];[o[i],o[i+d]]=[o[i+d],o[i]];commit({order:o,hidden:cfg.hidden||[]});});
     pop.querySelector('[data-all]').onclick=()=>commit({order:cur,hidden:[]});
@@ -2928,7 +2928,7 @@ route();
    - 쓰기는 사람이 값을 바꿨을 때만 (save → 0.7초 뒤 바뀐 문서만 전송)
    ========================================================= */
 const SYNC={db:null,on:false,ready:false,ro:false,remote:{},crit:null,sample:null,meta:null,busy:false,again:false,timer:null,
-  got:{people:false,meta:false,crit:false,sample:false},deferred:false,errShown:false,stale:false};
+  cols:null,got:{people:false,meta:false,crit:false,sample:false,cols:false},deferred:false,errShown:false,stale:false};
 function uidNew(){return'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
 function ensureUids(){const seen=new Set();S.people.forEach(p=>{if(!p._uid||seen.has(p._uid)||!/^[A-Za-z0-9_\-]+$/.test(p._uid))p._uid=uidNew();seen.add(p._uid);});}
 const pBody=(p,i)=>JSON.stringify(Object.assign({},p,{ord:i}));
@@ -2963,6 +2963,7 @@ async function pushNow(){
     ops.push({run:()=>db.doc('people/'+uid).set(JSON.parse(s)),done:()=>{SYNC.remote[uid]=s;}});}});
   Object.keys(SYNC.remote).forEach(uid=>{if(!live.has(uid))ops.push({run:()=>db.doc('people/'+uid).delete(),done:()=>{delete SYNC.remote[uid];}});});
   const cs=JSON.stringify(S.crit);if(cs!==SYNC.crit)ops.push({run:()=>db.doc('config/crit').set({crit:JSON.parse(cs)}),done:()=>{SYNC.crit=cs;}});
+  const ks=JSON.stringify(S.colCfg||{});if(ks!==SYNC.cols)ops.push({run:()=>db.doc('config/cols').set({cols:JSON.parse(ks)}),done:()=>{SYNC.cols=ks;}});
   const ss=JSON.stringify(S.sample||null);if(S.sample&&ss!==SYNC.sample)ops.push({run:()=>db.doc('config/sample').set({sample:JSON.parse(ss)}),done:()=>{SYNC.sample=ss;}});
   try{
     if(ops.length){await runOps(ops);
@@ -2977,20 +2978,21 @@ async function pushNow(){
 }
 // 공유 자료 → 화면 (내가 아직 보내지 않은 변경은 유지)
 function applyRemote(){
-  if(!SYNC.got.people||!SYNC.got.meta||!SYNC.got.crit||!SYNC.got.sample)return;
+  if(!SYNC.got.people||!SYNC.got.meta||!SYNC.got.crit||!SYNC.got.sample||!SYNC.got.cols)return;
   if(!SYNC.meta){SYNC.ready=false;syncBadge();return;}
   const firstTime=!SYNC.ready;SYNC.ready=true;
-  const before=JSON.stringify([S.people,S.crit,S.sample||null]);
+  const before=JSON.stringify([S.people,S.crit,S.sample||null,S.colCfg||{}]);
   const local=new Map(S.people.map(p=>[p._uid,p]));
   const rows=Object.entries(SYNC.remoteDocs||{}).map(([uid,d])=>Object.assign({},d,{_uid:uid})).sort((a,b)=>(a.ord??0)-(b.ord??0));
   S.people=rows.map(d=>{const lp=local.get(d._uid);const dirty=!firstTime&&lp&&SYNC.prevRemote&&SYNC.prevRemote[d._uid]!==undefined&&pBody(lp,d.ord)!==SYNC.prevRemote[d._uid];
     if(dirty)return lp;const p=Object.assign({},d);delete p.ord;return p;});
   if(SYNC.critObj&&(firstTime||JSON.stringify(S.crit)===SYNC.prevCrit))S.crit=Object.assign(defaultCrit(),SYNC.critObj);
   if(SYNC.sampleObj&&(firstTime||JSON.stringify(S.sample||null)===SYNC.prevSample))S.sample=SYNC.sampleObj;
+  if(SYNC.colsObj&&(firstTime||JSON.stringify(S.colCfg||{})===SYNC.prevCols))S.colCfg=JSON.parse(JSON.stringify(SYNC.colsObj));
   if(firstTime){S.source='file';S.sourceName=(SYNC.meta&&SYNC.meta.source)||'팀 공유 자료';S.sel='';}
   try{localStorage.setItem(LS_KEY,JSON.stringify(S))}catch(e){}
   syncBadge();
-  if(firstTime||JSON.stringify([S.people,S.crit,S.sample||null])!==before)syncRerender();
+  if(firstTime||JSON.stringify([S.people,S.crit,S.sample||null,S.colCfg||{}])!==before)syncRerender();
 }
 async function syncInit(){
   try{
@@ -3007,6 +3009,7 @@ async function syncInit(){
     },fail);
     db.doc('config/meta').onSnapshot(d=>{SYNC.meta=d.exists?d.data():null;SYNC.got.meta=true;syncBadge();applyRemote();},fail);
     db.doc('config/crit').onSnapshot(d=>{SYNC.prevCrit=SYNC.crit;const v=d.exists?d.data():null;SYNC.critObj=v&&v.crit?v.crit:null;SYNC.crit=SYNC.critObj?JSON.stringify(SYNC.critObj):null;SYNC.got.crit=true;applyRemote();},fail);
+    db.doc('config/cols').onSnapshot(d=>{SYNC.prevCols=SYNC.cols;const v=d.exists?d.data():null;SYNC.colsObj=v&&v.cols?v.cols:null;SYNC.cols=SYNC.colsObj?JSON.stringify(SYNC.colsObj):null;SYNC.got.cols=true;applyRemote();},fail);
     db.doc('config/sample').onSnapshot(d=>{SYNC.prevSample=SYNC.sample;const v=d.exists?d.data():null;SYNC.sampleObj=v&&v.sample?v.sample:null;SYNC.sample=SYNC.sampleObj?JSON.stringify(SYNC.sampleObj):null;SYNC.got.sample=true;applyRemote();},fail);
   }catch(e){SYNC.on=false;syncBadge();}
 }
@@ -3015,7 +3018,7 @@ document.getElementById('syncbadge').onclick=async()=>{
   if(!SYNC.on||SYNC.ready||SYNC.ro)return;
   const n=S.people.filter(p=>String(p.name||'').trim()).length;
   if(!confirm(`지금 화면의 자료(${S.source==='demo'?'예시 데이터 · ':''}${n}명)와 분류 기준을 팀 공유 자료로 올립니다.\n이 링크에서 편집 권한이 있는 동료가 함께 보고 고칠 수 있습니다.\n계속할까요?`))return;
-  ensureUids();SYNC.ready=true;SYNC.remote={};SYNC.crit=null;SYNC.sample=null;syncBadge();toast('팀 공유 자료로 올리는 중입니다…');
+  ensureUids();SYNC.ready=true;SYNC.remote={};SYNC.crit=null;SYNC.sample=null;SYNC.cols=null;syncBadge();toast('팀 공유 자료로 올리는 중입니다…');
   await pushNow();if(SYNC.meta)toast(`${n}명을 팀 공유 자료로 올렸습니다. 이제 바꾸는 값은 모두에게 바로 반영됩니다.`);
 };
 syncInit();
