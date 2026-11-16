@@ -137,6 +137,8 @@ tr.fin-hl>td:first-child{border-left:3px solid var(--accent)} tr.fin-hl>td:last-
 /* 시뮬레이션 상세: 직급 + 연봉 두 줄을 한 박스로 */
 tr.fin-hl.hl-top>td{border-bottom:1px dashed var(--line-2)} tr.fin-hl.hl-bot>td{border-top:0}
 tr.fin-hl>td.c-promo,tr.fin-hl>td.c-cap,tr.fin-hl>td.c-miss{background-image:none}
+.info-wrap td.yrs-man,#info-tbl td.yrs-man{position:relative} #info-tbl td.yrs-man input{color:var(--crit);font-weight:700}
+#info-tbl td.yrs-man::after{content:"수기 · 자동 " attr(data-auto) "년차";display:block;font-size:10.5px;color:var(--crit);line-height:1.1;margin-top:1px;white-space:nowrap}
 .sm-off{background:var(--surface-2)!important;opacity:.55}
 .sm-pick{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:16px;padding:10px 16px;border:2px solid var(--accent);border-radius:10px;background:var(--accent-soft)} .sm-pick label{display:flex;align-items:center;gap:6px;font-weight:700;font-size:14px;cursor:pointer} .sm-pick input{width:18px;height:18px}
 .cap-tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid var(--line-2);color:var(--muted);white-space:nowrap} .cap-tag.on{border-color:var(--crit);color:var(--crit)}
@@ -1607,7 +1609,7 @@ const INFO_COLS2=[['id','사번','text',58],['name','이름','text',56],['birth'
 function sheetInfoN(){
   const body=document.getElementById('sheet-body');const c=S.crit;
   body.innerHTML=`<div class="panel"><div class="bar"><h2 class="grow" style="margin:0">인원 기본정보 <span class="sub">(노란 칸 입력 · 직무 역할 · 인사평가 선택)</span></h2>
-    ${searchBoxHTML('info')}<button id="add-row" type="button">행 추가</button><button id="dl-tpl" type="button">업로드 양식</button><button id="dl-info" type="button" class="primary">엑셀 다운로드</button></div>
+    ${searchBoxHTML('info')}<button id="yrs-clear" type="button">년차(수기) 전체 해제</button><button id="add-row" type="button">행 추가</button><button id="dl-tpl" type="button">업로드 양식</button><button id="dl-info" type="button" class="primary">엑셀 다운로드</button></div>
     <div class="scroll"><table id="info-tbl" class="info rno-t"><thead><tr><th data-nosort></th><th data-nosort class="rno-h">No</th>${INFO_COLS2.map(x=>`<th style="min-width:${x[3]}px">${x[1]}</th>`).join('')}</tr></thead><tbody></tbody></table></div>
     <p class="note">※ 년차 = 기준일(2027.01.01) 연도 − 입사 연도 + 경력인정 + 조정 (분류 기준 › 1차 분류 기준 (2)) / 인사평가는 참고용 (승진 누락은 분류 기준 ⑧ 승진 단계별 누락 횟수로 전 인원 동일 적용) / 엑셀 불러오기는 머리글 이름으로 열을 찾음 (이 화면의 엑셀 다운로드 파일을 그대로 다시 올릴 수 있음)</p></div>`;
   const tb=body.querySelector('#info-tbl tbody');
@@ -1617,19 +1619,20 @@ function sheetInfoN(){
     if(t==='check')return`<td class="in chk" data-v="${p[k]?1:0}" data-ft="${p[k]?'신입':'경력'}"><input type="checkbox" data-f="${k}" ${p[k]?'checked':''} aria-label="${esc(p.name)} 신입 여부"></td>`;
     if(t==='grade')return`<td class="in"><select data-f="${k}"><option value=""></option>${GRADE6.map(g=>`<option ${p[k]===g?'selected':''}>${g}</option>`).join('')}</select></td>`;
     if(t==='eval')return`<td class="in"><select data-f="eval" aria-label="인사평가"><option value="">미입력</option>${EVALS.map(e=>`<option ${p.eval===e?'selected':''}>${e}</option>`).join('')}</select></td>`;
-    if(t==='role'){const ar=autoRole(p,c);return`<td class="in ${p.role?'':'role-auto'}"><select data-f="role"><option value="">${ar?`자동 · ${esc(ar)}`:'미입력'}</option>${[...c.roles].reverse().map(r=>`<option ${p.role===r[0]?'selected':''}>${esc(r[0])}</option>`).join('')}</select></td>`;}
+    if(t==='role'){const ar=autoRole(p,c);return`<td class="in ${p.role?'':'role-auto'}"><select data-f="role"><option value="">${ar?esc(ar):'미입력'}</option>${[...c.roles].reverse().map(r=>`<option ${p.role===r[0]?'selected':''}>${esc(r[0])}</option>`).join('')}</select></td>`;}
     if(t==='date')return`<td class="in"><input type="date" data-f="${k}" value="${esc(dateStr(p[k]))}"></td>`;
     if(t==='won')return`<td class="in"><input type="text" inputmode="numeric" data-f="${k}" data-won value="${num(p[k])==null?'':fW(num(p[k]))}" style="text-align:right"></td>`;
     return`<td class="in"><input type="${t}" data-f="${k}" value="${esc(p[k]??'')}"></td>`;}).join('')}</tr>`).join('');
   tb.addEventListener('change',e=>{const el=e.target,tr=el.closest('tr');if(!tr||!el.dataset.f)return;const p=S.people[+tr.dataset.i];const k=el.dataset.f;
     if(el.dataset.won!==undefined){const n=num(el.value);p[k]=n==null?'':n;el.value=n==null?'':fW(n);}
-    else if(k==='yrsM'){const d=parseInt(String(el.value).replace(/[^0-9]/g,''),10);p.yrsM=d>=1?d:'';el.value=p.yrsM?p.yrsM+'년차':'';}
+    else if(k==='yrsM'){const d=parseInt(String(el.value).replace(/[^0-9]/g,''),10);p.yrsM=d>=0&&String(el.value).trim()!==''?d:'';el.value=p.yrsM!==''?p.yrsM+'년차':'';}
     else if(el.type==='checkbox'){p[k]=el.checked;const td=el.closest('td');td.dataset.v=el.checked?1:0;td.dataset.ft=el.checked?'신입':'경력';}
-    else p[k]=(el.type==='number')?(el.value===''?'':+el.value):el.value;if(k==='gdate')p.period='';if(k==='birth')applyBirthAges();save();if(k==='grade'||k==='role'){const y=window.scrollY;sheetInfoN();window.scrollTo(0,y);return;}refreshInfoN();});
+    else p[k]=(el.type==='number')?(el.value===''?'':+el.value):el.value;if(k==='gdate')p.period='';if(k==='birth')applyBirthAges();save();if(k==='grade'||k==='role'){const y=window.scrollY;sheetInfoN();window.scrollTo(0,y);return;}refreshInfoN();if(['career','adj','hire','newbie'].includes(k)&&num(p.yrsM)!=null)toast(`${p.name}은(는) 년차(수기) ${num(p.yrsM)}년차가 입력되어 있어 년차가 바뀌지 않습니다. 자동 계산 ${autoYears(p)??'-'}년차를 쓰려면 년차(수기) 칸을 비우세요.`);});
   tb.addEventListener('click',e=>{const d=e.target.closest('[data-del]');if(!d)return;S.people.splice(+d.dataset.del,1);save();sheetInfoN();});
   body.querySelector('#add-row').onclick=()=>{S.people.push({id:'',name:'',birth:'',age:'',dept:'',job:'',title:'',grade:'',hire:'',gdate:'',period:'',adj:'',newbie:false,career:'',salary:'',eval:'',role:'',final:''});save();delete SORTST.info;sheetInfoN();};
   body.querySelector('#dl-info').onclick=()=>saveBook(infoBook(),`직급분류_기본정보_${stamp()}.xlsx`);
   body.querySelector('#dl-tpl').onclick=()=>saveBook(tplBook(),'직급분류_업로드양식.xlsx');
+  body.querySelector('#yrs-clear').onclick=()=>{let n=0;S.people.forEach(p=>{if(num(p.yrsM)!=null){p.yrsM='';n++;}});save();const y=window.scrollY;sheetInfoN();window.scrollTo(0,y);toast(n?`년차(수기) ${n}명을 해제했습니다. 입사일 · 경력인정 · 조정으로 자동 계산합니다.`:'해제할 년차(수기)가 없습니다.');};
   refreshInfoN();sortable(body.querySelector('#info-tbl'),'info');bindSearch(body,'info',body.querySelector('#info-tbl'));}
 function refreshInfoN(){const c=S.crit;applyBirthAges();
   document.querySelectorAll('#info-tbl tbody tr').forEach(tr=>{const p=S.people[+tr.dataset.i];if(!p)return;
@@ -1638,7 +1641,7 @@ function refreshInfoN(){const c=S.crit;applyBirthAges();
     const pc=tr.querySelector('[data-auto="_per"]');pc.textContent=periodText(p);pc.dataset.v=periodMonths(p)??'';{const a=num(p.adj);pc.title=a?`발령일 기준 ${periodBaseText(p)||'-'} ${a>0?'+':'−'} 조정 ${Math.abs(a)}년`:'발령일 기준 자동';pc.classList.toggle('adj',!!a);}
     const ci=tr.querySelector('[data-f="career"]');if(ci){ci.disabled=!!p.newbie;ci.placeholder=p.newbie?'신입':'';if(p.newbie)ci.value='';ci.closest('td').classList.toggle('auto',!!p.newbie);}
     const yi=tr.querySelector('[data-f="yrsM"]');if(yi){const a=autoYears(p),m=num(p.yrsM);const yt=yi.closest('td');yi.placeholder=a==null?'':a+'년차';
-yt.dataset.v=careerYears(p,c)??'';yt.dataset.ft=m!=null?m+'년차 (수기)':(a==null?'':a+'년차');
+yt.dataset.v=careerYears(p,c)??'';yt.dataset.ft=m!=null?m+'년차 (수기)':(a==null?'':a+'년차');yt.classList.toggle('yrs-man',m!=null);yt.dataset.auto=a==null?'-':a;
       yt.title=m!=null?`수기 ${m}년차 (자동 계산 ${a??'-'}년차 · 비우면 자동) / ${tenureTip(p)}`:tenureTip(p)+' · 숫자를 넣으면 수기 년차';}});}
 
 /* ---- 1차 분류 › 1차 분류 (종합 등급) ---- */
@@ -1721,7 +1724,7 @@ function sheetReportN(){
         return`<tr data-k="${esc(k)}"><td class="rno"></td><td><b>${esc(p.name)}</b></td><td>${esc(p.age)}</td><td>${esc(p.dept)}</td><td>${esc(p.title)}</td><td data-v="${GRADE6.indexOf(p.grade)}" data-ft="${esc(p.grade)}"><b>${esc(p.grade)}</b></td>
          <td class="num ev ev1" data-v="${r.sal??''}"><b>${fW(r.sal)}</b></td>${[0,1,2,3].map(i=>{const t=G.ov[i]!=null?'G'+G.ov[i]+' (수기)':autoTxt(G,i);return gv(i,t).replace('<td class="ev gv','<td class="'+(i===3&&G.salOutT?'band-out ':'')+(G.ov[i]!=null?'ovr ':'')+'ev gv');}).join('')}
          <td class="ev ${gCls(r.comp)}" data-v="${r.comp??''}" data-ft="${gTxt(r.comp)}"><b>${gTxt(r.comp)}</b></td>
-         <td class="in ev" data-ft="${esc(p.role||('자동 · '+(autoRole(p,c)||'-')))}"><select data-sp="role"><option value="">자동 · ${esc(autoRole(p,c)||'-')}</option>${[...c.roles].reverse().map(x=>`<option ${p.role===x[0]?'selected':''}>${esc(x[0])}</option>`).join('')}</select></td>
+         <td class="in ev" data-ft="${esc(p.role||(autoRole(p,c)||'-'))}"><select data-sp="role"><option value="">${esc(autoRole(p,c)||'-')}</option>${[...c.roles].reverse().map(x=>`<option ${p.role===x[0]?'selected':''}>${esc(x[0])}</option>`).join('')}</select></td>
          <td class="in ev" data-v="${finRank(p.final)}" data-ft="${esc(p.final||'미확정')}"><select data-sp="final" title="${finTitle(r,c)}" class="${finCls(r,c)}"><option value="">미확정</option>${['G4','G3','G2','G1'].map(g=>`<option ${p.final===g?'selected':''}>${g}</option>`).join('')}</select></td>
          <td><button type="button" class="row-del" data-unsp aria-label="${esc(p.name)} 특이인원 해제" title="특이인원 해제">×</button></td></tr>`;}).join('')}</tbody></table></div>`
      :'<p class="note">특이인원이 없습니다. 1차 분류 › 1차 분류 (종합 등급)의 「특이사항」 칸을 체크하면 여기에 표시됩니다.</p>'}
