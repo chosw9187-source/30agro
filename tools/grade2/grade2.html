@@ -2934,7 +2934,7 @@ route();
    - 로컬(ZIP · 파일)에서는 claude.use 가 없어 지금처럼 이 브라우저에만 저장
    - 쓰기는 사람이 값을 바꿨을 때만 (save → 0.7초 뒤 바뀐 문서만 전송)
    ========================================================= */
-const APP_V=14;   // 사이트 버전 — 올릴 때마다 1씩 올림. 공유 저장소 config/app 보다 낮으면 자동 새로고침
+const APP_V=15;   // 사이트 버전 — 올릴 때마다 1씩 올림. 공유 저장소 config/app 보다 낮으면 자동 새로고침
 const SYNC={db:null,on:false,ready:false,ro:false,remote:{},crit:null,sample:null,meta:null,busy:false,again:false,timer:null,
   cols:null,fold:null,got:{people:false,meta:false,crit:false,sample:false,cols:false,fold:false},deferred:false,errShown:false,stale:false};
 const sortKeys=v=>Array.isArray(v)?v.map(sortKeys):(v&&typeof v==='object')?Object.keys(v).sort().reduce((o,k)=>(o[k]=sortKeys(v[k]),o),{}):v;
@@ -3032,6 +3032,10 @@ async function syncInit(){
     },fail);
     db.doc('config/meta').onSnapshot(d=>{SYNC.meta=d.exists?d.data():null;SYNC.got.meta=true;syncBadge();applyRemote();},fail);
     db.doc('config/crit').onSnapshot(d=>{SYNC.prevCrit=SYNC.crit;const v=d.exists?d.data():null;SYNC.critObj=v&&v.crit?v.crit:null;SYNC.crit=SYNC.critObj?cj(SYNC.critObj):null;SYNC.got.crit=true;applyRemote();},fail);
+    // 접속 기록 (진단용) : 어떤 브라우저 · 버전이 공유에 연결됐는지
+    try{if(SYNC.canWrite!==false){let sid='';try{sid=sessionStorage.getItem('sg30-sid')||'';if(!sid){sid='s'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);sessionStorage.setItem('sg30-sid',sid);}}catch(e){sid='s'+Date.now().toString(36);}
+      const ua=navigator.userAgent;const br=/Edg\//.test(ua)?'Edge':/Whale\//.test(ua)?'Whale':/OPR\//.test(ua)?'Opera':/Chrome\//.test(ua)?'Chrome':/Safari\//.test(ua)?'Safari':/Firefox\//.test(ua)?'Firefox':'기타';
+      db.doc('presence/'+sid).set({v:APP_V,br,os:/Windows/.test(ua)?'Windows':/Mac OS/.test(ua)?'Mac':/Android/.test(ua)?'Android':/iPhone|iPad/.test(ua)?'iOS':'기타',at:new Date().toISOString()}).catch(()=>{});}}catch(e){}
     db.doc('config/app').onSnapshot(d=>{const v=d.exists?+(d.data().v||0):0;
       if(v>APP_V){let n=0;try{n=+sessionStorage.getItem('sg30-reload-'+v)||0;}catch(e){}
         if(n<2){try{sessionStorage.setItem('sg30-reload-'+v,String(n+1));}catch(e){}toast('새 버전이 있어 화면을 새로 고칩니다…');setTimeout(()=>location.reload(),1200);}
