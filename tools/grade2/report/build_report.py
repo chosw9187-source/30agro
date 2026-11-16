@@ -198,13 +198,13 @@ cd.add_series("정액 (350·400·350만원)", [round(v / 1e4) for v in A["W"]])
 cd.add_series("정률 (7·8·6%)", [round(v / 1e4) for v in B["W"]])
 gf = s.shapes.add_chart(XL_CHART_TYPE.LINE, Inches(X2), Inches(2.50), Inches(W2 * 0.56), Inches(3.45), cd)
 ch = gf.chart; ch.has_legend = True; ch.legend.position = XL_LEGEND_POSITION.TOP; ch.legend.include_in_layout = False
-ch.legend.font.size = Pt(11); ch.legend.font.name = FONT
+ch.legend.font.size = Pt(12); ch.legend.font.name = FONT
 from pptx.enum.chart import XL_MARKER_STYLE
 for i, col in enumerate(["1F4E79", "C00000"]):
     ser = ch.series[i]; ser.format.line.color.rgb = rgb(col); ser.format.line.width = Pt(2.5); ser.smooth = False
     ser.marker.style = XL_MARKER_STYLE.NONE
-ca = ch.category_axis; ca.tick_labels.font.size = Pt(11); ca.tick_labels.font.name = FONT
-va = ch.value_axis; va.tick_labels.font.size = Pt(11); va.has_major_gridlines = True
+ca = ch.category_axis; ca.tick_labels.font.size = Pt(12); ca.tick_labels.font.name = FONT
+va = ch.value_axis; va.tick_labels.font.size = Pt(12); va.has_major_gridlines = True
 va.major_gridlines.format.line.color.rgb = rgb("E3E3E3"); va.minimum_scale = 4000; va.maximum_scale = 10000; va.major_unit = 2000
 va.tick_labels.number_format = '#,##0'; va.tick_labels.number_format_is_linked = False
 

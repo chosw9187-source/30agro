@@ -11,6 +11,8 @@ C = dict(NAVY="1F4E79", NAVY2="2E5C8A", NAVY3="4F7FAE", LBLUE="D9E2F3", PBLUE="F
          PURPLE="7030A0", INK="000000", BODY="404040", SUB="595959", GRAY="7F7F7F",
          LINE="BFBFBF", CELL="F2F2F2", HAIR="E3E3E3", WHITE="FFFFFF", OK="2E7D32")
 FONT = "맑은 고딕"
+BODY_SIZE = 12
+KEEP_SIZES = (26, 16, 36, 40, 120)
 W, H = 13.333, 7.5
 L, R = 0.55, 12.78
 CW = R - L
@@ -29,6 +31,8 @@ def blank(p): return p.slides.add_slide(p.slide_layouts[6])
 
 def _runs(par, text, size, color, bold, hl=None):
     """'**' 구간은 Bold(+hl 색)."""
+    # 글자 크기 통일: 제목 26 · 헤드메시지 16 · 소제목 14(=14.01 표식) · 표지/간지 유지, 나머지 12
+    size = 14 if size == 14.01 else (size if size in KEEP_SIZES else BODY_SIZE)
     for i, seg in enumerate(text.split("**")):
         if not seg: continue
         r = par.add_run(); r.text = seg
@@ -95,7 +99,7 @@ def title(s, t, msg=None):
 
 def subhead(s, x, y, t, w=6.0, note=None):
     box(s, x, y + 0.03, 0.07, 0.26, "PURPLE")
-    text(s, x + 0.16, y, w - 0.16, 0.32, t, 16, "INK", True)
+    text(s, x + 0.16, y, w - 0.16, 0.32, t, 14.01, "INK", True)
     if note: text(s, x, y, w, 0.32, note, 12, "GRAY", align="r")
 
 
