@@ -51,6 +51,9 @@ button.primary{background:var(--accent);color:var(--accent-ink);border-color:var
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .srcbadge{font-size:12px;padding:3px 8px;border-radius:999px;background:var(--care-soft);color:var(--care);font-weight:600}
 .srcbadge.real{background:var(--ok-soft);color:var(--ok)}
+.syncbadge{font-size:12px;padding:3px 10px;border-radius:999px;font-weight:700;border:1px solid var(--line-2);background:var(--surface);cursor:pointer}
+.syncbadge.idle{border-color:var(--navy);color:var(--navy)} .syncbadge.live{background:var(--ok-soft);color:var(--ok);border-color:transparent;cursor:default} .syncbadge.warn{background:var(--care-soft);color:var(--care);border-color:transparent}
+body.ro #view-payband input,body.ro #view-payband select,body.ro #view-payband textarea{pointer-events:none;opacity:.75} body.ro label[for=file-xlsx],body.ro #btn-reset{display:none}
 main{padding-block:18px 48px}
 h1{font-size:20px;margin:0 0 4px;letter-spacing:-.02em;text-wrap:balance}
 h2{font-size:15px;margin:0 0 8px;letter-spacing:-.01em}
@@ -484,6 +487,7 @@ td.gv.same{color:var(--accent)!important;font-weight:800} td.gv.diff{color:var(-
   <div class="brand"><span class="logo"><img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCABQAPADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD9U6KKQnFAGNr3jXw/4Wmhi1nXNO0mWYZiS9ukhLjuQGIyKuaXrmna5D52nX9rqEP/AD0tZllX81Jr8+P2pbuXxT+0PrFnGQzRva6dDuPC/In6bpCaZ4j/AGd/ih8IJW1eztpmjtyWOo+HrlmZAP4iq7XA/wCAkV4rx9RTko07qLtofBT4kxEa9WNPDucKbabTd9Ouz7H6MUV8b/Ar9sq7jvLbRPH0qT20pEcWuhQrRnoPPA4K/wC2AMdweSPsaORZUV0YOjDIZTkEetejQxFPER5oM+oy/MsPmdL2lB7bp7r1/qw6mySLEjO7BVUZLE4AHqa5T4nfEvR/hT4Uudd1iQ+Uh2Q28ePMuJT92NB6nHXoACT0r4P8V/En4i/tJ+J/7Ls47q4gkOYdD01isESZ+9IeA2O7ucemOlY4nFxw7UbXk+hxZpnVHLWqSi51HtFfr/TZ916h8ZfAmlXHkXfjDRIZgcFGv48g++DxXSaNrmneIrBL7Sr+21KykyFuLSVZY2x1wykivz48cfsq+KPhx8P7vxRrV9pcMdsYw1jbM8knzuqD5toXjdnv0r239gad28JeLICT5SajE6rngFohnA/AVhRxdWVZUqsLXPNwOdYutjo4PF0OTmTa79f8n2PqiiiivWPtAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigBDX5rePvHHjLVfjT4il0rV9Y/tQ6pcW1rFYXEgcIkjKkaIp6BV6AetfpSa/OfxlKfhh+1ReXtwpjgsvESX5z/wA8ZHEhP/fMh/KvGzO/LDWyufCcV83s6D5nGPNq108/zPO5/E2pyeNY9d1p57zVY7yK5uTcLslkaNlOGGBg4QDpX6J/Cn4/+Efi5EsWl3ptdWC7pNLvMJcL6lecOPdSffFfOH7dHglrPxRoniy3jzaahb/Yp5F5Hmx5ZCT/ALSMcf7leIwfDvW4fBFp460SVrzT7eUpdzWRZZ9MnU8bwOQpBVhIvGG5xXnU6lXBVpwS5lu/8z5fDYrGZBja1CK9ot5d2v5uvfXfz7n0T+2D8AbKz02bx54etUtWjYf2tawqAjqxwJwB0IJAbHUHPUHPV/sVfFKfxT4OvPC2ozGa90LZ9mdzlntWyFX32MCv0K1y/wAFP2jB8UNBvPh544kjfUtRtJLKz1JwFW7LIVEcnYSc8N0b2PWh+z78Cvif8LPFuo6pc6PDAsuj3VshW/hffPtVogQG7uo56DNdUJJ1418Ovdlv5ep7NCcHmNLMMui3TqXU0ls/O23R+dm+pwH7R/jrUfjP8Zl0DSN11Z2Nz/ZWm26H5ZZiwWST8XGM9lQe9fZnwb+EWlfB/wAIwaVZIkt9IA99fbcPcy45JPZR0Vew9yTXz5+zV+zV4v8ABnxPg8QeLtMhtbeztpXhcXUcxe5fC5wpJ4VnOfWvsCunBUZOUq9Ve8316I9XIMFVlUq5jjINVZt2TWqXz+70R4N+2pqS2PwQuYCcNeX9tAo9cOXP6Ia539g3TXg+HfiC9YYW41Uop9dkKA/qxqx+1j8NvH/xXvdE0zw5o0dzotgGuJZ5LyKLzJ2+UDazA4VQefVz6V6f8Afh5P8ADD4V6Nol6iJqSq9xeBGDATSMWYZHBxkLkf3apQlPGubWiW/9epcKFavnzxDg1CEbJtNJvy77v7j0SiiivVPsgooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAr46/bn+GUi3em+OLOHfA6Lp+o7R905PkufY5ZCf9z1r7FrN8R+HrDxXod9pGqWyXen3sTQzQv0ZT/I9wexANc2JorEU3Bnk5pgI5lhJ4d6N7Ps1t/wfI+bfg/r2mftK/A288B65cBNf0yBIhK2C+E/1Fyo74wFb6HP3hXhPw88ca/8Asy/EnUtK1uweWyci21bTDys8fO2WPPB4JKnowJB9m/EHwB4s/Zf+I1rqOm3MyW6yl9M1ZVyk6d4pB03Y4ZD1HI9vbI/EXgL9sHw/a6bqzx+F/H1tHtt3yCWPcRk482Mnkxk7h29T4CcqjUW+WrD8f6/E/OFKriZQpSfs8ZR0V/tpbK+1/wAGn2enh3x28DaDol7p3i7wNeJc+ENaYtB9nYg2NyvzNCR1Q/xKDgjBHYV9qfs6fEWf4m/CjSdVvX8zUod1neP/AH5Yzgt/wIbW+rGvhD4nfBnxh8I5ZLfWrOQ6XJKBHf2rF7SdhkKc9mxnAYA9cZr3L4F69f8Ahj9jr4q6vpjOuo6fFqdzbNGfmSRbJSrD3BAP4VpgpSjinFx5brVHTkFWrTzedJ0/Z8yd49LrqvLe3ZMxv2kP+CoXhr4U+JtQ8L+CtDHjPV7CRoLu/lufIsIZVOGRWUM0pUgglcKCCNxwa+e3/wCCwfxJb/VeD/B6jvmS5f8A9qCvJv8Agnr4O8DeOv2kdI0zx9HaX1n9immsLLUcGC8vVKeWjg8OdpkYKfvFRwelftFZeBfDenQLBaaBpdrCowscNlEigewC19Ifqzsjyb9jD9oDWf2lPgwnjHXdP0/Tb86jc2Rh0wv5O2MqAfnYnJzzzVX9pL9tr4d/s0t/Z2r3M2teKHjEkeg6VtedVP3WlYkLEp7bjk9QprZ/al+Mdr+zR8BfEPinT7W2j1CNVtdMthGFjkvJjtjyoGCAcuw7hDX5Z/sgfs0ar+2V8Wda1TxTqt6+hWUovte1Uvm5vJ5WJWFXPR32sS38KrwOVoBLqexeIf8AgsP4va/c6P4A0CwsyfkTUtQmnlx7lQg/IV9I/sq/tm+Kf2gPh14g17VND0rT7zT9Yi06OPTfNdCjRI5ZgxJyNxPH8KMcEjFe9+A/2dfhn8M9LhsfDngfQ9OijGPNFkkkz+7yuC7H3JNdxDoenW9vJbxWFrHBIQzxpCoViOhIAwaBOwzQNSfVdNWeTy2YO8ZeH/VybXK7l9jjPf6nrUWr+LdD0C4SDU9ZsNOmdd6x3d0kTMucZAYjjIPNaiIsaKqqFVRgADAAr52/bA8K+Hh4dh8T6hFdT6yAmmWSRzbIhks5Zxg5wNx688CmhGj4k/agt9H+Klp4ZtLbTr7RppreN9YW/GxFkxvbgFflye/bnFetQePvDl87RWOu6bf3Wx3W3tryN5H2qWOFByeAa+SPCX7J+reKvhxF4iTVYba/uoPtNppphyroRlQ75+VmHPAIGRnvWj+yj4X8P6vNq+rSQ3UPiTRI5GQib9zJFLFInKY+8PmHX0NOyEe7/Br46WXxkk1RLTSrnTTYJE7G4kR9+/djG302/rXp1fDn7M/xc8P/AAofXpdda6VbyKARfZoDL9zeWzg8feFfbtldx39nBcxZ8qaNZF3DBwQCOPxpNWBHkmoftWeAtMv7qznudQE1tK8MgWxcjcrFTg9+Qag/4a6+Hv8Az9aj/wCAEldvcfBzwNd3Es83hPSJZpXaR3a0QlmJySTjqSSa80/aG+HXgzwn8I9cv7Dw3pljf/uooJ4LZUdXaVRwQPTNGgHq/wAP/iFpHxL0N9W0R5pLNZ2tyZ4TG29QCeD2+Yc101eM/slac1j8GrKVhgXd3cXA9xv2D/0CvZWYKpJOAPWhjPO/H/x18O/DfxNY6FqsV+97eRpJGbaBXQB3KDJLDHI9K9EzXwJ+0T49g8a/Fe7vtMmWez05I7S2nXlXMZLFgfQuxAPcAetfbPw/8aWPxA8I6drlhKrx3MYMiKeYpB9+Nh2IOR+R70NWEch8JvjzZfFfXdW0y10m6099Pj8xpJ5EYP8AOU42/TNepV8CfCD4ga/8PfFPiC68P+Hn8RXFwGjkhRJG8tRKxDfICeTxzX3V4dv59W8P6Ze3VubS6ubWKaW3IIMTsgLLzzwSRz6UNAjy/V/2qvAuiate6dcy6iLm0ne3lCWTEblYqcHPIyKp/wDDX3w+/wCeup/+ALf41r/FPw18P/AvhvU/FOqeC9P1MpKrzCO1j82R5JApbLcZy2TXJDTvh14p+COt+MbDwVp+mKlldmJZbWPzEdAyqcr/ALQGKegHp/w2+LWgfFWG/l0JrllsWRJftMBi5YEjGevQ12lfOP7E+mPb+C9fvmBxcagsQJ77Ilz+rmvo6k9xhRRRSAyfFPhTSfGmiXOka3Yw6jp9wMSQTDI9iD1BHYjkdq+MPi1+xhr/AIYuJdR8Fu+vaaD5gsmYLewY5+U8CTHYjDex619y0VyV8LTxC99a9zxcxyjC5nG1aPvLZrdf12Z+YHin4q+N9S8LN4L8S311c2tvPHMINTiP2qFkyANzYfHPRs+1fU37Een22rfBnxBZXkKXNpc6pPDNDIMrIjQRKykdwQSKvftxadat8JILxraE3ianbxrcGMeYqkPlQ3XB9Kg/YWkWL4S6y7sERdYlJZjgAeTFXlUKUqOMUJSvofG5fg6mBz1UalRztB2b7dt3sfFHx5/4JYePfCfiC8v/AIYtb+KfDrSGW2sJbpbfULRc5EeXISTb0DBgxwMjPJ8vPxg/am/Zie3TVtT8Z6BZRkRxReIoGvLJv9lXmDof+AsPav2s/trT/wDn9tv+/wAv+NeR/tMfGX4Z+BPhP4li8a6rpV1aXVhNAuiyTJLNfMyELEkQJJJOOcYXqSMZr6A/Trn5cftH/tw6t+018E9A8MeItLh07xDpmsreTz6eCLW9iFvIivsYkxuGflckEHII6V9nf8Ejba0T9nfxDPEF+2SeJp1nYfewtvb7AfwJ/M1+Ynwj+Dnib40atqmk+GLJ7/UdO0i41aSFAWLpCFyi4/jcsFX1YgV9E/8ABPT9rnS/2cvFmr+H/FzyW/g7X3jke9WNm/s+6QbRIyDnYy/K2ASpRTjANA2tND6l/bo/ba+I37OXxc0zw14S0zRbzTbnR4r95NRsZppBK00qEBkkUYwi8Y9a+drb/gq78Z3v7eCXR/CUfmSojA6bcKQCwHef3r9UfD3xC8I+NtPi1HRPEOj61ZyKGW4s7yKZSD7gnH41+Pf/AAUQvbS//bM1uWynhuIPK0tQ9u6suREgIyvGQaBI/alDuUE9xXn/AMdPhm/xU8BT6VbSpDqMMq3Vo8nCGRQRtY9gwYjPbIPau/i/1a/QU+gk+O9H8Z/GfwZ4UPgqHwnePJEhtra/Fm8kkMfTCup8tsfwseg9cV6h+z98HL74X+DNavNZCprOqRfPbqwb7PGittQsOCxLEnHHQdq5z4kfEDxHpX7TXh7QrTWrq20aeWxEtkjARuHY78jHfvX0ddLHdW0sJkCiRChII4yMVTEfH/7IPgzQvGE/iZNb0iz1ZYIrYxC8hEmzd5m7GemcD8q9t+Lvwv8AGPi/UdLfwn4rbwzZWtsYZLaOWWMOd3ynCccDjmrnwZ+B+n/B+XVHstWudTN8kSsLhEXZs3Yxt9d36V6eaTeoHy/ffAv4s2FlcXL/ABOnZYY2kKrdXWSACfX2ry/4deFPGv7QltqVlJ4vuHtrHyZnh1SeaZGLbtpABIyNp/OvW9Q/Zl8c3t1dOPiVcrDNI7CItcEBWJO3Hm4xg4rkPEP7NHiX4XeFNZ16z8aeRHZ2xnlhsY5oGlCchch/fjPrVXEdDp37NvxQ0fT4rLT/AIjfYbSFSsUFvPcoiDrwoOBya9K+Ofgvxz4t8JWGleF9VihSTbBqMTt5TToQAW83qFHO5QMsD36HF/ZC1e/1n4c6lNqN9c38y6pIgkupmlYL5cZwCxJxyePevdKlvUZ5J8Of2cfDng7wZfaPqUEes3eqRBNQuZE27gOQkfdFU8jvkZ9MZPwo/Z81T4V+Pr2+tPE00nhmRMrYAYedjwBKMbflHRlwT7DIPmv7YaSXHxL8LWqzyQrPZLEWRiMbpyucZ5610X/DFsH/AEO+of8AgMP/AIumBD+yp4M1/wANeOfFVxq2i3+mW88AWKW7t2jWQ+cxwCRzxzXqHxn134iaM+kjwJpEOqLIJftZljV9mNuzGXXrlvXpXjH7F7yf8Jf4rjeWSUJaxKN7E9JXHf6V9a4zSe4HyR44m+Ofj/w1daHq3hOEWNwUMhgjjR/lYMMEynHKisbwrF8VtM8GP4OtPCml6xowLmW0uDDOzbn3kNtnHG72rp/2lfE2s+Lvihovw5sb06bp1ybdZjkqs0krEAvj7yqBwvck+2Mj4ufs32Pwi8IR+KvDuu30d/p8sXmtIyxsxZgoaNkAKkEjjnIzVAaXh/Uvjf4R0w2GieAdL0uzDNILe2tUVd56n/X9TX1Doct5PothJqEYiv3t42uIwMBZCo3Dqehz3rjPgT41vPiB8MdI1fUgG1Ah4J5AuBI0bld+PfAJ9816DUsYUUUUgCiiigDyn9pP4Zax8WPh2miaI9ql6L6G5zdyFE2ruzyAeeR2rz3wv+zh4osP2YfiJ8O7q502LWvEUF5DazLM7W6GWBY1LnZkAEHOAeK+mKK5/YQ9r7brseb/AGfReM+va89reVj8jT/wSK+LGf8AkZfB3/f+5/8AjNbHhr/gj746ub9Drvjjw5plqTh5NOt57qbHsGEY/M1+rVFdB6d2eM/s1fsq+DP2YPDdxYeG45r3VL7adQ1m+INzdFc7V4ACIuThF4GSTk815R+0h/wTa8BfHDWbvxHol5L4G8UXTGW5nsoRLaXch6vJASMOT1ZGXPUgmvr2igLn5Lah/wAEg/iZBcuLHxb4RuoSeJJRcwufqojb+ZrpfBH/AAR/8Sx6nazeJfiDpNlbRSrI0WjWEk7thgcBpCgGcddp+lfqJRQF2Iq7VA9KWiigR4n8Vv2Zrb4o+MH1+TxDcabI0EcPkxWyuBszzuLA85rkf+GKLf8A6HO+/wDARf8A4uvpqindgeS/Bz4BRfCLWNQv49euNWN3brAY5oQgTDbsghjXrVFFIArn/H/hZvGvgzWdCW5Fo2oWz24nKbwm4dcZGfzroKKAPPPgl8K5PhH4Xu9Jk1JdTM94115qwmLGUVduNx/u9fevQ6KKAPIvjL+z3b/F/XbDUpdcn0trS2NuI4rdZN3zls5JGOtcJ/wxZD/0O2o/+Aw/+Lr6Yop3Yjyb4MfAGD4Papqd5DrU2qG9hSEpLbrHs2sWzkE5616zRRSGeP8Ax0+AUfxVe01XTb5dK8RWaiOOdwfLlQHcqsV5UqSSGHIyeD283vPgB8V/iA9pp3jDxdbto9s4bImMzHHG4IEUM2M4LmvqiincDH8IeFNP8EeG7DQ9LjMdlZxiNAxyzdyzHuSSSfc1sUUUgP/Z" alt="SG 한국삼공" width="120" height="40"></span><b>SG한국삼공 직급 분류</b></div>
   <nav class="apps" aria-label="사이트"><a href="#payband" id="nav-payband" aria-current="page">직급 분류 (신규 기준)</a></nav>
   <div class="tools">
+    <button id="syncbadge" type="button" class="syncbadge idle" hidden>팀 공유</button>
     <span id="srcbadge" class="srcbadge">예시 데이터</span>
     <label class="btn" for="file-xlsx" style="font-weight:600">엑셀 불러오기</label>
     <input id="file-xlsx" type="file" accept=".xlsx,.xlsm,.xls" hidden>
@@ -583,7 +587,7 @@ let S=(()=>{try{const s=JSON.parse(localStorage.getItem(LS_KEY));if(s&&s.crit&&A
 S.manualG='';
 // 승진 대상 기준 변경(G3→G4 4년차) 1회 반영
 if(!S.crit.promoV3){if(S.crit.promoV2&&S.crit.stay&&S.crit.stay[2]&&+S.crit.stay[2][0]===4)S.crit.stay[2][0]=5;S.crit.promoV3=1;}
-function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(S))}catch(e){}}
+function save(){try{localStorage.setItem(LS_KEY,JSON.stringify(S))}catch(e){}if(typeof schedulePush==='function')schedulePush();}
 
 /* =========================================================
    1. 엑셀 로직 이식 (기본정보 · 계산 시트)
@@ -2900,7 +2904,7 @@ function pasteTail(c){const u=i=>String(c[i]||'').trim().toUpperCase();
   if(/^G[1-4]$/.test(u(14)))return{final:u(14),eval:''};
   return{eval:EVALS.includes(u(14))?u(14):'',final:/^G[1-4]$/.test(u(15))?u(15):''};}
 let resetArmed=false;
-document.getElementById('btn-reset').onclick=e=>{const b=e.currentTarget;if(!resetArmed){resetArmed=true;b.textContent='한 번 더 누르면 초기화';b.classList.add('primary');setTimeout(()=>{resetArmed=false;b.textContent='예시로 초기화';b.classList.remove('primary');},3000);return;}
+document.getElementById('btn-reset').onclick=e=>{const b=e.currentTarget;if(typeof SYNC!=='undefined'&&SYNC.ready&&!resetArmed&&!confirm('팀 공유 중입니다. 예시로 초기화하면 공유 자료가 모두 예시 데이터로 바뀌어 동료 화면에도 반영됩니다. 계속할까요?'))return;if(!resetArmed){resetArmed=true;b.textContent='한 번 더 누르면 초기화';b.classList.add('primary');setTimeout(()=>{resetArmed=false;b.textContent='예시로 초기화';b.classList.remove('primary');},3000);return;}
   resetArmed=false;b.textContent='예시로 초기화';b.classList.remove('primary');S=fresh();save();route();toast('예시 데이터로 되돌렸습니다.');};
 
 /* =========================================================
@@ -2914,4 +2918,103 @@ function route(){
 }
 window.addEventListener('hashchange',route);
 route();
+
+/* =========================================================
+   9. 실시간 공유 (claude.ai 공유 저장 · db)
+   - 공유 자료 : people/<uid> (1명 = 문서 1개) · config/crit · config/sample · config/meta
+   - 로컬(ZIP · 파일)에서는 claude.use 가 없어 지금처럼 이 브라우저에만 저장
+   - 쓰기는 사람이 값을 바꿨을 때만 (save → 0.7초 뒤 바뀐 문서만 전송)
+   ========================================================= */
+const SYNC={db:null,on:false,ready:false,ro:false,remote:{},crit:null,sample:null,meta:null,busy:false,again:false,timer:null,
+  got:{people:false,meta:false,crit:false,sample:false},deferred:false,errShown:false,stale:false};
+function uidNew(){return'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
+function ensureUids(){const seen=new Set();S.people.forEach(p=>{if(!p._uid||seen.has(p._uid)||!/^[A-Za-z0-9_\-]+$/.test(p._uid))p._uid=uidNew();seen.add(p._uid);});}
+const pBody=(p,i)=>JSON.stringify(Object.assign({},p,{ord:i}));
+function syncBadge(){
+  const el=document.getElementById('syncbadge');if(!el)return;
+  if(!SYNC.on){el.hidden=true;return;}
+  el.hidden=false;el.className='syncbadge '+(SYNC.ready?(SYNC.stale?'warn':'live'):'idle');
+  const m=SYNC.meta;const t=m&&m.at?new Date(m.at).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+  el.textContent=!SYNC.ready?(SYNC.ro?'공유 자료 없음 (보기 권한)':'팀 공유 시작하기'):(SYNC.stale?'공유 연결 확인 중…':`● 실시간 공유 중${SYNC.ro?' · 보기 전용':''}${t?' · 최근 변경 '+t:''}`);
+  el.title=SYNC.ready?'링크를 받은 동료와 같은 자료를 봅니다. 값을 바꾸면 모두의 화면에 바로 반영됩니다.':(SYNC.ro?'아직 공유된 자료가 없습니다.':'지금 화면의 자료를 팀과 공유합니다');
+  document.body.classList.toggle('ro',SYNC.ready&&SYNC.ro);
+}
+function syncRerender(){
+  const a=document.activeElement;
+  if(a&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)&&document.getElementById('view-payband').contains(a)){
+    if(!SYNC.deferred){SYNC.deferred=true;a.addEventListener('blur',()=>{SYNC.deferred=false;setTimeout(syncRerender,0);},{once:true});}return;}
+  const y=window.scrollY;route();window.scrollTo(0,y);
+}
+function schedulePush(){if(!(SYNC.on&&SYNC.ready)||SYNC.ro)return;clearTimeout(SYNC.timer);SYNC.timer=setTimeout(pushNow,700);}
+async function runOps(ops){
+  let i=0;const worker=async()=>{while(i<ops.length){const op=ops[i++];
+    for(let a=0;;a++){try{await op.run();op.done();break;}
+      catch(e){const code=e&&e.code;
+        if((code==='resource_exhausted'||code==='unavailable')&&a<3){await new Promise(r=>setTimeout(r,800*(a+1)+Math.random()*400));continue;}
+        throw e;}}}};
+  await Promise.all([worker(),worker(),worker()]);
+}
+async function pushNow(){
+  if(!(SYNC.on&&SYNC.ready)||SYNC.ro)return;if(SYNC.busy){SYNC.again=true;return;}
+  SYNC.busy=true;ensureUids();const db=SYNC.db,ops=[];const live=new Set();
+  S.people.forEach((p,i)=>{const s=pBody(p,i);live.add(p._uid);if(SYNC.remote[p._uid]!==s){const uid=p._uid;
+    ops.push({run:()=>db.doc('people/'+uid).set(JSON.parse(s)),done:()=>{SYNC.remote[uid]=s;}});}});
+  Object.keys(SYNC.remote).forEach(uid=>{if(!live.has(uid))ops.push({run:()=>db.doc('people/'+uid).delete(),done:()=>{delete SYNC.remote[uid];}});});
+  const cs=JSON.stringify(S.crit);if(cs!==SYNC.crit)ops.push({run:()=>db.doc('config/crit').set({crit:JSON.parse(cs)}),done:()=>{SYNC.crit=cs;}});
+  const ss=JSON.stringify(S.sample||null);if(S.sample&&ss!==SYNC.sample)ops.push({run:()=>db.doc('config/sample').set({sample:JSON.parse(ss)}),done:()=>{SYNC.sample=ss;}});
+  try{
+    if(ops.length){await runOps(ops);
+      const meta={count:S.people.length,at:new Date().toISOString(),source:S.sourceName||'',started:(SYNC.meta&&SYNC.meta.started)||new Date().toISOString()};
+      await db.doc('config/meta').set(meta);SYNC.meta=meta;syncBadge();}
+  }catch(e){const code=e&&e.code;
+    if(code==='invalid_argument'&&!SYNC.everWrote){SYNC.ro=true;syncBadge();toast('보기 권한이라 변경 내용이 공유되지 않습니다. 수정하려면 공유 메뉴에서 편집 권한을 받으세요.');}
+    else if(code==='quota_exceeded')toast('공유 저장 공간이 가득 찼습니다. 인원 수를 줄이거나 관리자에게 문의하세요.');
+    else if(code==='revoked'){SYNC.on=false;syncBadge();}
+    else toast('공유 저장에 실패했습니다. 잠시 뒤 다시 바꿔 보세요. ('+(code||'오류')+')');
+  }finally{if(ops.length)SYNC.everWrote=true;SYNC.busy=false;if(SYNC.again){SYNC.again=false;pushNow();}}
+}
+// 공유 자료 → 화면 (내가 아직 보내지 않은 변경은 유지)
+function applyRemote(){
+  if(!SYNC.got.people||!SYNC.got.meta||!SYNC.got.crit||!SYNC.got.sample)return;
+  if(!SYNC.meta){SYNC.ready=false;syncBadge();return;}
+  const firstTime=!SYNC.ready;SYNC.ready=true;
+  const before=JSON.stringify([S.people,S.crit,S.sample||null]);
+  const local=new Map(S.people.map(p=>[p._uid,p]));
+  const rows=Object.entries(SYNC.remoteDocs||{}).map(([uid,d])=>Object.assign({},d,{_uid:uid})).sort((a,b)=>(a.ord??0)-(b.ord??0));
+  S.people=rows.map(d=>{const lp=local.get(d._uid);const dirty=!firstTime&&lp&&SYNC.prevRemote&&SYNC.prevRemote[d._uid]!==undefined&&pBody(lp,d.ord)!==SYNC.prevRemote[d._uid];
+    if(dirty)return lp;const p=Object.assign({},d);delete p.ord;return p;});
+  if(SYNC.critObj&&(firstTime||JSON.stringify(S.crit)===SYNC.prevCrit))S.crit=Object.assign(defaultCrit(),SYNC.critObj);
+  if(SYNC.sampleObj&&(firstTime||JSON.stringify(S.sample||null)===SYNC.prevSample))S.sample=SYNC.sampleObj;
+  if(firstTime){S.source='file';S.sourceName=(SYNC.meta&&SYNC.meta.source)||'팀 공유 자료';S.sel='';}
+  try{localStorage.setItem(LS_KEY,JSON.stringify(S))}catch(e){}
+  syncBadge();
+  if(firstTime||JSON.stringify([S.people,S.crit,S.sample||null])!==before)syncRerender();
+}
+async function syncInit(){
+  try{
+    if(!(window.claude&&window.claude.use))return;
+    const db=await window.claude.use('db');if(!db)return;
+    SYNC.db=db;SYNC.on=true;syncBadge();
+    try{const user=await window.claude.use('user');if(user){const w=await user.can('data.write');if(w===false)SYNC.ro=true;}}catch(e){}
+    const fail=e=>{if(e&&e.code==='revoked'){SYNC.on=false;syncBadge();return;}if(!SYNC.errShown){SYNC.errShown=true;toast('공유 자료를 불러오지 못했습니다. 이 브라우저 자료로 표시합니다.');}};
+    const loading=setTimeout(()=>{if(!SYNC.ready&&!(SYNC.got.people&&SYNC.got.meta)){SYNC.stale=true;syncBadge();}},10000);
+    db.collection('people').onSnapshot(snap=>{
+      SYNC.prevRemote=Object.assign({},SYNC.remote);
+      const docs={},rem={};snap.docs.forEach(d=>{const v=d.data();if(!v)return;docs[d.id]=v;rem[d.id]=JSON.stringify(v);});
+      SYNC.remoteDocs=docs;SYNC.remote=rem;SYNC.got.people=true;if(!snap.metadata.fromCache){SYNC.stale=false;clearTimeout(loading);}applyRemote();
+    },fail);
+    db.doc('config/meta').onSnapshot(d=>{SYNC.meta=d.exists?d.data():null;SYNC.got.meta=true;syncBadge();applyRemote();},fail);
+    db.doc('config/crit').onSnapshot(d=>{SYNC.prevCrit=SYNC.crit;const v=d.exists?d.data():null;SYNC.critObj=v&&v.crit?v.crit:null;SYNC.crit=SYNC.critObj?JSON.stringify(SYNC.critObj):null;SYNC.got.crit=true;applyRemote();},fail);
+    db.doc('config/sample').onSnapshot(d=>{SYNC.prevSample=SYNC.sample;const v=d.exists?d.data():null;SYNC.sampleObj=v&&v.sample?v.sample:null;SYNC.sample=SYNC.sampleObj?JSON.stringify(SYNC.sampleObj):null;SYNC.got.sample=true;applyRemote();},fail);
+  }catch(e){SYNC.on=false;syncBadge();}
+}
+// 공유 시작 : 지금 화면 자료를 팀 공유 자료로 올린다 (공유 자료가 없을 때만)
+document.getElementById('syncbadge').onclick=async()=>{
+  if(!SYNC.on||SYNC.ready||SYNC.ro)return;
+  const n=S.people.filter(p=>String(p.name||'').trim()).length;
+  if(!confirm(`지금 화면의 자료(${S.source==='demo'?'예시 데이터 · ':''}${n}명)와 분류 기준을 팀 공유 자료로 올립니다.\n이 링크에서 편집 권한이 있는 동료가 함께 보고 고칠 수 있습니다.\n계속할까요?`))return;
+  ensureUids();SYNC.ready=true;SYNC.remote={};SYNC.crit=null;SYNC.sample=null;syncBadge();toast('팀 공유 자료로 올리는 중입니다…');
+  await pushNow();if(SYNC.meta)toast(`${n}명을 팀 공유 자료로 올렸습니다. 이제 바꾸는 값은 모두에게 바로 반영됩니다.`);
+};
+syncInit();
 </script>
