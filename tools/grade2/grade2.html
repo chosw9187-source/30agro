@@ -2938,8 +2938,10 @@ function syncBadge(){
   const el=document.getElementById('syncbadge');if(!el)return;
   if(!SYNC.on){el.hidden=true;return;}
   el.hidden=false;el.className='syncbadge '+(SYNC.ready?(SYNC.stale?'warn':'live'):'idle');
-  const m=SYNC.meta;const t=m&&m.at?new Date(m.at).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
-  el.textContent=!SYNC.ready?(SYNC.ro?'공유 자료 없음 (보기 권한)':'팀 공유 시작하기 (또는 엑셀 불러오기)'):(SYNC.stale?'공유 연결 확인 중…':`● 실시간 공유 중${SYNC.ro?' · 보기 전용':''}${t?' · 최근 변경 '+t:''}`);
+  const m=SYNC.meta;const t=m&&m.at?new Date(m.at).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
+  el.textContent=!SYNC.ready?(SYNC.ro?'공유 자료 없음 (보기 권한)':'팀 공유 시작하기 (또는 엑셀 불러오기)'):(SYNC.stale?'공유 연결 확인 중…':SYNC.saving?'저장 중…':`● 자동 저장 · 공유 중${SYNC.ro?' (보기 전용)':''}${t?' · 최근 저장 '+t:''}`);
+  if(SYNC.saving)el.className='syncbadge warn';
+  if(SYNC.ready&&SYNC.failed&&!SYNC.saving){el.className='syncbadge warn';el.textContent=`⚠ 저장 실패 (${SYNC.failed}) · 눌러서 다시 저장`;el.title='마지막 변경이 팀에 공유되지 않았습니다. 누르면 다시 저장합니다.';}
   el.title=SYNC.ready?'링크를 받은 동료와 같은 자료를 봅니다. 값을 바꾸면 모두의 화면에 바로 반영됩니다.':(SYNC.ro?'아직 공유된 자료가 없습니다.':'지금 화면의 자료를 팀과 공유합니다');
   document.body.classList.toggle('ro',SYNC.ready&&SYNC.ro);
 }
@@ -2951,12 +2953,12 @@ function syncRerender(){
 }
 function schedulePush(){if(!(SYNC.on&&SYNC.ready)||SYNC.ro)return;clearTimeout(SYNC.timer);SYNC.timer=setTimeout(pushNow,700);}
 async function runOps(ops){
-  let i=0;const worker=async()=>{while(i<ops.length){const op=ops[i++];
+  let i=0;const fails=[];const worker=async()=>{while(i<ops.length){const op=ops[i++];
     for(let a=0;;a++){try{await op.run();op.done();break;}
-      catch(e){const code=e&&e.code;
+      catch(e){const code=(e&&e.code)||'unknown';
         if((code==='resource_exhausted'||code==='unavailable')&&a<3){await new Promise(r=>setTimeout(r,800*(a+1)+Math.random()*400));continue;}
-        throw e;}}}};
-  await Promise.all([worker(),worker(),worker()]);
+        fails.push({op,code,msg:e&&e.message});console.warn('공유 저장 실패',code,e&&e.message);break;}}}};
+  await Promise.all([worker(),worker(),worker()]);return fails;
 }
 async function pushNow(){
   if(!(SYNC.on&&SYNC.ready)||SYNC.ro)return;if(SYNC.busy){SYNC.again=true;return;}
@@ -2964,19 +2966,24 @@ async function pushNow(){
   S.people.forEach((p,i)=>{const s=pBody(p,i);live.add(p._uid);if(SYNC.remote[p._uid]!==s){const uid=p._uid;
     ops.push({run:()=>db.doc('people/'+uid).set(JSON.parse(s)),done:()=>{SYNC.remote[uid]=s;}});}});
   Object.keys(SYNC.remote).forEach(uid=>{if(!live.has(uid))ops.push({run:()=>db.doc('people/'+uid).delete(),done:()=>{delete SYNC.remote[uid];}});});
-  const cs=cj(S.crit);if(cs!==SYNC.crit)ops.push({run:()=>db.doc('config/crit').set({crit:JSON.parse(cs)}),done:()=>{SYNC.crit=cs;}});
+  const cs=cj(S.crit);if(cs!==SYNC.crit)ops.push({crit:true,run:()=>db.doc('config/crit').set({crit:JSON.parse(cs)}),done:()=>{SYNC.crit=cs;}});
   const ks=cj(S.colCfg||{});if(ks!==SYNC.cols)ops.push({run:()=>db.doc('config/cols').set({cols:JSON.parse(ks)}),done:()=>{SYNC.cols=ks;}});
   const ss=cj(S.sample||null);if(S.sample&&ss!==SYNC.sample)ops.push({run:()=>db.doc('config/sample').set({sample:JSON.parse(ss)}),done:()=>{SYNC.sample=ss;}});
   try{
-    if(ops.length){await runOps(ops);
+    if(ops.length){SYNC.saving=true;syncBadge();const fails=await runOps(ops);
+      if(fails.length){const e=new Error(fails[0].msg||'');e.code=fails[0].code;e.count=fails.length;throw e;}
+      SYNC.failed='';
       const meta={count:S.people.length,at:new Date().toISOString(),source:S.sourceName||'',started:(SYNC.meta&&SYNC.meta.started)||new Date().toISOString()};
-      await db.doc('config/meta').set(meta);SYNC.meta=meta;syncBadge();}
+      await db.doc('config/meta').set(meta);SYNC.meta=meta;SYNC.saving=false;syncBadge();
+      if(ops.some(o=>o.crit))toast('분류 기준이 저장되어 팀에 공유되었습니다.');}
   }catch(e){const code=e&&e.code;
-    if(code==='invalid_argument'&&!SYNC.everWrote){SYNC.ro=true;syncBadge();toast('보기 권한이라 변경 내용이 공유되지 않습니다. 수정하려면 공유 메뉴에서 편집 권한을 받으세요.');}
+    SYNC.failed=code||'오류';
+    if(code==='invalid_argument'&&SYNC.canWrite===false){SYNC.ro=true;toast('보기 권한이라 변경 내용이 공유되지 않습니다. 수정하려면 공유 메뉴에서 편집 권한을 받으세요.');}
+    else if(code==='invalid_argument')toast(`공유 저장이 거부되었습니다 (${e.count||1}건, invalid_argument). 화면 오른쪽 위 「저장 실패」를 눌러 다시 시도하고, 계속되면 이 문구를 알려주세요.`);
     else if(code==='quota_exceeded')toast('공유 저장 공간이 가득 찼습니다. 인원 수를 줄이거나 관리자에게 문의하세요.');
     else if(code==='revoked'){SYNC.on=false;syncBadge();}
-    else toast('공유 저장에 실패했습니다. 잠시 뒤 다시 바꿔 보세요. ('+(code||'오류')+')');
-  }finally{if(ops.length)SYNC.everWrote=true;SYNC.busy=false;if(SYNC.again){SYNC.again=false;pushNow();}}
+    else toast('공유 저장에 실패했습니다. 오른쪽 위 「저장 실패」를 눌러 다시 시도하세요. ('+(code||'오류')+')');
+  }finally{if(ops.length)SYNC.everWrote=true;SYNC.saving=false;syncBadge();SYNC.busy=false;if(SYNC.again){SYNC.again=false;pushNow();}}
 }
 // 공유 자료 → 화면 (내가 아직 보내지 않은 변경은 유지)
 function applyRemote(){
@@ -3001,7 +3008,7 @@ async function syncInit(){
     if(!(window.claude&&window.claude.use))return;
     const db=await window.claude.use('db');if(!db){const el=document.getElementById('syncbadge');if(el){el.hidden=false;el.className='syncbadge warn';el.textContent='공유 안 됨 · 이 브라우저에만 저장';el.title='claude.ai 에 로그인한 상태에서 링크를 열어야 팀 공유가 됩니다.';}return;}
     SYNC.db=db;SYNC.on=true;syncBadge();
-    try{const user=await window.claude.use('user');if(user){const w=await user.can('data.write');if(w===false)SYNC.ro=true;}}catch(e){}
+    try{const user=await window.claude.use('user');if(user){const w=await user.can('data.write');SYNC.canWrite=w;if(w===false)SYNC.ro=true;}}catch(e){}
     const fail=e=>{if(e&&e.code==='revoked'){SYNC.on=false;syncBadge();return;}if(!SYNC.errShown){SYNC.errShown=true;toast('공유 자료를 불러오지 못했습니다. 이 브라우저 자료로 표시합니다.');}};
     const loading=setTimeout(()=>{if(!SYNC.ready&&!(SYNC.got.people&&SYNC.got.meta)){SYNC.stale=true;syncBadge();}},10000);
     db.collection('people').onSnapshot(snap=>{
@@ -3017,6 +3024,7 @@ async function syncInit(){
 }
 // 공유 시작 : 지금 화면 자료를 팀 공유 자료로 올린다 (공유 자료가 없을 때만)
 document.getElementById('syncbadge').onclick=async()=>{
+  if(SYNC.on&&SYNC.ready&&SYNC.failed&&!SYNC.ro){SYNC.failed='';syncBadge();await pushNow();if(!SYNC.failed)toast('다시 저장해 팀에 공유했습니다.');return;}
   if(!SYNC.on||SYNC.ready||SYNC.ro)return;
   const n=S.people.filter(p=>String(p.name||'').trim()).length;
   if(!confirm(`지금 화면의 자료(${S.source==='demo'?'예시 데이터 · ':''}${n}명)와 분류 기준을 팀 공유 자료로 올립니다.\n이 링크에서 편집 권한이 있는 동료가 함께 보고 고칠 수 있습니다.\n계속할까요?`))return;
