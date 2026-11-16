@@ -31,8 +31,8 @@ def blank(p): return p.slides.add_slide(p.slide_layouts[6])
 
 def _runs(par, text, size, color, bold, hl=None):
     """'**' 구간은 Bold(+hl 색)."""
-    # 글자 크기 통일: 제목 26 · 헤드메시지 16 · 소제목 14(=14.01 표식) · 표지/간지 유지, 나머지 12
-    size = 14 if size == 14.01 else (size if size in KEEP_SIZES else BODY_SIZE)
+    # 글자 크기 통일: 제목 26 · 헤드메시지 16 · 소제목 16(=14.01 표식) · 표지/간지 유지, 나머지 12
+    size = 16 if size == 14.01 else (size if size in KEEP_SIZES else BODY_SIZE)
     for i, seg in enumerate(text.split("**")):
         if not seg: continue
         r = par.add_run(); r.text = seg
