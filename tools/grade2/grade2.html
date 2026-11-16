@@ -1771,7 +1771,10 @@ function infoBook(){const wb=XLSX.utils.book_new();
   const c=S.crit;const aoa=[['구분','항목','값'],...GRADE6_DESC.map(g=>['(1) 현직급 변환',g,c.gmap[g]]),
     ...[3,2,1,0].map(i=>['(2) 년차 시작',`G${i+1}`,c.yStart[i]]),...c.roles.map(r=>['(3) 직무 역할',r[0],r[1]]),...[3,2,1,0].map(i=>['(4) Pay-band(만원)',`G${i+1}`,`${c.bands[i][0]}~${c.bands[i][1]}`]),
     ...CRIT_N.map((l,i)=>['(5) 가중치(%)',l,c.w[i]]),...[4,3,2,1].map(g=>['(5) 종합 점수 구간',`G${g}`,cutRange(c,g)])];
-  XLSX.utils.book_append_sheet(wb,sheetFromAoa(aoa,[18,22,12]),'분류기준(참고)');return wb;}
+  XLSX.utils.book_append_sheet(wb,sheetFromAoa(aoa,[18,22,12]),'분류기준(참고)');
+  // 설정 전체 (다른 PC · 웹 사이트로 옮길 때 그대로 복원)
+  const js=JSON.stringify({v:1,crit:S.crit,sample:S.sample||null});const parts=[];for(let i=0;i<js.length;i+=30000)parts.push([js.slice(i,i+30000)]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['직급 분류 설정 (수정하지 마세요 · 불러오기 시 분류 기준 복원)'],...parts]),'설정');return wb;}
 function importWorkbook(wb,fname){
   const ws=wb.Sheets['기본정보']||wb.Sheets[wb.SheetNames[0]];const A=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
   const hi=A.slice(0,15).findIndex(r=>r.some(v=>String(v).replace(/\s/g,'')==='이름'));if(hi<0)throw new Error('「이름」 머리글을 찾지 못했습니다.');
@@ -1786,7 +1789,23 @@ function importWorkbook(wb,fname){
     title:String(g(r,'title')).trim(),grade:up(g(r,'grade')),hire:ds(g(r,'hire')),gdate:ds(g(r,'gdate')),period:g(r,'gdate')?'':String(g(r,'period')).trim(),adj:num(g(r,'adj'))??'',yrsM:num(g(r,'yrsM'))?Math.round(num(g(r,'yrsM'))):'',newbie:/^(신입|y|yes|o|1|true)$/i.test(String(g(r,'newbie')).trim()),career:num(g(r,'career'))??'',salary:num(g(r,'salary'))??'',
     eval:EVALS.includes(up(g(r,'eval')))?up(g(r,'eval')):'',role:roleOf(g(r,'role')),final:/^G[1-4]$/.test(up(g(r,'final')))?up(g(r,'final')):'',finalAuto:false,step:num(g(r,'step'))?Math.round(num(g(r,'step'))):'',special:/특이|^o$|^y|^1$|true/i.test(String(g(r,'special')).trim()),special2:/특이|^o$|^y|^1$|true/i.test(String(g(r,'special2')).trim()),...(()=>{const o=C.ov.map(ci=>{const v=ci>=0?up(r[ci]):'';return /^G[1-4]$/.test(v)?v:'';});return o.some(Boolean)?{ov:o}:{};})()}));
   if(!P.length)throw new Error('불러올 인원이 없습니다.');
-  S.people=P;S.source='file';S.sourceName=fname;S.sel='';save();route();toast(`${P.length}명을 불러왔습니다.${C.role<0?' (직무 역할 열 없음 → 기본정보에서 선택)':''}`);}
+  const cr=importCrit(wb);
+  S.people=P;S.source='file';S.sourceName=fname;S.sel='';save();route();toast(`${P.length}명을 불러왔습니다.${cr?' · '+cr:''}${C.role<0?' (직무 역할 열 없음 → 기본정보에서 선택)':''}`);}
+// 엑셀의 「설정」 시트(전체) 또는 「분류기준(참고)」 시트(1차 기준)로 분류 기준 복원
+function importCrit(wb){
+  const ws=wb.Sheets['설정'];
+  if(ws){try{const A=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});const js=A.slice(1).map(r=>String(r[0]||'')).join('');const o=JSON.parse(js);
+    if(o&&o.crit){S.crit=Object.assign(defaultCrit(),o.crit);if(o.sample)S.sample=o.sample;return '분류 기준 · 샘플 설정 전체 복원';}}catch(e){console.warn('설정 시트',e);}}
+  const w2=wb.Sheets['분류기준(참고)'];if(!w2)return '';
+  const R=XLSX.utils.sheet_to_json(w2,{header:1,defval:''}).slice(1);const c=S.crit;let n=0;const gi=x=>/^G([1-6])$/.test(String(x).trim())?String(x).trim():null;
+  R.forEach(([k,a,v])=>{k=String(k);a=String(a).trim();
+    if(k.startsWith('(1)')&&gi(a)&&/^G[1-4]$/.test(String(v).trim())){c.gmap[a]=String(v).trim();n++;}
+    else if(k.startsWith('(2)')&&gi(a)&&num(v)!=null){c.yStart[+a[1]-1]=num(v);n++;}
+    else if(k.startsWith('(3)')){const r=c.roles.find(x=>x[0].replace(/\s/g,'')===a.replace(/\s/g,''));if(r&&/^G[1-4]$/.test(String(v).trim())){r[1]=String(v).trim();n++;}}
+    else if(k.startsWith('(4)')&&gi(a)){const m=String(v).match(/(\d[\d,]*)\s*~\s*(\d[\d,]*)/);if(m){c.bands[+a[1]-1]=[+m[1].replace(/,/g,''),+m[2].replace(/,/g,'')];n++;}}
+    else if(k.startsWith('(5) 가중치')){const i=CRIT_N.indexOf(a);if(i>=0&&num(v)!=null){c.w[i]=num(v);n++;}}
+    else if(k.startsWith('(5) 종합')&&/^G[2-4]$/.test(a)){const m=String(v).match(/(\d+(\.\d+)?)/);if(m){c.cuts=compCuts(c).slice();c.cuts[+a[1]-2]=+m[1];n++;}}});
+  return n?'1차 분류 기준 복원 (2차 · 승진 기준은 분류 기준에서 확인)':'';}
 
 /* ---- 인원 찾기 (생애연봉 · 상세 공용) ---- */
 function finderRows(rows){const g=S.findG||'';return rows.filter(r=>!g||'G'+r.app===g).sort((a,b)=>String(a.p.name).localeCompare(String(b.p.name),'ko'));}
