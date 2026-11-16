@@ -1794,7 +1794,9 @@ function importWorkbook(wb,fname){
     eval:EVALS.includes(up(g(r,'eval')))?up(g(r,'eval')):'',role:roleOf(g(r,'role')),final:/^G[1-4]$/.test(up(g(r,'final')))?up(g(r,'final')):'',finalAuto:false,step:num(g(r,'step'))?Math.round(num(g(r,'step'))):'',special:/특이|^o$|^y|^1$|true/i.test(String(g(r,'special')).trim()),special2:/특이|^o$|^y|^1$|true/i.test(String(g(r,'special2')).trim()),...(()=>{const o=C.ov.map(ci=>{const v=ci>=0?up(r[ci]):'';return /^G[1-4]$/.test(v)?v:'';});return o.some(Boolean)?{ov:o}:{};})()}));
   if(!P.length)throw new Error('불러올 인원이 없습니다.');
   const cr=importCrit(wb);
-  S.people=P;S.source='file';S.sourceName=fname;S.sel='';save();route();toast(`${P.length}명을 불러왔습니다.${cr?' · '+cr:''}${C.role<0?' (직무 역할 열 없음 → 기본정보에서 선택)':''}`);}
+  S.people=P;S.source='file';S.sourceName=fname;S.sel='';
+  const shareNow=typeof SYNC!=='undefined'&&SYNC.on&&!SYNC.ro;if(shareNow&&!SYNC.ready){ensureUids();SYNC.ready=true;SYNC.remote=Object.assign({},SYNC.remote);SYNC.crit=null;SYNC.sample=null;}
+  save();route();toast(`${P.length}명을 불러왔습니다.${cr?' · '+cr:''}${shareNow?' · 팀 공유 자료로 올리는 중 (동료 화면에 바로 반영)':''}${C.role<0?' (직무 역할 열 없음 → 기본정보에서 선택)':''}`);if(typeof syncBadge==='function')syncBadge();}
 // 엑셀의 「설정」 시트(전체) 또는 「분류기준(참고)」 시트(1차 기준)로 분류 기준 복원
 function importCrit(wb){
   const ws=wb.Sheets['설정'];
@@ -2935,7 +2937,7 @@ function syncBadge(){
   if(!SYNC.on){el.hidden=true;return;}
   el.hidden=false;el.className='syncbadge '+(SYNC.ready?(SYNC.stale?'warn':'live'):'idle');
   const m=SYNC.meta;const t=m&&m.at?new Date(m.at).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
-  el.textContent=!SYNC.ready?(SYNC.ro?'공유 자료 없음 (보기 권한)':'팀 공유 시작하기'):(SYNC.stale?'공유 연결 확인 중…':`● 실시간 공유 중${SYNC.ro?' · 보기 전용':''}${t?' · 최근 변경 '+t:''}`);
+  el.textContent=!SYNC.ready?(SYNC.ro?'공유 자료 없음 (보기 권한)':'팀 공유 시작하기 (또는 엑셀 불러오기)'):(SYNC.stale?'공유 연결 확인 중…':`● 실시간 공유 중${SYNC.ro?' · 보기 전용':''}${t?' · 최근 변경 '+t:''}`);
   el.title=SYNC.ready?'링크를 받은 동료와 같은 자료를 봅니다. 값을 바꾸면 모두의 화면에 바로 반영됩니다.':(SYNC.ro?'아직 공유된 자료가 없습니다.':'지금 화면의 자료를 팀과 공유합니다');
   document.body.classList.toggle('ro',SYNC.ready&&SYNC.ro);
 }
@@ -2993,7 +2995,7 @@ function applyRemote(){
 async function syncInit(){
   try{
     if(!(window.claude&&window.claude.use))return;
-    const db=await window.claude.use('db');if(!db)return;
+    const db=await window.claude.use('db');if(!db){const el=document.getElementById('syncbadge');if(el){el.hidden=false;el.className='syncbadge warn';el.textContent='공유 안 됨 · 이 브라우저에만 저장';el.title='claude.ai 에 로그인한 상태에서 링크를 열어야 팀 공유가 됩니다.';}return;}
     SYNC.db=db;SYNC.on=true;syncBadge();
     try{const user=await window.claude.use('user');if(user){const w=await user.can('data.write');if(w===false)SYNC.ro=true;}}catch(e){}
     const fail=e=>{if(e&&e.code==='revoked'){SYNC.on=false;syncBadge();return;}if(!SYNC.errShown){SYNC.errShown=true;toast('공유 자료를 불러오지 못했습니다. 이 브라우저 자료로 표시합니다.');}};
