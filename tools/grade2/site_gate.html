@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>SG한국삼공 직급 분류</title>
+<style>
+  :root{--navy:#1F4E79;--green:#00A650;--red:#C00000;--ink:#1d1d1f;--muted:#6b7280;--line:#d6dbe3;--bg:#f4f6f9;--card:#fff}
+  @media (prefers-color-scheme:dark){:root{--ink:#e8eaed;--muted:#9aa3ae;--line:#3a4250;--bg:#14171c;--card:#1d2128}}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--ink);
+       font-family:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",system-ui,sans-serif;padding:16px}
+  .card{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);border-top:4px solid var(--navy);border-radius:10px;padding:28px 26px}
+  h1{font-size:19px;margin:0 0 4px} .bar{height:3px;width:56px;background:var(--green);margin:10px 0 18px}
+  p{margin:0 0 16px;color:var(--muted);font-size:13px;line-height:1.5}
+  label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+  input{width:100%;font:inherit;font-size:15px;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--ink)}
+  input:focus{outline:2px solid var(--navy);outline-offset:1px}
+  button{width:100%;margin-top:12px;font:inherit;font-size:15px;font-weight:700;padding:11px;border:0;border-radius:6px;background:var(--navy);color:#fff;cursor:pointer}
+  button:disabled{opacity:.6;cursor:wait}
+  .err{color:var(--red);font-size:13px;min-height:18px;margin-top:10px}
+  .keep{display:flex;align-items:center;gap:6px;margin-top:10px;font-size:12px;color:var(--muted);font-weight:400}
+  .keep input{width:auto}
+</style>
+</head>
+<body>
+<form class="card" id="f" autocomplete="off">
+  <h1>SG한국삼공 직급 분류</h1>
+  <div class="bar"></div>
+  <p>인사팀 내부 도구입니다. 보안코드를 입력하세요.</p>
+  <label for="pw">보안코드</label>
+  <input id="pw" type="password" autofocus required>
+  <label class="keep"><input id="keep" type="checkbox"> 이 창을 닫을 때까지 다시 묻지 않기</label>
+  <button id="go" type="submit">들어가기</button>
+  <div class="err" id="err" role="alert"></div>
+</form>
+<script>
+const SALT="__SALT__",IV="__IV__",ITER=__ITER__,DATA="__DATA__";
+const b=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+async function open_(pw){
+  const base=await crypto.subtle.importKey("raw",new TextEncoder().encode(pw),"PBKDF2",false,["deriveKey"]);
+  const key=await crypto.subtle.deriveKey({name:"PBKDF2",salt:b(SALT),iterations:ITER,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["decrypt"]);
+  const html=new TextDecoder().decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:b(IV)},key,b(DATA)));
+  document.open();document.write(html);document.close();
+}
+const f=document.getElementById("f"),err=document.getElementById("err"),go=document.getElementById("go");
+f.addEventListener("submit",async e=>{
+  e.preventDefault();err.textContent="";go.disabled=true;go.textContent="확인 중…";
+  const pw=document.getElementById("pw").value;
+  try{
+    if(document.getElementById("keep").checked){try{sessionStorage.setItem("sg30-gate",pw);}catch(_){}}
+    await open_(pw);
+  }catch(_){
+    try{sessionStorage.removeItem("sg30-gate");}catch(_){}
+    err.textContent="보안코드가 맞지 않습니다.";go.disabled=false;go.textContent="들어가기";
+  }
+});
+(async()=>{let pw=null;try{pw=sessionStorage.getItem("sg30-gate");}catch(_){}if(pw){try{await open_(pw);}catch(_){try{sessionStorage.removeItem("sg30-gate");}catch(_){}}}})();
+</script>
+</body>
+</html>
