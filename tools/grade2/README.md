@@ -77,3 +77,4 @@ claude.ai 링크(https://claude.ai/artifact/6SgaDHLyo2ZQSktKAKiNbz)에서는 공
 - 이후 : 누가 값을 바꾸든 0.7초 뒤 바뀐 사람(문서)만 저장 → 링크를 연 모든 화면에 바로 반영. 「엑셀 불러오기」도 공유 자료를 통째로 바꿈
 - 저장 위치 : people/<uid> (1명 = 문서 1개) · config/crit · config/sample · config/cols(열 설정) · config/fold(접기 상태) · config/meta
 - 권한 : 공유 메뉴의 Editor · Contributor = 수정, Viewer = 보기 전용(입력칸 잠김). 공개 링크로 들어온 외부 로그인 사용자도 읽을 수 있으므로 실명 자료는 「초대한 사람만」으로 공유
+- 사이트 버전 : `APP_V`(grade2.html) 를 올려 배포 → 공유 저장소 `config/app.v` 가 더 크면 열려 있는 화면이 자동 새로고침. 배포 시 APP_V 를 1 올리고, 배포 후 `config/app` 을 그 값으로 맞춘다 (먼저 연 새 화면이 자동으로 맞추기도 함). 화면 오른쪽 아래에 「버전 N」 표시

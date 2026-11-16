@@ -64,6 +64,7 @@ h2{font-size:15px;margin:0 0 8px;letter-spacing:-.01em}
 .grid2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;align-items:start}
 @media (max-width:1100px){.grid2{grid-template-columns:minmax(0,1fr)}}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px;min-width:0}
+.appver{position:fixed;right:8px;bottom:6px;font-size:11px;color:var(--muted);opacity:.7;pointer-events:none}
 .fold-btn{all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-right:6px;border-radius:4px;border:1px solid var(--line-2);font-size:11px;color:var(--muted);background:var(--surface);vertical-align:middle;flex:none}
 .fold-btn:hover{color:var(--ink);border-color:var(--navy)} .fold-btn:focus-visible{outline:2px solid var(--navy);outline-offset:1px}
 .panel.folded>*:not(h2):not(.bar):not(.zone-h),.crit-zone.folded>*:not(.zone-h){display:none!important} .panel.folded,.crit-zone.folded{padding-bottom:10px}
@@ -2933,6 +2934,7 @@ route();
    - 로컬(ZIP · 파일)에서는 claude.use 가 없어 지금처럼 이 브라우저에만 저장
    - 쓰기는 사람이 값을 바꿨을 때만 (save → 0.7초 뒤 바뀐 문서만 전송)
    ========================================================= */
+const APP_V=14;   // 사이트 버전 — 올릴 때마다 1씩 올림. 공유 저장소 config/app 보다 낮으면 자동 새로고침
 const SYNC={db:null,on:false,ready:false,ro:false,remote:{},crit:null,sample:null,meta:null,busy:false,again:false,timer:null,
   cols:null,fold:null,got:{people:false,meta:false,crit:false,sample:false,cols:false,fold:false},deferred:false,errShown:false,stale:false};
 const sortKeys=v=>Array.isArray(v)?v.map(sortKeys):(v&&typeof v==='object')?Object.keys(v).sort().reduce((o,k)=>(o[k]=sortKeys(v[k]),o),{}):v;
@@ -3030,6 +3032,12 @@ async function syncInit(){
     },fail);
     db.doc('config/meta').onSnapshot(d=>{SYNC.meta=d.exists?d.data():null;SYNC.got.meta=true;syncBadge();applyRemote();},fail);
     db.doc('config/crit').onSnapshot(d=>{SYNC.prevCrit=SYNC.crit;const v=d.exists?d.data():null;SYNC.critObj=v&&v.crit?v.crit:null;SYNC.crit=SYNC.critObj?cj(SYNC.critObj):null;SYNC.got.crit=true;applyRemote();},fail);
+    db.doc('config/app').onSnapshot(d=>{const v=d.exists?+(d.data().v||0):0;
+      if(v>APP_V){let n=0;try{n=+sessionStorage.getItem('sg30-reload-'+v)||0;}catch(e){}
+        if(n<2){try{sessionStorage.setItem('sg30-reload-'+v,String(n+1));}catch(e){}toast('새 버전이 있어 화면을 새로 고칩니다…');setTimeout(()=>location.reload(),1200);}
+        else toast('새 버전이 있습니다. 브라우저에서 새로고침(Ctrl+Shift+R) 해 주세요.');}
+      else if(v<APP_V&&SYNC.canWrite!==false)db.doc('config/app').set({v:APP_V,at:new Date().toISOString()}).catch(()=>{});
+    },()=>{});
     db.doc('config/fold').onSnapshot(d=>{SYNC.prevFold=SYNC.fold;const v=d.exists?d.data():null;SYNC.foldArr=v&&Array.isArray(v.folded)?v.folded.slice():(SYNC.got.fold?[]:null);SYNC.fold=SYNC.foldArr?fk(SYNC.foldArr):(SYNC.got.fold?fk([]):null);SYNC.got.fold=true;applyRemote();},fail);
     db.doc('config/cols').onSnapshot(d=>{SYNC.prevCols=SYNC.cols;const v=d.exists?d.data():null;SYNC.colsObj=v&&v.cols?v.cols:null;SYNC.cols=SYNC.colsObj?cj(SYNC.colsObj):null;SYNC.got.cols=true;applyRemote();},fail);
     db.doc('config/sample').onSnapshot(d=>{SYNC.prevSample=SYNC.sample;const v=d.exists?d.data():null;SYNC.sampleObj=v&&v.sample?v.sample:null;SYNC.sample=SYNC.sampleObj?cj(SYNC.sampleObj):null;SYNC.got.sample=true;applyRemote();},fail);
@@ -3044,6 +3052,7 @@ document.getElementById('syncbadge').onclick=async()=>{
   ensureUids();SYNC.ready=true;SYNC.remote={};SYNC.crit=null;SYNC.sample=null;SYNC.cols=null;SYNC.fold=null;syncBadge();toast('팀 공유 자료로 올리는 중입니다…');
   await pushNow();if(SYNC.meta)toast(`${n}명을 팀 공유 자료로 올렸습니다. 이제 바꾸는 값은 모두에게 바로 반영됩니다.`);
 };
+(()=>{const f=document.createElement('div');f.className='appver';f.textContent='버전 '+APP_V;document.body.appendChild(f);})();
 syncInit();
 // 저장 버튼 : 지금 화면 자료를 바로 저장 (팀 공유 중이면 공유 저장까지)
 document.getElementById('btn-save').onclick=async e=>{
