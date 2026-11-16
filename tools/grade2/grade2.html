@@ -2932,6 +2932,7 @@ const SYNC={db:null,on:false,ready:false,ro:false,remote:{},crit:null,sample:nul
   cols:null,got:{people:false,meta:false,crit:false,sample:false,cols:false},deferred:false,errShown:false,stale:false};
 const sortKeys=v=>Array.isArray(v)?v.map(sortKeys):(v&&typeof v==='object')?Object.keys(v).sort().reduce((o,k)=>(o[k]=sortKeys(v[k]),o),{}):v;
 const cj=v=>JSON.stringify(sortKeys(v===undefined?null:v));
+const dc=v=>v==null?v:JSON.parse(JSON.stringify(v));   // 공유 저장소가 준 값은 잠겨 있어(freeze) 복사본으로 씀
 function uidNew(){return'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
 function ensureUids(){const seen=new Set();S.people.forEach(p=>{if(!p._uid||seen.has(p._uid)||!/^[A-Za-z0-9_\-]+$/.test(p._uid))p._uid=uidNew();seen.add(p._uid);});}
 const pBody=(p,i)=>cj(Object.assign({},p,{ord:i}));
@@ -2993,11 +2994,11 @@ function applyRemote(){
   const firstTime=!SYNC.ready;SYNC.ready=true;
   const before=JSON.stringify([S.people,S.crit,S.sample||null,S.colCfg||{}]);
   const local=new Map(S.people.map(p=>[p._uid,p]));
-  const rows=Object.entries(SYNC.remoteDocs||{}).map(([uid,d])=>Object.assign({},d,{_uid:uid})).sort((a,b)=>(a.ord??0)-(b.ord??0));
+  const rows=Object.entries(SYNC.remoteDocs||{}).map(([uid,d])=>Object.assign(dc(d),{_uid:uid})).sort((a,b)=>(a.ord??0)-(b.ord??0));
   S.people=rows.map(d=>{const lp=local.get(d._uid);const dirty=!firstTime&&lp&&SYNC.prevRemote&&SYNC.prevRemote[d._uid]!==undefined&&pBody(lp,d.ord)!==SYNC.prevRemote[d._uid];
-    if(dirty)return lp;const p=Object.assign({},d);delete p.ord;return p;});
-  if(SYNC.critObj&&(firstTime||cj(S.crit)===SYNC.prevCrit))S.crit=Object.assign(defaultCrit(),SYNC.critObj);
-  if(SYNC.sampleObj&&(firstTime||cj(S.sample||null)===SYNC.prevSample))S.sample=SYNC.sampleObj;
+    if(dirty)return lp;const p=dc(d);delete p.ord;return p;});
+  if(SYNC.critObj&&(firstTime||cj(S.crit)===SYNC.prevCrit))S.crit=Object.assign(defaultCrit(),dc(SYNC.critObj));
+  if(SYNC.sampleObj&&(firstTime||cj(S.sample||null)===SYNC.prevSample))S.sample=dc(SYNC.sampleObj);
   if(SYNC.colsObj&&(firstTime||cj(S.colCfg||{})===SYNC.prevCols))S.colCfg=JSON.parse(JSON.stringify(SYNC.colsObj));
   if(firstTime){S.source='file';S.sourceName=(SYNC.meta&&SYNC.meta.source)||'팀 공유 자료';S.sel='';}
   try{localStorage.setItem(LS_KEY,JSON.stringify(S))}catch(e){}
