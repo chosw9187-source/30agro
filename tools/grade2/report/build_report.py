@@ -15,45 +15,46 @@ cover(p, "직급 재분류 결과 보고 (안)", "2026. 11.   |   인사팀")
 # ---------------- 1. 프로세스 및 기준 ----------------
 s = blank(p)
 title(s, "1. 직급 재분류 프로세스 및 기준",
-      "현직급 6단계 → 신 4단계 재분류 : **1차(직급) · 2차(년차) 2단계 분류 + 특이인원 개별 판단**으로 확정")
-subhead(s, L, 1.66, "재분류 프로세스", 6.0, "■ 분류(산정)   □ 대표이사 보고   ■ 확정")
-steps = [("STEP 1", "분류 기준 설정", ["1차 · 2차 기준 확정", "년차 기준일 2027.01.01"], "GRAY", "WHITE"),
-         ("STEP 2", "1차 분류", ["4개 기준 종합 점수", "→ 산출 직급"], "NAVY", "WHITE"),
-         ("STEP 3", "1차 특이사항 보고", ["기준 엇갈림 인원", "최종 직급 판단"], "WHITE", "RED"),
-         ("STEP 4", "2차 분류", ["확정 직급 기준", "→ 직급 년차 산정"], "NAVY", "WHITE"),
-         ("STEP 5", "2차 특이사항 보고", ["체류 초과 · 연봉 차이", "최종 년차 판단"], "WHITE", "RED"),
-         ("STEP 6", "최종 직급 · 년차", ["신 G1~G4 · 년차", "Pay-band 위치 확인"], "RED", "WHITE")]
-bw, gap, y0 = 1.83, 0.36, 2.08
-for i, (n, nm, desc, fill, fc) in enumerate(steps):
+      "**1차에서 직급, 2차에서 년차**를 정하고 → 기준이 엇갈리는 인원만 **대표이사 보고 후 확정**")
+# 단계 흐름 (큰 박스 6개)
+steps = [("기준 설정", "GRAY"), ("1차 분류", "NAVY"), ("1차 특이사항\n보고", "W"), ("2차 분류", "NAVY"),
+         ("2차 특이사항\n보고", "W"), ("최종 직급 · 년차", "RED")]
+bw, gap, y0 = 1.80, 0.38, 1.80
+for i, (nm, kind) in enumerate(steps):
     x = L + i * (bw + gap)
-    line_c = "RED" if fill == "WHITE" else None
-    box(s, x, y0, bw, 0.62, fill, line_c, 1.5, body=[n, f"**{nm}**"], size=13,
-        color=("RED" if fill == "WHITE" else "WHITE"), bold=False)
-    box(s, x, y0 + 0.66, bw, 0.70, "PBLUE", "HAIR", 0.75, body=["• " + d for d in desc], size=12, color="BODY", align="l", inset=0.08)
-    if i < 5: right_arrow(s, x + bw + 0.04, y0 + 0.31, 0.28, 0.34)
+    num_badge(s, x + bw / 2 - 0.16, y0 - 0.02, i + 1, 0.32, "INK" if kind == "GRAY" else ("RED" if kind in ("W", "RED") else "NAVY"))
+    box(s, x, y0 + 0.36, bw, 0.78, "WHITE" if kind == "W" else kind, "RED" if kind == "W" else None, 2,
+        body=nm.split("\n"), size=15, color="RED" if kind == "W" else "WHITE", bold=True)
+    if i < 5: right_arrow(s, x + bw + 0.05, y0 + 0.75, 0.28, 0.36)
+# 구간 묶음
+for (a, b, t, col) in [(1, 2, "직급 결정", "NAVY"), (3, 4, "년차 결정", "NAVY")]:
+    xa = L + a * (bw + gap); xb = L + b * (bw + gap) + bw
+    box(s, xa, y0 + 1.24, xb - xa, 0.05, col)
+    text(s, xa, y0 + 1.30, xb - xa, 0.30, f"**{t}**", 14, col, align="c")
 
-subhead(s, L, 3.58, "1차 분류 기준 (직급 산정)", 7.2, "가중치 = 현재 설정값")
-c = SIM["crit"]
-rows1 = [["구 분", "신 G4", "신 G3", "신 G2", "신 G1", "가중치"],
-         ["(1) 현직급 변환", "G6", "G5 · G4", "G3 · G2", "G1", f"{c['w'][0]}%"],
-         ["(2) 년차", "20년차 이상", "13~19년차", "7~12년차", "0~6년차", f"{c['w'][1]}%"],
-         ["(3) 직무 역할", "전략적 판단", "과제 리딩", "자율 · 기획", "정형 업무", f"{c['w'][2]}%"],
-         ["(4) 연봉 Pay-band", "6,700~9,900", "5,600~8,100", "4,700~6,700", "4,000~5,500", f"{c['w'][3]}%"],
-         ["(5) 종합 → 산출", "3.50 이상", "2.50~3.49", "1.50~2.49", "1.00~1.49", "-"]]
-table(s, L, 3.93, 7.2, rows1, [1.55, 1.1, 1.1, 1.1, 1.1, 0.7], 0.34, 12, aligns=["l", "c", "c", "c", "c", "c"],
-      styles={(5, 0): dict(fill="PYEL"), **{(5, k): dict(fill="PYEL", bold=True) for k in range(1, 6)}})
-subhead(s, 8.05, 3.58, "2차 분류 기준 (년차 산정)", 4.73)
-rows2 = [["구 분", "신 G4", "신 G3", "신 G2", "신 G1"],
-         ["체류연수", "-", "5년", "4년", "4년"],
-         ["차감 연수", "13년", "8년", "4년", "0년"],
-         ["직급 년차", "총 년차 − 차감 연수 (1 미만 = 1년차)", "", "", ""],
-         ["최종 년차", "직급 년차 적용 (특이사항 수기 우선)", "", "", ""],
-         ["참고", "기준연봉 년차 = 현 연봉 기준 (차이만 참고)", "", "", ""]]
-g = table(s, 8.05, 3.93, 4.73, rows2, [1.05, 0.92, 0.92, 0.92, 0.92], 0.34, 12)
-for r in (3, 4, 5):
-    t = g.table; t.cell(r, 1).merge(t.cell(r, 4))
-conclusion(s, L, 6.12, CW, 0.50, "1차에서 **직급**, 2차에서 **년차**를 산정하고, 기준이 엇갈리는 인원은 **특이사항 보고 후 개별 확정**")
-footnote(s, "기준 : 직급 분류 시스템 분류 기준 (2026.11)  /  년차 = 2027 − 입사 연도 + 경력인정 + 조정  /  Pay-band 단위 만원", 6.75)
+# 1차 기준 : 4개 기준 → 산출 직급
+Y = 4.00
+subhead(s, L, Y - 0.40, "1차 분류 : 4개 기준 종합 → 산출 직급", 7.4, "기준별 25%")
+rows1 = [["기 준", "신 G4", "신 G3", "신 G2", "신 G1"],
+         ["① 현직급", "G6", "G5 · G4", "G3 · G2", "G1"],
+         ["② 년차", "20년 이상", "13~19년", "7~12년", "0~6년"],
+         ["③ 직무 역할", "전략적 판단", "과제 리딩", "자율 · 기획", "정형 업무"],
+         ["④ 연봉 (만원)", "6,700~9,900", "5,600~8,100", "4,700~6,700", "4,000~5,500"]]
+table(s, L, Y, 7.4, rows1, [1.5, 1.5, 1.45, 1.45, 1.5], 0.40, 13)
+
+# 2차 기준 : 공식 하나
+X2 = 8.30; W2 = R - X2
+subhead(s, X2, Y - 0.40, "2차 분류 : 직급 년차 산정", W2)
+box(s, X2, Y, W2, 0.72, "NAVY", body=["직급 년차 = **총 년차 − 하위 직급 체류연수**"], size=15, color="WHITE", hl="YEL", bold=True)
+chips = [("신 G4", "− 13년"), ("신 G3", "− 8년"), ("신 G2", "− 4년"), ("신 G1", "− 0년")]
+cw2 = (W2 - 3 * 0.08) / 4
+for i, (g, v) in enumerate(chips):
+    x = X2 + i * (cw2 + 0.08)
+    box(s, x, Y + 0.82, cw2, 0.32, "LBLUE", body=g, size=12, color="NAVY", bold=True)
+    box(s, x, Y + 1.14, cw2, 0.40, "WHITE", "LINE", 0.75, body=v, size=15, color="RED", bold=True)
+text(s, X2, Y + 1.62, W2, 0.40, "예) 신 G3 · 총 12년차 → 12 − 8 = **G3 4년차**", 13, "BODY", align="c", hl="NAVY")
+conclusion(s, L, 6.20, CW, 0.50, "기준이 모두 같은 인원은 **자동 확정**, 엇갈리는 인원만 **특이사항 보고 후 개별 확정**")
+footnote(s, "기준 : 직급 분류 시스템 분류 기준 (2026.11)  /  년차 = 2027 − 입사 연도 + 경력인정 + 조정  /  체류연수 G1 4 · G2 4 · G3 5년", 6.82)
 
 # ---------------- 2. 1차 분류 결과 (1/2) ----------------
 s = blank(p)
@@ -74,7 +75,7 @@ rows = [["구 분", "계", "G6", "G5", "G4", "G3", "G2", "G1"],
 table(s, L, 2.48, 6.9, rows, [1.0, 1.2, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8], 0.30, 12,
       styles={(1, 1): dict(color="RED", bold=True)})
 subhead(s, L, 3.48, "분류 결과 (현직급 × 산출 직급)", 6.9, "단위 : 명")
-gm = c["gmap"]
+c = SIM["crit"]; gm = c["gmap"]
 mrows = [["현직급 \\ 산출", "신 G4", "신 G3", "신 G2", "신 G1", "계", "기준 일치"]]
 for gg in ["G6", "G5", "G4", "G3", "G2", "G1"]: mrows.append([gg, "", "", "", "", "", ""])
 mrows.append(["계", "", "", "", "", TBD, ""])
@@ -176,71 +177,58 @@ A, B, A0, B0, N = SIM["amt"], SIM["rate"], SIM["amt0"], SIM["rate0"], SIM["none"
 d55 = B["final"] - A["final"]
 s = blank(p)
 title(s, "4. 승진 시 인상 방식 시뮬레이션 (샘플)",
-      f"27세 · 4,000만원 입사 → 55세 연봉 **정액 {man(A['final'])}만원 vs 정률 {man(B['final'])}만원** (차이 {man(d55)}만원, {d55 / A['final'] * 100:.1f}%)")
-subhead(s, L, 1.66, "시뮬레이션 조건", 5.6)
-rows = [["구 분", "조 건"],
-        ["입사 · 정년", "27세 · 4,000만원 입사 (1년차) → 만 55세"],
-        ["연 상승률", "2.5% (매년 전년 연봉 기준)"],
-        ["승진 대상", "직급 근속 G1 4 · G2 4 · G3 5년차 이상"],
-        ["진급 누락", "G1→G2 1회 · G2→G3 4회 · G3→G4 5회"],
-        ["승진 경로", A["path"]],
-        ["정액 인상", "전년 × 1.025 + 350 · 400 · 350만원"],
-        ["정률 인상", "전년 × (1.025 + 7 · 8 · 6%)"],
-        ["상한 (CAP)", "직급 Pay-band 상한에서 동결"]]
-table(s, L, 2.02, 5.6, rows, [1.3, 4.3], 0.29, 12, header="GRAY", aligns=["c", "l"],
-      styles={(6, 1): dict(color="NAVY", bold=True), (7, 1): dict(color="RED", bold=True)})
-# 네이티브 꺾은선 차트
+      f"정액 · 정률 모두 55세 연봉 **9,700만원 수준 (차이 {d55 / A['final'] * 100:.1f}%)** → 승진 시점별 유불리만 다름")
+# 조건 칩
+conds = ["27세 · 4,000만원 입사", "연 2.5% 인상", "진급누락 1 · 4 · 5회", "승진 31세 G2 → 38세 G3 → 47세 G4", "상한 CAP 적용"]
+cwc = [2.15, 1.55, 2.0, 3.85, 1.8]; x = L
+for t, w in zip(conds, cwc):
+    box(s, x, 1.66, w, 0.34, "LBLUE", body=t, size=12, color="NAVY", bold=True); x += w + 0.12
+
+# 좌 : KPI 카드 2개
+KW = 3.95
+def kpi(y, ttl, rule, v55, life, col):
+    box(s, L, y, KW, 0.38, col, body=f"{ttl}  ·  {rule}", size=13, color="WHITE", bold=True)
+    box(s, L, y + 0.38, KW, 1.42, "WHITE", col, 1.5)
+    text(s, L + 0.2, y + 0.46, 1.6, 0.30, "55세 연봉", 12, "GRAY")
+    text(s, L + 0.2, y + 0.72, KW - 0.4, 0.58, f"{man(v55)}만원", 30, col, True)
+    text(s, L + 0.2, y + 1.36, KW - 0.4, 0.34, f"생애 총연봉  **{life / 1e8:.2f}억원**", 13, "BODY")
+kpi(2.20, "정액 인상", "350 · 400 · 350만원", A["final"], A["sum"], "NAVY")
+kpi(4.12, "정률 인상", "7 · 8 · 6%", B["final"], B["sum"], "RED")
+
+# 우 : 차트
+X2 = L + KW + 0.30; W2 = R - X2
+subhead(s, X2, 2.16, "생애 연봉 추이 (27 → 55세, 만원)", W2)
 cd = CategoryChartData()
 ages = list(range(27, 56))
 cd.categories = [f"{a}" if (a - 27) % 4 == 0 else " " for a in ages]
-cd.add_series("정액 (350·400·350만원) · 가로축 = 나이", [round(v / 1e4) for v in A["W"]])
+cd.add_series("정액 (350·400·350만원)", [round(v / 1e4) for v in A["W"]])
 cd.add_series("정률 (7·8·6%)", [round(v / 1e4) for v in B["W"]])
-gf = s.shapes.add_chart(XL_CHART_TYPE.LINE, Inches(L), Inches(4.66), Inches(5.6), Inches(1.74), cd)
+gf = s.shapes.add_chart(XL_CHART_TYPE.LINE, Inches(X2), Inches(2.50), Inches(W2 * 0.56), Inches(3.45), cd)
 ch = gf.chart; ch.has_legend = True; ch.legend.position = XL_LEGEND_POSITION.TOP; ch.legend.include_in_layout = False
-ch.legend.font.size = Pt(10); ch.legend.font.name = FONT
+ch.legend.font.size = Pt(11); ch.legend.font.name = FONT
+from pptx.enum.chart import XL_MARKER_STYLE
 for i, col in enumerate(["1F4E79", "C00000"]):
-    ser = ch.series[i]; ser.format.line.color.rgb = rgb(col); ser.format.line.width = Pt(2.25 if i < 2 else 1.5); ser.smooth = False
-    ser.marker.style = None
-    from pptx.enum.chart import XL_MARKER_STYLE
+    ser = ch.series[i]; ser.format.line.color.rgb = rgb(col); ser.format.line.width = Pt(2.5); ser.smooth = False
     ser.marker.style = XL_MARKER_STYLE.NONE
-ca = ch.category_axis; ca.tick_labels.font.size = Pt(9); ca.tick_labels.font.name = FONT
-nm_ = ca._element.find(qn("c:noMultiLvlLbl"))
-for tag_, v_ in (("c:tickLblSkip", "4"), ("c:tickMarkSkip", "4")):
-    el_ = ca._element.makeelement(qn(tag_), {"val": v_})
-    (nm_.addprevious(el_) if nm_ is not None else ca._element.append(el_))
-va = ch.value_axis; va.tick_labels.font.size = Pt(9); va.has_major_gridlines = True
-va.major_gridlines.format.line.color.rgb = rgb("E3E3E3"); va.minimum_scale = 3000; va.maximum_scale = 10000
+ca = ch.category_axis; ca.tick_labels.font.size = Pt(11); ca.tick_labels.font.name = FONT
+va = ch.value_axis; va.tick_labels.font.size = Pt(11); va.has_major_gridlines = True
+va.major_gridlines.format.line.color.rgb = rgb("E3E3E3"); va.minimum_scale = 4000; va.maximum_scale = 10000; va.major_unit = 2000
 va.tick_labels.number_format = '#,##0'; va.tick_labels.number_format_is_linked = False
 
-X2 = 6.45; W2 = R - X2
-subhead(s, X2, 1.66, "생애 연봉 주기 비교 (누락 반영)", W2, "단위 : 만원")
-mile = [(27, 1, "입사"), (31, 5, "G2 승진"), (35, 9, ""), (38, 12, "G3 승진"), (40, 14, ""), (45, 19, ""),
-        (47, 21, "G4 승진"), (50, 24, ""), (55, 29, "정년")]
-rows = [["연령 (근속)", "직급", "정액", "정률", "차이 (정률−정액)"]]
+# 우측 끝 : 승진 시점 비교 (핵심 4줄)
+X3 = X2 + W2 * 0.56 + 0.15; W3 = R - X3
+rows = [["시점", "정액", "정률", "차이"]]
 st = {}
-for a, y, tag in mile:
+for a, lab in [(31, "31세 G2"), (38, "38세 G3"), (47, "47세 G4"), (55, "55세 정년")]:
     t = a - 27; dv = B["W"][t] - A["W"][t]
-    rows.append([f"{a}세 ({y}년차)", f"G{A['G'][t]}" + (" 승진" if tag.endswith("승진") else (f" · {tag}" if tag else "")), man(A["W"][t]), man(B["W"][t]),
-                 ("+" if dv > 0 else "") + man(dv) if round(dv / 1e4) != 0 else "-"])
-    r = len(rows) - 1
-    if tag.endswith("승진"): st[(r, 1)] = dict(color="RED", bold=True)
-    if dv < 0: st[(r, 4)] = dict(color="RED", bold=True)
-ds = B["sum"] - A["sum"]
-rows.append(["생애 총연봉", "29년", f"{A['sum'] / 1e8:.2f}억", f"{B['sum'] / 1e8:.2f}억", f"+{ds / 1e4:,.0f}만"])
-r = len(rows) - 1
-for k in range(5): st[(r, k)] = dict(fill="PYEL", bold=True)
-rows.append(["(참고) 누락 없음", f"{A0['path'].split(' → ')[-1]}", man(A0["final"]), man(B0["final"]),
-             man(B0["final"] - A0["final"])])
-r = len(rows) - 1
-for k in range(5): st[(r, k)] = dict(fill="CELL", color="SUB")
-st[(r, 4)] = dict(fill="CELL", color="RED", bold=True)
-table(s, X2, 2.02, W2, rows, [1.45, 1.35, 1.0, 1.0, 1.3], 0.30, 12, aligns=["c", "c", "r", "r", "r"], styles=st)
-text(s, X2, 5.68, W2, 0.62,
-     ["※ 두 방식 모두 55세까지 G4 상한(9,900만원) 미도달 → CAP 영향 없음",
-      "※ 승진 없음 : 40세 G1 상한 5,500만원 도달 후 동결"], 12, "GRAY", anchor="t")
-conclusion(s, L, 6.45, CW, 0.46,
-           "정액은 **하위 직급 승진(G2) 메리트가 크고**, 정률은 **상위 직급 승진(G4)에서 커짐** → 55세 기준 차이 0.8% 수준", 13)
-footnote(s, "기준 : 직급 분류 시스템 샘플 시뮬레이션 (2026.11)  /  정액 350 · 400 · 350만원, 정률 7 · 8 · 6% = 개편(안) 승진 시 인상안  /  만원 미만 반올림", 6.95)
+    rows.append([lab, man(A["W"][t]), man(B["W"][t]), ("+" if dv > 0 else "") + man(dv)])
+    st[(len(rows) - 1, 3)] = dict(color="RED" if dv < 0 else "NAVY", bold=True)
+for k in range(4): st[(4, k)] = dict(fill="PYEL", bold=True, color=st.get((4, k), {}).get("color", "INK"))
+table(s, X3, 2.55, W3, rows, [1.2, 0.9, 0.9, 0.75], 0.42, 12, aligns=["c", "r", "r", "r"], styles=st)
+box(s, X3, 4.80, W3, 1.15, "PBLUE", "HAIR", 0.75, shape=MSO_SHAPE.ROUNDED_RECTANGLE,
+    body=["**정액** : G2 · G3 승진 때 유리", "**정률** : G4 승진 이후 유리", "※ 55세까지 G4 상한 미도달"], size=12, color="BODY", align="l", inset=0.12, hl="NAVY")
+conclusion(s, L, 6.20, CW, 0.50, "인상 방식에 따른 정년 연봉 차이는 **0.8%로 미미** → **승진 시점 · 직급별 동기 부여** 기준으로 선택")
+footnote(s, "기준 : 직급 분류 시스템 샘플 시뮬레이션 (2026.11)  /  정률 7 · 8 · 6% = 개편(안) 승진 시 차등 인상안  /  만원 미만 반올림", 6.82)
 
 # ---------------- [첨부] 타사 사례 ----------------
 s = blank(p)
