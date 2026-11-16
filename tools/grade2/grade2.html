@@ -64,6 +64,11 @@ h2{font-size:15px;margin:0 0 8px;letter-spacing:-.01em}
 .grid2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;align-items:start}
 @media (max-width:1100px){.grid2{grid-template-columns:minmax(0,1fr)}}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px;min-width:0}
+.fold-btn{all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;margin-right:6px;border-radius:4px;border:1px solid var(--line-2);font-size:11px;color:var(--muted);background:var(--surface);vertical-align:middle;flex:none}
+.fold-btn:hover{color:var(--ink);border-color:var(--navy)} .fold-btn:focus-visible{outline:2px solid var(--navy);outline-offset:1px}
+.panel.folded>*:not(h2):not(.bar):not(.zone-h),.crit-zone.folded>*:not(.zone-h){display:none!important} .panel.folded,.crit-zone.folded{padding-bottom:10px}
+.panel.folded>.bar>*:not(h2){display:none!important} .panel.folded>h2,.panel.folded>.bar{margin-bottom:0!important}
+.fold-all{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:0 0 10px;font-size:12px;color:var(--muted)} .fold-all span{margin-right:auto}
 .panel + .panel{margin-top:14px}
 .grid2>.panel,.grid2eq>.panel,.critgrid>.panel,.grid2>.stack,.grid2eq>.stack{margin-top:0}
 .stack{display:flex;flex-direction:column;gap:14px;min-width:0}
@@ -2929,9 +2934,10 @@ route();
    - 쓰기는 사람이 값을 바꿨을 때만 (save → 0.7초 뒤 바뀐 문서만 전송)
    ========================================================= */
 const SYNC={db:null,on:false,ready:false,ro:false,remote:{},crit:null,sample:null,meta:null,busy:false,again:false,timer:null,
-  cols:null,got:{people:false,meta:false,crit:false,sample:false,cols:false},deferred:false,errShown:false,stale:false};
+  cols:null,fold:null,got:{people:false,meta:false,crit:false,sample:false,cols:false,fold:false},deferred:false,errShown:false,stale:false};
 const sortKeys=v=>Array.isArray(v)?v.map(sortKeys):(v&&typeof v==='object')?Object.keys(v).sort().reduce((o,k)=>(o[k]=sortKeys(v[k]),o),{}):v;
 const cj=v=>JSON.stringify(sortKeys(v===undefined?null:v));
+const fk=a=>cj({folded:(a||[]).slice().sort()});   // 접기 상태 비교용
 const dc=v=>v==null?v:JSON.parse(JSON.stringify(v));   // 공유 저장소가 준 값은 잠겨 있어(freeze) 복사본으로 씀
 function uidNew(){return'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
 function ensureUids(){const seen=new Set();S.people.forEach(p=>{if(!p._uid||seen.has(p._uid)||!/^[A-Za-z0-9_\-]+$/.test(p._uid))p._uid=uidNew();seen.add(p._uid);});}
@@ -2969,6 +2975,7 @@ async function pushNow(){
     ops.push({run:()=>db.doc('people/'+uid).set(JSON.parse(s)),done:()=>{SYNC.remote[uid]=s;}});}});
   Object.keys(SYNC.remote).forEach(uid=>{if(!live.has(uid))ops.push({run:()=>db.doc('people/'+uid).delete(),done:()=>{delete SYNC.remote[uid];}});});
   const cs=cj(S.crit);if(cs!==SYNC.crit)ops.push({crit:true,run:()=>db.doc('config/crit').set({crit:JSON.parse(cs)}),done:()=>{SYNC.crit=cs;}});
+  const fs=fk(S.fold);if(fs!==SYNC.fold)ops.push({run:()=>db.doc('config/fold').set(JSON.parse(fs)),done:()=>{SYNC.fold=fs;}});
   const ks=cj(S.colCfg||{});if(ks!==SYNC.cols)ops.push({run:()=>db.doc('config/cols').set({cols:JSON.parse(ks)}),done:()=>{SYNC.cols=ks;}});
   const ss=cj(S.sample||null);if(S.sample&&ss!==SYNC.sample)ops.push({run:()=>db.doc('config/sample').set({sample:JSON.parse(ss)}),done:()=>{SYNC.sample=ss;}});
   try{
@@ -2989,7 +2996,7 @@ async function pushNow(){
 }
 // 공유 자료 → 화면 (내가 아직 보내지 않은 변경은 유지)
 function applyRemote(){
-  if(!SYNC.got.people||!SYNC.got.meta||!SYNC.got.crit||!SYNC.got.sample||!SYNC.got.cols)return;
+  if(!SYNC.got.people||!SYNC.got.meta||!SYNC.got.crit||!SYNC.got.sample||!SYNC.got.cols||!SYNC.got.fold)return;
   if(!SYNC.meta){SYNC.ready=false;syncBadge();return;}
   const firstTime=!SYNC.ready;SYNC.ready=true;
   const before=JSON.stringify([S.people,S.crit,S.sample||null,S.colCfg||{}]);
@@ -3000,10 +3007,13 @@ function applyRemote(){
   if(SYNC.critObj&&(firstTime||cj(S.crit)===SYNC.prevCrit))S.crit=Object.assign(defaultCrit(),dc(SYNC.critObj));
   if(SYNC.sampleObj&&(firstTime||cj(S.sample||null)===SYNC.prevSample))S.sample=dc(SYNC.sampleObj);
   if(SYNC.colsObj&&(firstTime||cj(S.colCfg||{})===SYNC.prevCols))S.colCfg=JSON.parse(JSON.stringify(SYNC.colsObj));
+  const foldBefore=fk(S.fold);
+  if(SYNC.foldArr&&(firstTime||foldBefore===SYNC.prevFold))S.fold=SYNC.foldArr.slice();
   if(firstTime){S.source='file';S.sourceName=(SYNC.meta&&SYNC.meta.source)||'팀 공유 자료';S.sel='';}
   try{localStorage.setItem(LS_KEY,JSON.stringify(S))}catch(e){}
   syncBadge();
   if(firstTime||JSON.stringify([S.people,S.crit,S.sample||null,S.colCfg||{}])!==before)syncRerender();
+  else if(fk(S.fold)!==foldBefore&&typeof foldEnhance==='function')foldEnhance();
 }
 async function syncInit(){
   try{
@@ -3020,6 +3030,7 @@ async function syncInit(){
     },fail);
     db.doc('config/meta').onSnapshot(d=>{SYNC.meta=d.exists?d.data():null;SYNC.got.meta=true;syncBadge();applyRemote();},fail);
     db.doc('config/crit').onSnapshot(d=>{SYNC.prevCrit=SYNC.crit;const v=d.exists?d.data():null;SYNC.critObj=v&&v.crit?v.crit:null;SYNC.crit=SYNC.critObj?cj(SYNC.critObj):null;SYNC.got.crit=true;applyRemote();},fail);
+    db.doc('config/fold').onSnapshot(d=>{SYNC.prevFold=SYNC.fold;const v=d.exists?d.data():null;SYNC.foldArr=v&&Array.isArray(v.folded)?v.folded.slice():(SYNC.got.fold?[]:null);SYNC.fold=SYNC.foldArr?fk(SYNC.foldArr):(SYNC.got.fold?fk([]):null);SYNC.got.fold=true;applyRemote();},fail);
     db.doc('config/cols').onSnapshot(d=>{SYNC.prevCols=SYNC.cols;const v=d.exists?d.data():null;SYNC.colsObj=v&&v.cols?v.cols:null;SYNC.cols=SYNC.colsObj?cj(SYNC.colsObj):null;SYNC.got.cols=true;applyRemote();},fail);
     db.doc('config/sample').onSnapshot(d=>{SYNC.prevSample=SYNC.sample;const v=d.exists?d.data():null;SYNC.sampleObj=v&&v.sample?v.sample:null;SYNC.sample=SYNC.sampleObj?cj(SYNC.sampleObj):null;SYNC.got.sample=true;applyRemote();},fail);
   }catch(e){SYNC.on=false;syncBadge();}
@@ -3030,7 +3041,7 @@ document.getElementById('syncbadge').onclick=async()=>{
   if(!SYNC.on||SYNC.ready||SYNC.ro)return;
   const n=S.people.filter(p=>String(p.name||'').trim()).length;
   if(!confirm(`지금 화면의 자료(${S.source==='demo'?'예시 데이터 · ':''}${n}명)와 분류 기준을 팀 공유 자료로 올립니다.\n이 링크에서 편집 권한이 있는 동료가 함께 보고 고칠 수 있습니다.\n계속할까요?`))return;
-  ensureUids();SYNC.ready=true;SYNC.remote={};SYNC.crit=null;SYNC.sample=null;SYNC.cols=null;syncBadge();toast('팀 공유 자료로 올리는 중입니다…');
+  ensureUids();SYNC.ready=true;SYNC.remote={};SYNC.crit=null;SYNC.sample=null;SYNC.cols=null;SYNC.fold=null;syncBadge();toast('팀 공유 자료로 올리는 중입니다…');
   await pushNow();if(SYNC.meta)toast(`${n}명을 팀 공유 자료로 올렸습니다. 이제 바꾸는 값은 모두에게 바로 반영됩니다.`);
 };
 syncInit();
@@ -3041,10 +3052,49 @@ document.getElementById('btn-save').onclick=async e=>{
   if(SYNC.ro){toast('보기 권한이라 팀 공유 자료는 바꿀 수 없습니다. 이 브라우저에만 저장했습니다.');return;}
   if(!SYNC.ready){document.getElementById('syncbadge').click();return;}
   b.disabled=true;const old=b.textContent;b.textContent='저장 중…';clearTimeout(SYNC.timer);
-  SYNC.crit=null;SYNC.cols=null;SYNC.sample=null;SYNC.failed='';   // 분류 기준 · 열 설정 · 샘플은 항상 다시 저장
+  SYNC.crit=null;SYNC.cols=null;SYNC.sample=null;SYNC.fold=null;SYNC.failed='';   // 분류 기준 · 열 설정 · 샘플은 항상 다시 저장
   try{while(SYNC.busy)await new Promise(r=>setTimeout(r,150));await pushNow();}finally{b.disabled=false;b.textContent=old;}
   if(SYNC.failed)return;
   const t=new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   toast(`저장했습니다 (${t}) · 팀 공유 자료에 반영되어 동료 화면에도 바로 보입니다.`);
 };
+
+/* =========================================================
+   10. 영역 접기 · 펼치기 (모든 단계 · 탭 공통, 보는 사람마다 따로 기억)
+   ========================================================= */
+// 접기 상태는 S.fold(접힌 영역 목록)에 두어 팀 공유 자료(config/fold)로 실시간 공유
+const foldHas=k=>(S.fold||[]).includes(k);
+const foldPut=(k,f)=>{const a=(S.fold||[]).filter(x=>x!==k);if(f)a.push(k);S.fold=a;};
+const foldSave=()=>save();
+function foldCtx(){return S.stage+'|'+(S.stage==='c'?S.sheetC:S.stage==='2'?S.sheet2:S.stage==='1'?S.sheet:'');}
+// 접을 수 있는 영역 : 머리(h2 · 머리줄)가 있는 패널, 분류 기준 묶음(zone)
+function foldTargets(root){
+  const out=[];
+  root.querySelectorAll('.panel, .crit-zone').forEach(el=>{
+    const head=[...el.children].find(c=>c.matches('h2,.zone-h')||(c.matches('.bar')&&c.querySelector('h2')));
+    if(!head||el.children.length<2)return;
+    const t=(head.querySelector('h2')||head).textContent.replace(/[▾▸]/g,'').replace(/\(.*?\)|[\d,.]+/g,'').replace(/\s+/g,' ').trim().slice(0,40);
+    if(t)out.push({el,head,key:foldCtx()+'|'+t});
+  });return out;}
+function foldSet(x,folded){x.el.classList.toggle('folded',folded);const b=x.head.querySelector(':scope > .fold-btn, :scope > h2 > .fold-btn');if(b){b.textContent=folded?'▸':'▾';b.title=folded?'펼치기':'접기';b.setAttribute('aria-expanded',String(!folded));}}
+function foldEnhance(){
+  const body=document.getElementById('sheet-body');if(!body)return;
+  const T=foldTargets(body);
+  T.forEach(x=>{
+    if(!x.head.querySelector('.fold-btn')){
+      const b=document.createElement('button');b.type='button';b.className='fold-btn';
+      b.onclick=e=>{e.stopPropagation();const f=!x.el.classList.contains('folded');foldPut(x.key,f);foldSave();foldSet(x,f);};
+      const h=x.head.matches('h2,.zone-h')?x.head:x.head.querySelector('h2');h.prepend(b);
+    }
+    foldSet(x,foldHas(x.key));
+  });
+  let bar=body.querySelector(':scope > .fold-all');
+  if(T.length>1&&!bar){bar=document.createElement('div');bar.className='fold-all';
+    bar.innerHTML='<span>보고 싶은 영역만 펼쳐 보세요 (팀 공유 중이면 모두의 화면에 같이 적용)</span><button type="button" data-fa="0">▾ 모두 펼치기</button><button type="button" data-fa="1">▸ 모두 접기</button>';
+    bar.onclick=e=>{const b=e.target.closest('[data-fa]');if(!b)return;const f=b.dataset.fa==='1';foldTargets(body).forEach(x=>{foldPut(x.key,f);foldSet(x,f);});foldSave();};
+    body.prepend(bar);}
+}
+let foldTimer=null;
+new MutationObserver(()=>{clearTimeout(foldTimer);foldTimer=setTimeout(foldEnhance,30);}).observe(document.getElementById('view-payband'),{childList:true,subtree:true});
+foldEnhance();
 </script>
