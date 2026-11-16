@@ -2936,7 +2936,7 @@ route();
    - 로컬(ZIP · 파일)에서는 claude.use 가 없어 지금처럼 이 브라우저에만 저장
    - 쓰기는 사람이 값을 바꿨을 때만 (save → 0.7초 뒤 바뀐 문서만 전송)
    ========================================================= */
-const APP_V=16;   // 사이트 버전 — 올릴 때마다 1씩 올림. 공유 저장소 config/app 보다 낮으면 자동 새로고침
+const APP_V=17;   // 사이트 버전 — 올릴 때마다 1씩 올림. 공유 저장소 config/app 보다 낮으면 자동 새로고침
 const SYNC={db:null,on:false,ready:false,ro:false,remote:{},crit:null,sample:null,meta:null,busy:false,again:false,timer:null,
   cols:null,fold:null,got:{people:false,meta:false,crit:false,sample:false,cols:false,fold:false},deferred:false,errShown:false,stale:false};
 const sortKeys=v=>Array.isArray(v)?v.map(sortKeys):(v&&typeof v==='object')?Object.keys(v).sort().reduce((o,k)=>(o[k]=sortKeys(v[k]),o),{}):v;
@@ -3122,6 +3122,8 @@ function briefApply(body){
   let re=null;
   if(st==='c')body.querySelectorAll(':scope > .ref-zone, :scope > .note').forEach(e=>e.classList.add('brief-hide'));
   if(st==='r1'||st==='r2')re=/^[①③]/;
+  if(st==='r1'){body.querySelectorAll('.rpt-top > .grow, .g3-flow').forEach(e=>e.classList.add('brief-hide'));
+    T.filter(x=>/^②/.test(txt(x))).forEach(x=>x.head.classList.add('brief-hide'));}
   if(st==='4')re=/^(이전 직급 → 최종 직급|최종 확정 현황)/;
   if(!re)return;
   const hide=T.filter(x=>re.test(txt(x))),keep=T.filter(x=>!hide.includes(x)&&!hide.some(h=>h.el.contains(x.el)));
