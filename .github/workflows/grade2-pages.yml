@@ -1,0 +1,45 @@
+# SG한국삼공 직급 분류 사이트 → GitHub Pages 자동 배포 (보안코드 암호화)
+# master 에 tools/grade2 변경이 올라오면 자동 배포. 보안코드는 저장소 Secret「SITE_PASSWORD」.
+name: 직급 분류 사이트 배포
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "tools/grade2/grade2.html"
+      - "tools/grade2/site_gate.html"
+      - "tools/grade2/build_site.py"
+      - ".github/workflows/grade2-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: grade2-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install cryptography==44.0.0
+      - name: 보안코드로 암호화한 페이지 만들기
+        env:
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+        run: python3 tools/grade2/build_site.py _site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

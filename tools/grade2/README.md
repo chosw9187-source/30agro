@@ -55,3 +55,16 @@ python3 tools/grade2/build_zip.py package/dist/xlsx.full.min.js
 
 - 나이 = 2026 − 출생연도 (생일 경과와 무관). 26년 = 그 나이, 27년 = +1세. 정년 연도 = 2026 + (정년 − 나이). 예: 1989-08-10생 → 26년 37세 · 27년 38세 · 44년 55세(정년)
 - 2차 분류 표 「정년 최종연봉」 = 최종 직급 · 최종 년차(2차 분류 결과)로 2차 생애연봉 계산, 그 해 직급 Pay-band 상한(CAP, G4 9,900만원 등)에서 동결 · 이미 상한 이상이면 현 연봉 유지
+
+## 웹 사이트 (GitHub Pages · 보안코드)
+
+`master`에 `tools/grade2/grade2.html`이 바뀌어 올라가면 GitHub Actions(`.github/workflows/grade2-pages.yml`)가 자동으로 배포한다.
+
+- 페이지 전체를 보안코드로 암호화(AES-256-GCM, PBKDF2 30만 회)해 `index.html` 하나로 배포 → 보안코드를 모르면 소스를 열어도 내용이 보이지 않음
+- 직원 데이터는 페이지에 없음. 각자 「엑셀 불러오기」로 올리면 그 사람 브라우저에만 저장
+- 처음 한 번 설정 (저장소 관리자)
+  1. Settings → Secrets and variables → Actions → New repository secret : 이름 `SITE_PASSWORD`, 값 = 보안코드(8자 이상, 길수록 안전)
+  2. Settings → Pages → Build and deployment → Source : **GitHub Actions**
+  3. Actions 탭 → 「직급 분류 사이트 배포」 → Run workflow (이후는 자동)
+- 보안코드 변경 : Secret 값을 바꾸고 Run workflow 다시 실행
+- 로컬 확인 : `SITE_PASSWORD=코드 python3 tools/grade2/build_site.py _site` → `_site/index.html`
