@@ -88,8 +88,10 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
 .chk input{width:18px;height:18px;margin-top:2px;accent-color:var(--team);flex:none}
 .chk b{display:block}
 .chk span{color:#64748b;font-size:12.5px}
-.pc{border:1px solid var(--line);border-radius:12px;margin:12px 0;overflow:hidden;background:#fbfcfe}
-.pc-h{display:flex;gap:6px;align-items:center;padding:9px 12px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.pc{border:1px solid #111827;border-radius:12px;margin:12px 0;overflow:hidden;background:#111827;color:#e5e7eb}
+.pc-h{display:flex;gap:6px;align-items:center;padding:10px 14px 6px;flex-wrap:wrap}
+.pc-h b{color:#fbbf24}.pc .mini{background:transparent;color:#fcd34d;border-color:#a16207}.pc .mini.add{background:#3f2a06;color:#fcd34d;border-color:#d97706}.pc .mini.del{color:#fca5a5;border-color:#7f1d1d}.pclabel{color:#94a3b8;font-size:11.5px}
+.pc-ex{margin:0 14px 6px;background:#1f2937;border-radius:8px;padding:9px 12px;font-size:12.5px;color:#cbd5e1;line-height:1.7}
 .pc-h b{font-size:13.5px}
 .rl{width:20px;height:20px;border-radius:5px;font-size:11px;font-weight:800;color:#fff;display:inline-grid;place-items:center;flex:none}
 .rl.r{background:#2563eb}.rl.i{background:#16a34a}.rl.c{background:#ea580c}.rl.e{background:#7c3aed}
@@ -97,8 +99,8 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
 .mini{border:1px solid var(--line);background:#fff;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;color:#334155}
 .mini.add{background:var(--team);color:#fff;border-color:var(--team)}
 .mini.del{color:#b91c1c}
-.pc-b{padding:12px 14px;white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.75}
-.pc-b .lbl{color:var(--team)}
+.pc-b{padding:8px 14px 14px;white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.75;max-height:420px;overflow:auto;color:#e5e7eb}
+.pc-b .lbl{color:#93c5fd}.pc-b .ph{background:rgba(251,191,36,.18);color:#fde68a}
 .ph{background:#fef3c7;color:#92400e;border-radius:4px;padding:0 3px}
 .form{display:grid;gap:12px}
 .form label{font-weight:700;font-size:13px;display:grid;gap:4px}
@@ -138,7 +140,7 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
 .seg button span{color:#64748b;font-size:12.5px}
 .seg button.on{border-color:var(--team);background:color-mix(in srgb,var(--team) 6%,#fff)}
 .hand{background:#fffbeb;border:1px dashed #f59e0b;border-radius:12px;padding:12px 16px;margin:0 0 12px}
-.my-item{border:1px solid var(--line);border-radius:12px;background:#fff;margin-bottom:12px;overflow:hidden}
+.my-item{margin-bottom:12px}
 .tchip{font-size:11px;font-weight:800;border-radius:999px;padding:1px 8px;color:#fff;flex:none}
 .empty{text-align:center;color:#94a3b8;padding:40px 10px}
 .toast{position:fixed;bottom:24px;left:50%;transform:translate(-50%,20px);background:#0d2340;color:#fff;padding:10px 18px;border-radius:999px;opacity:0;transition:.25s;pointer-events:none;font-weight:700;z-index:50}
@@ -147,7 +149,16 @@ details.ex{margin:-6px 0 12px;font-size:12.5px;color:#475569}details.ex summary{
 details.grp{background:#fff;border:1px solid var(--line);border-radius:14px;margin-bottom:10px}details.grp>summary{cursor:pointer;padding:14px 18px;font-weight:800;font-size:14.5px;list-style:none}details.grp>summary::-webkit-details-marker{display:none}details.grp>summary::after{content:'펼치기 ▾';float:right;font-size:12px;color:#94a3b8;font-weight:700}details.grp[open]>summary::after{content:'접기 ▴'}.grp-b{padding:0 18px 16px}
 .snip{display:flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:6px;background:#fbfcfe}.snip>div{flex:1;min-width:0}.snip b{display:block;font-size:13px}.snip span{color:#475569;font-size:12.5px}
 .sheetbox{display:grid;gap:6px;border:1px dashed #cbd5e1;border-radius:10px;padding:10px}.pal .sw{display:flex;gap:4px;margin-top:10px}.pal .sw span{width:34px;height:22px;border-radius:5px;border:1px solid #e2e8f0}
-footer{padding:6px 20px 40px;text-align:center;color:#94a3b8;font-size:12px}
+footer{padding:0 20px 40px}footer .fin{background:#0c2a52;color:#cbd5e1;border-radius:4px;padding:22px 20px;text-align:center;font-size:12px;line-height:1.9}footer .fin b{color:#fff;font-size:14px}footer .fin small{color:#94a3b8;display:block}
+.sbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-left:4px solid #0c2a52;border-radius:12px;padding:10px 16px;margin-bottom:12px}.sbar .dn{background:#e0e7ff;color:#1e3a8a;border-radius:999px;padding:2px 10px;font-weight:800;font-size:12px}.sbar b{font-size:15px}.sbar .q{margin-left:auto;color:#64748b;font-size:12.5px}.sbar .q::before{content:'❓ ';color:#e11d48}
+.lead2{background:#eaf1fb;border:1px solid #d3e0f2;border-left:4px solid #0c2a52;border-radius:12px;padding:14px 18px;margin-bottom:18px}.lead2 h3{margin:0 0 4px;color:#0c2a52;font-size:15.5px;text-wrap:balance}.lead2 p{margin:2px 0 0;color:#475569}
+.outbox{display:flex;gap:14px;align-items:center;background:#fef6e4;border:1px solid #f2c46d;border-radius:12px;padding:14px 18px;margin:4px 0 18px}.outbox .oi{font-size:22px}.outbox b{display:block;color:#92400e}.outbox span{color:#a16207;font-size:12.5px}
+tr.ra td{background:#fffbea}tr.ra td:first-child{box-shadow:inset 3px 0 #f59e0b}tr.rr td{background:#fff1f2}tr.rr td:first-child{box-shadow:inset 3px 0 #ef4444}
+.core{background:#f1f5f9;border-radius:8px;padding:8px 12px;margin-top:8px;color:#475569;font-size:12.5px}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px}.cmp>div{background:#eaf1fb;border:1px solid #c9d8ee;border-radius:12px;padding:10px 12px 2px;min-width:0}.cmp>div.o{background:#fdf3e1;border-color:#f1d29a}.cmp>div>small{font-weight:800;color:#1e3a8a;letter-spacing:.3px}.cmp>div.o>small{color:#b45309}@media(max-width:640px){.cmp{grid-template-columns:1fr}}
+.vcard{border:1px solid var(--line);border-radius:14px;padding:12px 14px 2px;margin-bottom:12px;background:#fff}.vcard h4{margin:0;display:flex;gap:8px;align-items:center;font-size:14px}.vn{width:26px;height:26px;border-radius:50%;background:#0c2a52;color:#fff;display:grid;place-items:center;font-size:11.5px;font-weight:800}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}@media(max-width:640px){.grid3{grid-template-columns:1fr}}.form select{border:1px solid #d4dbe5;border-radius:10px;padding:8px 10px;font:inherit;font-size:13px;width:100%;background:#fff}
+footer{padding:0 20px 40px}
 .muted{color:#64748b;font-size:12.5px}
 @media(max-width:640px){main{padding:14px 16px}.top-in,.bar-in{padding-left:16px;padding-right:16px}.card-b{padding:14px}.hero{padding:18px}.hero h2{display:block;margin:8px 0 0}.profedit input{width:100%}.profedit label{flex:1 1 140px}}
 @media print{.ctrl,.bar,.days,.secbar,.mini,.toast,.chips{display:none!important}body{background:#fff}main{max-width:none;padding:0}.card,.pc,.box,.kpi{break-inside:avoid}.top,.hero,.tag,.rl,.vd{-webkit-print-color-adjust:exact;print-color-adjust:exact}.grid2{grid-template-columns:1fr}}
@@ -422,14 +433,14 @@ function fmt(s){return esc(s).replace(/\{\{(.+?)\}\}/g,'<span class="ph">{{$1}}<
 const rice=(R,I,C,E)=>`R(Role):\n${R}\n\nI(Instruction):\n${I}\n\nC(Context):\n${C}\n\nE(Example/Format):\n${E}`;
 let P={},pn=0,BUILD={};
 function pcard(title,text,o={}){const id=o.id||('p'+(pn++));P[id]={title,text:fill(text)};
- return `<div class="pc"><div class="pc-h">${o.rice?'<span class="rl r">R</span><span class="rl i">I</span><span class="rl c">C</span><span class="rl e">E</span>':''}<b>${esc(title)}</b><span class="sp"></span><button class="mini" data-copy="${id}">복사</button><button class="mini add" data-save="${id}">＋담기</button></div><div class="pc-b" id="pb-${id}">${fmt(P[id].text)}</div></div>`}
+ return `<div class="pc"><div class="pc-h">${o.rice?'<span class="rl r">R</span><span class="rl i">I</span><span class="rl c">C</span><span class="rl e">E</span>':''}<b>${esc(o.label||title)}</b><span class="sp"></span>${o.ex?`<button class="mini" data-exp="${id}">🎓 해설</button>`:''}<button class="mini" data-copy="${id}">복사</button><button class="mini add" data-save="${id}">＋담기</button></div>${o.ex?`<div class="pc-ex" id="ex-${id}" hidden>${o.ex}</div>`:''}<div class="pc-b" id="pb-${id}">${fmt(P[id].text)}</div></div>`}
 function builder(name,title,fn,isRice){BUILD[name]={title,fn};return pcard(title,fn(),{id:'b-'+name,rice:isRice})}
 function updateBuilder(name){const b=BUILD[name];if(!b)return;const id='b-'+name;P[id]={title:b.title,text:fill(b.fn())};const el=$('pb-'+id);if(el)el.innerHTML=fmt(P[id].text)}
 function field(k,label,ph,o={}){const v=esc(fv(k));const tag=o.area?`<textarea data-f="${k}" placeholder="${esc(ph)}">${v}</textarea>`:`<input data-f="${k}" value="${v}" placeholder="${esc(ph)}">`;return `<label>${label}${o.hint?` <small>${esc(o.hint)}</small>`:''}${tag}</label>`}
 const or=(k,d)=>fv(k).trim()||d;
 function card(tag,title,body){return `<section class="card"><div class="card-h"><span class="tag ${tag}">${tag}</span><h3>${title}</h3></div><div class="card-b">${body}</div></section>`}
 const sub=s=>`<div class="sub">${s}</div>`;
-function table(head,rows){return `<div class="tw"><table class="t"><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}
+function table(head,rows,cls){return `<div class="tw"><table class="t"><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map((r,i)=>`<tr${cls&&cls(i)?` class="${cls(i)}"`:''}>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}
 function checks(key,items){return items.map((it,i)=>{const k=key+'.'+i;return `<label class="chk"><input type="checkbox" data-chk="${k}" ${S.checks[k]?'checked':''}><div><b>${it[0]}</b>${it[1]?`<span>${it[1]}</span>`:''}</div></label>`}).join('')}
 const ST={ok:'⭕ 가능',part:'🟡 부분',no:'❌ 불가'};
 function vd(v){if(!v)return'';const c=v==='채택'?'a':v==='기각'?'r':v==='삭제'?'x':'p';return `<span class="vd ${c}">${v}</span>`}
@@ -481,12 +492,12 @@ frame(t){const s=t.sec;return `<div class="grid2"><div>${card('교재','좋은 �
 
 rice(t){const ex=t.cEls;
  const full=rice(t.R,t.I,`{{회사}} · {{업종}} · {{규모}}. 내 역할은 {{직무}}.\n현안: ${t.prob.nums}\n${ex.map(c=>`[${c[0]}] ${c[1]}`).join('\n')}`,t.E);
- return `<div class="hero" style="padding:16px 22px"><p style="margin:0;color:#fff;font-weight:800;font-size:16px">R·I·E는 어느 팀이나 비슷하게 씁니다. 결과를 ${t.name} 것으로 만드는 건 C(맥락)입니다.</p><p>회사 규모·업종만 넣으면 어느 회사에나 맞는 답이 옵니다. ${t.name}의 C에는 ${ex.map(c=>c[0]).join('·')}가 들어가야 합니다.</p></div>
+ return `<div class="lead2"><h3>R·I·E는 어느 팀이나 비슷하게 씁니다. 결과를 ${t.name} 것으로 만드는 건 C(맥락)입니다.</h3><p>회사 규모·업종만 넣으면 어느 회사에나 맞는 답이 옵니다. ${t.name}의 C에는 ${ex.map(c=>c[0]).join('·')}가 들어가야 합니다.</p></div>
  <div class="grid2"><div>${card('교재','RICE 4요소',`
- <div class="box"><h4><span class="rl r">R</span> Role — 누구의 눈으로 볼지</h4><p>내부 담당자가 아니라 경험 많은 외부 전문가의 시각을 씌웁니다. 그래야 당연하게 여기던 전제를 의심합니다.</p><p class="muted">예) "${esc(t.R)}"</p></div>
- <div class="box"><h4><span class="rl i">I</span> Instruction — 할 일을 못 박기</h4><p>"알려줘"가 아니라 개수·순서·포함할 항목까지 정합니다. 빠진 항목은 보고서가 반려되는 이유가 됩니다.</p><p class="muted">예) "${t.axes.join('·')} 6개 축으로 12개, 각각 판정 기준 포함"</p></div>
- <div class="box" style="border-color:#fdba74;background:#fff7ed"><h4><span class="rl c">C</span> Context — ★ 오늘의 핵심</h4><p>${t.name}의 맥락은 아래 5요소입니다.</p><p><b>${ex.map(c=>c[0]).join(' · ')}</b></p></div>
- <div class="box"><h4><span class="rl e">E</span> Example — 결과의 모양</h4><p>표의 열 이름, 분량(A4 1장), "결론 먼저" 같은 규칙을 미리 보여 줍니다. 길면 읽히지 않습니다.</p></div>
+ <div class="box"><h4><span class="rl r">R</span> Role — 누구의 눈으로 볼지</h4><p>예) "${esc(t.R)}"</p><div class="core">핵심 — 안에서 오래 보면 익숙해서 못 보는 것이 생깁니다. 바깥 전문가의 자리에 AI를 앉혀 당연한 전제부터 의심하게 합니다.</div></div>
+ <div class="box"><h4><span class="rl i">I</span> Instruction — 할 일을 못 박기</h4><p>예) "${t.axes.join('·')} 6개 축으로 12개, 각각 판정 기준 포함"</p><div class="core">핵심 — "알려줘" 대신 개수·순서·포함 항목을 숫자로 정합니다. 빠진 항목은 보고서 반려 사유가 됩니다.</div></div>
+ <div class="box" style="border-color:#fdba74;background:#fff7ed"><h4><span class="rl c">C</span> Context — ★ 오늘의 핵심</h4><p>${t.name}의 맥락은 회사 규모·업종에서 끝나지 않습니다. 아래 5요소입니다.</p><div class="core"><b>${ex.map(c=>c[0]).join(' · ')}</b></div></div>
+ <div class="box"><h4><span class="rl e">E</span> Example — 결과의 모양</h4><p>예) "A4 1장, 결론을 첫 문장에, 표 중심, 판정 기준은 숫자로"</p><div class="core">핵심 — 결과의 모양과 분량을 미리 정합니다. 길면 읽히지 않고, 모양이 매번 다르면 나란히 비교할 수 없습니다.</div></div>
  ${pcard('RICE 전체 예시 — '+t.name+' 버전',full,{rice:true})}
  <div class="note">💡 하나만 빠져도 결과가 무너집니다. R이 없으면 누구 입장인지 몰라 교과서 답이, I가 없으면 매번 다른 모양이, <b>C가 없으면 어느 회사에나 맞는 일반론</b>이, E가 없으면 다시 정리해야 하는 긴 줄글이 옵니다.</div>
  ${sub('🧠 함께 쓰면 좋은 기법 3가지')}
@@ -495,9 +506,7 @@ rice(t){const ex=t.cEls;
  <div class="box"><h4>📋 예시 먼저 보여 주기 (Few-shot)</h4><p>원하는 결과 예시를 2~3개 먼저 붙입니다. 사내 보고 양식이 정해져 있을 때 가장 효과가 큽니다.</p></div>`)}</div>
  <div>${card('실습','한 줄씩 붙여 가며 3단계로 비교하기',`
  <div class="note">💡 세 개를 차례로 돌려 보고 문체와 구성이 어떻게 달라지는지 보십시오.</div>
- ${pcard('① 기본','{{회사}} {{팀}}이 올해 가장 먼저 풀어야 할 과제 3가지를 알려줘')}
- ${pcard('② + writing style','{{회사}} {{팀}}이 올해 가장 먼저 풀어야 할 과제 3가지를 알려줘\nwriting style: Report')}
- ${pcard('③ + tone + format','{{회사}} {{팀}}이 올해 가장 먼저 풀어야 할 과제 3가지를 알려줘\nwriting style: Report\ntone: Direct\nformat: ExecutiveSummary')}
+ <div class="cmp"><div><small>① 기본</small>${pcard('① 기본','{{회사}} {{팀}}이 올해 가장 먼저 풀어야 할 과제 3가지를 알려줘',{label:' '})}</div><div><small>② + WRITING STYLE</small>${pcard('② + writing style','{{회사}} {{팀}}이 올해 가장 먼저 풀어야 할 과제 3가지를 알려줘\nwriting style: Report',{label:' '})}</div><div class="o"><small>③ + TONE · FORMAT</small>${pcard('③ + tone + format','{{회사}} {{팀}}이 올해 가장 먼저 풀어야 할 과제 3가지를 알려줘\nwriting style: Report\ntone: Direct\nformat: ExecutiveSummary',{label:' '})}</div></div>
  <div class="note">💡 한 줄만 붙여도 결과의 모양이 통째로 바뀝니다. 보고 대상이 바뀌면 붙이는 줄이 바뀝니다. Day3에서 그대로 씁니다.</div>`)}
  ${card('교재','★ '+t.name+'의 C(맥락) 5요소',table(['요소','예시','빠지면 생기는 일'],ex.map((c,i)=>[`<b>${i+1}. ${c[0]}</b>`,esc(c[1]),esc(c[2])]))+`<div class="note">💡 「진짜 목적」을 솔직하게 쓰는 순간 결과의 질이 바뀝니다. 프롬프트는 남에게 보여 주는 문서가 아닙니다. 최종 보고서에는 이 문장이 남지 않습니다.</div>`)}
  </div></div>
@@ -537,7 +546,7 @@ research(t){const r=RS[t.id];const tp=S.rsType||'base';
   rule:['📜 제도·법령·지원','지켜야 할 것, 받을 수 있는 것','제도·법령 정리표','[1] 정리표 | 제도·법령명 | 핵심 내용 | 대상·요건 | 시행일·개정일 | 근거(조문·고시 번호) | 원문 링크 |\n[2] 우리 회사가 해당하는지 판단할 질문 3개\n[3] 전문가(노무사·회계사·법무) 확인이 필요한 항목','현행 법령·고시·정부 지원제도만 찾아. 시행일과 최근 개정일을 반드시 적고, 조문이나 고시 번호를 확인하지 못하면 [검증 필요]로 남겨. 해석은 하지 말고 원문 요약만 해.']};
  const T2=TYPES[tp];
  const genP=()=>rice(`너는 ${t.name} 업무를 돕는 리서치 애널리스트야. 확인된 사실과 추정을 엄격히 나눈다.`,`${T2[4]}\n모든 수치·사실에 [출처: 기관명, 발행연도]를 붙이고, 찾지 못하면 [검증 필요]로 남겨.`,`[내 회사] {{회사}} · {{업종}} · {{규모}} · 내 역할 {{직무}}\n알고 싶은 것: ${or('rwant','{{알고 싶은 것}}')}\n우리 숫자: ${or('rnum','{{우리 숫자 — 없으면 "없음"}}')}${fv('rdef').trim()?'\n산식: '+fv('rdef').trim():''}`,T2[3]);
- return `<div class="hero" style="padding:16px 22px"><p style="margin:0;color:#fff;font-weight:800;font-size:16px">숫자 하나만으로는 좋고 나쁨을 말할 수 없습니다</p><p>비교할 잣대가 있어야 "문제"인지 "정상"인지 갈립니다. 이 단계의 산출물은 자료 묶음이 아니라, 출처가 붙은 비교 기준 한 줄입니다.</p></div>
+ return `<div class="lead2"><h3>숫자 하나만으로는 좋고 나쁨을 말할 수 없습니다</h3><p>비교할 잣대가 있어야 "문제"인지 "정상"인지 갈립니다. 이 단계의 산출물은 자료 묶음이 아니라, 출처가 붙은 비교 기준 한 줄입니다.</p></div>
  <div class="grid2"><div>${card('교재','📌 사례 — 보고서 첫 장에서 멈춘 질문',`
  <p>${esc(r.scene)}</p><div class="final">💬 ${esc(r.q)}</div>
  <p>준비한 분석에는 비교 대상이 없었습니다. 비교 대상의 값이 어디에 있느냐에 따라 다음 행동이 갈립니다.</p>
@@ -576,7 +585,7 @@ brain(t){const b=t.bs;const mode=S.bsMode;
  const quick=`${t.prob.nums}.\n이유가 될 만한 것을 20개 이상 적어줘. 처음엔 판단하지 말고 나열만 해.\n나열이 끝나면 우리 자료(${b.cols})로 확인 가능한 것에 ⭕, 일부만 가능한 것에 🟡, 불가능한 것에 ❌를 붙여줘.`;
  const freeP=()=>rice('너는 회의 퍼실리테이터다. 결론을 대신 내리지 않는다. 넓게 펼친 뒤 좁힌다.','1단계 펼치기 — 20개 이상, 평가 금지. 현업 담당자·팀장·경영진·내부 고객·다른 회사·반대편 여섯 관점을 고루 쓰고, 엉뚱해 보이는 것도 5개 섞어.\n2단계 묶기 — 비슷한 것끼리 4~6개 그룹으로 묶고 이름을 붙여.\n3단계 고르기 — 효과 × 실행 쉬움으로 [바로 실행 / 키울 것 / 보류 / 버림]으로 나눠.\n4단계 다듬기 — 3개를 골라 한 줄 설명 · 이유 · 이번 주 첫 행동 · 확인할 지표 · 예상 반대를 붙여.',`주제: ${or('topic',b.topicEx)}\n제약: ${or('cons','{{예산·기간·승인 등 제약}}')}\n조직: {{회사}} {{팀}}`,'1단계 번호 목록 → 2단계 그룹 표 → 3단계 2×2 표 → 4단계 Top 3 카드');
  const frameP=()=>rice(`너는 ${b.frame[0]} 관점으로 진단하는 ${t.roles[0][1]}다. 그럴듯함보다 확인 가능성을 먼저 본다.`,`${b.frame[1].join('·')} 각 축마다 원인 가설 2개씩 총 12개를 내. 가설마다 ① 우리 자료 중 볼 항목 ② 참/거짓 판정 기준(숫자) ③ 지금 자료로 판정 가능 여부(⭕/🟡/❌) ④ ❌이면 추가로 받아올 자료를 붙여.\n마지막에 악마의 변호인이 되어 가장 유력한 가설 2개를 각각 3가지 방식으로 반박해.`,`주제: ${or('topic',b.topicEx)}\n제약: ${or('cons','{{예산·기간·승인 등 제약}}')}\n가진 자료 항목: ${b.cols}\n조직: {{회사}} {{팀}}`,'| 축 | 가설 | 볼 항목 | 판정 기준 | 판정 가능 | 추가 자료 |\n이어서 반박 3개 × 2');
- return `<div class="hero" style="padding:16px 22px"><p style="margin:0;color:#fff;font-weight:800;font-size:16px">원인 후보는 늘 익숙한 서너 개에서 멈춥니다</p><p>나머지를 넓게 찾아낸 뒤, 그중 우리 자료로 확인할 수 있는 것만 남깁니다. 그리고 남긴 결론을 다시 의심합니다.</p></div>
+ return `<div class="lead2"><h3>원인 후보는 늘 익숙한 서너 개에서 멈춥니다</h3><p>나머지를 넓게 찾아낸 뒤, 그중 우리 자료로 확인할 수 있는 것만 남깁니다. 그리고 남긴 결론을 다시 의심합니다.</p></div>
  <div class="hand">✋ <b>AI를 켜기 전에 30초.</b> 「${esc(b.hand)}」 — 떠오르는 원인 3개를 종이에 적으십시오. 아래 판정표를 본 뒤 다시 꺼냅니다.</div>
  <div class="grid2"><div>${card('실습','⚡ 몸풀기 — 펼치기와 고르기는 다른 일',`
  <div class="note">💡 업무 얘기 전에 가볍게. 같은 주제를 두 방식으로 돌려 차이를 보십시오.</div>
@@ -587,7 +596,7 @@ brain(t){const b=t.bs;const mode=S.bsMode;
  <p>${esc(b.case)}</p><div class="cands">${b.cands.map((c,i)=>`<span>${'①②③④⑤⑥⑦⑧⑨⑩'[i]} ${esc(c)}</span>`).join('')}</div>
  <p>모두 그럴듯합니다. 그런데 우리 손에 있는 자료 항목은 이것뿐입니다.</p><div class="note" style="border-left-color:var(--team);color:#334155"><b>${esc(b.cols)}</b></div>
  <p>이 항목으로 <b>오늘</b> 참·거짓을 가릴 수 있는 건 몇 개일까요? 가릴 수 없는 것은 "무엇을 더 받아오면 가려지는지"까지 적어 둡니다.</p>`)}</div></div>
- ${card('교재','🔍 10개를 실제로 걸러 보면',table(['후보','검증 가능?','볼 항목 / 판정 결과'],b.rows.map(r=>[`<b>${esc(r[0])}</b>`,`<span class="st">${ST[r[1]]}</span>`,esc(r[2])+vd(r[3])]))+`
+ ${card('교재','🔍 10개를 실제로 걸러 보면',table(['후보','검증 가능?','볼 항목 / 판정 결과'],b.rows.map(r=>[`<b>${esc(r[0])}</b>`,`<span class="st">${ST[r[1]]}</span>`,esc(r[2])+vd(r[3])]),i=>b.rows[i][3]==='채택'?'ra':b.rows[i][3]==='기각'?'rr':'')+`
  <div class="warn">🔥 <b>종이를 다시 꺼내십시오.</b> ${b.lesson}</div>
  <div class="note">💡 ❌를 버리라는 뜻이 아닙니다. "이 자료로는 확인 불가 — OO 자료 필요"라고 남기는 것도 좋은 산출물입니다. 다만 <b>${esc(b.rows.find(r=>r[3]==='삭제')[0])}</b> 같은 문장은 자료가 없어서가 아니라 애초에 참·거짓을 가릴 수 없는 말이므로 지웁니다.</div>
  <div class="danger">🚨 <b>${esc(b.bias[0])}</b> — ${esc(b.bias[1])} 그래서 아래 프롬프트는 결론을 낸 뒤 스스로 반박하게 되어 있습니다.</div>`)}
@@ -785,8 +794,8 @@ check(t){const k=t.d2.kpis;return `<div class="grid2"><div>${card('교재','검�
  ${pcard('결과가 서로 다를 때',`네가 낸 ${k[0][0]}는 ${k[0][1]}인데, 내가 엑셀로 계산하니 {{내 계산 값}}이 나왔어.\n어느 쪽이 맞는지 판단하지 말고, 두 계산의 분자·분모·필터 조건 차이를 표로 비교해줘.`)}`)}</div></div>`},
 
 dash(t){const c=DASH[t.id],ck=CHECK[t.id](getData(t.id)),v1=dashV1(t),v2=dashV2(t),v3=dashV3(t),one=dashOne(t);
- const ex=(s)=>`<details class="ex"><summary>🎓 해설</summary><p>${s}</p></details>`;
- return `<div class="hero" style="padding:16px 22px"><p style="margin:0;color:#fff;font-weight:800;font-size:16px">AI에게는 설계도만 주고, 숫자는 내 PC에서 넣습니다</p><p>프롬프트에는 시트 이름·열 이름·계산 규칙만 적습니다. AI가 만든 화면 파일을 내 PC에서 열고, 거기에 엑셀을 올립니다. 실제 데이터는 AI 서비스로 한 줄도 넘어가지 않습니다.</p></div>
+ const vc=(n,ttl,txt,e)=>`<div class="vcard"><h4><span class="vn">${n}</span>${ttl}</h4>${pcard(n+' '+ttl,txt,{label:'대시보드 · '+n+' · '+txt.length.toLocaleString()+'자',ex:e})}</div>`;
+ return `<div class="lead2"><h3>AI에게는 설계도만 주고, 숫자는 내 PC에서 넣습니다</h3><p>프롬프트에는 시트 이름·열 이름·계산 규칙만 적습니다. AI가 만든 화면 파일을 내 PC에서 열고, 거기에 엑셀을 올립니다. 실제 데이터는 AI 서비스로 한 줄도 넘어가지 않습니다.</p></div>
  <div class="grid2"><div>${card('교재','보안 원리 · 프롬프트 5칸 · 확인 기준값',`
  ${table(['구분','AI에게 보내는 것','AI에게 보내지 않는 것'],[['내용','시트 이름 · 열 이름 · 계산 규칙','실제 데이터 행'],['언제','화면 코드를 만들 때','완성된 파일을 내 PC에서 열고 엑셀을 올릴 때'],['남는 것','다시 쓸 수 있는 화면 파일','브라우저 메모리에만 잠깐 — 창을 닫으면 사라짐']])}
  <div class="danger">🔒 프롬프트 창에 입력한 글자는 모두 AI 서비스로 전송됩니다. 열 이름까지만 쓰고 값은 붙이지 마십시오. 실제 엑셀은 AI 화면의 미리보기 창이 아니라, <b>내려받은 HTML 파일을 내 PC에서 연 뒤에</b> 올립니다.</div>
@@ -801,9 +810,9 @@ dash(t){const c=DASH[t.id],ck=CHECK[t.id](getData(t.id)),v1=dashV1(t),v2=dashV2(
  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="mini add" data-dl="tsv">표 복사 (엑셀에 붙여 넣기)</button><!--DLBTN--><button class="mini" data-dl="csv">CSV 내려받기</button><!--/DLBTN--></div>
  <div class="note">💡 「표 복사」를 누른 뒤 엑셀 새 통합문서의 A1 칸에 붙여 넣고, 시트 이름을 <b>${esc(c.sheet)}</b>로 바꿔 .xlsx로 저장하십시오.</div>`)}
  ${card('실습','v1 → v2 → v3 — 한 단계씩 키우기',`<div class="note">💡 v2부터는 반드시 「★ 기존 기능 유지」로 시작합니다. 버전마다 파일을 따로 저장해 두면(v1.html, v2.html) 잘못돼도 바로 돌아갈 수 있습니다.</div>
- ${pcard(`v1 파일 올리기 + KPI 4장 · ${v1.length.toLocaleString()}자`,v1)}${ex('범위를 KPI까지로 못 박았습니다. 처음부터 많이 시키면 오류가 어디서 났는지 찾기 어렵습니다. 열 이름을 그대로 적어 두면 AI가 없는 열을 지어내 계산하지 않습니다.')}
- ${pcard(`v2 필터 + 차트 2개 · ${v2.length.toLocaleString()}자`,v2)}${ex('첫 줄의 「★ 기존 기능 유지」가 없으면 AI가 새 기능을 넣으면서 앞의 기능을 빼먹는 일이 잦습니다. 오류 예방 7줄은 흰 화면과 NaN을 미리 막는 장치입니다.')}
- ${pcard(`v3 가설 판정 카드 + 표 ★ · ${v3.length.toLocaleString()}자`,v3)}${ex('판정 기준을 숫자로 적어 두면 화면이 그럴듯한 말이 아니라 정해진 규칙으로 배지를 붙입니다. 결론의 기준은 사람이 정하고, 화면은 계산만 합니다. 5건 미만을 가리는 규칙은 개인이 드러나는 것을 막습니다.')}`)}</div></div>
+ ${vc('v1','파일 올리기 + KPI 4장',v1,'범위를 KPI까지로 못 박았습니다. 처음부터 많이 시키면 오류가 어디서 났는지 찾기 어렵습니다. 열 이름을 그대로 적어 두면 AI가 없는 열을 지어내 계산하지 않습니다.')}
+ ${vc('v2','필터 + 차트 2개',v2,'첫 줄의 「★ 기존 기능 유지」가 없으면 AI가 새 기능을 넣으면서 앞의 기능을 빼먹는 일이 잦습니다. 오류 예방 7줄은 흰 화면과 NaN을 미리 막는 장치입니다.')}
+ ${vc('v3','가설 판정 카드 + 표 ★',v3,'판정 기준을 숫자로 적어 두면 화면이 그럴듯한 말이 아니라 정해진 규칙으로 배지를 붙입니다. 결론의 기준은 사람이 정하고, 화면은 계산만 합니다. 5건 미만을 가리는 규칙은 개인이 드러나는 것을 막습니다.')}`)}</div></div>
  ${card('실습','⚡ 급할 때 — 한 번에 완성하는 프롬프트',`<div class="warn">시간이 없거나, 회사에 돌아가 바로 하나 만들어야 할 때 씁니다. 한 번에 시키면 오류가 날 가능성이 커집니다. 흰 화면이 나오면 오류 문구를 그대로 붙여 넣고 "고쳐줘"라고 하십시오. 처음 배울 때는 v1부터 차례로 하십시오.</div>
  ${pcard(`${c.app} · 한 번에 완성 · ${one.length.toLocaleString()}자`,one)}
  <div class="note">🔁 <b>우리 회사 데이터로 바꿀 때</b> — 「0. 입력 데이터 구조」의 시트·열 이름만 우리 파일에 맞게 고치십시오. 「3. 계산·판정 규칙」은 지우지 않습니다. 실제 값은 여기에도 넣지 않습니다.</div>
@@ -827,7 +836,7 @@ cheat(t){const c=DASH[t.id];let sheets=[];try{sheets=JSON.parse(fv('cs_sheets')|
  const tplCheck=`## ① 목표·이번 범위\n너는 사내 업무용 화면을 만드는 프런트엔드 개발자야. 이번에는 「여러 엑셀 파일 모으기 + 빠진 칸·규칙 위반 찾기」까지만 만들어.\n\n## ② 화면 순서\n1. 제목: {{예: 부서별 제출 자료 점검}}\n2. 엑셀 파일 여러 개를 한 번에 올리는 영역 (파일 이름도 함께 기록)\n3. 요약 — 올린 파일 수 / 전체 행 수 / 빠진 칸이 있는 행 / 규칙 위반 행\n4. 문제 행 표 — 파일 이름 / 행 번호 / 어떤 칸이 문제인지 / 이유\n\n## ③ 데이터 규칙\n- 엑셀 읽기: SheetJS https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js\n[시트] {{시트 이름}} — {{열 이름을 | 로 나열}}\n[필수 칸] {{반드시 채워야 하는 열}}\n[규칙] {{예: 금액은 0보다 커야 함 / 날짜는 2025년 안}}\n- 외부 전송 금지\n\n## ④ 디자인\n문제 행은 연한 빨강 바탕.\n\n## ⑤ 기술 조건\nHTML 파일 하나, 코드 전체 출력.`;
  const skel=`## ① 목표·이번 범위\n너는 사내 업무용 화면을 만드는 프런트엔드 개발자야. 이번에는 「{{이번에 만들 범위}}」까지만 만들어.\n\n## ② 화면 순서 (위에서 아래로)\n1. {{}}\n2. {{}}\n3. {{}}\n\n## ③ 데이터 규칙 (한 줄도 지우지 말 것)\n- 라이브러리: {{SheetJS / Chart.js 주소}}\n[시트] {{시트 이름}} — {{열 이름}}\n[지표 정의] {{계산식}}\n- 계산은 브라우저 안에서만, 외부 전송 금지\n\n## ④ 디자인\n{{색·여백·강조 규칙}}\n\n## ⑤ 기술 조건\nHTML 파일 하나로 만들고, 코드 전체를 한 번에 출력해.`;
  const keep='★ 기존 기능 유지: {{지금까지 만든 기능 이름을 하나씩}}. 빠진 기능 없이 HTML 파일 하나로 전체를 다시 출력해.';
- return `<div class="hero" style="padding:16px 22px"><p style="margin:0;color:#fff;font-weight:800;font-size:16px">교육이 끝난 뒤 혼자 만들 때 펼쳐 보는 모음</p><p>필요한 묶음만 펼쳐 쓰십시오. 모든 카드에 「＋담기」가 있으니 자주 쓰는 것은 「내 프롬프트」에 모아 두십시오. 맨 위 생성기에 우리 엑셀의 첫 행(열 이름)만 붙이면 v1 프롬프트가 만들어집니다.</p></div>
+ return `<div class="lead2"><h3>교육이 끝난 뒤 혼자 만들 때 펼쳐 보는 모음</h3><p>필요한 묶음만 펼쳐 쓰십시오. 모든 카드에 「＋담기」가 있으니 자주 쓰는 것은 「내 프롬프트」에 모아 두십시오. 맨 위 생성기에 우리 엑셀의 첫 행(열 이름)만 붙이면 v1 프롬프트가 만들어집니다.</p></div>
  ${card('실습','🚀 내 데이터 열 이름 → 첫 프롬프트 만들기',`<div class="grid2" data-builder="cs"><div class="form">
   ${field('cs_app','이 화면으로 하려는 일 — 한 줄','예) '+c.app.replace(' 대시보드','')+'을 매달 확인')}
   <div><b style="font-size:13px">시트별 열 이름</b> <small class="muted">엑셀 첫 행을 드래그해 복사(Ctrl+C)한 뒤 붙여 넣기 — 쉼표·탭·줄바꿈 모두 됩니다. 2행부터의 값은 붙이지 마십시오.</small></div>
@@ -871,10 +880,63 @@ approve(t){return `<div class="grid2"><div>${card('진행','결재 올리기 전
  <div class="note">💡 회사 기안 양식이 있다면 양식 예시 1~2개를 먼저 붙여 넣으십시오(Few-shot). 형식이 그대로 따라옵니다.</div>`)}</div></div>`}
 };
 
-/* ===================== 내 프롬프트 ===================== */
-function renderMy(){const list=S.myAll?S.saved:S.saved.filter(x=>x.team===S.team);
- return `${card('진행','⭐ 내 프롬프트 — '+(S.myAll?'전체 팀':T().name),`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><button class="mini" data-act="myall">${S.myAll?T().name+'만 보기':'전체 팀 보기'}</button><button class="mini" data-act="export">⬇ 텍스트 파일로 저장</button><button class="mini" data-act="copyall">전체 복사</button><button class="mini del" data-act="clear">${S.clearArm?'한 번 더 누르면 모두 삭제':'모두 지우기'}</button></div>
- ${list.length?list.map(x=>{const tm=TEAMS.find(y=>y.id===x.team)||TEAMS[0];return `<div class="my-item"><div class="pc-h"><span class="tchip" style="background:${tm.color}">${tm.name}</span><b>${esc(x.title)}</b><span class="muted">${esc(x.ts)}</span><span class="sp"></span><button class="mini" data-cp="${x.id}">복사</button><button class="mini del" data-del="${x.id}">삭제</button></div><div class="pc-b">${fmt(x.text)}</div></div>`}).join(''):'<div class="empty">아직 담은 프롬프트가 없습니다.<br>각 카드의 <b>＋담기</b>를 누르면 여기에 모입니다.</div>'}`)}`}
+/* ===================== 섹션 머리 — 번호·안내 질문·산출물 ===================== */
+const SECMETA={
+d1:{open:['①','오프닝 — 3일 동안 무엇을 하나','오늘 무엇을 들고 나가나',['AI는 답을 주는 기계가 아니라, 질문을 받아 확률로 응답하는 도구입니다','쓰기 전에 성질 세 가지를 알고, 준비물과 약속을 맞춘 뒤 시작합니다.'],['준비 완료 체크','도구 로그인 · 약속 5가지 확인 · 3일 산출물 목표 공유']],
+ frame:['②','진단 프레임·보안 — 좋은 질문과 올려도 되는 자료','무엇을 묻고, 무엇을 올려도 되나',['좋은 질문은 자료를 열면 답이 갈리는 질문입니다','그 자료 가운데 AI에 올려도 되는 것은 정해져 있습니다. 질문의 조건과 보안 등급을 먼저 맞춥니다.'],['우리 팀 보안 3등급 목록','올려도 되는 것 · 가공 후 올릴 것 · 금지를 팀 기준으로 확정']],
+ rice:['③',t=>'RICE 프롬프트 — '+t.name+' 언어로','AI에게 어떻게 말해야 제대로 답하나',null,['우리 팀 RICE 프롬프트 1개','C 5요소를 채운 빌더 결과를 ＋담기로 저장']],
+ problem:['④','문제인식 — 증상을 문제 문장으로','무엇이 문제인지 한 문장으로 말할 수 있나',['느낌으로 말하는 증상은 회의를 길게 만듭니다','숫자·범위·판정 기준을 붙여 한 문장의 문제로 바꾸면, 무엇을 확인할지가 정해집니다.'],['문제 정의서 1장','현상 · 기대 수준 · 갭 · 영향 · 범위 · 판정 기준 · 기한']],
+ research:['⑤','리서치 — 우리 숫자를 잴 기준 찾기','우리 숫자는 높은가, 낮은가',null,['기준선 판정표','Day2에서 우리 데이터를 이 기준선과 비교합니다']],
+ brain:['⑥','브레인스토밍 — 검증 가능한 가설','어떤 가설이 자료로 확인 가능한가',null,['검증 가능 가설 카드','⭕ 판정 가능 · 🟡 일부 가능 · ❌ 추가 자료 필요로 나눈 목록']],
+ agent:['⑦','에이전트·정리 — 매번 쓰는 지시를 저장','내일부터 무엇을 바로 쓰나',['같은 맥락을 매일 다시 쓰지 않도록, 오늘 만든 것을 한 번에 묶습니다','에이전트 지시문과 질문 카드 한 장이 Day1의 산출물입니다.'],['질문 카드 + 에이전트 지시문','Day2 판정의 출발점이 됩니다']]},
+d2:{data:['①','데이터 준비 — 판정 전에 표부터','AI가 읽을 수 있는 표인가',['판정은 정리된 표에서 시작합니다','머리글 한 줄, 한 행 한 건, 단위 표기. 개인·거래처를 알아볼 수 없게 가공한 뒤에 씁니다.'],['실습용 표 1개','비식별을 마친 데이터 또는 바로 쓰는 실습 데이터']],
+ judge:['②','가설 판정 — 채택·기각·보류','어제의 가설 중 무엇이 맞았나',['Day1에서 ⭕·🟡로 나눈 가설만 숫자로 판정합니다','분자·분모·표본 수를 함께 적고, 상관을 원인으로 단정하지 않습니다.'],['가설 판정표','채택 · 기각 · 보류 + 근거 숫자']],
+ check:['③','검산 — AI 숫자를 다시 계산','이 숫자를 내가 재현할 수 있나',['결재 문서에 들어갈 숫자는 사람이 재현할 수 있어야 합니다','핵심 숫자 3개는 엑셀 피벗과 수식으로 직접 다시 계산합니다.'],['검산을 마친 숫자 3개','엑셀 수식·피벗 설정과 함께 기록']],
+ dash:['④','대시보드 바이브코딩 — 데이터는 내 PC를 떠나지 않는다','AI에게 데이터를 주지 않고 대시보드를 만들 수 있나',null,['내 PC에서만 도는 대시보드','열 이름만 바꾸면 우리 회사 실제 데이터에도 그대로 씁니다']],
+ cheat:['⑤','🧰 바이브코딩 치트키','교육이 끝난 뒤 혼자 만들 때 무엇을 여나',null,['내 데이터용 v1 프롬프트','생성기 결과를 ＋담기로 저장해 두십시오']]},
+d3:{report:['①','보고서 골격 — 결론 먼저','대표이사가 첫 문단만 읽어도 되나',['보고서는 결론과 요청으로 시작합니다','근거 3개, 기각된 가설, 대안 비교, 요청 사항, 확인하지 못한 것 순서로 씁니다.'],['대표이사 보고서 초안','A4 1장, 결론 먼저']],
+ aud:['②','대상별 변환 — 같은 결론, 다른 문서','누가 읽느냐에 따라 무엇을 바꾸나',['같은 결론도 읽는 사람에 따라 문체·어조·형식이 달라집니다','프롬프트 끝에 붙이는 세 줄(writing style · tone · format)로 대상별 버전을 만듭니다.'],['대상별 버전 2개 이상','숫자가 원문과 같은지 대조 완료']],
+ red:['③','레드팀 검토 — 결재권자보다 먼저 공격','이 보고서가 반려된다면 왜인가',['반려 사유는 대부분 예상할 수 있는 질문입니다','AI에게 반대편 역할을 맡겨 먼저 맞아 보고, 반박을 이겨낸 문장만 남깁니다.'],['예상 질문과 보완 문장','답이 없는 질문은 「확인하지 못한 것」으로 옮김']],
+ approve:['④','결재 패키지 — 올리기 전 최종 점검','지금 결재를 올려도 되나',['기안문과 예상 질문까지 갖추면 결재 패키지가 됩니다','최종 점검 항목을 모두 확인한 뒤 올립니다.'],['결재 패키지 1부','기안문 + 예상 질문 6개 + 3일 산출물']]}};
+function secWrap(day,sec,t,body){const m=SECMETA[day][sec],dl={d1:'Day1',d2:'Day2',d3:'Day3'}[day],ti=typeof m[1]==='function'?m[1](t):m[1];
+ return `<div class="sbar"><span class="dn">${dl} · ${m[0]}</span><b>${esc(ti)}</b><span class="q">${esc(m[2])}</span></div>${m[3]?`<div class="lead2"><h3>${m[3][0]}</h3><p>${m[3][1]}</p></div>`:''}${body}<div class="outbox"><span class="oi">📦</span><div><b>산출물 — ${m[4][0]}</b><span>${m[4][1]}</span></div></div>`}
+/* ===================== 내 프롬프트 (구) ===================== */
+/* ===================== 내 프롬프트 — 교재 프롬프트를 바탕으로 직접 쓰기 ===================== */
+let TPLS=[];
+function collectTemplates(t){const sP=P,spn=pn,sB=BUILD,out=[],seen=new Set();
+ [['d1','Day1'],['d2','Day2'],['d3','Day3']].forEach(([d,dl])=>{const M={d1:D1,d2:D2,d3:D3}[d];SECS[d].forEach(([k,lab])=>{P={};pn=0;BUILD={};try{M[k](t)}catch(e){}
+  Object.keys(BUILD).forEach(n=>{try{P['b-'+n]={title:BUILD[n].title,text:fill(BUILD[n].fn())}}catch(e){}});
+  Object.values(P).forEach(p=>{const key=p.title+'|'+p.text;if(!seen.has(key)&&p.text.length>20){seen.add(key);out.push({group:dl+' · '+lab,title:p.title,text:p.text})}})})});
+ P=sP;pn=spn;BUILD=sB;return out}
+const RICE_RE=/^R\(Role\):\n([\s\S]*?)\n\nI\(Instruction\):\n([\s\S]*?)\n\nC\(Context\):\n([\s\S]*?)\n\nE\(Example\/Format\):\n([\s\S]*)$/;
+function draft(){if(!S.draft)S.draft={title:'',mode:'rice',R:'',I:'',C:'',E:'',text:'',style:'',tone:'',format:'',editId:null};return S.draft}
+function loadDraft(title,text){const d=draft(),m=text.match(RICE_RE);d.title=title;d.style=d.tone=d.format='';if(m){d.mode='rice';[d.R,d.I,d.C,d.E]=m.slice(1);d.text=''}else{d.mode='free';d.text=text;d.R=d.I=d.C=d.E=''}}
+function draftText(){const d=draft();let s=d.mode==='rice'?rice(d.R||'{{역할}}',d.I||'{{지시}}',d.C||'{{맥락}}',d.E||'{{형식}}'):(d.text||'{{프롬프트 내용}}');
+ const tail=[d.style&&'writing style: '+d.style,d.tone&&'tone: '+d.tone,d.format&&'format: '+d.format].filter(Boolean);return fill(tail.length?s+'\n'+tail.join('\n'):s)}
+function updateDraftPreview(){const el=$('pb-mydraft');if(el)el.innerHTML=fmt(draftText());const c=$('mycount');if(c)c.textContent=draftText().length.toLocaleString()+'자'}
+function renderMy(){const t=T(),d=draft(),list=S.myAll?S.saved:S.saved.filter(x=>x.team===S.team);TPLS=collectTemplates(t);
+ const groups={};TPLS.forEach((x,i)=>{(groups[x.group]=groups[x.group]||[]).push([i,x])});
+ const mine=S.saved.filter(x=>x.team===S.team);
+ const opt=(v,l)=>`<option value="${v}">${esc(l)}</option>`;
+ const sel=(k,arr,lab)=>`<label>${lab}<select data-mysel="${k}"><option value="">— 붙이지 않음 —</option>${arr.map(a=>`<option value="${a[0]}" ${d[k]===a[0]?'selected':''}>${a[0]} · ${a[1]}</option>`).join('')}</select></label>`;
+ const ta=(k,lab,hint,ph)=>`<label><span><span class="rl ${k.toLowerCase()}">${k}</span> ${lab} <small>${hint}</small></span><textarea data-my="${k}" placeholder="${esc(ph)}">${esc(d[k])}</textarea></label>`;
+ return `<div class="lead2"><h3>교재 프롬프트를 바탕으로 우리 팀 프롬프트를 직접 씁니다</h3><p>바탕을 고르면 내용이 아래 칸에 채워집니다. 우리 상황에 맞게 고친 뒤 저장하면 이 브라우저에 남습니다. 담아 둔 프롬프트도 「수정」으로 다시 불러와 고칠 수 있습니다.</p></div>
+ ${card('실습','✍️ 내 프롬프트 쓰기'+(d.editId?' — 수정 중':''),`<div class="grid2"><div class="form">
+  <label>① 바탕 고르기 <small>교재 프롬프트 ${TPLS.length}개 · 내가 담은 것 ${mine.length}개</small><select id="mybase"><option value="">— 고르면 아래 칸이 채워집니다 —</option>${opt('blank-rice','빈 RICE 틀 (R·I·C·E 네 칸)')}${opt('blank-free','빈 자유 형식')}
+   ${mine.length?`<optgroup label="내가 담은 프롬프트 (${esc(t.name)})">${mine.map(x=>opt('s:'+x.id,x.title)).join('')}</optgroup>`:''}
+   ${Object.entries(groups).map(([g,a])=>`<optgroup label="${esc(g)}">${a.map(([i,x])=>opt('t:'+i,x.title)).join('')}</optgroup>`).join('')}</select></label>
+  <label>② 제목<input data-my="title" value="${esc(d.title)}" placeholder="예) ${esc(t.name)} 월간 보고 초안 — RICE"></label>
+  <div><b style="font-size:13px">③ 쓰는 방식</b><div class="seg" style="margin:6px 0 0"><button class="${d.mode==='rice'?'on':''}" data-act="mymode-rice"><b>RICE 네 칸</b><span>역할·지시·맥락·형식을 나눠 씁니다</span></button><button class="${d.mode==='free'?'on':''}" data-act="mymode-free"><b>자유 형식</b><span>한 칸에 그대로 씁니다</span></button></div></div>
+  ${d.mode==='rice'?ta('R','역할','누구의 눈으로 볼지','예) '+t.R)+ta('I','지시','개수·순서·포함 항목',`예) ${t.axes.join('·')} 6개 축으로 12개 …`)+`<div>${ta('C','맥락','우리 팀 5요소 — 가장 중요','{{회사}} · {{업종}} · {{규모}}. 내 역할은 {{직무}}. …')}<button class="mini" data-act="myctx" style="margin-top:6px">＋ RICE 빌더에 적은 우리 팀 C 5요소 넣기</button></div>`+ta('E','형식','표 열 이름·분량·규칙','예) 결론 먼저, A4 1장, | 축 | 가설 | … |')
+   :`<label>프롬프트 내용<textarea data-my="text" style="min-height:220px" placeholder="여기에 자유롭게 쓰십시오. {{회사}} {{팀}} {{직무}}는 프로필 값으로 바뀝니다.">${esc(d.text)}</textarea></label>`}
+  <div><b style="font-size:13px">④ 끝에 붙이는 말</b> <small class="muted">Day1 프롬프트 메뉴판</small><div class="grid3">${sel('style',STYLES,'writing style')}${sel('tone',TONES,'tone')}${sel('format',FORMATS,'format')}</div></div>
+ </div><div>
+  <div class="pc"><div class="pc-h">${d.mode==='rice'?'<span class="rl r">R</span><span class="rl i">I</span><span class="rl c">C</span><span class="rl e">E</span>':''}<b>미리보기</b><span class="pclabel" id="mycount"></span></div><div class="pc-b" id="pb-mydraft" style="max-height:none"></div></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="mini add" data-act="mysave">${d.editId?'수정 내용 저장':'＋ 내 프롬프트에 저장'}</button><button class="mini" data-act="mycopy">복사</button>${d.editId?'<button class="mini" data-act="mysaveas">새 프롬프트로 저장</button>':''}<button class="mini del" data-act="mynew">새로 쓰기(비우기)</button></div>
+  <div class="note">💡 노란 <span class="ph">{{빈칸}}</span>이 남아 있으면 AI가 그 부분을 지어냅니다. 저장 전에 모두 채우십시오.</div>
+ </div></div>`)}
+ ${card('진행','⭐ 담아 둔 프롬프트 — '+(S.myAll?'전체 팀':t.name)+` (${list.length})`,`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"><button class="mini" data-act="myall">${S.myAll?t.name+'만 보기':'전체 팀 보기'}</button><button class="mini" data-act="export">⬇ 텍스트 파일로 저장</button><button class="mini" data-act="copyall">전체 복사</button><button class="mini del" data-act="clear">${S.clearArm?'한 번 더 누르면 모두 삭제':'모두 지우기'}</button></div>
+ ${list.length?list.map(x=>{const tm=TEAMS.find(y=>y.id===x.team)||TEAMS[0];return `<div class="my-item pc"><div class="pc-h"><span class="tchip" style="background:${tm.color}">${tm.name}</span>${x.mine?'<span class="tchip" style="background:#f59e0b">직접 씀</span>':''}<b>${esc(x.title)}</b><span class="pclabel">${esc(x.ts)}</span><span class="sp"></span><button class="mini" data-myedit="${x.id}">수정</button><button class="mini" data-cp="${x.id}">복사</button><button class="mini del" data-del="${x.id}">삭제</button></div><div class="pc-b">${fmt(x.text)}</div></div>`}).join(''):'<div class="empty">아직 담은 프롬프트가 없습니다.<br>각 카드의 <b>＋담기</b>를 누르거나, 위에서 직접 써서 저장하십시오.</div>'}`)}`}
 
 /* ===================== 렌더 ===================== */
 function render(){P={};pn=0;BUILD={};const t=T();
@@ -889,11 +951,11 @@ function render(){P={};pn=0;BUILD={};const t=T();
  else{const secs=SECS[S.day],cur=S.sec[S.day],H=HERO[S.day],M={d1:D1,d2:D2,d3:D3}[S.day];
   h=`<div class="secbar">${secs.map(s=>`<button class="${s[0]===cur?'on':''}" data-sec="${s[0]}">◎ ${s[1]}</button>`).join('')}</div>
   <div class="hero"><span class="hb">${H[0]}</span><h2>${esc(H[1](t))}</h2>${H[2].map(x=>`<p>${x}</p>`).join('')}<p style="margin-top:8px">📌 ${t.icon} ${t.name} 사례 — <b style="color:#fff">${esc(t.issue)}</b></p>
-  <div class="chips">${secs.map(s=>`<button class="${s[0]===cur?'on':''}" data-sec="${s[0]}">◎ ${s[1]}</button>`).join('')}</div></div>${M[cur](t)}`}
+  <div class="chips">${secs.map(s=>`<button class="${s[0]===cur?'on':''}" data-sec="${s[0]}">◎ ${s[1]}</button>`).join('')}</div></div>${secWrap(S.day,cur,t,M[cur](t))}`}
  $('main').innerHTML=h;
  $('main').style.zoom=S.zoom/100;$('zoomv').textContent=S.zoom+'%';
- $('foot').innerHTML=`${esc(S.profile.company)} 본부 사내 배포용 실습교재 · 사례의 새솔산업㈜는 실재하지 않는 가상 기업이며 모든 수치는 교육용 가상 자료입니다.`;
- Object.keys(BUILD).forEach(updateBuilder)}
+ $('foot').innerHTML=`<div class="fin"><b>${esc(S.profile.company)} 본부 AI 워크플로우</b><br>질문 · 숫자 · 결재 — 인사 · 재경 · 경영기획 · 구매 · 경영지원 실습교재<small>※ 실습 사례의 새솔산업㈜는 실재하지 않는 가상 기업이며 모든 수치·문서는 교육용 가상 자료입니다. 우리 회사에 적용할 때는 상단 「내 회사 프로필」과 각 생성기의 C(맥락) 칸을 채워서 쓰십시오.</small></div>`;
+ Object.keys(BUILD).forEach(updateBuilder);if(S.day==='my')updateDraftPreview()}
 
 /* ===================== 이벤트 ===================== */
 function toast(m){const el=$('toast');el.textContent=m;el.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('on'),1600)}
@@ -909,6 +971,15 @@ document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)r
  else if(d.save){const p=P[d.save];S.saved.unshift({id:Date.now()+Math.random().toString(36).slice(2,6),team:S.team,title:p.title,text:p.text,ts:new Date().toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})});save();
   const tab=document.querySelector('[data-day="my"]');if(tab)tab.lastChild.textContent=' 내 프롬프트 '+S.saved.length;toast('＋ 내 프롬프트에 담았습니다')}
  else if(d.mode){S.bsMode=d.mode;save();render()}
+ else if(d.exp){const el=$('ex-'+d.exp);if(el)el.hidden=!el.hidden}
+ else if(d.myedit){const x=S.saved.find(y=>y.id===d.myedit);if(x){loadDraft(x.title,x.text);draft().editId=x.id;save();render();goTop()}}
+ else if(d.act==='mymode-rice'||d.act==='mymode-free'){const dr=draft(),m=d.act.slice(7);if(m!==dr.mode){if(m==='free'){dr.text=dr.R||dr.I||dr.C||dr.E?rice(dr.R,dr.I,dr.C,dr.E):dr.text}else{const mm=(dr.text||'').match(RICE_RE);if(mm)[dr.R,dr.I,dr.C,dr.E]=mm.slice(1);else if(dr.text&&!dr.I)dr.I=dr.text}dr.mode=m;save();render()}}
+ else if(d.act==='myctx'){const dr=draft(),c=`{{회사}} · {{업종}} · {{규모}}. 내 역할은 {{직무}}.\n${ctxBlock(T())}`;dr.C=dr.C.trim()?dr.C+'\n'+c:c;save();render()}
+ else if(d.act==='mycopy'){copy(draftText())}
+ else if(d.act==='mysave'||d.act==='mysaveas'){const dr=draft(),txt=draftText(),ttl=dr.title.trim()||'내 프롬프트';const ts=new Date().toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});const x=d.act==='mysave'&&dr.editId&&S.saved.find(y=>y.id===dr.editId);
+  if(x){x.title=ttl;x.text=txt;x.ts=ts;x.mine=true;toast('수정 내용을 저장했습니다')}else{S.saved.unshift({id:Date.now()+Math.random().toString(36).slice(2,6),team:S.team,title:ttl,text:txt,ts,mine:true});toast('＋ 내 프롬프트에 저장했습니다')}
+  S.draft=null;save();render()}
+ else if(d.act==='mynew'){S.draft=null;save();render()}
  else if(d.dl){const R=getData(S.team);if(d.dl==='tsv')copy(toTable(R,'\t'),'표를 복사했습니다 — 엑셀 A1 칸에 붙여 넣으세요');/*DL*/else{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+toTable(R,',')],{type:'text/csv;charset=utf-8'}));a.download=DASH[S.team].sheet+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}/*/DL*/}
  else if(d.act==='csadd'||d.csdel!==undefined){let sh=[];try{sh=JSON.parse(fv('cs_sheets')||'[]')}catch(e){}if(!sh.length)sh=[{n:'',c:''}];if(d.act==='csadd')sh.push({n:'',c:''});else{sh.splice(+d.csdel,1)}S.forms[S.team+'.cs_sheets']=JSON.stringify(sh);save();render()}
  else if(d.rtype){S.rsType=d.rtype;save();render()}
@@ -927,11 +998,13 @@ document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)r
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain;charset=utf-8'}));a.download='내_프롬프트.txt';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
  else if(d.act==='clear'){if(!S.clearArm){S.clearArm=true;render();setTimeout(()=>{if(S.clearArm){S.clearArm=false;render()}},4000)}else{S.clearArm=false;S.saved=S.myAll?[]:S.saved.filter(x=>x.team!==S.team);save();render();toast('모두 지웠습니다')}}
 });
-document.addEventListener('input',e=>{const el=e.target;if(el.dataset&&el.dataset.csi!==undefined){let sh=[];try{sh=JSON.parse(fv('cs_sheets')||'[]')}catch(x){}while(sh.length<=+el.dataset.csi)sh.push({n:'',c:''});sh[+el.dataset.csi][el.dataset.csk]=el.value;S.forms[S.team+'.cs_sheets']=JSON.stringify(sh);save();updateBuilder('cs');return}
+document.addEventListener('input',e=>{const el=e.target;if(el.dataset&&el.dataset.my){draft()[el.dataset.my]=el.value;save();updateDraftPreview();return}
+ if(el.dataset&&el.dataset.csi!==undefined){let sh=[];try{sh=JSON.parse(fv('cs_sheets')||'[]')}catch(x){}while(sh.length<=+el.dataset.csi)sh.push({n:'',c:''});sh[+el.dataset.csi][el.dataset.csk]=el.value;S.forms[S.team+'.cs_sheets']=JSON.stringify(sh);save();updateBuilder('cs');return}
  if(!el.dataset||!el.dataset.f)return;S.forms[S.team+'.'+el.dataset.f]=el.value;save();
  const w=el.closest('[data-builder]');if(w)updateBuilder(w.dataset.builder);
  if(/^c\d$/.test(el.dataset.f))updateBuilder('agent')});
-document.addEventListener('change',e=>{const k=e.target.dataset&&e.target.dataset.chk;if(k){S.checks[k]=e.target.checked;save()}});
+document.addEventListener('change',e=>{if(e.target.id==='mybase'&&e.target.value){const v=e.target.value,dr=draft(),keep=dr.editId;if(v==='blank-rice'){S.draft=null;draft().mode='rice'}else if(v==='blank-free'){S.draft=null;draft().mode='free'}else if(v.startsWith('s:')){const x=S.saved.find(y=>y.id===v.slice(2));if(x)loadDraft(x.title+' (수정본)',x.text)}else{const x=TPLS[+v.slice(2)];if(x)loadDraft(x.title,x.text)}draft().editId=v.startsWith('blank')?null:keep&&null;save();render();toast('바탕을 불러왔습니다 — 아래 칸에서 고치십시오');return}
+ if(e.target.dataset&&e.target.dataset.mysel!==undefined){draft()[e.target.dataset.mysel]=e.target.value;save();updateDraftPreview();return}const k=e.target.dataset&&e.target.dataset.chk;if(k){S.checks[k]=e.target.checked;save()}});
 render();
 </script>
 </body>
